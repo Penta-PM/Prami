@@ -106,6 +106,9 @@ DEV="@worktree:a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspac
 orca orchestration check --wait --types dispatch,question,status \
   --timeout-ms 900000 --format --json
 orca orchestration check --ack <delivery_id> --json     # 전부 처리한 뒤에만
+
+# <delivery_id> 는 --ack 없이 실행한 check 응답의 result.deliveryId (camelCase) 값입니다.
+# --peek 응답에는 deliveryId 가 없습니다 — peek 은 소비하지 않기 때문입니다.
 ```
 
 ### Main에 되묻기 — 답이 올 때까지 블로킹
