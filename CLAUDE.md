@@ -141,16 +141,13 @@ gh pr merge --squash            # QA 승인 후에만
 
 **커밋 메시지 형식:** `<type>: <설명>` — `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`
 
-> **⚠️ 현재 미설정:** 이 저장소에는 **원격 저장소가 없고 `gh` 로그인도 안 돼 있습니다.**
-> 첫 PR 전에 한 번 필요합니다:
-> ```bash
-> gh auth login
-> gh repo create <이름> --private --source=. --remote=origin --push
-> ```
-> 원격이 붙기 전까지는 PR 대신 **로컬 브랜치 diff**로 대체하고, QA에는 PR 링크 대신
-> `git log main..Dev --oneline` + `git diff main...Dev` 를 전달합니다.
-> 이 경우 머지는 `git push . Dev:main` 으로 합니다 (`main`은 Main 워크트리가 점유 중이라
-> `git switch main`은 실패합니다).
+> **원격 저장소:** `https://github.com/Penta-PM/Prami` (private, 기본 브랜치 `main`)
+> `gh`는 로그인돼 있고 `Dev` 브랜치는 `origin/Dev`를 추적합니다. 바로 PR 생성 가능합니다.
+>
+> **머지 주의:** `main`은 Main 워크트리가 점유 중이라 Dev 워크트리에서 `git switch main`은
+> 실패합니다. 머지는 `gh pr merge --squash` 로 원격에서 처리하고, 로컬 `main` 갱신이
+> 필요하면 Main 워크트리에서 `git pull` 하도록 요청하세요.
+> 셀프머지 후 `--delete-branch` 는 쓰지 마세요 — `Dev` 브랜치는 워크트리가 상시 점유합니다.
 
 ### QA에게 보내는 검증 요청 형식
 
