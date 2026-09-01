@@ -34,3 +34,26 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# --- Act AI Prami 로컬 추가 ---
+
+# OMC 세션/상태 (로컬 전용)
+.omc/sessions/
+.omc/state/
+
+# OS / OneDrive
+desktop.ini
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 에디터
+.vscode/
+.idea/
+
+# 환경변수 예시는 커밋 허용
+!.env.example
