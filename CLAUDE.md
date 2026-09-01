@@ -89,6 +89,9 @@ orca orchestration check --wait --types question,status,merge_ready,escalation \
   --timeout-ms 900000 --format --json
 # 메시지를 전부 처리한 뒤에만 ack:
 orca orchestration check --ack <delivery_id> --json
+
+# <delivery_id> 는 --ack 없이 실행한 check 응답의 result.deliveryId (camelCase) 값입니다.
+# --peek 응답에는 deliveryId 가 없습니다 — peek 은 소비하지 않기 때문입니다.
 ```
 
 - 타임아웃이나 `count:0`은 **실패가 아니라 체크포인트**입니다. 계속 대기하세요.
