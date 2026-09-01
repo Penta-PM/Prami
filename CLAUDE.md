@@ -14,6 +14,8 @@
 
 `$REPO` = `a717899a-bc90-4a01-ae64-d258e2174771`
 
+원격 저장소: `https://github.com/Penta-PM/Prami` (private, 기본 브랜치 `main`) — 4개 브랜치 모두 푸시됨
+
 - 목록 확인: `orca worktree list`
 - 이 4개는 **각각 별도의 Orca 터미널 세션**에서 열리며, **`orca orchestration`** 으로 통신합니다.
 - 공용 Run: **`run_8fb8a89f0626`** (objective: "Act AI Prami — Main/Plan/Dev/QA 역할 파이프라인")
