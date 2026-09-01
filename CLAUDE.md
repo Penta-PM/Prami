@@ -84,22 +84,54 @@ orca orchestration send \
   --body "<아래 형식>" --json
 ```
 
-### 수신 대기 (폴링/sleep 금지)
+### 수신 — 폴링하지 않습니다
+
+상류가 메시지를 보낼 때 **네 터미널로 직접 프롬프트를 넣어 깨웁니다.** 깨어났을 때만 읽으세요:
 
 ```bash
-orca orchestration check --wait --types question,status,merge_ready,escalation \
-  --timeout-ms 900000 --format --json
-# 메시지를 전부 처리한 뒤에만 ack:
-orca orchestration check --ack <delivery_id> --json
-
-# <delivery_id> 는 --ack 없이 실행한 check 응답의 result.deliveryId (camelCase) 값입니다.
-# --peek 응답에는 deliveryId 가 없습니다 — peek 은 소비하지 않기 때문입니다.
+orca orchestration check --format --json          # --wait 없이 한 번만
+# 처리를 끝낸 뒤에만 ack (deliveryId 는 위 응답의 result.deliveryId, camelCase)
+orca orchestration check --ack <deliveryId> --json
 ```
 
-- 타임아웃이나 `count:0`은 **실패가 아니라 체크포인트**입니다. 계속 대기하세요.
-- Plan의 `ask`(question)에는 반드시 회신합니다:
-  `orca orchestration reply --id <msg_id> --body "<답변>" --json`
-- 답을 모르면 **사용자에게 먼저 물어본 뒤** 회신합니다.
+> **`--wait` 를 백그라운드로 걸어두고 반복 재진입하지 마세요.**
+> 타임아웃마다 세션이 깨어나 아무 일도 없이 토큰만 태웁니다.
+> 블로킹 대기가 정당한 경우는 **내가 `ask` 로 상류에 질문을 던져놓고 답을 기다릴 때뿐**입니다.
+
+### 발신 — 보낸 뒤 상대를 깨웁니다
+
+메시지만 보내면 상대는 모릅니다 (상대는 폴링하지 않습니다). **반드시 2단계**로 보내세요:
+
+```bash
+REPO=a717899a-bc90-4a01-ae64-d258e2174771
+TARGET="C:/Users/USER/orca/workspaces/Act AI Prami/<역할>"   # Plan | Dev | QA
+# Main 워크트리 경로는:
+# "C:/Users/USER/OneDrive - Pentasecurity inc/바탕 화면/Act AI Prami"
+
+# 1) 메일박스에 기록 (durable)
+orca orchestration send --to "@worktree:$REPO::$TARGET" \
+  --type <dispatch|status|escalation|merge_ready> \
+  --subject "<제목>" --body "<본문>" --json
+
+# 2) 상대 세션 깨우기
+H=$(orca terminal list --worktree "path:$TARGET" --json \
+    | python -c "import json,sys; ts=json.load(sys.stdin)['result']['terminals']; print(next((t['handle'] for t in ts if t.get('agentIdentity')=='claude'), ''))")
+orca terminal send --terminal "$H" --enter --json \
+  --text "[메일 도착] orca orchestration check --format --json 로 확인하고 역할에 맞게 처리하세요."
+```
+
+2단계를 빠뜨리면 메시지는 메일박스에 남지만 **상대는 영영 깨어나지 않습니다.**
+
+### Plan의 되묻기(ask) 처리
+
+Plan이 `ask` 로 질문하면 그 세션은 **답이 올 때까지 블로킹됩니다.** 우선 처리하세요.
+
+```bash
+orca orchestration reply --id <msg_id> --body "<답변>" --json
+```
+
+- 답을 모르면 **사용자에게 먼저 물어본 뒤** 회신합니다. 추측으로 답하지 않습니다.
+- 회신 후에는 Plan을 깨울 필요가 없습니다 — `ask` 가 이미 대기 중이라 즉시 이어집니다.
 
 ### Plan에게 보내는 메시지 형식
 
