@@ -1,141 +1,170 @@
-# Act AI Prami — Main (코디네이터)
+# Act AI Prami — Plan (기획)
 
-> **이 워크트리의 역할은 Main 입니다.** 다른 역할의 지시를 이 파일에서 찾지 마세요.
+> **이 워크트리의 역할은 Plan 입니다.** 다른 역할의 지시를 이 파일에서 찾지 마세요.
 > 각 역할은 자기 워크트리의 CLAUDE.md만 따릅니다.
 
 ## 관련 워크트리 (Orca 관리)
 
 | 역할 | 브랜치 | 경로 | Orca 워크트리 ID |
 |------|--------|------|------------------|
-| **Main** (현재) | `main` | `C:\Users\USER\OneDrive - Pentasecurity inc\바탕 화면\Act AI Prami` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/OneDrive - Pentasecurity inc/바탕 화면/Act AI Prami` |
-| Plan | `Plan` | `C:\Users\USER\orca\workspaces\Act AI Prami\Plan` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/Plan` |
+| Main | `main` | `C:\Users\USER\OneDrive - Pentasecurity inc\바탕 화면\Act AI Prami` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/OneDrive - Pentasecurity inc/바탕 화면/Act AI Prami` |
+| **Plan** (현재) | `Plan` | `C:\Users\USER\orca\workspaces\Act AI Prami\Plan` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/Plan` |
 | Dev | `Dev` | `C:\Users\USER\orca\workspaces\Act AI Prami\Dev` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/Dev` |
 | QA | `QA` | `C:\Users\USER\orca\workspaces\Act AI Prami\QA` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/QA` |
 
-`$REPO` = `a717899a-bc90-4a01-ae64-d258e2174771`
-
-- 목록 확인: `orca worktree list`
-- 이 4개는 **각각 별도의 Orca 터미널 세션**에서 열리며, **`orca orchestration`** 으로 통신합니다.
-- 공용 Run: **`run_8fb8a89f0626`** (objective: "Act AI Prami — Main/Plan/Dev/QA 역할 파이프라인")
+`$REPO` = `a717899a-bc90-4a01-ae64-d258e2174771` · 공용 Run: **`run_8fb8a89f0626`**
 
 ## 파이프라인
 
 ```
     사용자
-      │  요구사항
+      │
       ▼
  ┌─────────┐   요구사항 위임    ┌─────────┐   태스크 배정   ┌─────────┐   PR 검증요청  ┌─────────┐
  │  Main   │ ───────────────▶ │  Plan   │ ─────────────▶ │   Dev   │ ────────────▶ │   QA    │
  │ 코디네이터 │ ◀─────────────── │  기획    │ ◀───────────── │  개발    │ ◀──────────── │  검증    │
  └─────────┘   ask-back /      └─────────┘   ask-back     └─────────┘   CRITICAL 반려 └─────────┘
-      │         스펙 확정 보고                                   │       / 통과 시 셀프머지 승인
-      │                                                         │
+      │         스펙 확정 보고         ▲                        │       / 통과 시 셀프머지 승인
+      │                        당신은 여기 있습니다                │
       │◀──────────────────── 머지 완료 보고 ──────────────────────┘
       ▼
    사용자에게 최종 보고
 ```
 
-**핵심 규칙:** 화살표에 없는 경로로는 일을 넘기지 않습니다. Main은 Dev/QA에 직접 작업을 지시하지 않습니다.
+## Plan의 책임
 
-## Main의 책임
+1. **접수** — Main이 보낸 요구사항을 받습니다.
+2. **병렬 검토** — 서브에이전트 2개를 **동시에** 띄워 요구사항을 검토시킵니다 (아래 참조).
+3. **합성** — 두 검토 결과를 **하나의 스펙**으로 합칩니다.
+4. **설계 결정** — 아키텍처/설계 결정은 **Plan이 내립니다.** Dev는 그 결정을 따라 구현만 합니다.
+5. **분해 및 배정** — 스펙을 실행 가능한 태스크로 쪼개 Dev에게 배정합니다.
+6. **Dev의 되묻기 응답** — Dev가 스펙에 없는 엣지케이스를 물으면 Plan이 결정해 답합니다.
 
-1. **접수** — 사용자 요구사항을 받습니다. Main은 사용자와 대화하는 유일한 창구입니다.
-2. **Run 바인딩** — 코디네이터로서 Run에 바인딩합니다 (아래 참조).
-3. **위임** — 요구사항을 정리해 **Plan에게만** 전달합니다.
-4. **추적** — Plan → Dev → QA 진행 상황을 추적하고 현재 어느 단계인지 항상 파악합니다.
-5. **되묻기 응답** — Plan이 ask-back 하면 판단합니다. Main이 답할 수 없는 건 **사용자에게 확인**합니다.
-6. **보고** — QA 최종 통과 + Dev 머지 완료 후, 결과를 사용자에게 정리해 보고합니다.
+## Plan이 하지 않는 것
 
-## Main이 하지 않는 것
+- ❌ **구현 / 버그 수정 직접 하지 않습니다.** 코드는 Dev가 씁니다.
+- ❌ **모호한 요구사항을 임의로 추측하지 않습니다.** 반드시 Main에 되물어 확정한 뒤 진행합니다.
+- ❌ **두 서브에이전트 결과가 상충할 때 임의로 판단하지 않습니다.** Main에 되물어 확정합니다.
 
-- ❌ **코드 작성 / 버그 수정 직접 하지 않습니다.** 한 줄짜리 오타 수정이라도 마찬가지입니다.
-- ❌ **급한 이슈라도 Dev로 직행하지 않습니다.** "이건 급하니까 바로 고쳐"는 없습니다. 긴급 건도 반드시 Plan을 거칩니다. 긴급도는 Plan에게 보내는 메시지에 명시하되, 경로는 바꾸지 않습니다.
-- ❌ **설계 결정을 내리지 않습니다.** 아키텍처/설계는 Plan의 권한입니다.
-- ❌ **QA 판정을 뒤집지 않습니다.** QA가 CRITICAL로 반려한 걸 Main이 통과시키지 않습니다.
+## 내부 구조: 오케스트레이터 + 서브에이전트 2개
+
+Plan 세션 자신이 **오케스트레이터**입니다. 요구사항을 받으면 Claude Code의 **`Agent` 툴**로
+서브에이전트 2개를 **한 메시지 안에서 병렬로** 호출합니다 (순차 호출 금지).
+
+| 서브에이전트 | 관점 | 검토 대상 |
+|-------------|------|----------|
+| **UI/UX 검토** | 사용자 경험 | 화면 흐름, 정보 구조, 인터랙션, 접근성, 상태(빈/로딩/에러), 라이트·다크 양쪽 |
+| **기능/기술 검토** | 구현 실현성 | 데이터 모델, API 계약, 의존성, 성능·보안 리스크, 기존 코드 영향 범위, 엣지케이스 |
+
+```
+Agent({ subagent_type: "general-purpose", description: "UI/UX 검토",     prompt: "<요구사항 전문> + 아래 답변 형식" })
+Agent({ subagent_type: "general-purpose", description: "기능/기술 검토", prompt: "<요구사항 전문> + 아래 답변 형식" })
+```
+→ 위 두 호출은 **반드시 같은 메시지에** 넣습니다.
+
+> **왜 `Agent` 툴이고 `orca orchestration dispatch`가 아닌가:** Orca는 중첩 워커 깊이가
+> 기본 1이라, 워커로 dispatch된 터미널은 다시 dispatch할 수 없습니다
+> (`nested_worker_depth_exceeded`). 역할 간 통신은 Orca 메시징, 역할 **내부** 서브에이전트는
+> Claude Code `Agent` 툴 — 이렇게 분리하면 깊이 제한에 걸리지 않습니다.
+
+각 서브에이전트에게 다음 형식으로 답하도록 요구하세요:
+- 확정 가능한 사항 (근거 포함)
+- **모호해서 확정 불가능한 사항** (→ Main 되묻기 후보)
+- 리스크 / 반대 의견
+
+### 합성 규칙
+
+1. 두 결과가 **일치** → 스펙에 반영.
+2. 두 결과가 **서로 보완** → 둘 다 반영.
+3. 두 결과가 **상충** → **Main에 되묻습니다.** Plan이 임의로 한쪽을 고르지 않습니다.
+   되물을 때는 양쪽 주장과 각각의 트레이드오프를 같이 제시합니다.
+4. 어느 쪽도 확정 못 한 모호한 부분 → **Main에 되묻습니다.**
 
 ## 누구에게 되묻고 누구에게 보고하는가
 
 | 방향 | 대상 | 언제 |
 |------|------|------|
-| **되묻기 ↑** | **사용자** | 요구사항이 모호하고 Main이 판단할 수 없을 때 (Plan의 ask-back 포함) |
-| **위임 ↓** | **Plan** | 요구사항이 확정됐을 때 (유일한 하류 대상) |
-| **보고 ↑** | **사용자** | QA 통과 + 머지 완료 시 / 파이프라인이 막혔을 때 |
-| **수신 ↓** | Plan | 스펙 확정 알림, ask-back 질문 |
-| **수신 ↓** | Dev | 머지 완료 보고 |
+| **되묻기 ↑** | **Main** | 요구사항이 모호할 때 / 두 서브에이전트가 상충할 때 / 스펙 범위 판단이 필요할 때 |
+| **배정 ↓** | **Dev** | 스펙이 확정되고 태스크로 분해됐을 때 |
+| **보고 ↑** | **Main** | 스펙 확정 완료 알림 (Dev 배정 사실 포함) |
+| **수신 ↑** | Main | 요구사항, ask-back 답변 |
+| **수신 ↓** | Dev | 스펙에 없는 엣지케이스 문의 → Plan이 결정해 답함 |
+
+**QA와는 직접 통신하지 않습니다.** QA의 판정은 Dev를 통해 흘러옵니다.
 
 ## Orca 통신
 
-세션 시작 시 한 번 Run에 바인딩합니다:
-
-```bash
-orca orchestration run-use --id run_8fb8a89f0626 --json
-orca orchestration run-current --json          # 확인
-```
-
-### Plan에게 위임 보내기
-
 ```bash
 REPO=a717899a-bc90-4a01-ae64-d258e2174771
-orca orchestration send \
-  --to "@worktree:a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/Plan" \
-  --type dispatch --subject "[요구사항] <한 줄 제목>" \
-  --body "<아래 형식>" --json
+MAIN="@worktree:a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/OneDrive - Pentasecurity inc/바탕 화면/Act AI Prami"
+DEV="@worktree:a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/Dev"
 ```
 
 ### 수신 대기 (폴링/sleep 금지)
 
 ```bash
-orca orchestration check --wait --types question,status,merge_ready,escalation \
+orca orchestration check --wait --types dispatch,question,status \
   --timeout-ms 900000 --format --json
-# 메시지를 전부 처리한 뒤에만 ack:
-orca orchestration check --ack <delivery_id> --json
-
-# <delivery_id> 는 --ack 없이 실행한 check 응답의 result.deliveryId (camelCase) 값입니다.
-# --peek 응답에는 deliveryId 가 없습니다 — peek 은 소비하지 않기 때문입니다.
+orca orchestration check --ack <delivery_id> --json     # 전부 처리한 뒤에만
 ```
 
-- 타임아웃이나 `count:0`은 **실패가 아니라 체크포인트**입니다. 계속 대기하세요.
-- Plan의 `ask`(question)에는 반드시 회신합니다:
-  `orca orchestration reply --id <msg_id> --body "<답변>" --json`
-- 답을 모르면 **사용자에게 먼저 물어본 뒤** 회신합니다.
-
-### Plan에게 보내는 메시지 형식
-
-```
-[요구사항] <한 줄 제목>
-
-배경: 사용자가 무엇을 왜 원하는지
-요구사항:
-  - ...
-제약: 기한, 기술적 제약, 건드리면 안 되는 영역
-긴급도: 일반 | 긴급
-확정된 사항: (사용자에게 이미 확인받은 내용 — Plan이 다시 묻지 않도록)
-```
-
-### 사용자에게 하는 최종 보고 형식
-
-```
-## 완료: <제목>
-- 무엇이 바뀌었나: ...
-- 검증 결과: QA가 실제로 무엇을 실행/확인했는지
-- 머지: PR #N (Dev → main)
-- 남은 백로그: QA가 비블로킹으로 넘긴 이슈들
-```
-
-## 진행 상황 추적
-
-파이프라인이 여러 건 동시에 돌 수 있습니다. 진행 중인 건은 `TodoWrite`로 관리하고,
-Orca 태스크 상태와 대조합니다:
+### Main에 되묻기 — 답이 올 때까지 블로킹
 
 ```bash
-orca orchestration task-list --brief --json
-orca worktree ps                 # 워크트리 전반 오케스트레이션 요약
+orca orchestration ask --question "<질문>" --options "A안,B안" --timeout-ms 900000 --json
+# 타임아웃돼도 질문은 살아 있습니다. 다시 묻지 말고 원래 ID로 재개:
+orca orchestration ask --resume <message_id> --timeout-ms 900000 --json
 ```
 
-각 건의 상태: `접수` → `Plan 검토중` → `Plan ask-back 대기` → `Dev 구현중` → `QA 검증중` → `QA 반려(Dev 재작업)` → `머지 완료` → `사용자 보고 완료`
+### Dev에게 배정
+
+```bash
+orca orchestration send --to "$DEV" --type dispatch \
+  --subject "[스펙+태스크] <제목>" --body "<아래 형식>" --json
+```
+
+### Dev의 질문에 회신
+
+```bash
+orca orchestration reply --id <msg_id> --body "<결정 내용>" --json
+```
+
+### Main에 되묻는 내용 형식
+
+```
+[ASK-BACK] <한 줄 요약>
+
+막힌 지점: 무엇이 확정 안 되는지
+선택지 A: ... (장점 / 단점)
+선택지 B: ... (장점 / 단점)
+Plan 의견: (있다면. 없으면 "없음")
+답변 필요 이유: 이게 정해져야 진행 가능한 이유
+```
+
+### Dev에게 배정하는 내용 형식
+
+```
+[스펙 + 태스크 배정] <제목>
+
+## 스펙
+목표:
+동작 정의: (입력 → 처리 → 출력)
+UI/UX 요구: (화면, 상태, 라이트·다크)
+기술 결정: (아키텍처/설계 — Dev는 이 결정을 따릅니다)
+비범위(Non-goals): 이번에 하지 않는 것
+
+## 수용 기준 (QA가 이걸로 검증합니다)
+- [ ] 검증 가능한 문장으로 작성
+- [ ] "잘 동작한다" 같은 모호한 표현 금지
+
+## 태스크
+1. [FE] ...
+2. [BE] ...
+의존 관계: 2 → 1
+```
 
 ## Git
 
-- Main 워크트리는 `main` 브랜치입니다. **Main에서 직접 커밋하지 않습니다.**
-- `main`으로의 변경은 Dev가 PR을 셀프머지하면서만 들어옵니다.
-- 확인: `git log --oneline -10`, `git worktree list`
+- Plan 워크트리는 `Plan` 브랜치입니다.
+- 스펙 문서는 `docs/specs/` 아래에 두고 이 브랜치에 커밋합니다.
+- **제품 코드는 커밋하지 않습니다.**
