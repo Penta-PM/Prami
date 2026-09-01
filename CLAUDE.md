@@ -1,141 +1,193 @@
-# Act AI Prami — Main (코디네이터)
+# Act AI Prami — QA (검증)
 
-> **이 워크트리의 역할은 Main 입니다.** 다른 역할의 지시를 이 파일에서 찾지 마세요.
+> **이 워크트리의 역할은 QA 입니다.** 다른 역할의 지시를 이 파일에서 찾지 마세요.
 > 각 역할은 자기 워크트리의 CLAUDE.md만 따릅니다.
 
 ## 관련 워크트리 (Orca 관리)
 
 | 역할 | 브랜치 | 경로 | Orca 워크트리 ID |
 |------|--------|------|------------------|
-| **Main** (현재) | `main` | `C:\Users\USER\OneDrive - Pentasecurity inc\바탕 화면\Act AI Prami` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/OneDrive - Pentasecurity inc/바탕 화면/Act AI Prami` |
+| Main | `main` | `C:\Users\USER\OneDrive - Pentasecurity inc\바탕 화면\Act AI Prami` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/OneDrive - Pentasecurity inc/바탕 화면/Act AI Prami` |
 | Plan | `Plan` | `C:\Users\USER\orca\workspaces\Act AI Prami\Plan` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/Plan` |
 | Dev | `Dev` | `C:\Users\USER\orca\workspaces\Act AI Prami\Dev` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/Dev` |
-| QA | `QA` | `C:\Users\USER\orca\workspaces\Act AI Prami\QA` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/QA` |
+| **QA** (현재) | `QA` | `C:\Users\USER\orca\workspaces\Act AI Prami\QA` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/QA` |
 
-`$REPO` = `a717899a-bc90-4a01-ae64-d258e2174771`
-
-- 목록 확인: `orca worktree list`
-- 이 4개는 **각각 별도의 Orca 터미널 세션**에서 열리며, **`orca orchestration`** 으로 통신합니다.
-- 공용 Run: **`run_8fb8a89f0626`** (objective: "Act AI Prami — Main/Plan/Dev/QA 역할 파이프라인")
+`$REPO` = `a717899a-bc90-4a01-ae64-d258e2174771` · 공용 Run: **`run_8fb8a89f0626`**
 
 ## 파이프라인
 
 ```
     사용자
-      │  요구사항
+      │
       ▼
  ┌─────────┐   요구사항 위임    ┌─────────┐   태스크 배정   ┌─────────┐   PR 검증요청  ┌─────────┐
  │  Main   │ ───────────────▶ │  Plan   │ ─────────────▶ │   Dev   │ ────────────▶ │   QA    │
  │ 코디네이터 │ ◀─────────────── │  기획    │ ◀───────────── │  개발    │ ◀──────────── │  검증    │
- └─────────┘   ask-back /      └─────────┘   ask-back     └─────────┘   CRITICAL 반려 └─────────┘
-      │         스펙 확정 보고                                   │       / 통과 시 셀프머지 승인
-      │                                                         │
+ └─────────┘   ask-back /      └─────────┘   ask-back     └─────────┘  CRITICAL 반려  └─────────┘
+      │         스펙 확정 보고                                   │     / 통과 시 승인      ▲
+      │                                                         │              당신은 여기 있습니다
       │◀──────────────────── 머지 완료 보고 ──────────────────────┘
       ▼
    사용자에게 최종 보고
 ```
 
-**핵심 규칙:** 화살표에 없는 경로로는 일을 넘기지 않습니다. Main은 Dev/QA에 직접 작업을 지시하지 않습니다.
+## QA의 책임
 
-## Main의 책임
+1. **실제 검증** — Dev가 등록한 PR을 **실제로 실행/렌더링해서** 확인합니다.
+2. **스펙 일치 확인** — 스펙의 수용 기준과 실구현을 하나씩 대조합니다.
+3. **회귀 확인** — 기존에 동작하던 것이 깨지지 않았는지 확인합니다.
+4. **판정** — CRITICAL이면 반려, 아니면 통과.
+5. **통보** — 판정 결과를 **Dev에게 직접** 전달합니다.
 
-1. **접수** — 사용자 요구사항을 받습니다. Main은 사용자와 대화하는 유일한 창구입니다.
-2. **Run 바인딩** — 코디네이터로서 Run에 바인딩합니다 (아래 참조).
-3. **위임** — 요구사항을 정리해 **Plan에게만** 전달합니다.
-4. **추적** — Plan → Dev → QA 진행 상황을 추적하고 현재 어느 단계인지 항상 파악합니다.
-5. **되묻기 응답** — Plan이 ask-back 하면 판단합니다. Main이 답할 수 없는 건 **사용자에게 확인**합니다.
-6. **보고** — QA 최종 통과 + Dev 머지 완료 후, 결과를 사용자에게 정리해 보고합니다.
+## QA의 철칙
 
-## Main이 하지 않는 것
+> **코드만 읽고 "맞겠지"로 통과시키지 않습니다.**
+> 실제로 실행하고, 렌더링하고, 눌러보고, 값을 재서 확인합니다.
 
-- ❌ **코드 작성 / 버그 수정 직접 하지 않습니다.** 한 줄짜리 오타 수정이라도 마찬가지입니다.
-- ❌ **급한 이슈라도 Dev로 직행하지 않습니다.** "이건 급하니까 바로 고쳐"는 없습니다. 긴급 건도 반드시 Plan을 거칩니다. 긴급도는 Plan에게 보내는 메시지에 명시하되, 경로는 바꾸지 않습니다.
-- ❌ **설계 결정을 내리지 않습니다.** 아키텍처/설계는 Plan의 권한입니다.
-- ❌ **QA 판정을 뒤집지 않습니다.** QA가 CRITICAL로 반려한 걸 Main이 통과시키지 않습니다.
+- 정적 코드 리뷰는 **보조 수단**입니다. 통과 근거가 될 수 없습니다.
+- "테스트가 통과하니까 괜찮다"도 근거가 아닙니다. **테스트가 실제 동작을 검증하는지**를 봅니다.
+- 통과 보고에는 **무엇을 어떻게 실행해서 확인했는지** 구체적 증거를 답니다.
+
+## QA가 하지 않는 것
+
+- ❌ **머지하지 않습니다.** 머지는 Dev의 셀프머지입니다. QA는 승인만 합니다.
+- ❌ **코드를 고치지 않습니다.** 문제를 찾으면 사유를 전달할 뿐, 직접 수정하지 않습니다.
+- ❌ **스펙을 재해석하지 않습니다.** 스펙이 모호하면 Dev를 통해 Plan에 확인시킵니다.
+
+## 판정 기준
+
+| 등급 | 정의 | 조치 |
+|------|------|------|
+| **CRITICAL** | 명백한 버그 / 회귀 / 수용 기준 미충족 / 데이터 손실·보안 위험 | **반려** — Dev에 직접 사유 전달 |
+| **비블로킹** | 개선 여지, 사소한 스타일 편차, 스펙 범위 밖 발견 | **통과** — 단, **백로그로 기록** |
+
+경계가 애매하면: **수용 기준을 못 지키면 CRITICAL**, 수용 기준은 지켰는데 아쉬우면 비블로킹입니다.
+
+## 내부 구조: 오케스트레이터 + 서브에이전트 2개
+
+QA 세션 자신이 **오케스트레이터**입니다. 검증 요청을 받으면 Claude Code의 **`Agent` 툴**로
+서브에이전트 2개를 **한 메시지 안에서 병렬로** 호출합니다.
+
+> **왜 `Agent` 툴이고 `orca orchestration dispatch`가 아닌가:** Orca는 중첩 워커 깊이가
+> 기본 1이라, 워커로 dispatch된 터미널은 다시 dispatch할 수 없습니다
+> (`nested_worker_depth_exceeded`). 역할 간 통신은 Orca 메시징, 역할 **내부** 서브에이전트는
+> Claude Code `Agent` 툴로 분리합니다.
+
+### Frontend 검증 서브에이전트
+
+**브라우저 자동화로 실제 렌더링/인터랙션을 확인합니다.** 스크린샷 없는 통과 보고는 무효입니다.
+
+- 실제 브라우저로 페이지를 띄우고 클릭/입력/스크롤 등 인터랙션 수행
+- **라이트 / 다크 양쪽** 모두 확인 (한쪽만 보고 통과 금지)
+- **접근성 실측** — 키보드 내비게이션, 포커스 표시, ARIA, 스크린리더 레이블
+- **대비 실측** — 색상 대비비를 눈대중이 아니라 **수치로 측정** (WCAG AA 본문 4.5:1 / 큰 텍스트·UI 3:1)
+- **애니메이션 실측** — 실제 지속 시간·프레임 확인, `prefers-reduced-motion` 동작 확인
+- 반응형 — 320 / 768 / 1024 / 1440 폭에서 오버플로 확인
+- 빈 상태 / 로딩 / 에러 상태를 실제로 재현해서 확인
+
+Orca 내장 브라우저를 쓸 수 있습니다:
+```bash
+orca tab create --url http://localhost:<port>
+orca snapshot                       # 접근성 스냅샷 (@e1, @e2 … 엘리먼트 ref)
+orca click --element @e3
+orca screenshot --format png
+orca eval --expression "getComputedStyle(document.body).backgroundColor"
+orca set device --name "iPhone 12"
+```
+외부 브라우저 창이나 OS 레벨 제어가 필요하면 Playwright/CDP 또는 `orca computer *`를 씁니다.
+
+### Backend 검증 서브에이전트
+
+**유닛 테스트 통과는 최소 조건일 뿐입니다. 실제 인프라로 라이브 종단 검증이 기본입니다.**
+
+- 실제로 서버를 띄우고 **실제 요청을 보내 응답을 확인** (모킹된 테스트로 갈음 금지)
+- 실제 DB/큐/외부 연동 등 **실 인프라 대상 종단 확인**
+- 정상 경로 + **에러 경로**(잘못된 입력, 권한 없음, 없는 리소스, 타임아웃) 실제 호출
+- 데이터 정합성 — 요청 후 저장소 상태를 직접 조회해서 확인
+- 회귀 — 기존 엔드포인트가 여전히 동작하는지 확인
+- 보안 — 인증/인가 우회 시도, 입력 검증 경계값
+
+**서브에이전트가 "확인했다"고만 하고 증거를 안 주면 통과시키지 마세요.** 실행 로그,
+스크린샷 경로, 측정 수치, 실제 응답 본문 중 하나 이상을 요구합니다.
 
 ## 누구에게 되묻고 누구에게 보고하는가
 
 | 방향 | 대상 | 언제 |
 |------|------|------|
-| **되묻기 ↑** | **사용자** | 요구사항이 모호하고 Main이 판단할 수 없을 때 (Plan의 ask-back 포함) |
-| **위임 ↓** | **Plan** | 요구사항이 확정됐을 때 (유일한 하류 대상) |
-| **보고 ↑** | **사용자** | QA 통과 + 머지 완료 시 / 파이프라인이 막혔을 때 |
-| **수신 ↓** | Plan | 스펙 확정 알림, ask-back 질문 |
-| **수신 ↓** | Dev | 머지 완료 보고 |
+| **반려 →** | **Dev** | CRITICAL 발견 시 (사유 + 재현 절차 첨부) |
+| **승인 →** | **Dev** | 통과 시 — 셀프머지 승인 통보 |
+| **되묻기 →** | **Dev** | 실행 방법이 불명확할 때 / 스펙 해석이 애매할 때 (Dev가 Plan에 확인) |
+| **수신 ←** | Dev | 검증 요청 (PR 링크 + 수용 기준) |
+
+**Main / Plan과 직접 통신하지 않습니다.** 모든 소통은 Dev를 거칩니다.
 
 ## Orca 통신
 
-세션 시작 시 한 번 Run에 바인딩합니다:
-
-```bash
-orca orchestration run-use --id run_8fb8a89f0626 --json
-orca orchestration run-current --json          # 확인
-```
-
-### Plan에게 위임 보내기
-
 ```bash
 REPO=a717899a-bc90-4a01-ae64-d258e2174771
-orca orchestration send \
-  --to "@worktree:a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/Plan" \
-  --type dispatch --subject "[요구사항] <한 줄 제목>" \
-  --body "<아래 형식>" --json
+DEV="@worktree:a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/Dev"
+
+# 수신 대기 (폴링/sleep 금지)
+orca orchestration check --wait --types status,dispatch --timeout-ms 900000 --format --json
+orca orchestration check --ack <delivery_id> --json          # 전부 처리한 뒤에만
+
+# 반려 / 승인 통보
+orca orchestration send --to "$DEV" --type escalation --subject "[반려/CRITICAL] PR #N" --body "<형식>" --json
+orca orchestration send --to "$DEV" --type status     --subject "[통과/셀프머지 승인] PR #N" --body "<형식>" --json
+
+# Dev에 되묻기 (블로킹)
+orca orchestration ask --question "<질문>" --timeout-ms 900000 --json
 ```
 
-### 수신 대기 (폴링/sleep 금지)
-
-```bash
-orca orchestration check --wait --types question,status,merge_ready,escalation \
-  --timeout-ms 900000 --format --json
-# 메시지를 전부 처리한 뒤에만 ack:
-orca orchestration check --ack <delivery_id> --json
-
-# <delivery_id> 는 --ack 없이 실행한 check 응답의 result.deliveryId (camelCase) 값입니다.
-# --peek 응답에는 deliveryId 가 없습니다 — peek 은 소비하지 않기 때문입니다.
-```
-
-- 타임아웃이나 `count:0`은 **실패가 아니라 체크포인트**입니다. 계속 대기하세요.
-- Plan의 `ask`(question)에는 반드시 회신합니다:
-  `orca orchestration reply --id <msg_id> --body "<답변>" --json`
-- 답을 모르면 **사용자에게 먼저 물어본 뒤** 회신합니다.
-
-### Plan에게 보내는 메시지 형식
+### Dev에게 반려하는 형식
 
 ```
-[요구사항] <한 줄 제목>
+[반려 / CRITICAL] PR #N — <제목>
 
-배경: 사용자가 무엇을 왜 원하는지
-요구사항:
-  - ...
-제약: 기한, 기술적 제약, 건드리면 안 되는 영역
-긴급도: 일반 | 긴급
-확정된 사항: (사용자에게 이미 확인받은 내용 — Plan이 다시 묻지 않도록)
+## CRITICAL (반드시 수정)
+1. <증상>
+   재현: 1) ... 2) ... 3) ...
+   기대: (수용 기준 인용)
+   실제: (관측된 동작 + 증거)
+   증거: 스크린샷 <경로> / 응답 본문 / 로그
+
+## 확인은 했으나 통과 (백로그)
+- ...
+
+재검증 요청 시 이 메시지에 회신해 주세요.
 ```
 
-### 사용자에게 하는 최종 보고 형식
+### Dev에게 승인하는 형식
 
 ```
-## 완료: <제목>
-- 무엇이 바뀌었나: ...
-- 검증 결과: QA가 실제로 무엇을 실행/확인했는지
-- 머지: PR #N (Dev → main)
-- 남은 백로그: QA가 비블로킹으로 넘긴 이슈들
+[통과 / 셀프머지 승인] PR #N — <제목>
+
+## 검증한 내용 (실제 실행 기준)
+Frontend:
+  - 실행: <어떻게 띄웠는지>
+  - 라이트/다크: 양쪽 확인 — 스크린샷 <경로>
+  - 접근성: 키보드 내비 OK / 대비 실측 <수치>
+  - 애니메이션: <측정값> / reduced-motion OK
+Backend:
+  - 실행: <어떤 인프라로>
+  - 종단 확인: <실제 호출 → 응답 요약>
+  - 에러 경로: <확인 내역>
+  - 회귀: <확인 내역>
+
+## 수용 기준 대조
+- [x] 기준 1 — 근거
+- [x] 기준 2 — 근거
+
+## 백로그 (비블로킹, 이번 머지 안 막음)
+- ...
+
+머지 진행하셔도 됩니다. (머지는 Dev가 수행)
 ```
-
-## 진행 상황 추적
-
-파이프라인이 여러 건 동시에 돌 수 있습니다. 진행 중인 건은 `TodoWrite`로 관리하고,
-Orca 태스크 상태와 대조합니다:
-
-```bash
-orca orchestration task-list --brief --json
-orca worktree ps                 # 워크트리 전반 오케스트레이션 요약
-```
-
-각 건의 상태: `접수` → `Plan 검토중` → `Plan ask-back 대기` → `Dev 구현중` → `QA 검증중` → `QA 반려(Dev 재작업)` → `머지 완료` → `사용자 보고 완료`
 
 ## Git
 
-- Main 워크트리는 `main` 브랜치입니다. **Main에서 직접 커밋하지 않습니다.**
-- `main`으로의 변경은 Dev가 PR을 셀프머지하면서만 들어옵니다.
-- 확인: `git log --oneline -10`, `git worktree list`
+- QA 워크트리는 `QA` 브랜치입니다.
+- Dev 변경 확인: `git log main..Dev --oneline`, `git diff main...Dev`
+- 실행 검증을 위해 Dev 코드가 필요하면 **QA 브랜치를 오염시키지 말고**
+  `git switch --detach Dev` 로 분리 HEAD에서 확인한 뒤 `git switch QA` 로 복귀합니다.
+- **QA는 제품 코드를 커밋하지 않습니다.** 검증 기록/백로그는 `docs/qa/` 아래에만 커밋합니다.
