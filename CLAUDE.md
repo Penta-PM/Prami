@@ -14,6 +14,8 @@
 
 `$REPO` = `a717899a-bc90-4a01-ae64-d258e2174771` · 공용 Run: **`run_8fb8a89f0626`**
 
+원격 저장소: `https://github.com/Penta-PM/Prami` (private, 기본 브랜치 `main`) — 4개 브랜치 모두 푸시됨
+
 ## 파이프라인
 
 ```
