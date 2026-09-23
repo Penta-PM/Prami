@@ -1,0 +1,229 @@
+@import 'tailwindcss';
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 디자인 토큰 이식 (PRAMI-001 PR-0)
+ *
+ * 원본: Claude Design 프로젝트 e7d5a845-… /_ds/maglo-design-system-…/tokens/
+ *       {colors,typography,spacing,effects}.css  (원문은 tests/fixtures/design-tokens/ 에 보존)
+ *
+ * 규칙: 변수명과 값을 원본과 동일하게 유지한다. tests/unit/tokens.test.ts 가
+ *       이 파일과 원본 픽스처를 대조해 85개 변수 전부의 이름·값 일치를 검증한다.
+ *
+ * 배치 결정 (Main 승인, A안):
+ *   - 대부분의 토큰은 `@theme static` 에 둔다. Tailwind 4 는 이를 :root CSS 변수로
+ *     항상 방출하고, --font-* / --radius-* / --shadow-* 네임스페이스는 유틸리티
+ *     (font-body, rounded-lg, shadow-elevated …)로도 노출된다.
+ *   - `--text-*` 17개(색상 별칭 5 + 타이포 shorthand 12)는 Tailwind 의 font-size
+ *     네임스페이스(--text-*)와 충돌해 잘못된 유틸리티(text-primary 가 색상을
+ *     font-size 로 적용)를 만들기 때문에 `@theme` 밖의 `:root` 에 같은 이름·값으로 둔다.
+ *   - `--shadow-soft`(색상값) 는 Tailwind --shadow-* 네임스페이스에 걸려 `shadow-soft` 유틸리티가
+ *     생성되지만 box-shadow 로는 무효한 값이므로 사용하지 않는다. 변수명 유지 원칙에 따라 이름은
+ *     바꾸지 않으며, 그림자에는 `shadow-elevated` / `shadow-(--hairline-*)` 를 쓴다.
+ *   - 색상 팔레트/의미 색상에는 `@theme inline` 으로 --color-* 별칭을 추가해
+ *     bg-lime-500, text-ink-900, bg-surface-sidebar 같은 유틸리티를 제공한다.
+ *     별칭은 var() 참조이므로 값의 단일 출처는 여전히 원본 이름의 변수다.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+@theme static {
+  /* ── colors.css: base palette ─────────────────────────────────────────── */
+  --white: #ffffff;
+  --gray-50: #fafafa;
+  --gray-75: #f8f8f8;
+  --gray-100: #f5f5f5;
+  --gray-150: #f2f2f2;
+  --gray-200: #f1f1f3;
+  --slate-600: #78778b;
+  --slate-700: #929eae;
+  --ink-900: #1b212d;
+  --ink-950: #292d32;
+  --purple-ink-900: #1c1a2e;
+  --purple-ink-800: #201e34;
+  --purple-ink-700: #282541;
+  --lime-400: #c8ee44;
+  --lime-500: #97f675;
+  --green-600: #29a073;
+  --purple-500: #7b61ff;
+  --orange-500: #ff5f00;
+  --amber-500: #f79e1b;
+  --red-500: #eb001b;
+
+  /* ── colors.css: semantic aliases (--text-* 는 아래 :root 참고) ────────── */
+  --surface-page: var(--white);
+  --surface-sidebar: var(--gray-50);
+  --surface-card: var(--white);
+  --surface-muted: var(--gray-75);
+  --surface-inverse: var(--ink-900);
+  --surface-accent-panel: var(--purple-ink-800);
+  --surface-accent-panel-strong: var(--purple-ink-900);
+
+  --border-subtle: var(--gray-100);
+  --border-default: var(--gray-150);
+  --border-button: var(--gray-200);
+  --border-accent-panel: var(--purple-ink-700);
+
+  --accent-primary: var(--lime-400);
+  --accent-primary-strong: var(--lime-500);
+  --accent-positive: var(--green-600);
+  --accent-purple: var(--purple-500);
+  --accent-orange: var(--orange-500);
+  --accent-amber: var(--amber-500);
+  --accent-red: var(--red-500);
+
+  --shadow-soft: rgba(0, 0, 0, 0.1);
+
+  /* ── typography.css: families ─────────────────────────────────────────── */
+  --font-display:
+    'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-body:
+    'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-marketing:
+    'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-marketing-alt:
+    'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+
+  /* ── spacing.css ──────────────────────────────────────────────────────── */
+  --space-1: 2px;
+  --space-2: 5px;
+  --space-3: 7px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 15px;
+  --space-8: 20px;
+  --space-9: 25px;
+  --space-10: 30px;
+  --space-11: 40px;
+
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 15px;
+  --radius-pill: 100px;
+  --radius-circle: 50%;
+
+  --sidebar-width: 250px;
+  --content-gutter: 40px;
+
+  /* ── effects.css ──────────────────────────────────────────────────────── */
+  --hairline-subtle: inset 0 0 0 1px var(--border-subtle);
+  --hairline-default: inset 0 0 0 1px var(--border-default);
+  --hairline-accent-panel: inset 0 0 0 1px var(--border-accent-panel);
+  --shadow-elevated: 0 12px 24px var(--shadow-soft);
+}
+
+/* --text-* 토큰: Tailwind font-size 네임스페이스 충돌 회피를 위해 @theme 밖에 둔다 (값·이름은 원본 동일) */
+:root {
+  /* colors.css */
+  --text-primary: var(--ink-900);
+  --text-secondary: var(--slate-700);
+  --text-tertiary: var(--slate-600);
+  --text-inverse: var(--white);
+  --text-on-accent: var(--ink-900);
+
+  /* typography.css */
+  --text-page-title: 600 25px/1 var(--font-body);
+  --text-h1: 600 30px/1 var(--font-body);
+  --text-h2: 600 18px/1 var(--font-body);
+  --text-button: 600 16px/1 var(--font-body);
+  --text-body-md: 500 14px/1 var(--font-body);
+  --text-body-md-regular: 400 14px/1 var(--font-body);
+  --text-body-sm: 400 13px/1 var(--font-body);
+  --text-caption: 500 12px/1 var(--font-body);
+  --text-label: 600 14px/1 var(--font-body);
+  --text-card-number: 700 17px/1 var(--font-display);
+  --text-card-number-masked: 700 16px/1 var(--font-display);
+  --text-wordmark: 700 18px/1 var(--font-display);
+}
+
+/* Tailwind 유틸리티용 별칭 (bg-lime-500, text-ink-900, bg-surface-sidebar …). 값은 원본 변수를 참조 */
+@theme inline {
+  --color-*: initial;
+  --color-white: var(--white);
+  --color-gray-50: var(--gray-50);
+  --color-gray-75: var(--gray-75);
+  --color-gray-100: var(--gray-100);
+  --color-gray-150: var(--gray-150);
+  --color-gray-200: var(--gray-200);
+  --color-slate-600: var(--slate-600);
+  --color-slate-700: var(--slate-700);
+  --color-ink-900: var(--ink-900);
+  --color-ink-950: var(--ink-950);
+  --color-purple-ink-900: var(--purple-ink-900);
+  --color-purple-ink-800: var(--purple-ink-800);
+  --color-purple-ink-700: var(--purple-ink-700);
+  --color-lime-400: var(--lime-400);
+  --color-lime-500: var(--lime-500);
+  --color-green-600: var(--green-600);
+  --color-purple-500: var(--purple-500);
+  --color-orange-500: var(--orange-500);
+  --color-amber-500: var(--amber-500);
+  --color-red-500: var(--red-500);
+
+  --color-surface-page: var(--surface-page);
+  --color-surface-sidebar: var(--surface-sidebar);
+  --color-surface-card: var(--surface-card);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-inverse: var(--surface-inverse);
+  --color-surface-accent-panel: var(--surface-accent-panel);
+  --color-surface-accent-panel-strong: var(--surface-accent-panel-strong);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-button: var(--border-button);
+  --color-border-accent-panel: var(--border-accent-panel);
+
+  --color-accent-primary: var(--accent-primary);
+  --color-accent-primary-strong: var(--accent-primary-strong);
+  --color-accent-positive: var(--accent-positive);
+  --color-accent-purple: var(--accent-purple);
+  --color-accent-orange: var(--accent-orange);
+  --color-accent-amber: var(--accent-amber);
+  --color-accent-red: var(--accent-red);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-inverse: var(--text-inverse);
+  --color-text-on-accent: var(--text-on-accent);
+
+  --font-sans: var(--font-body);
+}
+
+/* 디자인 소스의 전역 스타일 */
+@layer base {
+  body {
+    margin: 0;
+    background: var(--surface-page);
+    font-family: var(--font-body);
+    color: var(--text-primary);
+  }
+  a {
+    color: var(--accent-purple);
+    text-decoration: none;
+  }
+  a:hover {
+    color: var(--ink-900);
+    text-decoration: underline;
+  }
+  input,
+  select,
+  button {
+    font-family: var(--font-body);
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--gray-150);
+    border-radius: 8px;
+  }
+}

@@ -57,3 +57,8 @@ venv/
 
 # 환경변수 예시는 커밋 허용
 !.env.example
+
+# Playwright
+/playwright-report/
+/test-results/
+/blob-report/

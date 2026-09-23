@@ -1,0 +1,8 @@
+:root{
+/* the source design draws almost all card/input edges as 1px inset hairlines
+   rather than drop shadows — real drop shadows are rare and very soft */
+--hairline-subtle:inset 0 0 0 1px var(--border-subtle);
+--hairline-default:inset 0 0 0 1px var(--border-default);
+--hairline-accent-panel:inset 0 0 0 1px var(--border-accent-panel);
+--shadow-elevated:0 12px 24px var(--shadow-soft);
+}
