@@ -17,16 +17,19 @@ vi.mock('next/image', () => ({
 }));
 
 // jsdom 은 <dialog>.showModal()/close() 를 구현하지 않는다. 최소 동작만 폴리필한다.
+// DB 테스트(@vitest-environment node)에는 DOM 이 없으므로 건너뛴다.
 type DialogProto = HTMLDialogElement & { showModal(): void; close(): void };
-const dialogProto = HTMLDialogElement.prototype as DialogProto;
-if (typeof dialogProto.showModal !== 'function') {
-  dialogProto.showModal = function showModal(this: HTMLDialogElement) {
-    this.setAttribute('open', '');
-  };
-}
-if (typeof dialogProto.close !== 'function') {
-  dialogProto.close = function close(this: HTMLDialogElement) {
-    this.removeAttribute('open');
-    this.dispatchEvent(new Event('close'));
-  };
+if (typeof HTMLDialogElement !== 'undefined') {
+  const dialogProto = HTMLDialogElement.prototype as DialogProto;
+  if (typeof dialogProto.showModal !== 'function') {
+    dialogProto.showModal = function showModal(this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    };
+  }
+  if (typeof dialogProto.close !== 'function') {
+    dialogProto.close = function close(this: HTMLDialogElement) {
+      this.removeAttribute('open');
+      this.dispatchEvent(new Event('close'));
+    };
+  }
 }

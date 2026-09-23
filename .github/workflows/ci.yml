@@ -12,7 +12,7 @@ concurrency:
 env:
   NEXT_TELEMETRY_DISABLED: '1'
   NEXT_PUBLIC_APP_URL: http://localhost:3000
-  # 스펙 §4.9.2 CI 열: 단위 테스트는 PGlite. e2e 용 Postgres service container 는 PR-1 에서 추가
+  # 스펙 §4.9.2 CI 열: 단위 테스트는 PGlite, 통합 테스트는 아래 integration 잡의 Postgres service container
   DB_DRIVER: pglite
   PGLITE_DATA_DIR: memory://
 
@@ -56,6 +56,50 @@ jobs:
           name: coverage
           path: coverage/lcov.info
           if-no-files-found: ignore
+
+  integration:
+    name: integration (PostgreSQL 16 service)
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: prami
+          POSTGRES_PASSWORD: prami
+          POSTGRES_DB: prami
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U prami -d prami"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DB_DRIVER: pg
+      DATABASE_URL: postgres://prami:prami@localhost:5432/prami
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Migrate (drizzle/*.sql → Postgres)
+        run: pnpm db:migrate
+
+      - name: Seed (픽스처 ADMIN·USER, 공지, audit user.seed)
+        run: pnpm seed
+
+      - name: Integration tests (schema snapshot · seed)
+        run: pnpm test:integration
 
   e2e:
     name: e2e smoke (Playwright)
