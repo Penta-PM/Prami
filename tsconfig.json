@@ -25,7 +25,17 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    ".next/dev/types/**/*.ts",
+    ".next-e2e/types/**/*.ts",
+    ".next-e2e/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", ".next", "out", "coverage", "playwright-report", "test-results"]
+  "exclude": [
+    "node_modules",
+    ".next",
+    ".next-e2e",
+    "out",
+    "coverage",
+    "playwright-report",
+    "test-results"
+  ]
 }

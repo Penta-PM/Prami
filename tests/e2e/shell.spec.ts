@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
 
-/** QA-00 / AC-00: 셸 렌더, 사이드바 접기/펼치기, 디자인 토큰 CSS 변수 값 */
+import { FIXTURE_ADMIN, loginAs } from './helpers';
+
+/** QA-00 / AC-00: 셸 렌더, 사이드바 접기/펼치기, 디자인 토큰 CSS 변수 값 (PR-2 부터 로그인 후 확인) */
+test.beforeEach(async ({ page }) => {
+  await loginAs(page, FIXTURE_ADMIN, '/');
+});
 
 test('홈이 디자인 셸(사이드바·헤더)로 렌더된다', async ({ page }) => {
   await page.goto('/');

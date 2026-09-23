@@ -1,5 +1,7 @@
 # 빌드 산출물
 .next
+.next-e2e
+playwright/.auth
 out
 build
 coverage

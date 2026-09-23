@@ -1,12 +1,28 @@
 import type { Metadata } from 'next';
 
-import { PlaceholderPage } from '@/components/placeholder-page';
-import { PAGE_SPECS } from '@/features/shell/pages';
+import { getDb } from '@/db';
+import { PermissionMatrix } from '@/features/users/PermissionMatrix';
+import { UsersTable } from '@/features/users/UsersTable';
+import { requirePagePermission } from '@/server/auth/rbac';
+import { listUsers } from '@/server/users/queries';
 
-const spec = PAGE_SPECS.adminUsers;
+export const metadata: Metadata = { title: '사용자 · 권한' };
 
-export const metadata: Metadata = { title: spec.title };
+/** 사용자·권한 관리 (§4.5.10, users.manage) */
+export default async function AdminUsersPage() {
+  const actor = await requirePagePermission('users.manage', '/admin/users');
+  const users = await listUsers(await getDb());
 
-export default function AdminUsersPage() {
-  return <PlaceholderPage {...spec} />;
+  return (
+    <section aria-labelledby="page-title" className="flex flex-col">
+      <UsersTable
+        currentUserId={actor.id}
+        users={users.map((user) => ({
+          ...user,
+          lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+        }))}
+      />
+      <PermissionMatrix />
+    </section>
+  );
 }

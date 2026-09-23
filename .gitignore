@@ -10,6 +10,9 @@
 
 # next.js
 /.next/
+# E2E 전용 dev 서버 산출물 (Main dev 서버의 .next 와 분리) · Playwright 로그인 상태
+/.next-e2e/
+/playwright/.auth/
 /out/
 
 # production

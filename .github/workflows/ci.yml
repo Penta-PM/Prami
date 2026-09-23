@@ -102,10 +102,28 @@ jobs:
         run: pnpm test:integration
 
   e2e:
-    name: e2e smoke (Playwright)
+    name: e2e (Playwright · PostgreSQL 16 · AUTH_TEST_MODE)
     runs-on: ubuntu-latest
     needs: quality
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: prami
+          POSTGRES_PASSWORD: prami
+          POSTGRES_DB: prami
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U prami -d prami"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # playwright.config.ts 가 나머지 E2E 환경(AUTH_TEST_MODE 등)을 webServer·globalSetup 에 주입한다.
+      # AUTH_TEST_MODE 는 production 빌드에서 거부되므로(AC-07) E2E 는 next dev 로 띄운다.
+      E2E_DATABASE_URL: postgres://prami:prami@localhost:5432/prami
     steps:
       - uses: actions/checkout@v4
 
@@ -122,10 +140,7 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Build
-        run: pnpm build
-
-      - name: E2E
+      - name: E2E (globalSetup 이 db:migrate → seed 후 next dev 기동)
         run: pnpm test:e2e
 
       - name: Upload Playwright report

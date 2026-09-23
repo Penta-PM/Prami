@@ -10,9 +10,7 @@ export type PageKey =
   | 'adminCosts'
   | 'adminParts'
   | 'adminGroups'
-  | 'adminUsers'
-  | 'adminNotices'
-  | 'adminAudit';
+  | 'adminNotices';
 
 /** 라우트별 자리표시자 정보. 제목은 디자인 메뉴 라벨, 예정 PR 은 스펙 §6 기준 */
 export const PAGE_SPECS: Record<PageKey, PlaceholderPageProps> = {
@@ -61,19 +59,9 @@ export const PAGE_SPECS: Record<PageKey, PlaceholderPageProps> = {
     description: '견적에 사용하는 솔루션 그룹 구성을 관리합니다.',
     plannedPr: 'PR-6',
   },
-  adminUsers: {
-    title: '사용자 · 권한',
-    description: '사용자 목록과 역할(ADMIN/USER)을 관리합니다.',
-    plannedPr: 'PR-2',
-  },
   adminNotices: {
     title: '공지사항 관리',
     description: '공지사항 등록·수정·삭제를 관리합니다.',
     plannedPr: 'PR-9',
-  },
-  adminAudit: {
-    title: '감사 로그',
-    description: '변경 이력을 필터·페이지네이션·CSV 로 조회합니다.',
-    plannedPr: 'PR-2',
   },
 };
