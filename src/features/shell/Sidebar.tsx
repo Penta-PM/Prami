@@ -12,9 +12,10 @@ import { NAV_ADMIN, NAV_MAIN, isNavActive, type NavItem } from './nav';
 
 /**
  * 앱 셸 사이드바. 접기/펼치기 상태를 가진다.
- * 디자인의 "보기 권한" 역할 토글은 제거했고, 관리자 메뉴 노출은 PR-2에서 세션 역할로 결정한다.
+ * 디자인의 "보기 권한" 역할 토글은 제거했고, 관리자 메뉴는 세션 역할로 노출한다.
+ * 메뉴 숨김은 표시용일 뿐 보안 경계가 아니다 (proxy·requirePermission 이 막는다).
  */
-export function Sidebar() {
+export function Sidebar({ showAdminNav = false }: { showAdminNav?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const pathname = usePathname();
 
@@ -39,21 +40,25 @@ export function Sidebar() {
           />
         ))}
 
-        {isExpanded ? (
-          <div className="mx-2 mt-5 mb-2 text-[11px] font-semibold tracking-[0.04em] text-text-tertiary">
-            관리자
-          </div>
-        ) : (
-          <div aria-hidden="true" className="my-3 border-t border-border-subtle" />
-        )}
-        {NAV_ADMIN.map((item) => (
-          <SidebarLink
-            key={item.key}
-            item={item}
-            isActive={isNavActive(pathname, item.href)}
-            isExpanded={isExpanded}
-          />
-        ))}
+        {showAdminNav ? (
+          <>
+            {isExpanded ? (
+              <div className="mx-2 mt-5 mb-2 text-[11px] font-semibold tracking-[0.04em] text-text-tertiary">
+                관리자
+              </div>
+            ) : (
+              <div aria-hidden="true" className="my-3 border-t border-border-subtle" />
+            )}
+            {NAV_ADMIN.map((item) => (
+              <SidebarLink
+                key={item.key}
+                item={item}
+                isActive={isNavActive(pathname, item.href)}
+                isExpanded={isExpanded}
+              />
+            ))}
+          </>
+        ) : null}
       </nav>
 
       <div className="border-t border-border-subtle pt-4">

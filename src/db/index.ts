@@ -74,24 +74,38 @@ export async function createDb(options: CreateDbOptions = {}): Promise<DbHandle>
   }
 }
 
-let sharedHandle: Promise<DbHandle> | undefined;
+/**
+ * 공유 핸들은 globalThis 에 둔다. Next 는 proxy·RSC·Route Handler 를 별도 번들로 나누고 dev 에서는 HMR 로
+ * 모듈을 다시 평가하므로, 모듈 변수만으로는 연결(특히 PGlite 인프로세스 DB)이 여러 개 생길 수 있다.
+ */
+const globalForDb = globalThis as typeof globalThis & { __pramiDbHandle?: Promise<DbHandle> };
+
+/** 앱 런타임용 생성: PGlite 는 인프로세스 DB 라 별도 db:migrate 단계가 없으므로 연결 시 마이그레이션을 적용한다 */
+async function createSharedDb(): Promise<DbHandle> {
+  const handle = await createDb();
+  if (handle.driver === 'pglite') {
+    const { migrateDb } = await import('./migrate');
+    await migrateDb(handle);
+  }
+  return handle;
+}
 
 /**
  * 앱 전역 공유 핸들 (지연 생성). 서버 코드는 `const db = await getDb()` 로 사용.
  * 생성이 실패하면(환경변수 누락, 일시적 네트워크 오류) 캐시를 비워 다음 호출이 다시 시도하게 한다.
  */
 export function getDbHandle(): Promise<DbHandle> {
-  sharedHandle ??= createDb().catch((error: unknown) => {
-    sharedHandle = undefined;
+  globalForDb.__pramiDbHandle ??= createSharedDb().catch((error: unknown) => {
+    globalForDb.__pramiDbHandle = undefined;
     throw error;
   });
-  return sharedHandle;
+  return globalForDb.__pramiDbHandle;
 }
 
 /** 테스트·스크립트용: 공유 핸들을 닫고 캐시를 비운다 */
 export async function resetDbHandle(): Promise<void> {
-  const pending = sharedHandle;
-  sharedHandle = undefined;
+  const pending = globalForDb.__pramiDbHandle;
+  globalForDb.__pramiDbHandle = undefined;
   if (!pending) return;
   const handle = await pending.catch(() => undefined);
   await handle?.close();

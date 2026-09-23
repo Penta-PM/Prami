@@ -3,7 +3,10 @@ import path from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
-const alias = { '@': path.resolve(import.meta.dirname, 'src') };
+const alias = {
+  '@': path.resolve(import.meta.dirname, 'src'),
+  'server-only': path.resolve(import.meta.dirname, 'tests/helpers/server-only.ts'),
+};
 
 /**
  * 프로젝트 2개 (§4.9.2 환경 열):
@@ -33,6 +36,8 @@ export default defineConfig({
           setupFiles: ['tests/setup.ts'],
           css: false,
           testTimeout: 30_000,
+          // 파일마다 PGlite 를 띄우고 마이그레이션하므로 병렬·커버리지 실행에서는 준비 시간이 길어진다
+          hookTimeout: 60_000,
           env: { DB_DRIVER: 'pglite', PGLITE_DATA_DIR: 'memory://' },
         },
       },
@@ -42,6 +47,8 @@ export default defineConfig({
           name: 'integration',
           environment: 'node',
           include: ['tests/integration/**/*.test.ts'],
+          // 같은 DB 에 마이그레이션을 동시에 적용하면 CREATE EXTENSION 이 경합하므로 파일을 순차 실행한다
+          fileParallelism: false,
           testTimeout: 60_000,
           hookTimeout: 60_000,
         },

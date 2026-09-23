@@ -1,13 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import AdminAuditPage from '@/app/(app)/admin/audit/page';
 import AdminCostsPage from '@/app/(app)/admin/costs/page';
 import AdminGroupsPage from '@/app/(app)/admin/groups/page';
 import AdminNoticesPage from '@/app/(app)/admin/notices/page';
 import AdminPartsPage from '@/app/(app)/admin/parts/page';
 import AdminPoliciesPage from '@/app/(app)/admin/policies/page';
-import AdminUsersPage from '@/app/(app)/admin/users/page';
 import CalculatorPage from '@/app/(app)/calculator/page';
 import NoticesPage from '@/app/(app)/notices/page';
 import HomePage from '@/app/(app)/page';
@@ -25,9 +23,7 @@ const PAGES: Record<PageKey, () => React.JSX.Element> = {
   adminCosts: AdminCostsPage,
   adminParts: AdminPartsPage,
   adminGroups: AdminGroupsPage,
-  adminUsers: AdminUsersPage,
   adminNotices: AdminNoticesPage,
-  adminAudit: AdminAuditPage,
 };
 
 describe('자리표시자 페이지', () => {

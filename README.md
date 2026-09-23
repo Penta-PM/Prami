@@ -42,6 +42,10 @@ pnpm install
 cp .env.example .env.local
 #    .env.local:  DB_DRIVER=pg
 #                 DATABASE_URL=postgres://prami:prami@localhost:5432/prami
+#                 AUTH_SECRET=<openssl rand -base64 32 결과>
+#                 AUTH_TEST_MODE=true              # Google OAuth 클라이언트 없이 로컬 로그인
+#                 AUTH_TEST_PASSWORD=<임의 문자열>
+#                 ADMIN_EMAILS=fixture-admin@pentasecurity.com
 
 # 3) 로컬 PostgreSQL 16 기동 (Neon 프로젝트 준비 전 개발·QA용)
 docker compose up -d
@@ -54,39 +58,51 @@ pnpm seed
 pnpm dev            # http://localhost:3000
 ```
 
-`/` 에 접속하면 디자인 셸(왼쪽 사이드바 + 상단 헤더)과 자리표시자 홈 화면이 렌더됩니다.
+모든 화면은 로그인이 필요합니다(비로그인은 `/login` 으로 이동). `AUTH_TEST_MODE=true` 이면 로그인 화면의
+**테스트 모드** 폼에서 픽스처 계정(`fixture-admin@pentasecurity.com` = ADMIN, `fixture-user@pentasecurity.com`
+= USER)과 `AUTH_TEST_PASSWORD` 로 로그인합니다. Google 로그인 버튼은 `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`
+(리다이렉트 URI `{origin}/api/auth/callback/google`)을 설정해야 활성화됩니다. `AUTH_TEST_MODE` 는 production
+에서 기동이 거부됩니다.
+
+로그인 후 `/` 에서 디자인 셸(왼쪽 사이드바 + 상단 헤더)이 렌더되고, ADMIN 에게만 관리자 메뉴가 보입니다.
 사이드바 하단의 `« 접기` 버튼으로 접기/펼치기를 확인할 수 있습니다.
 
 Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`prami` 이 기본값이며 `POSTGRES_USER`,
 `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT` 셸 변수로 바꿀 수 있습니다(포트를 바꾸면
-`DATABASE_URL` 도 맞춥니다). 컨테이너 이름은 프로젝트명에서 파생된 `prami-postgres-1` 이고, 데이터는 볼륨
-`prami-postgres-data` 에 남으며 `docker compose down -v` 로 삭제합니다.
+`DATABASE_URL` 도 맞춥니다). compose 프로젝트명이 `name: prami` 로 고정되어 있어 어느 체크아웃에서 실행해도 같은
+컨테이너 `prami-postgres-1` 과 볼륨 `prami_prami-postgres-data` 를 공유합니다. 체크아웃별로 분리하려면
+`COMPOSE_PROJECT_NAME=prami-qa POSTGRES_PORT=5433 docker compose up -d` 처럼 프로젝트명과 포트를 함께 바꿉니다.
+데이터는 `docker compose down -v` 로 삭제합니다.
 
 `DB_DRIVER` 를 비우면 PGlite(인프로세스, `memory://`)로 동작하므로 Docker 없이도 단위 테스트가 가능합니다.
+앱을 PGlite 로 띄우면 첫 연결 때 마이그레이션이 자동 적용됩니다(인메모리는 재시작 시 초기화).
 `pnpm db:migrate` 와 `pnpm seed` 는 `.env.local` → `.env` 순서로 환경을 읽습니다(Next 와 동일 규칙).
 
 ### 스크립트
 
-| 명령                    | 설명                                                                                                             |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`              | 개발 서버                                                                                                        |
-| `pnpm build`            | 프로덕션 빌드 (빌드 전 `src/env.ts` 가 환경변수를 검증)                                                          |
-| `pnpm start`            | 빌드 결과 실행                                                                                                   |
-| `pnpm lint`             | ESLint                                                                                                           |
-| `pnpm typecheck`        | `tsc --noEmit`                                                                                                   |
-| `pnpm format:check`     | Prettier 검사 (`pnpm format` 으로 수정)                                                                          |
-| `pnpm test`             | Vitest 단위 테스트 (DB 테스트는 PGlite `memory://`)                                                              |
-| `pnpm test:coverage`    | 단위 테스트 + 커버리지(임계 80%)                                                                                 |
-| `pnpm test:integration` | 실제 Postgres 통합 테스트 — `DB_DRIVER=pg` + `DATABASE_URL` 필요, 없으면 스킵                                    |
-| `pnpm db:generate`      | 스키마(`src/db/schema`) 변경을 `drizzle/*.sql` 마이그레이션으로 생성                                             |
-| `pnpm db:migrate`       | `DB_DRIVER` 에 맞는 드라이버로 마이그레이션 적용                                                                 |
-| `pnpm seed`             | 픽스처 ADMIN·USER, 공지 샘플, 감사 로그 `user.seed` 기록 (재실행 안전)                                           |
-| `pnpm test:e2e`         | Playwright E2E — 먼저 `pnpm build`, 최초 1회 `pnpm exec playwright install chromium`. 포트 3100(`E2E_PORT`) 사용 |
-| `pnpm check`            | lint + typecheck + format:check + test 일괄                                                                      |
+| 명령                    | 설명                                                                                                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`              | 개발 서버                                                                                                                                                               |
+| `pnpm build`            | 프로덕션 빌드 (빌드 전 `src/env.ts` 가 환경변수를 검증)                                                                                                                 |
+| `pnpm start`            | 빌드 결과 실행                                                                                                                                                          |
+| `pnpm lint`             | ESLint                                                                                                                                                                  |
+| `pnpm typecheck`        | `tsc --noEmit`                                                                                                                                                          |
+| `pnpm format:check`     | Prettier 검사 (`pnpm format` 으로 수정)                                                                                                                                 |
+| `pnpm test`             | Vitest 단위 테스트 (DB 테스트는 PGlite `memory://`)                                                                                                                     |
+| `pnpm test:coverage`    | 단위 테스트 + 커버리지(임계 80%)                                                                                                                                        |
+| `pnpm test:integration` | 실제 Postgres 통합 테스트 — `DB_DRIVER=pg` + `DATABASE_URL` 필요, 없으면 스킵                                                                                           |
+| `pnpm db:generate`      | 스키마(`src/db/schema`) 변경을 `drizzle/*.sql` 마이그레이션으로 생성                                                                                                    |
+| `pnpm db:migrate`       | `DB_DRIVER` 에 맞는 드라이버로 마이그레이션 적용                                                                                                                        |
+| `pnpm seed`             | 픽스처 ADMIN·USER, 공지 샘플, 감사 로그 `user.seed` 기록 (재실행 안전)                                                                                                  |
+| `pnpm test:e2e`         | Playwright E2E — `next dev`(포트 3100, `.next-e2e`) + Postgres `prami_e2e` DB(`E2E_DATABASE_URL`)에 자동 migrate·seed. 최초 1회 `pnpm exec playwright install chromium` |
+| `pnpm check`            | lint + typecheck + format:check + test 일괄                                                                                                                             |
 
 CI(`.github/workflows/ci.yml`)는 PR 마다 lint → typecheck → format → 단위(커버리지, PGlite) → build,
-이어서 PostgreSQL 16 service container 에서 `db:migrate` → `seed` → 통합 테스트, 그리고 Playwright 스모크를
-실행합니다.
+이어서 PostgreSQL 16 service container 에서 `db:migrate` → `seed` → 통합 테스트, 그리고 같은 service container 와
+`AUTH_TEST_MODE` 로 Playwright E2E(로그인·권한·감사 로그)를 실행합니다.
+
+E2E 를 로컬에서 처음 돌릴 때는 E2E 전용 DB 를 한 번 만듭니다:
+`docker exec prami-postgres-1 psql -U prami -d prami -c "create database prami_e2e"`.
 
 ## 디렉터리
 
@@ -102,17 +118,25 @@ src/
 │  ├─ tx.ts                # withTransaction(): pg/pglite 네이티브, neon 은 WebSocket 클라이언트
 │  ├─ migrate.ts  seed.ts  # 마이그레이션 적용, 픽스처 시드 (한 트랜잭션)
 │  └─ schema/              # 테이블별 Drizzle 스키마 (§4.3), enums, relations
+├─ proxy.ts                # 1차 방어 (Next 16 의 middleware): 비로그인 → /login, /admin/* 비ADMIN → / + 감사 denied
+├─ instrumentation.ts      # 기동 시 ADMIN_EMAILS·ADMIN 0명 경고
 ├─ app/
 │  ├─ layout.tsx           # <html lang="ko">, Pretendard 폰트, 메타데이터
 │  ├─ globals.css          # Tailwind + 디자인 토큰 (아래 참고)
-│  └─ (app)/               # 앱 셸 그룹: layout.tsx(사이드바+헤더) + 라우트별 자리표시자 page.tsx
-├─ features/shell/         # Sidebar, Header, nav.ts(메뉴 정의), icons.tsx, pages.ts
-├─ components/ui/          # 버튼·필·세그먼트·카드·입력·모달·드로어·테이블 프리미티브
-└─ lib/cn.ts               # 클래스 병합 유틸
+│  ├─ login/               # Google 로그인 버튼 + (AUTH_TEST_MODE) 테스트 계정 로그인
+│  ├─ api/auth/[...nextauth], api/audit/export.csv
+│  └─ (app)/               # 앱 셸 그룹 (세션 필수): admin/users(사용자·권한), admin/audit(감사 로그), 나머지 자리표시자
+├─ server/                 # 서버 전용
+│  ├─ auth/                # auth.ts(Auth.js v5, JWT), callbacks.ts(로그인 판정), rbac.ts(requirePermission), providers.ts
+│  ├─ audit/               # log.ts(writeAudit), queries.ts(필터·페이지)
+│  └─ users/               # 사용자 사전 등록·수정·비활성화 (감사 로그 동반)
+├─ features/               # shell/, auth/, users/, audit/ 화면 컴포넌트 + Server Actions
+├─ components/ui/          # 버튼·필·세그먼트·카드·입력·선택·모달·드로어·테이블 프리미티브
+└─ lib/                    # cn.ts, result.ts(봉투), constants/permissions.ts(PERMISSIONS), audit-format.ts
 tests/
 ├─ unit/                   # Vitest (토큰 대조, 셸, UI, env, nav, db/: PGlite 스키마 스냅샷·시드)
 ├─ integration/            # 실제 Postgres (DB_DRIVER=pg) 스키마·시드 검증
-├─ e2e/                    # Playwright 스모크 (셸 렌더·접기·토큰 런타임 값)
+├─ e2e/                    # Playwright: 로그인·권한·감사 로그(auth.spec) + 셸 스모크
 ├─ fixtures/               # 디자인 토큰 원본 4파일, sales_prices 20컬럼 스냅샷
 └─ helpers/  setup.ts
 ```

@@ -1,4 +1,5 @@
 import { Input } from '@/components/ui/input';
+import { signOutAction } from '@/features/auth/actions';
 
 import { Icon, type IconName } from './icons';
 
@@ -9,11 +10,11 @@ export type HeaderUser = {
 };
 
 export type HeaderProps = {
-  /** 로그인 사용자. PR-2(인증)에서 세션으로 채운다. 없으면 게스트 표시 */
+  /** 로그인 사용자 (세션). 없으면 게스트 표시 */
   user?: HeaderUser;
 };
 
-/** 앱 셸 헤더: 통합 검색, 챗봇/공지 버튼, 사용자 표시 */
+/** 앱 셸 헤더: 통합 검색, 챗봇/공지 버튼, 사용자 표시·로그아웃 */
 export function Header({ user }: HeaderProps) {
   const initial = user?.name.trim().charAt(0) || '?';
 
@@ -40,10 +41,18 @@ export function Header({ user }: HeaderProps) {
         </div>
         <div className="leading-[1.3]">
           <div className="text-[13px] font-semibold">{user?.name ?? '로그인 필요'}</div>
-          <div className="text-[11px] font-medium text-text-tertiary">
-            {user?.roleLabel ?? '인증은 PR-2에서 연결됩니다'}
-          </div>
+          <div className="text-[11px] font-medium text-text-tertiary">{user?.roleLabel ?? ''}</div>
         </div>
+        {user ? (
+          <form action={signOutAction}>
+            <button
+              type="submit"
+              className="ml-1 rounded-lg border-0 bg-transparent px-2 py-1.5 text-[12px] font-semibold text-text-tertiary hover:bg-gray-100 hover:text-ink-900"
+            >
+              로그아웃
+            </button>
+          </form>
+        ) : null}
       </div>
     </header>
   );
