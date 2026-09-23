@@ -1,0 +1,21 @@
+# 빌드 산출물
+.next
+out
+build
+coverage
+playwright-report
+test-results
+node_modules
+pnpm-lock.yaml
+next-env.d.ts
+
+# Main이 동기화하는 운영 문서 (포맷터가 건드리지 않음)
+AGENTS.md
+CLAUDE.md
+docs/
+.omc/
+.orca-role.md
+LICENSE
+
+# 디자인 토큰 원본 픽스처 (원문 그대로 보존)
+tests/fixtures/design-tokens/

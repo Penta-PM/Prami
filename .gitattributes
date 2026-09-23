@@ -1,0 +1,10 @@
+# 저장소와 체크아웃 모두 LF 를 사용한다 (Prettier endOfLine=lf 와 일치, Windows autocrlf 영향 차단)
+* text=auto eol=lf
+
+# 바이너리
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.xlsx binary

@@ -1,0 +1,23 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+:root{
+/* All type families (display/body/marketing) swapped to Pretendard per request —
+   this replaces the earlier Kumbh Sans/Sora/Open Sans/Epilogue substitutions. */
+--font-display:"Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+--font-body:"Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+/* used only in the Presentation/marketing frames of the source file */
+--font-marketing:"Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+--font-marketing-alt:"Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+
+--text-page-title:600 25px/1 var(--font-body);
+--text-h1:600 30px/1 var(--font-body);
+--text-h2:600 18px/1 var(--font-body);
+--text-button:600 16px/1 var(--font-body);
+--text-body-md:500 14px/1 var(--font-body);
+--text-body-md-regular:400 14px/1 var(--font-body);
+--text-body-sm:400 13px/1 var(--font-body);
+--text-caption:500 12px/1 var(--font-body);
+--text-label:600 14px/1 var(--font-body);
+--text-card-number:700 17px/1 var(--font-display);
+--text-card-number-masked:700 16px/1 var(--font-display);
+--text-wordmark:700 18px/1 var(--font-display);
+}
