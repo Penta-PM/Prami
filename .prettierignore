@@ -19,3 +19,6 @@ LICENSE
 
 # 디자인 토큰 원본 픽스처 (원문 그대로 보존)
 tests/fixtures/design-tokens/
+
+# drizzle-kit 생성물 (스냅샷·저널은 도구가 관리)
+drizzle/meta/
