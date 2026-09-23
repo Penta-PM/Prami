@@ -9,7 +9,7 @@ import { partMappings } from './parts';
 import { quoteLines, quoteShares, quotes } from './quotes';
 import { salesPrices } from './sales-prices';
 import { solutionGroupItems, solutionGroups } from './solution-groups';
-import { stgItems, stgSalesPrices } from './staging';
+import { stgItems, stgMaterialCosts, stgPartMappings, stgSalesPrices } from './staging';
 import { users } from './users';
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -29,6 +29,8 @@ export const importBatchesRelations = relations(importBatches, ({ one, many }) =
   items: many(items),
   stgSalesPrices: many(stgSalesPrices),
   stgItems: many(stgItems),
+  stgMaterialCosts: many(stgMaterialCosts),
+  stgPartMappings: many(stgPartMappings),
 }));
 
 export const policyApplyRunsRelations = relations(policyApplyRuns, ({ one }) => ({
@@ -59,6 +61,20 @@ export const stgSalesPricesRelations = relations(stgSalesPrices, ({ one }) => ({
 
 export const stgItemsRelations = relations(stgItems, ({ one }) => ({
   batch: one(importBatches, { fields: [stgItems.batchId], references: [importBatches.id] }),
+}));
+
+export const stgMaterialCostsRelations = relations(stgMaterialCosts, ({ one }) => ({
+  batch: one(importBatches, {
+    fields: [stgMaterialCosts.batchId],
+    references: [importBatches.id],
+  }),
+}));
+
+export const stgPartMappingsRelations = relations(stgPartMappings, ({ one }) => ({
+  batch: one(importBatches, {
+    fields: [stgPartMappings.batchId],
+    references: [importBatches.id],
+  }),
 }));
 
 export const materialCostsRelations = relations(materialCosts, ({ one }) => ({

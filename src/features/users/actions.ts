@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getDbHandle } from '@/db';
 import { env } from '@/env';
 import type { ActionResult } from '@/lib/result';
+import { AUDIT_ACTIONS } from '@/server/audit/log';
 import { currentRequestMeta } from '@/server/audit/request-meta';
 import { runAction } from '@/server/auth/rbac';
 import type { SessionUser } from '@/server/auth/session-user';
@@ -35,27 +36,40 @@ function summary(user: UserSummary): UserSummary {
 }
 
 export async function createUserAction(input: CreateUserInput): Promise<ActionResult<UserSummary>> {
-  return runAction('users.manage', 'createUser', async (actor) => {
-    const created = await createUser(await context(actor), input);
-    revalidatePath(USERS_PATH);
-    return summary(created);
-  });
+  return runAction(
+    { permission: 'users.manage', auditAction: AUDIT_ACTIONS.userCreate, name: 'createUser' },
+    async (actor) => {
+      const created = await createUser(await context(actor), input);
+      revalidatePath(USERS_PATH);
+      return summary(created);
+    },
+  );
 }
 
 export async function updateUserAction(input: UpdateUserInput): Promise<ActionResult<UserSummary>> {
-  return runAction('users.manage', 'updateUser', async (actor) => {
-    const updated = await updateUser(await context(actor), input);
-    revalidatePath(USERS_PATH);
-    return summary(updated);
-  });
+  return runAction(
+    { permission: 'users.manage', auditAction: AUDIT_ACTIONS.userUpdate, name: 'updateUser' },
+    async (actor) => {
+      const updated = await updateUser(await context(actor), input);
+      revalidatePath(USERS_PATH);
+      return summary(updated);
+    },
+  );
 }
 
 export async function deactivateUserAction(
   input: DeactivateUserInput,
 ): Promise<ActionResult<UserSummary>> {
-  return runAction('users.manage', 'deactivateUser', async (actor) => {
-    const updated = await deactivateUser(await context(actor), input);
-    revalidatePath(USERS_PATH);
-    return summary(updated);
-  });
+  return runAction(
+    {
+      permission: 'users.manage',
+      auditAction: AUDIT_ACTIONS.userDeactivate,
+      name: 'deactivateUser',
+    },
+    async (actor) => {
+      const updated = await deactivateUser(await context(actor), input);
+      revalidatePath(USERS_PATH);
+      return summary(updated);
+    },
+  );
 }

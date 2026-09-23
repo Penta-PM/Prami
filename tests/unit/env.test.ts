@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DB_DRIVERS, parseEnv } from '@/env';
+import { DB_DRIVERS, parseEnv, trustsProxyHeaders } from '@/env';
 
 const PG_URL = 'postgres://prami:prami@localhost:5432/prami';
 
@@ -129,5 +129,24 @@ describe('parseEnv — 인증 (§4.6.1)', () => {
 
   it('NODE_ENV 는 세 값만 허용한다', () => {
     expect(() => parseEnv({ NODE_ENV: 'staging' })).toThrowError(/NODE_ENV/);
+  });
+});
+
+describe('parseEnv — PR-3 추가 키', () => {
+  it('IMPORT_FAULT_INJECTION 은 단계 이름만, production 에서는 거부', () => {
+    expect(parseEnv({ IMPORT_FAULT_INJECTION: 'load' }).IMPORT_FAULT_INJECTION).toBe('load');
+    expect(() => parseEnv({ IMPORT_FAULT_INJECTION: 'nope' })).toThrowError(
+      /IMPORT_FAULT_INJECTION/,
+    );
+    expect(() => parseEnv({ NODE_ENV: 'production', IMPORT_FAULT_INJECTION: 'load' })).toThrowError(
+      /production 에서는 IMPORT_FAULT_INJECTION/,
+    );
+  });
+
+  it('TRUST_PROXY_HEADERS: 명시값 우선, 미설정이면 Vercel 에서만 신뢰', () => {
+    expect(trustsProxyHeaders(parseEnv({}))).toBe(false);
+    expect(trustsProxyHeaders(parseEnv({ VERCEL: '1' }))).toBe(true);
+    expect(trustsProxyHeaders(parseEnv({ VERCEL: '1', TRUST_PROXY_HEADERS: 'false' }))).toBe(false);
+    expect(trustsProxyHeaders(parseEnv({ TRUST_PROXY_HEADERS: 'true' }))).toBe(true);
   });
 });

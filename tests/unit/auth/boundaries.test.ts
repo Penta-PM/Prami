@@ -24,13 +24,18 @@ vi.mock('@/server/auth/auth', () => ({
 // next-auth 의 ESM 번들은 Node 에서 next/server 를 확장자 없이 import 해 직접 로드할 수 없다
 vi.mock('next-auth', () => ({ AuthError: class AuthError extends Error {} }));
 vi.mock('@/db', () => ({ getDb: async () => ({}) }));
-vi.mock('@/server/audit/log', () => ({
-  AUDIT_ACTIONS: { accessDenied: 'auth.access_denied' },
+vi.mock('@/server/audit/log', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/server/audit/log')>()),
   writeAudit: async (_db: unknown, entry: unknown) => {
     state.audits.push(entry);
   },
 }));
 vi.mock('next/headers', () => ({ headers: async () => state.headers }));
+// 신뢰 프록시 뒤(Vercel 등) 가정 — XFF 를 IP 로 기록한다
+vi.mock('@/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/env')>();
+  return { ...actual, env: { ...actual.env, TRUST_PROXY_HEADERS: true } };
+});
 vi.mock('next/navigation', () => ({
   redirect: (url: string) => {
     throw new Error(`NEXT_REDIRECT:${url}`);
@@ -39,7 +44,8 @@ vi.mock('next/navigation', () => ({
 
 const { default: proxy, config } = await import('@/proxy');
 const actions = await import('@/features/auth/actions');
-const { currentRequestMeta, requestMetaFromHeaders } = await import('@/server/audit/request-meta');
+const { currentRequestMeta } = await import('@/server/audit/request-meta');
+const { requestMetaFromHeaders } = await import('@/server/audit/log');
 const { AuthError } = await import('next-auth');
 
 type ProxyFn = (request: NextRequest) => Promise<Response>;
@@ -140,12 +146,24 @@ describe('로그인 Server Actions', () => {
   });
 });
 
-describe('request-meta', () => {
-  it('x-forwarded-for → x-real-ip 순으로 IP 를 읽는다', async () => {
-    expect(requestMetaFromHeaders(new Headers({ 'x-real-ip': '1.2.3.4' }))).toEqual({
-      ip: '1.2.3.4',
-      userAgent: null,
-    });
+describe('감사 IP 산출 (§4.8 r3, AC-05)', () => {
+  it('비신뢰: 위조 X-Forwarded-For 1.2.3.4 를 보내도 ip 는 NULL', () => {
+    const forged = new Headers({ 'x-forwarded-for': '1.2.3.4', 'x-real-ip': '1.2.3.4' });
+    expect(requestMetaFromHeaders(forged, false)).toEqual({ ip: null, userAgent: null });
+  });
+
+  it('신뢰: x-real-ip 우선, 없으면 XFF 오른쪽 끝(신뢰 프록시가 덧붙인 값)만 사용', () => {
+    expect(requestMetaFromHeaders(new Headers({ 'x-real-ip': '10.0.0.9' }), true).ip).toBe(
+      '10.0.0.9',
+    );
+    const chained = new Headers({ 'x-forwarded-for': '1.2.3.4, 203.0.113.7' });
+    expect(requestMetaFromHeaders(chained, true).ip).toBe('203.0.113.7');
+    expect(
+      requestMetaFromHeaders(new Headers({ 'x-forwarded-for': 'garbage' }), true).ip,
+    ).toBeNull();
+  });
+
+  it('currentRequestMeta 는 env 신뢰 설정과 요청 헤더로 같은 함수를 쓴다', async () => {
     state.headers = new Headers({ 'x-forwarded-for': '5.6.7.8', 'user-agent': 'ua' });
     expect(await currentRequestMeta()).toEqual({ ip: '5.6.7.8', userAgent: 'ua' });
   });

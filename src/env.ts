@@ -15,15 +15,25 @@ const optionalString = z.preprocess(emptyToUndefined, z.string().min(1).optional
 const optionalUrl = z.preprocess(emptyToUndefined, z.url().optional());
 
 /** "true"/"1"/"yes" → true, "false"/"0"/"no" → false, 미설정 → 기본값 */
+function parseBooleanWord(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const normalized = value.trim().toLowerCase();
+  if (['true', '1', 'yes'].includes(normalized)) return true;
+  if (['false', '0', 'no'].includes(normalized)) return false;
+  return value;
+}
+
 const booleanFromString = (defaultValue: boolean) =>
-  z.preprocess((value) => {
-    if (value === undefined || value === '') return defaultValue;
-    if (typeof value !== 'string') return value;
-    const normalized = value.trim().toLowerCase();
-    if (['true', '1', 'yes'].includes(normalized)) return true;
-    if (['false', '0', 'no'].includes(normalized)) return false;
-    return value;
-  }, z.boolean());
+  z.preprocess(
+    (value) => (value === undefined || value === '' ? defaultValue : parseBooleanWord(value)),
+    z.boolean(),
+  );
+
+/** 미설정이면 undefined (호출자가 환경에 따라 기본값을 정한다) */
+const optionalBooleanFromString = z.preprocess(
+  (value) => (value === undefined || value === '' ? undefined : parseBooleanWord(value)),
+  z.boolean().optional(),
+);
 
 /** 쉼표 구분 목록 → 배열 (공백·빈 항목 제거) */
 const csvList = (item: z.ZodType<string>, defaultValue: string[]) =>
@@ -59,6 +69,21 @@ const envShape = z.object({
   ALLOWED_EMAIL_DOMAINS: csvList(z.string().min(1), ['pentasecurity.com']),
   ADMIN_EMAILS: csvList(z.email(), []),
   AUTH_AUTO_PROVISION: booleanFromString(true),
+
+  // ── 요청 출처 (감사 로그 IP) ────────────────────────────────────────────
+  /**
+   * x-forwarded-for / x-real-ip 를 신뢰할지. 신뢰할 프록시(Vercel 등) 뒤에서만 true.
+   * 미설정 시 Vercel 환경(VERCEL=1)이면 true, 그 외(로컬 직접 노출)는 false → 위조 가능한 헤더를 IP 로 기록하지 않음
+   */
+  TRUST_PROXY_HEADERS: optionalBooleanFromString,
+  VERCEL: optionalString,
+
+  // ── 임포트 (§4.4) ──────────────────────────────────────────────────────
+  /** QA-03e 실패 주입: 지정 단계 이후 예외 (items|manual|load|recompute|verify). production 에서는 거부 */
+  IMPORT_FAULT_INJECTION: z.preprocess(
+    emptyToUndefined,
+    z.enum(['items', 'manual', 'load', 'recompute', 'verify']).optional(),
+  ),
 });
 
 type EnvShape = z.infer<typeof envShape>;
@@ -79,6 +104,13 @@ function checkCrossFieldRules(env: EnvShape, ctx: z.RefinementCtx): void {
       message: 'AUTH_TEST_MODE=true 이면 AUTH_TEST_PASSWORD 가 필요합니다',
     });
   }
+  if (env.NODE_ENV === 'production' && env.IMPORT_FAULT_INJECTION) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['IMPORT_FAULT_INJECTION'],
+      message: 'production 에서는 IMPORT_FAULT_INJECTION 을 허용하지 않습니다',
+    });
+  }
   if (env.DB_DRIVER !== 'pglite' && !env.DATABASE_URL) {
     ctx.addIssue({
       code: 'custom',
@@ -89,6 +121,11 @@ function checkCrossFieldRules(env: EnvShape, ctx: z.RefinementCtx): void {
 }
 
 export const envSchema = envShape.superRefine(checkCrossFieldRules);
+
+/** 프록시 헤더 신뢰 여부 (명시값 우선, 없으면 Vercel 여부) */
+export function trustsProxyHeaders(env: Pick<EnvShape, 'TRUST_PROXY_HEADERS' | 'VERCEL'>): boolean {
+  return env.TRUST_PROXY_HEADERS ?? env.VERCEL === '1';
+}
 
 export type Env = z.infer<typeof envSchema>;
 

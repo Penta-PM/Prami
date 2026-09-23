@@ -2,20 +2,14 @@ import 'server-only';
 
 import { headers } from 'next/headers';
 
-import { EMPTY_REQUEST_META, type RequestMeta } from './log';
+import { env, trustsProxyHeaders } from '@/env';
 
-/** 헤더 모음에서 감사용 IP·User-Agent 를 뽑는다 (Vercel/프록시 뒤에서는 x-forwarded-for 첫 값) */
-export function requestMetaFromHeaders(source: Headers): RequestMeta {
-  return {
-    ip: source.get('x-forwarded-for') ?? source.get('x-real-ip'),
-    userAgent: source.get('user-agent'),
-  };
-}
+import { EMPTY_REQUEST_META, requestMetaFromHeaders, type RequestMeta } from './log';
 
-/** 현재 요청의 IP·User-Agent. 요청 스코프 밖(스크립트·테스트)에서는 빈 값 */
+/** 현재 요청의 감사 메타 (산출 규칙은 log.ts 의 requestMetaFromHeaders). 요청 스코프 밖에서는 빈 값 */
 export async function currentRequestMeta(): Promise<RequestMeta> {
   try {
-    return requestMetaFromHeaders(await headers());
+    return requestMetaFromHeaders(await headers(), trustsProxyHeaders(env));
   } catch {
     return EMPTY_REQUEST_META;
   }

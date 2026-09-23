@@ -32,15 +32,19 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   return loadSessionUser(await getDb(), userId);
 }
 
-/** 권한 거부를 감사 로그(result=denied)에 남긴다 */
+/**
+ * 권한 거부를 감사 로그(result=denied)에 남긴다. action 은 시도한 행위의 감사 키(§4.7.1 ③ — 예 policy.apply),
+ * 페이지 접근처럼 행위 키가 없으면 auth.access_denied.
+ */
 export async function recordAccessDenied(
   user: SessionUser,
   permission: PermissionKey,
   target: string,
+  action: string = AUDIT_ACTIONS.accessDenied,
 ): Promise<void> {
   await writeAudit(await getDb(), {
     actor: { id: user.id, label: user.email },
-    action: AUDIT_ACTIONS.accessDenied,
+    action,
     target: { type: 'route', id: target, label: target },
     after: { permission, role: user.role },
     result: 'denied',
@@ -73,15 +77,15 @@ export async function requireAdminArea(): Promise<SessionUser> {
   return user;
 }
 
+/** 보호 대상 경계: 필요한 권한, 거부 시 감사 행위 키, 감사 대상 표시 */
+export type Guard = { permission: PermissionKey; auditAction: string; target: string };
+
 /** Action/Route 용: 권한이 없으면 AppError 를 던진다 (경계 래퍼가 봉투로 변환) */
-export async function requirePermission(
-  permission: PermissionKey,
-  target: string,
-): Promise<SessionUser> {
+export async function requirePermission(guard: Guard): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) throw new AppError('UNAUTHENTICATED', '로그인이 필요합니다');
-  if (!hasPermission(user.role, permission)) {
-    await recordAccessDenied(user, permission, target);
+  if (!hasPermission(user.role, guard.permission)) {
+    await recordAccessDenied(user, guard.permission, guard.target, guard.auditAction);
     throw new AppError('FORBIDDEN', '이 작업을 수행할 권한이 없습니다');
   }
   return user;
@@ -90,7 +94,8 @@ export async function requirePermission(
 /** 예외를 봉투 오류로 바꾼다. 알 수 없는 예외는 내부 정보 없이 INTERNAL 로 감싼다 */
 export function toActionError(error: unknown): ActionError {
   if (error instanceof AppError) {
-    return fail(error.code, error.message, error.fieldErrors).error;
+    const base = fail(error.code, error.message, error.fieldErrors).error;
+    return error.details ? { ...base, details: error.details } : base;
   }
   if (error instanceof ZodError) {
     const flat = z.flattenError(error);
@@ -101,28 +106,29 @@ export function toActionError(error: unknown): ActionError {
   return fail('INTERNAL', '요청을 처리하지 못했습니다. 잠시 후 다시 시도하세요').error;
 }
 
-/** Server Action 경계: 권한 검사 → 실행 → 봉투 반환 */
+/**
+ * Server Action 경계: 권한 검사 → 실행 → 봉투 반환.
+ * 거부(§4.7.1): {ok:false, error.code:'FORBIDDEN'} + 감사 denied 1행(action=auditAction) + fn 미실행(부수효과 없음)
+ */
 export async function runAction<T>(
-  permission: PermissionKey,
-  name: string,
+  guard: { permission: PermissionKey; auditAction: string; name: string },
   fn: (user: SessionUser) => Promise<T>,
 ): Promise<ActionResult<T>> {
   try {
-    const user = await requirePermission(permission, `action:${name}`);
+    const user = await requirePermission({ ...guard, target: `action:${guard.name}` });
     return ok(await fn(user));
   } catch (error) {
     return { ok: false, error: toActionError(error) };
   }
 }
 
-/** Route Handler 경계: 오류를 봉투 JSON + HTTP 상태로 응답한다 */
+/** Route Handler 경계: 오류를 봉투 JSON + HTTP 상태로 응답한다 (거부 = HTTP 403, §4.7.1) */
 export async function runRoute(
-  permission: PermissionKey,
-  target: string,
+  guard: Guard,
   fn: (user: SessionUser) => Promise<Response>,
 ): Promise<Response> {
   try {
-    const user = await requirePermission(permission, target);
+    const user = await requirePermission(guard);
     return await fn(user);
   } catch (error) {
     const body = { ok: false as const, error: toActionError(error) };

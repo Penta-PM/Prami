@@ -85,10 +85,11 @@ describe('getAuditLogs', () => {
 });
 
 describe('audit/log', () => {
-  it('normalizeIp: x-forwarded-for 첫 값, 포트 제거, inet 이 아닌 값은 버림', () => {
-    expect(normalizeIp('203.0.113.9, 10.0.0.1')).toBe('203.0.113.9');
+  it('normalizeIp: 단일 값 정규화(포트 제거), inet 이 아닌 값·목록 문자열은 버림', () => {
+    expect(normalizeIp('203.0.113.9')).toBe('203.0.113.9');
     expect(normalizeIp('203.0.113.9:443')).toBe('203.0.113.9');
     expect(normalizeIp('::1')).toBe('::1');
+    expect(normalizeIp('203.0.113.9, 10.0.0.1')).toBeNull();
     expect(normalizeIp('unknown')).toBeNull();
     expect(normalizeIp(null)).toBeNull();
   });

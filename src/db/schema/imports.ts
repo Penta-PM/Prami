@@ -16,6 +16,7 @@ import { users } from './users';
 
 /** 행 오류 항목 (최대 500건 저장, §4.3.3) */
 export type ImportRowError = {
+  /** 엑셀 행 번호 (1-base, 사용자가 엑셀에서 보는 번호). 파일 단위 오류는 0 */
   row: number;
   column: string;
   message: string;
@@ -31,6 +32,12 @@ export type PolicyApplyStats = {
   missingItems: number;
   manualPreserved: number;
   manualConflicts: number;
+  /** 이하 PR-3 추가 (검증·리포트용) */
+  operatingCount: number;
+  itemsApplied: number;
+  unmappedItemStatus: number;
+  /** 원본 최종여부 ≠ 산정 is_latest_in_series 인 ERP 행 수 (AC-21) */
+  finalSourceMismatch: number;
 };
 
 /** 업로드된 원본 파일 1건 (§4.3.3). 파싱 결과는 stg_* 스테이징 테이블에 저장 */
@@ -51,6 +58,8 @@ export const importBatches = pgTable(
     errorCount: integer('error_count').notNull().default(0),
     status: importStatusEnum('status').notNull().default('parsed'),
     errors: jsonb('errors').$type<ImportRowError[]>().notNull().default([]),
+    /** 무시한 추가 컬럼·매핑 불가 값 등 적용을 막지 않는 경고 (§4.4.1) */
+    warnings: jsonb('warnings').$type<ImportRowError[]>().notNull().default([]),
     uploadedBy: uuid('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
     ...timestamps,
   },
@@ -74,6 +83,8 @@ export const policyApplyRuns = pgTable(
     itemReused: boolean('item_reused').notNull().default(false),
     status: applyRunStatusEnum('status').notNull().default('running'),
     stats: jsonb('stats').$type<PolicyApplyStats>(),
+    /** 실패 사유 (status='failed') */
+    error: text('error'),
     runBy: uuid('run_by').references(() => users.id, { onDelete: 'set null' }),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp('finished_at', { withTimezone: true }),

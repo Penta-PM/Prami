@@ -34,11 +34,26 @@ vi.mock('@/server/audit/queries', async (importOriginal) => ({
   listAuditActions: async () => ['auth.login'],
 }));
 vi.mock('@/features/users/actions', () => ({}));
+vi.mock('@/features/admin-policies/actions', () => ({ applyPolicyAction: vi.fn() }));
+vi.mock('@/server/imports/queries', () => ({
+  getCurrentApply: async () => ({
+    runId: 'r1',
+    finishedAt: '2026-09-23T00:00:00.000Z',
+    stats: null,
+    sales: { id: 's1', fileName: '병합_가격_raw.xlsx' },
+    item: null,
+  }),
+  listReusableBatches: async () => [],
+  listRecentRuns: async () => [
+    { id: 'r2', status: 'failed', startedAt: '2026-09-23T01:00:00.000Z', error: '불변식 I-1 위반' },
+  ],
+}));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const { default: AdminLayout } = await import('@/app/(app)/admin/layout');
 const { default: AdminUsersPage } = await import('@/app/(app)/admin/users/page');
 const { default: AdminAuditPage } = await import('@/app/(app)/admin/audit/page');
+const { default: AdminPoliciesPage } = await import('@/app/(app)/admin/policies/page');
 
 describe('관리자 페이지', () => {
   it('관리자 레이아웃은 역할을 다시 확인한다 (2차 방어)', async () => {
@@ -64,5 +79,15 @@ describe('관리자 페이지', () => {
       '/api/audit/export.csv?action=auth.login',
     );
     expect(screen.getByText('조건에 맞는 감사 로그가 없습니다.')).toBeInTheDocument();
+  });
+
+  it('가격정책 관리는 pricing.write 를 검사하고 임포트 패널·현재 적용 배지·최근 실패를 보인다', async () => {
+    render(await AdminPoliciesPage());
+    expect(calls.guards).toContain('pricing.write:/admin/policies');
+    expect(screen.getByRole('heading', { level: 1, name: '가격정책 관리' })).toBeInTheDocument();
+    expect(screen.getByLabelText('현재 적용')).toHaveTextContent('판매단가 병합_가격_raw.xlsx');
+    expect(screen.getByLabelText('현재 적용')).toHaveTextContent('품목상태 없음');
+    expect(screen.getByRole('region', { name: '가격정책 파일 적용' })).toBeInTheDocument();
+    expect(screen.getByText(/최근 실패한 적용/)).toHaveTextContent('불변식 I-1 위반');
   });
 });

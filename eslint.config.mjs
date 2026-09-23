@@ -8,6 +8,8 @@ export default defineConfig([
   globalIgnores([
     '.next/**',
     '.next-e2e/**',
+    // NEXT_DIST_DIR 로 바꾼 임의의 산출물 폴더 (.next-*, .nextqa 등)
+    '.next*/**',
     'out/**',
     'build/**',
     'coverage/**',

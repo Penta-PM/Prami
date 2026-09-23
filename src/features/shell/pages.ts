@@ -6,7 +6,6 @@ export type PageKey =
   | 'calculator'
   | 'notices'
   | 'search'
-  | 'adminPolicies'
   | 'adminCosts'
   | 'adminParts'
   | 'adminGroups'
@@ -38,11 +37,6 @@ export const PAGE_SPECS: Record<PageKey, PlaceholderPageProps> = {
     title: '검색',
     description: '상단 검색바 결과(품목·공지)를 표시합니다.',
     plannedPr: 'PR-9',
-  },
-  adminPolicies: {
-    title: '가격정책 관리',
-    description: 'ERP 판매단가 파일 임포트·적용과 정책 등록/수정/삭제를 관리합니다.',
-    plannedPr: 'PR-3 · PR-4',
   },
   adminCosts: {
     title: '원가 관리',
