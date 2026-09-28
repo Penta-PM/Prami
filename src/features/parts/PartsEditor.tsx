@@ -93,7 +93,8 @@ export function PartsEditor(props: PartsEditorProps) {
               role="alert"
               className="m-0 mt-2.5 rounded-lg bg-amber-500/15 px-3 py-2.5 text-[12px] font-medium text-amber-500"
             >
-              이미 등록된 모델입니다. 저장하면 기존 매핑이 새 선택으로 덮어써집니다.
+              이미 등록된 모델입니다. 기존 파츠를 체크 상태로 불러왔으며, 저장하면 현재 선택으로
+              전체 교체됩니다.
             </p>
           ) : null}
         </div>

@@ -243,6 +243,7 @@ describe('순매출 계산기 원가 잠금 (§4.5.5)', () => {
         grossAmount: '2000.00',
         discountAmount: '0.00',
         netAmount: '2000.00',
+        miscAmount: '0.00',
         costLocked: true,
       },
     });

@@ -86,6 +86,7 @@ describe('순매출 계산 순수 함수 (§4.5.5)', () => {
       grossAmount: '3000.00',
       discountAmount: '300.00',
       netAmount: '2700.00',
+      miscAmount: '0.00',
     });
     expect('cost' in locked).toBe(false);
     const open = computeNetSales({
@@ -95,6 +96,16 @@ describe('순매출 계산 순수 함수 (§4.5.5)', () => {
       unitCost: 600,
     });
     expect(open.cost).toEqual({ totalCost: '1800.00', profit: '900.00', marginRate: '33.3' });
+    // §4.5.7: net = actual − cost − misc, rate = net/actual
+    const withMisc = computeNetSales({
+      sellingPrice: 1000,
+      quantity: 3,
+      discountRate: 10,
+      unitCost: 600,
+      miscCost: 200,
+    });
+    expect(withMisc.miscAmount).toBe('200.00');
+    expect(withMisc.cost).toEqual({ totalCost: '1800.00', profit: '700.00', marginRate: '25.9' });
     expect(computeNetSales({ sellingPrice: 0, quantity: 1, unitCost: 5 }).cost?.marginRate).toBe(
       '0.0',
     );

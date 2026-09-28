@@ -122,7 +122,10 @@ export function PartsManager({ models, parts, mappings, batchOptions }: PartsMan
           editing={editing}
           isPending={isPending}
           onSelectModel={(code) => {
+            // 이미 매핑된 모델을 다시 고르면 기존 파츠를 체크 상태로 복원한다 (PR-6 QA INFO-3) — 저장은 여전히 전체 교체
+            const existing = mappings.find((mapping) => mapping.modelItemCode === code);
             setSelectedModel(code);
+            setChecked(new Set(existing?.parts.map((part) => part.itemCode) ?? []));
             setEditing(false);
           }}
           onToggle={toggle}

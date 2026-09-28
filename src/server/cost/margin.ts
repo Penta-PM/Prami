@@ -15,6 +15,8 @@ export const netSalesInputSchema = z.object({
   quantity: z.coerce.number().int().min(1).max(1_000_000),
   discountRate: z.coerce.number().min(0).max(100).default(0),
   unitCost: z.coerce.number().min(0).max(1e15).nullish(),
+  /** 기타 비용 (총액, §4.5.7) */
+  miscCost: z.coerce.number().min(0).max(1e15).default(0),
 });
 
 export type NetSalesActionInput = z.input<typeof netSalesInputSchema>;

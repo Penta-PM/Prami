@@ -1,0 +1,302 @@
+'use client';
+
+import { Input } from '@/components/ui';
+import { formatAmount, priceLabel } from '@/lib/pricing/format';
+import { rateFromTarget } from '@/lib/pricing/quote';
+
+import { Chip, QtyControl, StepCard } from './chips';
+import type { CategoryChipsView, PriceTypeView, QuoteItemView } from './types';
+
+/** STEP 1 · 단가 유형 = DB DISTINCT price_type (배수 없음, AC-61) */
+export function StepPriceType({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly PriceTypeView[];
+  value: string | null;
+  onChange: (priceType: string) => void;
+}) {
+  return (
+    <StepCard title="STEP 1 · 단가 유형">
+      {options.length === 0 ? (
+        <p className="m-0 text-[12px] text-text-tertiary">운영중 판매단가가 없는 제품군입니다.</p>
+      ) : (
+        <div
+          className="grid grid-cols-2 gap-2.5 sm:grid-cols-4"
+          role="group"
+          aria-label="단가 유형"
+        >
+          {options.map((option) => (
+            <Chip
+              key={option.priceType}
+              active={value === option.priceType}
+              hint={`${option.count}건`}
+              onClick={() => onChange(option.priceType)}
+            >
+              {option.priceType}
+            </Chip>
+          ))}
+        </div>
+      )}
+    </StepCard>
+  );
+}
+
+/** STEP 2 · 대/중/소분류. 마스터가 없으면 대분류(제품군)만 */
+export function StepCategory({
+  chips,
+  mid,
+  minor,
+  onMid,
+  onMinor,
+}: {
+  chips: CategoryChipsView;
+  mid: string | null;
+  minor: string | null;
+  onMid: (mid: string | null) => void;
+  onMinor: (minor: string | null) => void;
+}) {
+  return (
+    <StepCard title="STEP 2 · 대분류 / 중분류 / 소분류">
+      <div className="flex flex-col gap-3">
+        <ChipRow label="대분류">
+          {chips.majors.map((major) => (
+            <Chip key={major} active onClick={() => undefined}>
+              {major}
+            </Chip>
+          ))}
+        </ChipRow>
+        {chips.hasMaster ? (
+          <ChipRow label="중분류">
+            {chips.mids.map((entry) => (
+              <Chip
+                key={entry}
+                active={mid === entry}
+                onClick={() => onMid(mid === entry ? null : entry)}
+              >
+                {entry}
+              </Chip>
+            ))}
+          </ChipRow>
+        ) : (
+          <p className="m-0 text-[11px] text-text-tertiary">
+            품목조회 파일이 적용되면 중/소분류로 좁힐 수 있습니다.
+          </p>
+        )}
+        {chips.hasMaster && mid && chips.minors.length > 0 ? (
+          <ChipRow label="소분류">
+            {chips.minors.map((entry) => (
+              <Chip
+                key={entry}
+                active={minor === entry}
+                onClick={() => onMinor(minor === entry ? null : entry)}
+              >
+                {entry}
+              </Chip>
+            ))}
+          </ChipRow>
+        ) : null}
+      </div>
+    </StepCard>
+  );
+}
+
+function ChipRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-1.5 text-[11px] font-medium text-text-tertiary">{label}</div>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={label}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** STEP 3 · 품목명 + 수량 (운영중 + 선택 단가유형 최신 행 가격) */
+export function StepItems({
+  items,
+  loading,
+  selected,
+  qty,
+  onSelect,
+  onQty,
+}: {
+  items: readonly QuoteItemView[];
+  loading: boolean;
+  selected: QuoteItemView | null;
+  qty: number;
+  onSelect: (item: QuoteItemView) => void;
+  onQty: (qty: number) => void;
+}) {
+  return (
+    <StepCard title="STEP 3 · 품목명">
+      <ul
+        aria-label="품목 목록"
+        className="m-0 mb-4 flex max-h-[360px] list-none flex-col gap-2 overflow-y-auto p-0"
+      >
+        {items.map((item) => {
+          const active = selected?.itemCode === item.itemCode;
+          return (
+            <li key={item.itemCode}>
+              <button
+                type="button"
+                aria-pressed={active}
+                aria-label={`${item.itemName} (${item.itemCode})`}
+                onClick={() => onSelect(item)}
+                className={
+                  active
+                    ? 'flex w-full justify-between rounded-[10px] border-0 bg-lime-500 px-4 py-3 text-left text-[13px] font-semibold text-ink-900'
+                    : 'flex w-full justify-between rounded-[10px] border-0 bg-transparent px-4 py-3 text-left text-[13px] font-medium shadow-(--hairline-subtle) hover:bg-gray-75'
+                }
+              >
+                <span>
+                  {item.itemName}
+                  <span className="ml-1.5 text-[11px] font-normal text-text-tertiary">
+                    {item.itemCode}
+                  </span>
+                </span>
+                <span className="font-semibold">{priceLabel(item.unitPrice, item.currency)}</span>
+              </button>
+            </li>
+          );
+        })}
+        {!loading && items.length === 0 ? (
+          <li className="p-3.5 text-center text-[12px] text-text-tertiary">
+            단가 유형을 먼저 선택하세요. 해당 조건의 운영중 품목이 없으면 비어 있습니다.
+          </li>
+        ) : null}
+        {loading ? (
+          <li className="p-3.5 text-center text-[12px] text-text-tertiary">불러오는 중…</li>
+        ) : null}
+      </ul>
+      <div className="flex items-center gap-3">
+        <span className="text-[12px] font-medium text-text-secondary">수량</span>
+        <QtyControl value={qty} onChange={onQty} />
+      </div>
+    </StepCard>
+  );
+}
+
+/** STEP 4 · 파츠 / STEP 5 · 결합형 체크 목록 */
+export function StepOptions({
+  title,
+  emptyText,
+  note,
+  options,
+  checked,
+  onToggle,
+}: {
+  title: string;
+  emptyText: string;
+  note?: string;
+  options: readonly QuoteItemView[];
+  checked: ReadonlySet<string>;
+  onToggle: (itemCode: string, on: boolean) => void;
+}) {
+  return (
+    <StepCard title={title}>
+      {note ? <p className="m-0 mb-2 text-[11px] text-text-tertiary">{note}</p> : null}
+      <div className="flex flex-col gap-2" role="group" aria-label={title}>
+        {options.map((option) => (
+          <label
+            key={option.itemCode}
+            className="flex items-center justify-between rounded-[10px] px-3.5 py-3 text-[13px] font-medium shadow-(--hairline-subtle)"
+          >
+            <span className="flex items-center gap-2.5">
+              <input
+                type="checkbox"
+                checked={checked.has(option.itemCode)}
+                onChange={(event) => onToggle(option.itemCode, event.target.checked)}
+              />
+              {option.itemName}
+              <span className="text-[11px] font-normal text-text-tertiary">{option.itemCode}</span>
+            </span>
+            <span className="font-semibold text-text-secondary">
+              +{priceLabel(option.unitPrice, option.currency)}
+            </span>
+          </label>
+        ))}
+        {options.length === 0 ? (
+          <p className="m-0 py-2.5 text-[12px] text-text-tertiary">{emptyText}</p>
+        ) : null}
+      </div>
+    </StepCard>
+  );
+}
+
+/** STEP 6 · 할인율 슬라이더 ↔ 목표금액 역산 */
+export function StepDiscount({
+  preDiscount,
+  lineTotal,
+  currency,
+  rate,
+  target,
+  onRate,
+  onTarget,
+}: {
+  preDiscount: number;
+  lineTotal: number;
+  currency: string;
+  rate: number;
+  target: string;
+  onRate: (rate: number) => void;
+  onTarget: (target: string) => void;
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between rounded-xl bg-gray-75 px-6 py-[18px]">
+        <span className="text-[13px] font-semibold text-text-secondary">
+          할인 적용 전 금액 (수량 반영)
+        </span>
+        <span className="text-[17px] font-bold" data-testid="pre-discount">
+          {priceLabel(preDiscount, currency)}
+        </span>
+      </div>
+      <StepCard title="STEP 6 · 할인율">
+        <div className="mb-3.5 flex items-center gap-2.5">
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={0.5}
+            value={rate}
+            aria-label="할인율"
+            className="flex-1"
+            onChange={(event) => onRate(Number(event.target.value))}
+          />
+          <span className="w-[52px] text-right text-[15px] font-bold" data-testid="discount-rate">
+            {rate}%
+          </span>
+        </div>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[12px] font-medium text-text-secondary">
+            목표 금액으로 역산 (할인율 자동 계산)
+          </span>
+          <Input
+            type="number"
+            inputMode="numeric"
+            name="targetAmount"
+            value={target}
+            placeholder="예: 25000000"
+            onChange={(event) => onTarget(event.target.value)}
+          />
+          {target !== '' ? (
+            <span className="text-[11px] text-text-tertiary">
+              역산 할인율 {rateFromTarget(Number(target), preDiscount)}% · 목표{' '}
+              {formatAmount(Number(target) || 0)}
+            </span>
+          ) : null}
+        </label>
+        <div className="mt-4 flex items-center justify-between border-t border-border-subtle pt-4">
+          <span className="text-[13px] font-semibold text-text-secondary">
+            할인 적용 후 금액 (1,000원 단위 절삭)
+          </span>
+          <span className="text-[18px] font-bold text-purple-500" data-testid="line-total">
+            {priceLabel(lineTotal, currency)}
+          </span>
+        </div>
+      </StepCard>
+    </>
+  );
+}
