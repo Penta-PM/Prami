@@ -259,7 +259,7 @@ export function StepDiscount({
             type="range"
             min={0}
             max={100}
-            step={0.5}
+            step={0.1}
             value={rate}
             aria-label="할인율"
             className="flex-1"

@@ -1,9 +1,10 @@
 // @vitest-environment node
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { DbHandle } from '@/db';
 import { items, quoteLines, quotes, salesPrices } from '@/db/schema';
+import { computeLine } from '@/lib/pricing/quote';
 import { AppError } from '@/lib/result';
 import { upsertSolutionGroup } from '@/server/groups/mutations';
 import { applyPolicy } from '@/server/imports/apply-policy';
@@ -138,48 +139,73 @@ describe('STEP1~5 후보', () => {
 });
 
 describe('saveQuote / listMyQuotes / deleteQuote', () => {
+  // sales-200 픽스처의 실제 행 — 서버 재가격화(reprice.ts)가 DB 운영중 최신 행을 요구한다 (PR-7 QA MEDIUM)
+  const MODEL = { itemCode: 'P10100015', name: 'Wapples-500 (H500 T2)', unitPrice: 12_000_000 };
+  let part: { itemCode: string; itemName: string; unitPrice: number };
   const line = (over: Partial<Parameters<typeof saveQuote>[1]['lines'][number]> = {}) => ({
     kind: 'item' as const,
-    itemCode: 'P1',
-    name: 'Wapples-500',
+    itemCode: MODEL.itemCode,
+    name: MODEL.name,
     priceType: '정상판매',
     qty: 2,
-    unitPrice: 20_000_000,
+    unitPrice: MODEL.unitPrice,
     currency: 'KRW',
-    parts: [{ itemCode: 'N1', itemName: 'N_51080', unitPrice: 500_000 }],
+    parts: [part],
     bundles: [],
     groupItems: [],
     discountRate: 12.5,
     ...over,
   });
+  const honest = () =>
+    computeLine({ basePrice: MODEL.unitPrice, parts: [part], qty: 2, discountRate: 12.5 });
 
-  it('AC-63: 저장 → Q-YYYY-0001, 서버가 금액을 다시 계산한 스냅샷 라인, 감사 quote.save', async () => {
+  beforeAll(async () => {
+    const { parts } = await listQuoteParts(handle.db, {
+      family: 'WAPPLES',
+      priceType: '정상판매',
+      modelItemCode: MODEL.itemCode,
+    });
+    const first = parts[0];
+    if (!first) throw new Error('픽스처에 WAPPLES 파츠가 없습니다');
+    part = {
+      itemCode: first.itemCode,
+      itemName: first.itemName,
+      unitPrice: Number(first.unitPrice),
+    };
+  });
+
+  it('AC-63: 저장 → Q-YYYY-0001, 서버가 DB 단가로 다시 계산한 스냅샷 라인, 감사 quote.save', async () => {
+    const expected = honest();
     const saved = await saveQuote(userCtx, { productFamily: 'WAPPLES', lines: [line()] });
     expect(saved).toMatchObject({
       quoteNo: `Q-${YEAR}-0001`,
-      totalAmount: '35875000',
+      totalAmount: String(expected.lineTotal),
       currency: 'KRW',
       lineCount: 1,
+      adjustments: [],
     });
+    const [head] = await handle.db.select().from(quotes).where(eq(quotes.id, saved.id));
+    expect(head).toMatchObject({ productFamily: 'WAPPLES', title: `WAPPLES 견적 Q-${YEAR}-0001` });
     const [row] = await handle.db.select().from(quoteLines).where(eq(quoteLines.quoteId, saved.id));
     expect(row).toMatchObject({
       lineNo: 1,
       kind: 'item',
-      itemCode: 'P1',
+      itemCode: MODEL.itemCode,
       qty: 2,
-      unitPrice: '20000000.00',
+      unitPrice: '12000000.00',
       discountRate: '12.5',
-      preDiscount: '41000000.00',
-      lineTotal: '35875000.00',
+      preDiscount: expected.preDiscount.toFixed(2),
+      lineTotal: expected.lineTotal.toFixed(2),
     });
     expect(row!.options).toMatchObject({
-      name: 'Wapples-500',
+      name: MODEL.name,
       currency: 'KRW',
-      parts: [{ itemCode: 'N1' }],
+      parts: [{ itemCode: part.itemCode, unitPrice: part.unitPrice }],
     });
     expect((await auditByAction(handle, 'quote.save')).at(-1)).toMatchObject({
       targetId: saved.id,
       result: 'success',
+      after: expect.objectContaining({ adjustments: 0 }) as unknown,
     });
     const second = await saveQuote(userCtx, {
       productFamily: 'WAPPLES',
@@ -188,36 +214,115 @@ describe('saveQuote / listMyQuotes / deleteQuote', () => {
     expect(second.quoteNo).toBe(`Q-${YEAR}-0002`);
   });
 
-  it('AC-65: 통화가 섞이면 totalAmount·currency 는 null (통화별 소계는 클라이언트)', async () => {
+  it('PR-7 QA MEDIUM (회귀): 조작된 단가(1원)·파츠 단가·통화는 서버가 DB 값으로 대체하고 보정 내역을 남긴다', async () => {
+    const expected = honest();
+    const forged = await saveQuote(userCtx, {
+      productFamily: 'WAPPLES',
+      lines: [line({ unitPrice: 1, currency: 'usd', parts: [{ ...part, unitPrice: 1 }] })],
+    });
+    expect(forged.totalAmount).toBe(String(expected.lineTotal));
+    expect(forged.currency).toBe('KRW');
+    expect(forged.adjustments).toEqual([
+      expect.objectContaining({
+        lineNo: 1,
+        itemCode: MODEL.itemCode,
+        field: 'unitPrice',
+        client: '1',
+        server: '12000000',
+      }),
+      expect.objectContaining({
+        lineNo: 1,
+        itemCode: MODEL.itemCode,
+        field: 'currency',
+        client: 'USD',
+        server: 'KRW',
+      }),
+      expect.objectContaining({
+        lineNo: 1,
+        itemCode: part.itemCode,
+        field: 'unitPrice',
+        client: '1',
+        server: String(part.unitPrice),
+      }),
+    ]);
+    const [row] = await handle.db
+      .select()
+      .from(quoteLines)
+      .where(eq(quoteLines.quoteId, forged.id));
+    expect(row!.unitPrice).toBe('12000000.00');
+    expect(row!.options).toMatchObject({ currency: 'KRW', parts: [{ unitPrice: part.unitPrice }] });
+    expect((await auditByAction(handle, 'quote.save')).at(-1)).toMatchObject({
+      after: expect.objectContaining({ adjustments: 3 }) as unknown,
+    });
+
+    // 없는 품번·없는 단가유형·없는 파츠는 저장 거부 (VALIDATION, 견적 미생성)
+    const count = await handle.db.$count(quotes);
+    for (const bad of [
+      line({ itemCode: 'NOPE-1', name: '없는 품목' }),
+      line({ priceType: '없는유형' }),
+      line({ parts: [{ itemCode: 'NOPE-P', itemName: '없는 파츠', unitPrice: 5 }] }),
+    ]) {
+      await expect(
+        saveQuote(userCtx, { productFamily: 'WAPPLES', lines: [bad] }),
+      ).rejects.toMatchObject({ code: 'VALIDATION' });
+    }
+    expect(await handle.db.$count(quotes)).toBe(count);
+  });
+
+  it('AC-65: 통화가 섞이면 totalAmount·currency 는 null, 제품군이 여럿이면 제목에 표시 (QA INFO-3)', async () => {
+    // 픽스처는 전부 KRW/WAPPLES 라 한 품목을 USD·Cloudbric 으로 바꿔 둔다
+    await handle.db
+      .update(salesPrices)
+      .set({ currency: 'USD', unitPrice: '10.00', productFamily: 'Cloudbric' })
+      .where(and(eq(salesPrices.itemCode, 'P10100014'), eq(salesPrices.priceType, '정상판매')));
     const mixed = await saveQuote(userCtx, {
       productFamily: 'WAPPLES',
-      lines: [line(), line({ currency: 'USD', unitPrice: 10, parts: [], discountRate: 0 })],
+      lines: [
+        line(),
+        line({
+          itemCode: 'P10100014',
+          name: 'Wapples-100',
+          currency: 'USD',
+          unitPrice: 10,
+          parts: [],
+          discountRate: 0,
+        }),
+      ],
     });
     expect(mixed.currency).toBeNull();
+    expect(mixed.adjustments).toEqual([]);
     const [row] = await handle.db.select().from(quotes).where(eq(quotes.id, mixed.id));
     expect(row?.totalAmount).toBeNull();
+    expect(row?.productFamily).toBe('WAPPLES');
+    expect(row?.title).toBe(`복수 제품군(WAPPLES, Cloudbric) 견적 Q-${YEAR}-0004`);
   });
 
   it('AC-66: 정책(판매단가)이 바뀌어도 저장된 견적 금액은 그대로', async () => {
     const [before] = await listMyQuotes(handle.db, { id: userCtx.actor.id, role: 'USER' });
-    await handle.db.update(salesPrices).set({ unitPrice: '1.00' });
+    const scope = and(
+      eq(salesPrices.itemCode, MODEL.itemCode),
+      eq(salesPrices.priceType, '정상판매'),
+    );
+    await handle.db.update(salesPrices).set({ unitPrice: '1.00' }).where(scope);
     await handle.db.update(items).set({ itemName: '바뀐 품명' });
     const [after] = await listMyQuotes(handle.db, { id: userCtx.actor.id, role: 'USER' });
     expect(after).toEqual(before);
     expect(after!.lines[0]!.lineTotal).toBe(before!.lines[0]!.lineTotal);
+    await handle.db.update(salesPrices).set({ unitPrice: '12000000.00' }).where(scope);
   });
 
   it('목록은 본인 것만(최신순), ADMIN 은 전체; 다른 사용자의 삭제는 FORBIDDEN, 본인 삭제는 soft + 감사', async () => {
     const mine = await listMyQuotes(handle.db, { id: userCtx.actor.id, role: 'USER' });
-    expect(mine).toHaveLength(3);
+    expect(mine).toHaveLength(4);
     expect(mine.every((quote) => quote.ownerUserId === userCtx.actor.id)).toBe(true);
     expect(mine.map((quote) => quote.quoteNo)).toEqual([
+      `Q-${YEAR}-0004`,
       `Q-${YEAR}-0003`,
       `Q-${YEAR}-0002`,
       `Q-${YEAR}-0001`,
     ]);
     expect(await listMyQuotes(handle.db, { id: otherCtx.actor.id, role: 'USER' })).toEqual([]);
-    expect(await listMyQuotes(handle.db, { id: adminCtx.actor.id, role: 'ADMIN' })).toHaveLength(3);
+    expect(await listMyQuotes(handle.db, { id: adminCtx.actor.id, role: 'ADMIN' })).toHaveLength(4);
 
     const target = mine[0]!;
     const denied = await deleteQuote(otherCtx, { id: target.id }).catch((e: unknown) => e);
@@ -240,12 +345,12 @@ describe('saveQuote / listMyQuotes / deleteQuote', () => {
     });
     // ADMIN 은 남의 견적도 삭제 가능
     expect(await deleteQuote(adminCtx, { id: mine[1]!.id })).toMatchObject({
-      quoteNo: `Q-${YEAR}-0002`,
+      quoteNo: `Q-${YEAR}-0003`,
     });
   });
 
   it('번호는 삭제된 견적을 건너뛰지 않고 이어지며 동시 저장도 서로 다른 번호를 받는다', async () => {
-    expect(await handle.db.transaction((tx) => nextQuoteNo(tx, YEAR))).toBe(`Q-${YEAR}-0004`);
+    expect(await handle.db.transaction((tx) => nextQuoteNo(tx, YEAR))).toBe(`Q-${YEAR}-0005`);
     const results = await Promise.all(
       [1, 2, 3].map((qty) =>
         saveQuote(userCtx, { productFamily: 'WAPPLES', lines: [line({ qty })] }),
@@ -266,7 +371,7 @@ describe('saveQuote / listMyQuotes / deleteQuote', () => {
     ).rejects.toMatchObject({ name: 'ZodError' });
   });
 
-  it('그룹 라인: PR-6 그룹을 담아 저장하면 상세 제품 스냅샷이 남는다 (AC-33 서버)', async () => {
+  it('그룹 라인: PR-6 그룹을 담아 저장하면 상세 제품 스냅샷이 남고 단가는 정상판매 최신 행으로 확정된다 (AC-33 서버)', async () => {
     const [model, other] = await listQuoteItems(handle.db, {
       family: 'WAPPLES',
       priceType: '정상판매',
@@ -279,6 +384,7 @@ describe('saveQuote / listMyQuotes / deleteQuote', () => {
         items: [{ itemCode: model!.itemCode }, { itemCode: other!.itemCode, defaultQty: 2 }],
       },
     );
+    const expected = Number(model!.unitPrice) + Number(other!.unitPrice) * 2;
     const saved = await saveQuote(userCtx, {
       productFamily: 'WAPPLES',
       lines: [
@@ -299,13 +405,21 @@ describe('saveQuote / listMyQuotes / deleteQuote', () => {
         },
       ],
     });
-    expect(saved.totalAmount).toBe('1201000');
+    expect(saved.totalAmount).toBe(String(expected));
+    expect(saved.adjustments.map((entry) => entry.itemCode)).toEqual([
+      model!.itemCode,
+      other!.itemCode,
+    ]);
     const [row] = await handle.db.select().from(quoteLines).where(eq(quoteLines.quoteId, saved.id));
     expect(row).toMatchObject({
       kind: 'group',
       groupId: group.id,
-      preDiscount: '1201000.00',
-      lineTotal: '1201000.00',
+      unitPrice: Number(model!.unitPrice).toFixed(2),
+      preDiscount: expected.toFixed(2),
+      lineTotal: expected.toFixed(2),
+    });
+    expect(row!.options).toMatchObject({
+      groupItems: [{ itemCode: other!.itemCode, unitPrice: Number(other!.unitPrice), qty: 2 }],
     });
   });
 });

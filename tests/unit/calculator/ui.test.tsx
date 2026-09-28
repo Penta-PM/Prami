@@ -187,7 +187,30 @@ describe('QuoteCalculator', () => {
     mocks.options.mockResolvedValue({ ok: true, data: { parts: [], bundles: [], mapped: false } });
     mocks.save.mockResolvedValue({
       ok: true,
-      data: { id: 'q2', quoteNo: 'Q-2026-0002', totalAmount: '0', currency: null, lineCount: 2 },
+      data: {
+        id: 'q2',
+        quoteNo: 'Q-2026-0002',
+        totalAmount: '0',
+        currency: null,
+        lineCount: 2,
+        adjustments: [
+          {
+            lineNo: 2,
+            name: 'USD Item',
+            itemCode: 'PUSD',
+            field: 'unitPrice',
+            client: '10',
+            server: '12',
+          },
+        ],
+      },
+    });
+    mocks.list.mockResolvedValue({
+      ok: true,
+      data: [
+        SAVED,
+        { ...SAVED, id: 'q2', quoteNo: 'Q-2026-0002', totalAmount: null, currency: null },
+      ],
     });
     mocks.remove.mockResolvedValue({ ok: true, data: { id: 'q1', quoteNo: 'Q-2026-0001' } });
     render(<QuoteCalculator preload={PRELOAD} savedQuotes={[SAVED]} />);
@@ -213,13 +236,26 @@ describe('QuoteCalculator', () => {
       }),
     );
     expect(await screen.findByRole('status')).toHaveTextContent('견적을 저장했습니다: Q-2026-0002');
+    // 서버 재가격화 보정이 있으면 안내에 덧붙는다 (PR-7 QA MEDIUM)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '최신 정책으로 보정됨: USD Item 단가 10 → 12',
+    );
     expect(screen.getByLabelText('장바구니')).toHaveTextContent('담긴 품목이 없습니다');
     expect(mocks.list).toHaveBeenCalled();
+    // 방금 저장한 견적이 출력·공유 대상이 된다 (PR-8)
+    expect(await screen.findByTestId('active-quote')).toHaveTextContent(
+      '출력·공유 대상: Q-2026-0002',
+    );
+    expect(screen.getByRole('link', { name: 'Q-2026-0002 견적서 출력' })).toHaveAttribute(
+      'href',
+      '/api/quotes/q2/pdf',
+    );
 
     await userEvent.click(screen.getByRole('button', { name: 'Q-2026-0001 담기' }));
     expect(screen.getByLabelText('장바구니')).toHaveTextContent(
       '정상판매 · 파츠 1 · 할인 12.5% · × 2',
     );
+    expect(screen.getByTestId('active-quote')).toHaveTextContent('출력·공유 대상: Q-2026-0001');
     expect(screen.getByTestId('quote-total')).toHaveTextContent('35,875,000원');
 
     await userEvent.click(screen.getByRole('button', { name: '전체보기' }));
@@ -229,6 +265,29 @@ describe('QuoteCalculator', () => {
     );
     await userEvent.click(within(dialog).getByRole('button', { name: 'Q-2026-0001 삭제' }));
     expect(mocks.remove).toHaveBeenCalledWith({ id: 'q1' });
+  });
+
+  it('품목을 바꾸면 수량·할인율·목표금액이 초기화된다 (PR-7 QA LOW)', async () => {
+    mocks.items.mockResolvedValue({
+      ok: true,
+      data: [ITEM, { ...ITEM, itemCode: 'P2', itemName: 'Wapples-100', unitPrice: '9000000.00' }],
+    });
+    mocks.options.mockResolvedValue({ ok: true, data: { parts: [], bundles: [], mapped: false } });
+    render(<QuoteCalculator preload={PRELOAD} savedQuotes={[]} />);
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Wapples-500 (H500 T2) (P10100015)' }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: '수량 증가' }));
+    await userEvent.type(
+      screen.getByRole('spinbutton', { name: /^목표 금액으로 역산/ }),
+      '30000000',
+    );
+    expect(screen.getByTestId('discount-rate')).toHaveTextContent('25%');
+    await userEvent.click(screen.getByRole('button', { name: 'Wapples-100 (P2)' }));
+    expect(screen.getByTestId('pre-discount')).toHaveTextContent('9,000,000원');
+    expect(screen.getByTestId('discount-rate')).toHaveTextContent('0%');
+    expect(screen.getByRole('spinbutton', { name: /^목표 금액으로 역산/ })).toHaveValue(null);
+    expect(screen.getByTestId('line-total')).toHaveTextContent('9,000,000원');
   });
 
   it('그룹 솔루션: 그룹 칩 → 하드웨어·상세 제품 수량 → 그룹 소계 → 그룹 라인 담기 (AC-33 UI)', async () => {
@@ -303,22 +362,54 @@ describe('MarginCalculator (AC-64)', () => {
 });
 
 describe('CartPanel', () => {
-  it('견적서 출력·공유는 PR-8 자리표시자(비활성), 저장은 장바구니가 비어 있으면 비활성', () => {
-    render(
-      <CartPanel
-        lines={[]}
-        saved={[]}
-        isPending={false}
-        onRemove={vi.fn()}
-        onReset={vi.fn()}
-        onSave={vi.fn()}
-        onReload={vi.fn()}
-        onDelete={vi.fn()}
-      />,
-    );
+  const base = {
+    lines: [],
+    saved: [],
+    isPending: false,
+    onRemove: vi.fn(),
+    onReset: vi.fn(),
+    onSave: vi.fn(),
+    onReload: vi.fn(),
+    onDelete: vi.fn(),
+    onShare: vi.fn(),
+  };
+  const quote = {
+    id: '11111111-1111-4111-8111-111111111111',
+    quoteNo: 'Q-2026-0007',
+    productFamily: 'WAPPLES',
+    title: 'WAPPLES 견적 Q-2026-0007',
+    summary: 'Wapples-500 × 1',
+    totalAmount: '1000000',
+    currency: 'KRW',
+    createdAt: '2026-09-28T00:00:00.000Z',
+    ownerUserId: 'u',
+    lines: [],
+  };
+
+  it('출력·공유 대상 견적이 없으면 출력·공유 비활성, 저장은 장바구니가 비어 있으면 비활성', () => {
+    render(<CartPanel {...base} activeQuote={null} />);
     expect(screen.getByRole('button', { name: '견적서 출력' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '견적 공유' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '견적 저장' })).toBeDisabled();
     expect(screen.getByTestId('quote-total')).toHaveTextContent('0원');
+    expect(screen.getByTestId('active-quote')).toHaveTextContent('저장하거나');
+  });
+
+  it('대상 견적이 있으면 출력 = PDF Route 링크(새 탭), 공유 = onShare (PR-8)', async () => {
+    const onShare = vi.fn();
+    render(<CartPanel {...base} saved={[quote]} activeQuote={quote} onShare={onShare} />);
+    const pdf = screen.getByRole('link', { name: 'Q-2026-0007 견적서 출력' });
+    expect(pdf).toHaveAttribute('href', `/api/quotes/${quote.id}/pdf`);
+    expect(pdf).toHaveAttribute('target', '_blank');
+    await userEvent.click(screen.getByRole('button', { name: 'Q-2026-0007 견적 공유' }));
+    expect(onShare).toHaveBeenCalledWith(quote);
+    // 전체보기 모달의 행에도 PDF 링크·공유 버튼
+    await userEvent.click(screen.getByRole('button', { name: '전체보기' }));
+    expect(screen.getByRole('link', { name: 'Q-2026-0007 PDF' })).toHaveAttribute(
+      'href',
+      `/api/quotes/${quote.id}/pdf`,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Q-2026-0007 공유' }));
+    expect(onShare).toHaveBeenCalledTimes(2);
   });
 });

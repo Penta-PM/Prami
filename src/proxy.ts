@@ -63,8 +63,8 @@ async function recordAdminDenied(
 }
 
 export const config = {
-  // 로그인·Auth.js 엔드포인트·정적 자원은 제외
+  // 로그인·Auth.js 엔드포인트·정적 자원·견적 공유 페이지(/share/*, 토큰이 접근 권한 — §4.5.8)는 제외
   matcher: [
-    '/((?!login|api/auth|_next/static|_next/image|favicon.ico|.*\.(?:png|svg|ico|jpg|webp)$).*)',
+    '/((?!login|share/|api/auth|_next/static|_next/image|favicon.ico|.*\.(?:png|svg|ico|jpg|webp)$).*)',
   ],
 };

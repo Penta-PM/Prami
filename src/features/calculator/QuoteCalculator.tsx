@@ -17,7 +17,14 @@ import { CartPanel } from './CartPanel';
 import { Chip } from './chips';
 import { GroupSolution } from './GroupSolution';
 import { StepCategory, StepDiscount, StepItems, StepOptions, StepPriceType } from './QuoteSteps';
-import type { CartLine, FamilyPreload, QuoteItemView, SavedQuoteView } from './types';
+import { ShareModal } from './ShareModal';
+import type {
+  CartLine,
+  FamilyPreload,
+  PriceAdjustmentView,
+  QuoteItemView,
+  SavedQuoteView,
+} from './types';
 import { useCart } from './useCart';
 
 type QuoteCalculatorProps = {
@@ -88,6 +95,8 @@ export function QuoteCalculator({ preload, savedQuotes }: QuoteCalculatorProps) 
   const [target, setTarget] = useState('');
   const [cart, dispatch] = useCart();
   const [saved, setSaved] = useState<readonly SavedQuoteView[]>(savedQuotes);
+  const [activeQuote, setActiveQuote] = useState<SavedQuoteView | null>(null);
+  const [sharing, setSharing] = useState<SavedQuoteView | null>(null);
   const [flash, setFlash] = useState<Flash | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -146,10 +155,14 @@ export function QuoteCalculator({ preload, savedQuotes }: QuoteCalculatorProps) 
     setPriceType(next);
     resetSelection();
   };
+  // 품목을 바꾸면 이전 품목 기준의 수량·할인율·목표금액을 버린다 (PR-7 QA LOW)
   const selectItem = (item: QuoteItemView) => {
     setSelected(item);
     setParts(new Set());
     setBundles(new Set());
+    setQty(1);
+    setRate(0);
+    setTarget('');
   };
 
   const pricedParts = options.parts.filter((part) => parts.has(part.itemCode)).map(asOption);
@@ -195,9 +208,10 @@ export function QuoteCalculator({ preload, savedQuotes }: QuoteCalculatorProps) 
     setFlash({ tone: 'ok', text: `장바구니에 담았습니다: ${selected.itemName} × ${qty}` });
   };
 
-  const refreshSaved = useCallback(async () => {
+  const refreshSaved = useCallback(async (): Promise<readonly SavedQuoteView[]> => {
     const result = await listMyQuotesAction();
     if (result.ok) setSaved(result.data);
+    return result.ok ? result.data : [];
   }, []);
 
   const save = () =>
@@ -207,13 +221,18 @@ export function QuoteCalculator({ preload, savedQuotes }: QuoteCalculatorProps) 
         lines: cart.lines.map(toLineInput),
       });
       if (!result.ok) return setFlash({ tone: 'error', text: result.error.message });
-      setFlash({ tone: 'ok', text: `견적을 저장했습니다: ${result.data.quoteNo}` });
+      setFlash({
+        tone: 'ok',
+        text: `견적을 저장했습니다: ${result.data.quoteNo}${adjustmentNote(result.data.adjustments)}`,
+      });
       dispatch({ type: 'reset' });
-      await refreshSaved();
+      const list = await refreshSaved();
+      setActiveQuote(list.find((quote) => quote.id === result.data.id) ?? null);
     });
 
   const reload = (quote: SavedQuoteView) => {
     dispatch({ type: 'restore', lines: linesFromSavedQuote(quote) });
+    setActiveQuote(quote);
     if (quote.productFamily && preload.some((entry) => entry.family === quote.productFamily)) {
       chooseFamily(quote.productFamily);
     }
@@ -225,6 +244,7 @@ export function QuoteCalculator({ preload, savedQuotes }: QuoteCalculatorProps) 
       const result = await deleteQuoteAction({ id: quote.id });
       if (!result.ok) return setFlash({ tone: 'error', text: result.error.message });
       setFlash({ tone: 'ok', text: `견적을 삭제했습니다: ${quote.quoteNo}` });
+      setActiveQuote((current) => (current?.id === quote.id ? null : current));
       await refreshSaved();
     });
 
@@ -356,8 +376,23 @@ export function QuoteCalculator({ preload, savedQuotes }: QuoteCalculatorProps) 
           onSave={save}
           onReload={reload}
           onDelete={remove}
+          activeQuote={activeQuote}
+          onShare={setSharing}
         />
       </div>
+      {sharing ? <ShareModal quote={sharing} onClose={() => setSharing(null)} /> : null}
     </div>
   );
+}
+
+/** 서버 재가격화 보정이 있으면 저장 안내에 덧붙인다 (담기로 복원한 옛 스냅샷 등) */
+export function adjustmentNote(adjustments: readonly PriceAdjustmentView[]): string {
+  if (adjustments.length === 0) return '';
+  const first = adjustments[0]!;
+  const detail =
+    first.field === 'unitPrice'
+      ? `${first.name} 단가 ${first.client} → ${first.server}`
+      : `${first.name} 통화 ${first.client} → ${first.server}`;
+  const rest = adjustments.length > 1 ? ` 외 ${adjustments.length - 1}건` : '';
+  return ` · 최신 정책으로 보정됨: ${detail}${rest}`;
 }

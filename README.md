@@ -224,13 +224,32 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
   단가유형의 최신 행 가격)·수량 → STEP4 파츠(`part_mappings` 가 있으면 그 파츠만, 없으면 제품군 파츠 전체) → STEP5 결합형
   (마스터 `item_kind='결합형'`) → STEP6 할인율 슬라이더 ↔ 목표금액 역산 동기화 → 장바구니(`useReducer` + `sessionStorage`,
   통화가 섞이면 통화별 소계) → 견적 저장(`quotes` + 라인 가격 스냅샷, 번호 `Q-YYYY-NNNN` 연도별 시퀀스·재시도) →
-  내 견적 목록(본인만, ADMIN 전체) · 담기(라인 복원) · 삭제(soft). 견적서 출력·공유 버튼은 PR-8 까지 비활성.
+  내 견적 목록(본인만, ADMIN 전체) · 담기(라인 복원) · 삭제(soft) → 견적서 출력 · 견적 공유(PR-8, 아래).
 - 금액 규칙은 `src/lib/pricing/quote.ts` 순수 함수: `preDiscount = (본품 + Σ파츠 + Σ결합형) × 수량`,
   `lineTotal = floor((preDiscount − 할인) / 1000) × 1000`, 역산 `rate = clamp((1 − target/pre) × 100, 0, 100)` 소수 1자리.
 - 순매출 계산기: `src/lib/pricing/margin.ts` — `정상 = 단가×수량`, `할인`, `실제 = 정상 − 할인`, `원가 = 단가×수량`(ADMIN 만),
   `순매출 = 실제 − 원가 − 기타`, `이익률 = 순매출/실제`. USER 는 원가 입력이 잠기고 서버(PR-5 `calculateNetSalesAction`)가
   응답에서 원가·이익률을 제외한다.
 - 감사 `quote.save|delete`. 남의 견적 삭제는 §4.7.1 거부(FORBIDDEN, 무변경, 감사 denied).
+- **서버 재가격화**(`src/server/quotes/reprice.ts`): 저장 시 클라이언트가 보낸 단가 스냅샷을 믿지 않고 품목·파츠·결합형·그룹 상세의
+  단가를 DB 운영중 최신 행으로 다시 확정한다(본품 = 선택 단가유형, 파츠/결합형 = 선택 단가유형 → 정상판매 fallback, 그룹 = 정상판매).
+  없는 품번·단가유형은 저장 거부(VALIDATION), 값이 다르면 서버 값으로 대체하고 응답 `adjustments` 로 알린다(화면 안내에 표시).
+
+## 견적서 PDF · 공유 (PR-8)
+
+- `GET /api/quotes/[id]/pdf`(소유자 또는 ADMIN, 타인 403 + 감사 denied, 없는 id 404): `@react-pdf/renderer` 로 A4 견적서
+  (로고 · 견적 번호 · 일자 · 품목/수량/단가/할인/금액 · 합계(통화 혼합이면 통화별 소계) · "가견적 · 계약가 아님").
+  응답 헤더 `x-render-ms` 와 감사 `quote.pdf`(bytes·durationMs)에 렌더 시간을 남긴다. 레이아웃은 `src/server/quotes/pdf/QuotePdf.tsx`
+  한 곳(회사 양식이 오면 여기만 교체, Q-05).
+- 한글 폰트: `src/assets/fonts/NotoSansKR-{Regular,Bold}-subset.ttf` — Noto Sans KR(OFL 1.1, `src/assets/fonts/OFL.txt`) 가변 폰트를
+  wght 400/700 으로 정적화한 뒤 KS X 1001 완성형 2,350자 + 라틴·기호로 서브셋(각 약 480KB). 외부 요청 없음.
+  Vercel 서버리스에는 `next.config.ts` `outputFileTracingIncludes` 로 폰트·로고를 함께 배포한다(배포 검증은 PR-11).
+- 견적 공유: `createQuoteShare` 가 `quote_shares` 에 32바이트 난수 토큰(hex 64자)을 만료 기본 30일(1~365)로 만든다 →
+  `/share/quotes/[token]` 은 로그인 없이(proxy matcher 제외) 읽기 전용 견적서를 보여 주며 원가는 문서 모델에 없다.
+  폐기는 `expires_at` 을 지금으로 당긴다(스키마 변경 없음) → 만료·폐기·견적 삭제·잘못된 토큰은 모두 404. 감사 `quote.share.create|revoke`
+  (토큰은 감사에 남기지 않음). 소유자·ADMIN 만 생성·목록·폐기(타인은 FORBIDDEN + 감사 denied).
+- 화면: 견적을 저장하거나 목록에서 담으면 그 견적이 "출력·공유 대상"이 되어 `견적서 출력`(PDF 새 탭)·`견적 공유`(링크 목록·새 링크·복사·폐기 모달)가
+  활성화된다. 전체보기 표의 행에도 PDF·공유가 있다.
 
 ## DB 스키마 · 마이그레이션
 

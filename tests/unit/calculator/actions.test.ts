@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DbHandle } from '@/db';
@@ -37,13 +38,15 @@ let userId: string;
 let otherId: string;
 let adminId: string;
 const COST_KEYS = /unit_cost|unitCost|material_code|materialCode|material_costs/;
+/** sales-200 픽스처의 WAPPLES 정상판매 본품 (서버 재가격화가 DB 행을 요구하므로 실제 품번을 쓴다) */
+const REAL = { itemCode: 'P10100015', name: 'Wapples-500 (H500 T2)', unitPrice: 12_000_000 };
 const LINE = {
   kind: 'item' as const,
-  itemCode: 'P1',
-  name: 'Wapples-500',
+  itemCode: REAL.itemCode,
+  name: REAL.name,
   priceType: '정상판매',
   qty: 1,
-  unitPrice: 1_000_000,
+  unitPrice: REAL.unitPrice,
   currency: 'KRW',
   parts: [],
   bundles: [],
@@ -108,7 +111,11 @@ describe('저장·목록·삭제 (AC-63)', () => {
     const saved = await actions.saveQuoteAction({ productFamily: 'WAPPLES', lines: [LINE] });
     expect(saved).toMatchObject({
       ok: true,
-      data: { quoteNo: expect.stringMatching(/^Q-\d{4}-0001$/) as string },
+      data: {
+        quoteNo: expect.stringMatching(/^Q-\d{4}-0001$/) as string,
+        totalAmount: '12000000',
+        adjustments: [],
+      },
     });
     const mine = await actions.listMyQuotesAction();
     expect(mine).toMatchObject({ ok: true });
@@ -152,5 +159,36 @@ describe('저장·목록·삭제 (AC-63)', () => {
       ok: false,
       error: { code: 'VALIDATION' },
     });
+  });
+
+  it('PR-7 QA MEDIUM: 클라이언트가 unitPrice 1 을 보내도 서버가 DB 단가로 저장하고 보정 내역을 돌려준다', async () => {
+    state.sessionUserId = userId;
+    const forged = await actions.saveQuoteAction({
+      productFamily: 'WAPPLES',
+      lines: [{ ...LINE, unitPrice: 1, currency: 'usd' }],
+    });
+    expect(forged).toMatchObject({
+      ok: true,
+      data: {
+        totalAmount: '12000000',
+        currency: 'KRW',
+        adjustments: [
+          { itemCode: REAL.itemCode, field: 'unitPrice', client: '1', server: '12000000' },
+          { itemCode: REAL.itemCode, field: 'currency', client: 'USD', server: 'KRW' },
+        ],
+      },
+    });
+    if (!forged.ok) throw new Error('unreachable');
+    const [row] = await state.handle!.db.select().from(quotes).where(eq(quotes.id, forged.data.id));
+    expect(row?.totalAmount).toBe('12000000');
+    // 없는 품번은 저장 자체를 거부 (VALIDATION 봉투, 견적 미생성)
+    const before = await state.handle!.db.$count(quotes);
+    expect(
+      await actions.saveQuoteAction({
+        productFamily: 'WAPPLES',
+        lines: [{ ...LINE, itemCode: 'NOPE-1', name: '없는 품목' }],
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'VALIDATION' } });
+    expect(await state.handle!.db.$count(quotes)).toBe(before);
   });
 });
