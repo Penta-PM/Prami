@@ -9,6 +9,7 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'PAYLOAD_TOO_LARGE'
+  | 'RATE_LIMITED'
   | 'INTERNAL';
 
 export type ActionError = {
@@ -41,6 +42,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   NOT_FOUND: 404,
   CONFLICT: 409,
   PAYLOAD_TOO_LARGE: 413,
+  RATE_LIMITED: 429,
   INTERNAL: 500,
 };
 

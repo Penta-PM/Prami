@@ -290,7 +290,10 @@ describe('saveQuote / listMyQuotes / deleteQuote', () => {
       ],
     });
     expect(mixed.currency).toBeNull();
-    expect(mixed.adjustments).toEqual([]);
+    // 단가·통화는 일치, 품명만 DB 값(Wapples-100 (H100 T4))으로 대체된다 (PR-8 QA LOW-1)
+    expect(mixed.adjustments).toEqual([
+      expect.objectContaining({ lineNo: 2, itemCode: 'P10100014', field: 'name' }),
+    ]);
     const [row] = await handle.db.select().from(quotes).where(eq(quotes.id, mixed.id));
     expect(row?.totalAmount).toBeNull();
     expect(row?.productFamily).toBe('WAPPLES');
@@ -362,6 +365,75 @@ describe('saveQuote / listMyQuotes / deleteQuote', () => {
     );
   });
 
+  it('PR-8 QA LOW-1: 클라이언트 품명은 DB 품명으로 대체되고 제목은 길이·문자 제한', async () => {
+    const saved = await saveQuote(userCtx, {
+      productFamily: 'WAPPLES',
+      title: `  ${'제목'.repeat(50)}\u0001  `,
+      lines: [
+        line({
+          name: 'Wapples-500 무료 증정',
+          parts: [{ ...part, itemName: '공짜 파츠' }],
+        }),
+      ],
+    });
+    const [head] = await handle.db.select().from(quotes).where(eq(quotes.id, saved.id));
+    expect(head!.title).toBe('제목'.repeat(50));
+    const [row] = await handle.db.select().from(quoteLines).where(eq(quoteLines.quoteId, saved.id));
+    expect(row!.options).toMatchObject({
+      name: MODEL.name,
+      parts: [{ itemCode: part.itemCode, itemName: part.itemName }],
+    });
+    expect(saved.adjustments).toEqual([
+      expect.objectContaining({
+        field: 'name',
+        client: 'Wapples-500 무료 증정',
+        server: MODEL.name,
+      }),
+      expect.objectContaining({ field: 'name', client: '공짜 파츠', server: part.itemName }),
+    ]);
+    await expect(
+      saveQuote(userCtx, { productFamily: 'WAPPLES', title: '<b>x</b>', lines: [line()] }),
+    ).rejects.toMatchObject({ name: 'ZodError' });
+    await expect(
+      saveQuote(userCtx, { productFamily: 'WAPPLES', title: 'x'.repeat(121), lines: [line()] }),
+    ).rejects.toMatchObject({ name: 'ZodError' });
+    await deleteQuote(userCtx, { id: saved.id });
+  });
+
+  it('PR-8 QA LOW-2: 없는 그룹 상세 품번·없는 그룹 id 는 VALIDATION 으로 거부 (0원 허용 없음)', async () => {
+    const [model] = await listQuoteItems(handle.db, { family: 'WAPPLES', priceType: '정상판매' });
+    const count = await handle.db.$count(quotes);
+    const groupLine = {
+      kind: 'group' as const,
+      groupId: '00000000-0000-4000-8000-000000000000',
+      itemCode: model!.itemCode,
+      name: `G · ${model!.itemName}`,
+      qty: 1,
+      unitPrice: Number(model!.unitPrice),
+      currency: 'KRW',
+      parts: [],
+      bundles: [],
+      groupItems: [{ itemCode: 'NOPE-GI', itemName: 'ghost', unitPrice: 0, qty: 1 }],
+      discountRate: 0,
+    };
+    // 없는 그룹 id
+    await expect(
+      saveQuote(userCtx, { productFamily: 'WAPPLES', lines: [groupLine] }),
+    ).rejects.toMatchObject({ code: 'VALIDATION', message: '존재하지 않는 솔루션 그룹입니다' });
+    // 존재하는 그룹 + 없는 상세 품번
+    const group = await upsertSolutionGroup(
+      { handle, actor: adminCtx.actor, meta: TEST_META },
+      { productFamily: 'WAPPLES', name: 'G2', items: [{ itemCode: model!.itemCode }] },
+    );
+    await expect(
+      saveQuote(userCtx, {
+        productFamily: 'WAPPLES',
+        lines: [{ ...groupLine, groupId: group.id }],
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    expect(await handle.db.$count(quotes)).toBe(count);
+  });
+
   it('검증: 빈 장바구니·잘못된 통화는 ZodError', async () => {
     await expect(saveQuote(userCtx, { productFamily: 'WAPPLES', lines: [] })).rejects.toMatchObject(
       { name: 'ZodError' },
@@ -406,10 +478,11 @@ describe('saveQuote / listMyQuotes / deleteQuote', () => {
       ],
     });
     expect(saved.totalAmount).toBe(String(expected));
-    expect(saved.adjustments.map((entry) => entry.itemCode)).toEqual([
-      model!.itemCode,
-      other!.itemCode,
-    ]);
+    expect(
+      saved.adjustments
+        .filter((entry) => entry.field === 'unitPrice')
+        .map((entry) => entry.itemCode),
+    ).toEqual([model!.itemCode, other!.itemCode]);
     const [row] = await handle.db.select().from(quoteLines).where(eq(quoteLines.quoteId, saved.id));
     expect(row).toMatchObject({
       kind: 'group',

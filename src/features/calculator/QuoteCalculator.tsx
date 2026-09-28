@@ -30,6 +30,8 @@ import { useCart } from './useCart';
 type QuoteCalculatorProps = {
   preload: readonly FamilyPreload[];
   savedQuotes: readonly SavedQuoteView[];
+  /** 챗봇 견적 시작 링크(§4.5.9): 제품군을 먼저 고르고 품번이 목록에 있으면 선택해 둔다 */
+  initial?: { family?: string; itemCode?: string };
 };
 
 type Flash = { tone: 'ok' | 'error'; text: string };
@@ -77,8 +79,13 @@ function toggle(set: ReadonlySet<string>, code: string, on: boolean): ReadonlySe
  * → STEP6 할인율/목표금액 → 장바구니 → 견적 저장/목록/담기/삭제. 금액은 lib/pricing/quote.ts 순수 함수.
  * 서버 조회 결과는 "요청 키" 와 함께 보관해 선택이 바뀌면 이전 결과를 보여 주지 않는다 (effect 안에서 동기 setState 없음).
  */
-export function QuoteCalculator({ preload, savedQuotes }: QuoteCalculatorProps) {
-  const [family, setFamily] = useState(preload[0]?.family ?? '');
+export function QuoteCalculator({ preload, savedQuotes, initial }: QuoteCalculatorProps) {
+  const [family, setFamily] = useState(() =>
+    initial?.family && preload.some((entry) => entry.family === initial.family)
+      ? initial.family
+      : (preload[0]?.family ?? ''),
+  );
+  const [pendingItem, setPendingItem] = useState<string | null>(initial?.itemCode ?? null);
   const current = preload.find((entry) => entry.family === family) ?? null;
   const [priceType, setPriceType] = useState<string | null>(
     current?.priceTypes[0]?.priceType ?? null,
@@ -118,11 +125,20 @@ export function QuoteCalculator({ preload, savedQuotes }: QuoteCalculatorProps) 
       if (!active) return;
       setLoadedItems({ key: itemsKey, data: result.ok ? result.data : [] });
       if (!result.ok) setFlash({ tone: 'error', text: result.error.message });
+      // 챗봇 링크로 넘어온 품번이 목록에 있으면 한 번만 선택해 둔다
+      if (pendingItem && result.ok) {
+        const found = result.data.find((item) => item.itemCode === pendingItem);
+        if (found) {
+          setSelected(found);
+          setFlash({ tone: 'ok', text: `챗봇에서 넘어온 품목을 선택했습니다: ${found.itemName}` });
+        }
+        setPendingItem(null);
+      }
     });
     return () => {
       active = false;
     };
-  }, [itemsKey, family, priceType, mid, minor]);
+  }, [itemsKey, family, priceType, mid, minor, pendingItem]);
 
   useEffect(() => {
     if (!optionsKey || !selected || !priceType) return;
@@ -389,10 +405,8 @@ export function QuoteCalculator({ preload, savedQuotes }: QuoteCalculatorProps) 
 export function adjustmentNote(adjustments: readonly PriceAdjustmentView[]): string {
   if (adjustments.length === 0) return '';
   const first = adjustments[0]!;
-  const detail =
-    first.field === 'unitPrice'
-      ? `${first.name} 단가 ${first.client} → ${first.server}`
-      : `${first.name} 통화 ${first.client} → ${first.server}`;
+  const label = { unitPrice: '단가', currency: '통화', name: '품명' }[first.field];
+  const detail = `${first.name} ${label} ${first.client} → ${first.server}`;
   const rest = adjustments.length > 1 ? ` 외 ${adjustments.length - 1}건` : '';
   return ` · 최신 정책으로 보정됨: ${detail}${rest}`;
 }

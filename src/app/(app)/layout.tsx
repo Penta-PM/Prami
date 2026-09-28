@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { hasPermission, ROLE_LABELS } from '@/lib/constants/permissions';
+import { ChatProvider } from '@/features/chat/ChatContext';
+import { ChatDock } from '@/features/chat/ChatDock';
 import { Header } from '@/features/shell/Header';
 import { Sidebar } from '@/features/shell/Sidebar';
 import { getSessionUser } from '@/server/auth/rbac';
@@ -17,12 +19,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const roleLabel = [ROLE_LABELS[user.role], user.department].filter(Boolean).join(' · ');
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface-page">
-      <Sidebar showAdminNav={hasPermission(user.role, 'users.manage')} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Header user={{ name: user.name, roleLabel }} />
-        <main className="flex-1 overflow-y-auto p-8">{children}</main>
+    <ChatProvider>
+      <div className="flex h-screen overflow-hidden bg-surface-page">
+        <Sidebar showAdminNav={hasPermission(user.role, 'users.manage')} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Header user={{ name: user.name, roleLabel }} />
+          <main className="flex-1 overflow-y-auto p-8">{children}</main>
+        </div>
+        <ChatDock />
       </div>
-    </div>
+    </ChatProvider>
   );
 }

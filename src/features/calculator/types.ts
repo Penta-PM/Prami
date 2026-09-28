@@ -142,7 +142,7 @@ export type PriceAdjustmentView = {
   lineNo: number;
   name: string;
   itemCode: string;
-  field: 'unitPrice' | 'currency';
+  field: 'unitPrice' | 'currency' | 'name';
   client: string;
   server: string;
 };

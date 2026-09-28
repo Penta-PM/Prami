@@ -38,7 +38,15 @@ export default async function CalculatorPage({ searchParams }: CalculatorPagePro
     }),
   );
   const savedQuotes = await listMyQuotes(db, user);
-  const tab = (await searchParams).tab === 'margin' ? 'margin' : 'quote';
+  const params = await searchParams;
+  const tab = params.tab === 'margin' ? 'margin' : 'quote';
+  // 챗봇 "견적 시작" 링크(§4.5.9): ?family=&item= — 목록에 있는 제품군·품번 형식만 받는다
+  const family = typeof params.family === 'string' ? params.family : undefined;
+  const item = typeof params.item === 'string' ? params.item : undefined;
+  const initial = {
+    family: family && families.includes(family) ? family : undefined,
+    itemCode: item && /^[A-Za-z0-9_-]{1,50}$/.test(item) ? item : undefined,
+  };
 
   return (
     <section aria-labelledby="page-title" className="flex flex-col gap-[18px]">
@@ -50,6 +58,7 @@ export default async function CalculatorPage({ searchParams }: CalculatorPagePro
         savedQuotes={savedQuotes}
         canSeeCost={hasPermission(user.role, 'cost.read')}
         initialTab={tab}
+        initial={initial}
       />
     </section>
   );

@@ -21,6 +21,7 @@ export const SHARE_DAYS_DEFAULT = 30;
 export function ShareModal({ quote, onClose }: ShareModalProps) {
   const [shares, setShares] = useState<QuoteShareView[] | null>(null);
   const [days, setDays] = useState(String(SHARE_DAYS_DEFAULT));
+  const [showInactive, setShowInactive] = useState(false);
   const [flash, setFlash] = useState<Flash | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -35,6 +36,9 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
       active = false;
     };
   }, [quote.id]);
+
+  const inactiveCount = (shares ?? []).filter((share) => !share.isActive).length;
+  const visibleShares = (shares ?? []).filter((share) => showInactive || share.isActive);
 
   const create = () =>
     startTransition(async () => {
@@ -110,13 +114,28 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
             새 공유 링크 만들기
           </Button>
         </form>
+        {inactiveCount > 0 ? (
+          <button
+            type="button"
+            className="self-start border-0 bg-transparent p-0 text-[12px] font-semibold text-text-tertiary underline"
+            onClick={() => setShowInactive((current) => !current)}
+          >
+            {showInactive
+              ? `만료·폐기된 링크 ${inactiveCount}개 숨기기`
+              : `만료·폐기된 링크 ${inactiveCount}개 보기`}
+          </button>
+        ) : null}
         <ul aria-label="공유 링크 목록" className="m-0 flex list-none flex-col gap-2 p-0">
           {shares === null ? (
             <li className="text-[13px] text-text-tertiary">불러오는 중…</li>
-          ) : shares.length === 0 ? (
-            <li className="text-[13px] text-text-tertiary">아직 만든 공유 링크가 없습니다.</li>
+          ) : visibleShares.length === 0 ? (
+            <li className="text-[13px] text-text-tertiary">
+              {inactiveCount > 0
+                ? '살아 있는 공유 링크가 없습니다.'
+                : '아직 만든 공유 링크가 없습니다.'}
+            </li>
           ) : (
-            shares.map((share) => (
+            visibleShares.map((share) => (
               <li
                 key={share.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border-subtle px-3 py-2.5"

@@ -12,7 +12,8 @@ import type { quoteLineSchema } from './schemas';
  * 품목·파츠·결합형·그룹 상세의 단가를 DB 의 운영중 최신 행으로 다시 확정한다 (§4.3.8 "가격은 서버가 DB 에서 확정").
  * - 본품: (품번, 선택 단가유형) 최신 행. 없으면 저장 거부(VALIDATION).
  * - 파츠·결합형: (품번, 선택 단가유형) → 없으면 (품번, 정상판매) — STEP4 후보 조회(listQuoteParts)와 같은 규칙. 둘 다 없으면 거부.
- * - 그룹 라인: 하드웨어·상세 제품은 정상판매 최신 행(PR-6 그룹 칩과 동일). 상세 제품에 가격이 없으면 0 (가격 미등록).
+ * - 그룹 라인: 하드웨어·상세 제품은 정상판매 최신 행(PR-6 그룹 칩과 동일). 없는 품번은 파츠·결합형과 같이 거부 (PR-8 QA LOW-2).
+ * - 품명(본품·파츠·결합형·상세)도 DB 행의 품명으로 대체한다 — 클라이언트 문구가 견적서·공유 페이지에 실리지 않도록 (PR-8 QA LOW-1).
  * 클라이언트 값과 다르면 서버 값으로 대체하고 `adjustments` 로 알려 준다 (거부 대신 보정 — 담기로 복원한 옛 스냅샷도 저장 가능).
  */
 export type ParsedQuoteLine = z.output<typeof quoteLineSchema>;
@@ -21,7 +22,7 @@ export type PriceAdjustment = {
   lineNo: number;
   name: string;
   itemCode: string;
-  field: 'unitPrice' | 'currency';
+  field: 'unitPrice' | 'currency' | 'name';
   client: string;
   server: string;
 };
@@ -35,7 +36,12 @@ export type RepriceResult = {
 
 export const NORMAL_PRICE_TYPE = '정상판매';
 
-type LatestPrice = { unitPrice: number; currency: string; productFamily: string | null };
+type LatestPrice = {
+  unitPrice: number;
+  currency: string;
+  productFamily: string | null;
+  itemName: string;
+};
 type PriceMap = Map<string, LatestPrice>;
 
 const key = (itemCode: string, priceType: string) => `${itemCode}\u0000${priceType}`;
@@ -63,6 +69,7 @@ async function loadLatestPrices(db: Db, codes: string[], types: string[]): Promi
       unitPrice: salesPrices.unitPrice,
       currency: salesPrices.currency,
       productFamily: salesPrices.productFamily,
+      itemName: salesPrices.itemName,
     })
     .from(salesPrices)
     .where(
@@ -87,6 +94,7 @@ async function loadLatestPrices(db: Db, codes: string[], types: string[]): Promi
               key(row.itemCode, row.priceType),
               {
                 unitPrice: Number(row.unitPrice),
+                itemName: row.itemName.trim(),
                 currency: row.currency,
                 productFamily: row.productFamily,
               },
@@ -124,11 +132,11 @@ class Repricer {
   private base(
     line: ParsedQuoteLine,
     lineNo: number,
-  ): Pick<ParsedQuoteLine, 'unitPrice' | 'currency'> {
+  ): Pick<ParsedQuoteLine, 'unitPrice' | 'currency' | 'name'> {
     if (!line.itemCode) {
       // 하드웨어 없는 그룹 라인: 본품 단가는 0 이어야 한다
       this.note(line, lineNo, '', 'unitPrice', String(line.unitPrice), '0');
-      return { unitPrice: 0, currency: line.currency };
+      return { unitPrice: 0, currency: line.currency, name: line.name };
     }
     const priceType = line.kind === 'group' ? NORMAL_PRICE_TYPE : (line.priceType ?? '');
     const found = this.prices.get(key(line.itemCode, priceType));
@@ -153,7 +161,10 @@ class Repricer {
       );
     }
     this.note(line, lineNo, line.itemCode, 'currency', line.currency, found.currency);
-    return { unitPrice: found.unitPrice, currency: found.currency };
+    // 그룹 라인 이름은 '그룹명 · 하드웨어' 조합이라 유지, 품목 라인은 DB 품명으로 대체 (LOW-1)
+    const name = line.kind === 'item' ? found.itemName : line.name;
+    this.note(line, lineNo, line.itemCode, 'name', line.name, name);
+    return { unitPrice: found.unitPrice, currency: found.currency, name };
   }
 
   /** 파츠·결합형: 선택 단가유형 → 정상판매 fallback. 없으면 거부 */
@@ -183,23 +194,32 @@ class Repricer {
         String(found.unitPrice),
       );
     }
-    return { ...option, unitPrice: found.unitPrice };
+    this.note(line, lineNo, option.itemCode, 'name', option.itemName, found.itemName);
+    return { ...option, unitPrice: found.unitPrice, itemName: found.itemName };
   }
 
-  /** 그룹 상세 제품: 정상판매 최신 행, 없으면 0 (가격 미등록) */
+  /** 그룹 상세 제품: 정상판매 최신 행. 없는 품번은 거부 (PR-8 QA LOW-2 — 파츠·결합형과 같은 규칙) */
   private groupItem<T extends OptionLike>(line: ParsedQuoteLine, lineNo: number, item: T): T {
-    const unitPrice = this.prices.get(key(item.itemCode, NORMAL_PRICE_TYPE))?.unitPrice ?? 0;
-    if (!sameAmount(unitPrice, item.unitPrice)) {
+    const found = this.prices.get(key(item.itemCode, NORMAL_PRICE_TYPE));
+    if (!found) {
+      throw new AppError(
+        'VALIDATION',
+        `그룹 상세 ${item.itemName}(${item.itemCode})의 운영중 정상판매 단가를 찾을 수 없습니다`,
+        { lines: [`라인 ${lineNo}: 그룹 상세 단가 없음`] },
+      );
+    }
+    if (!sameAmount(found.unitPrice, item.unitPrice)) {
       this.note(
         line,
         lineNo,
         item.itemCode,
         'unitPrice',
         String(item.unitPrice),
-        String(unitPrice),
+        String(found.unitPrice),
       );
     }
-    return { ...item, unitPrice };
+    this.note(line, lineNo, item.itemCode, 'name', item.itemName, found.itemName);
+    return { ...item, unitPrice: found.unitPrice, itemName: found.itemName };
   }
 
   line(line: ParsedQuoteLine, index: number): ParsedQuoteLine {

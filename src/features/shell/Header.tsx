@@ -1,5 +1,6 @@
 import { Input } from '@/components/ui/input';
 import { signOutAction } from '@/features/auth/actions';
+import { ChatLauncher } from '@/features/chat/ChatDock';
 
 import { Icon, type IconName } from './icons';
 
@@ -30,7 +31,7 @@ export function Header({ user }: HeaderProps) {
         />
       </form>
       <div className="flex-1" />
-      <IconButton label="챗봇" icon="chat" />
+      <ChatLauncher />
       <IconButton label="공지사항" icon="bell" />
       <div className="flex items-center gap-2.5 border-l border-border-subtle pl-3.5">
         <div
