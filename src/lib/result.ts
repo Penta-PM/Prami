@@ -3,7 +3,13 @@
  * 예외를 클라이언트로 흘리지 않고 코드·메시지로 변환한다.
  */
 export type ErrorCode =
-  'UNAUTHENTICATED' | 'FORBIDDEN' | 'VALIDATION' | 'NOT_FOUND' | 'CONFLICT' | 'INTERNAL';
+  | 'UNAUTHENTICATED'
+  | 'FORBIDDEN'
+  | 'VALIDATION'
+  | 'NOT_FOUND'
+  | 'CONFLICT'
+  | 'PAYLOAD_TOO_LARGE'
+  | 'INTERNAL';
 
 export type ActionError = {
   code: ErrorCode;
@@ -34,6 +40,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   VALIDATION: 400,
   NOT_FOUND: 404,
   CONFLICT: 409,
+  PAYLOAD_TOO_LARGE: 413,
   INTERNAL: 500,
 };
 

@@ -17,6 +17,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias },
   test: {
+    // 파일마다 PGlite(wasm)를 띄우므로 코어 수만큼 병렬이면 준비 단계가 타임아웃난다 — 동시 실행 수 상한
+    maxWorkers: 8,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

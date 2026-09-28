@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 
-import { Card, Pill } from '@/components/ui';
+import { Pill } from '@/components/ui';
 import { getDb } from '@/db';
 import { formatAuditTime } from '@/lib/audit-format';
 import { ImportPanel } from '@/features/admin-policies/ImportPanel';
+import { PricingSection } from '@/features/pricing/PricingSection';
 import { requirePagePermission } from '@/server/auth/rbac';
 import {
   getCurrentApply,
@@ -16,10 +17,14 @@ import {
 export const metadata: Metadata = { title: '가격정책 관리' };
 
 /**
- * 가격정책 관리 (§4.5.3). PR-3: 상단 임포트 패널(판매단가/품목상태 파일 → 가격정책 적용)과 현재 적용 배지.
- * 관리 표·필터·등록 모달은 PR-4.
+ * 가격정책 관리 (§4.5.3): 상단 임포트 패널(판매단가/품목상태 파일 → 가격정책 적용)·현재 적용 배지,
+ * 아래 관리 표(조회 표 + 적용시작일·운영 연도·관리)·필터·`+ 등록`/수정/복사/삭제.
  */
-export default async function AdminPoliciesPage() {
+type AdminPoliciesPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AdminPoliciesPage({ searchParams }: AdminPoliciesPageProps) {
   await requirePagePermission('pricing.write', '/admin/policies');
   const db = await getDb();
   const [current, salesOptions, itemOptions, runs] = await Promise.all([
@@ -44,10 +49,7 @@ export default async function AdminPoliciesPage() {
         currentItemId={current?.item?.id ?? null}
       />
       <RecentRuns runs={runs} />
-      <Card className="text-[13px] text-text-tertiary">
-        가격정책 관리 표(적용시작일·운영 연도·품목상태 컬럼, 등록·수정·복사·삭제)는 PR-4 에서
-        제공됩니다.
-      </Card>
+      <PricingSection mode="admin" basePath="/admin/policies" searchParams={await searchParams} />
     </section>
   );
 }

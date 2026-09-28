@@ -1,0 +1,235 @@
+'use client';
+
+import { usePathname, useRouter } from 'next/navigation';
+import { useState, useTransition, type FormEvent } from 'react';
+
+import { Input, Segmented } from '@/components/ui';
+import { Icon } from '@/features/shell/icons';
+import { cn } from '@/lib/cn';
+
+import {
+  activeYear,
+  ALL,
+  filterToQuery,
+  yearRange,
+  type DateMode,
+  type FilterErrors,
+  type PriceFilter,
+} from './filter';
+import type { CategoryOptionsView } from './types';
+
+type PricingFiltersProps = {
+  filter: PriceFilter;
+  errors: FilterErrors;
+  options: CategoryOptionsView;
+  years: readonly number[];
+  searchPlaceholder: string;
+};
+
+type Patch = (patch: Partial<PriceFilter>) => void;
+
+const DATE_MODE_OPTIONS = [
+  { value: 'start', label: '적용시작일 기준' },
+  { value: 'period', label: '적용기간 기준' },
+] as const;
+
+/** 연도 퀵칩 최대 개수 (최근 연도부터) */
+const MAX_YEAR_CHIPS = 9;
+
+const SELECT_CLASS =
+  'rounded-lg border-0 bg-surface-card px-3 py-[9px] text-[12px] shadow-(--hairline-default) outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--purple-500)] disabled:opacity-60';
+const DATE_CLASS =
+  'rounded-pill border-0 bg-surface-card px-3 py-2 text-[12px] font-semibold text-text-secondary shadow-(--hairline-default) outline-none';
+
+function chipClass(active: boolean) {
+  return cn(
+    'rounded-pill border-0 px-3 py-[7px] text-[12px] font-semibold whitespace-nowrap',
+    active
+      ? 'bg-ink-900 text-white'
+      : 'bg-surface-card text-text-secondary shadow-(--hairline-default) hover:text-ink-900',
+  );
+}
+
+/**
+ * 조회·관리 공용 필터 (§4.5.1·§4.5.2): 대/중/소분류 연쇄 드롭다운(R-01), 날짜 기준 선택(R-13),
+ * 전체·연도 칩(R-B), 기간 입력, 검색. 모든 상태는 URL 검색 파라미터로 반영하고 1페이지로 돌아간다.
+ */
+export function PricingFilters(props: PricingFiltersProps) {
+  const { filter, errors, options, years, searchPlaceholder } = props;
+  const router = useRouter();
+  const pathname = usePathname();
+  const [, startTransition] = useTransition();
+  const [query, setQuery] = useState(filter.q ?? '');
+
+  const go: Patch = (patch) =>
+    startTransition(() =>
+      router.push(`${pathname}${filterToQuery({ ...filter, ...patch, page: 1 })}`),
+    );
+
+  const submitSearch = (event: FormEvent) => {
+    event.preventDefault();
+    go({ q: query.trim() || undefined });
+  };
+
+  return (
+    <div className="flex flex-col gap-3.5">
+      <CategoryCascade filter={filter} options={options} onChange={go} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <DateControls filter={filter} errors={errors} years={years} onChange={go} />
+        <form
+          role="search"
+          aria-label="가격정책 검색"
+          onSubmit={submitSearch}
+          className="w-[260px]"
+        >
+          <Input
+            type="search"
+            name="q"
+            aria-label="품목명·품번 검색"
+            value={query}
+            placeholder={searchPlaceholder}
+            onChange={(event) => setQuery(event.target.value)}
+            leading={<Icon name="search" className="size-4" />}
+            className="bg-surface-card"
+          />
+        </form>
+      </div>
+    </div>
+  );
+}
+
+type CategorySelectProps = {
+  label: string;
+  value: string | undefined;
+  values: readonly string[];
+  disabled?: boolean;
+  bold?: boolean;
+  onChange: (value: string) => void;
+};
+
+function CategorySelect({ label, value, values, disabled, bold, onChange }: CategorySelectProps) {
+  return (
+    <select
+      aria-label={label}
+      className={cn(SELECT_CLASS, bold && 'font-semibold')}
+      value={value ?? ALL}
+      disabled={disabled}
+      onChange={(event) => onChange(event.target.value)}
+    >
+      <option value={ALL}>{ALL}</option>
+      {values.map((entry) => (
+        <option key={entry} value={entry}>
+          {entry}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** 상위 분류를 바꾸면 하위는 `전체`로 초기화 (디자인 로직 유지, AC-11) */
+function CategoryCascade({
+  filter,
+  options,
+  onChange,
+}: {
+  filter: PriceFilter;
+  options: CategoryOptionsView;
+  onChange: Patch;
+}) {
+  const noSub = !options.hasMaster;
+  return (
+    <div className="flex flex-wrap items-center gap-2.5">
+      <CategorySelect
+        label="대분류"
+        bold
+        value={filter.major}
+        values={options.majors}
+        onChange={(major) => onChange({ major, mid: undefined, minor: undefined })}
+      />
+      <CategorySelect
+        label="중분류"
+        value={filter.mid}
+        values={options.mids}
+        disabled={noSub || !filter.major}
+        onChange={(mid) => onChange({ mid, minor: undefined })}
+      />
+      <CategorySelect
+        label="소분류"
+        value={filter.minor}
+        values={options.minors}
+        disabled={noSub || !filter.mid}
+        onChange={(minor) => onChange({ minor })}
+      />
+      {noSub ? (
+        <span className="text-[12px] text-text-tertiary">
+          품목조회 파일이 적용되면 중/소분류 필터가 활성화됩니다
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+type DateControlsProps = {
+  filter: PriceFilter;
+  errors: FilterErrors;
+  years: readonly number[];
+  onChange: Patch;
+};
+
+/** 날짜 기준(적용시작일/적용기간) + 전체·연도 칩 + 기간 입력 (§4.5.2) */
+function DateControls({ filter, errors, years, onChange }: DateControlsProps) {
+  const year = activeYear(filter);
+  const noDate = !filter.from && !filter.to;
+  const message = errors.from ?? errors.to;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Segmented
+        aria-label="날짜 기준"
+        options={DATE_MODE_OPTIONS}
+        value={filter.dateMode}
+        onChange={(dateMode: DateMode) => onChange({ dateMode })}
+      />
+      <button
+        type="button"
+        aria-pressed={noDate}
+        className={chipClass(noDate)}
+        onClick={() => onChange({ from: undefined, to: undefined })}
+      >
+        {ALL}
+      </button>
+      {years.slice(0, MAX_YEAR_CHIPS).map((chip) => (
+        <button
+          key={chip}
+          type="button"
+          aria-pressed={year === chip}
+          className={chipClass(year === chip)}
+          onClick={() => onChange(yearRange(chip))}
+        >
+          {chip}
+        </button>
+      ))}
+      <input
+        type="date"
+        aria-label="시작일"
+        className={DATE_CLASS}
+        defaultValue={filter.from ?? ''}
+        key={`from-${filter.from ?? ''}`}
+        onChange={(event) => onChange({ from: event.target.value || undefined })}
+      />
+      <span className="text-[12px] text-text-tertiary">~</span>
+      <input
+        type="date"
+        aria-label="종료일"
+        className={DATE_CLASS}
+        defaultValue={filter.to ?? ''}
+        key={`to-${filter.to ?? ''}`}
+        onChange={(event) => onChange({ to: event.target.value || undefined })}
+      />
+      {message ? (
+        <span role="alert" className="text-[12px] text-red-500">
+          {message}
+        </span>
+      ) : null}
+    </div>
+  );
+}

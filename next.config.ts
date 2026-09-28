@@ -15,6 +15,11 @@ const nextConfig: NextConfig = {
   // next dev 가 AGENTS.md/CLAUDE.md 를 자동 생성·수정하지 않도록 끈다 (운영 문서는 Main 이 관리).
   // Next 16.3 문서: node_modules/next/dist/docs/01-app/02-guides/ai-agents.md "Opting out"
   agentRules: false,
+  experimental: {
+    // proxy(1차 방어)를 거치는 요청 본문 상한. 기본 10MB 면 10MB 파일 + multipart 오버헤드가 잘리므로
+    // 업로드 상한(10MB, §4.4.1)보다 약간 크게 둔다 — 초과분은 Route 가 413 으로 응답한다
+    proxyClientMaxBodySize: '11mb',
+  },
 };
 
 export default nextConfig;
