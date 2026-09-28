@@ -16,6 +16,7 @@ export const PERMISSIONS = {
   search: ['USER', 'ADMIN'],
   'chat.use': ['USER', 'ADMIN'],
   'pricing.write': ['ADMIN'],
+  'notice.write': ['ADMIN'],
   'cost.read': ['ADMIN'],
   'cost.write': ['ADMIN'],
   'parts.write': ['ADMIN'],

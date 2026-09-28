@@ -100,7 +100,11 @@ export function CostImportPanel({ options, currentBatchId }: CostImportPanelProp
       {outcome?.ok ? (
         <>
           <CostApplyStats stats={outcome.result.stats} />
-          <DuplicateWarningLists warnings={outcome.result.warnings} stage="applied" />
+          <DuplicateWarningLists
+            warnings={outcome.result.warnings}
+            stage="applied"
+            headerRowIndex={outcome.result.headerRowIndex}
+          />
         </>
       ) : null}
     </section>

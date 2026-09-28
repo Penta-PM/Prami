@@ -84,7 +84,11 @@ function WarningLists({ data }: { data: UploadSummaryData }) {
   const others = data.warnings.filter((w) => !DUPLICATE_COLUMNS.includes(w.column));
   return (
     <>
-      <DuplicateWarningLists warnings={data.duplicateWarnings} stage="preview" />
+      <DuplicateWarningLists
+        warnings={data.duplicateWarnings}
+        stage="preview"
+        headerRowIndex={data.headerRowIndex}
+      />
       {others.length > 0 ? (
         <ul className="m-0 list-none p-0 text-[12px] text-amber-500">
           {others.slice(0, 10).map((warning, index) => (

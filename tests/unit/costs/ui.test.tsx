@@ -80,6 +80,8 @@ const APPLY_RESULT = {
     ],
     conflictingDuplicates: [GROUP],
   },
+  // 원본 파일: 1행 제목 + 2행 헤더 → headerRowIndex 1, source_row 380 = 엑셀 382행 (QA LOW-1)
+  headerRowIndex: 1,
 };
 const REASON_LABEL = /^변경 사유 \*/;
 
@@ -273,7 +275,7 @@ describe('CostImportPanel', () => {
     expect(within(status).getByText('같은 날짜 중복').nextElementSibling).toHaveTextContent('3');
     expect(screen.getByRole('note', { name: '같은 날짜 중복' })).toHaveTextContent('중복 2그룹');
     expect(screen.getByRole('note', { name: '값이 다른 같은 날짜 중복' })).toHaveTextContent(
-      'W1001020034 · 2025-01-01 — 원본 380, 387행 (단가 573,000 / 504,000)',
+      'W1001020034 · 2025-01-01 — 엑셀 382, 389행 (단가 573,000 / 504,000)',
     );
     expect(mocks.refresh).toHaveBeenCalled();
   });

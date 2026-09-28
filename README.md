@@ -186,10 +186,21 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
 - 필터(제품군 탭, `적용시작일 기준`/`적용기간 기준`, 연도 칩, 기간, 검색, 페이지)는 가격정책 화면과 같은 컴포넌트·SQL 조건을
   쓰며 모두 URL 검색 파라미터입니다. 수정·삭제는 변경 사유가 필수이고 감사 로그(`material_cost.update|delete`, 12컬럼 스냅샷)를 남깁니다.
 - 원가 격리: `src/server/cost/**` 는 `src/features/costs/**`·`src/app/(app)/admin/costs/**` 에서만 import 할 수 있고(ESLint
-  `no-restricted-imports`), 모든 서버 함수는 첫 인자로 `cost.read`/`cost.write` 권한 검사에서 발급된 `CostAccess` 토큰을 요구합니다.
+  `no-restricted-imports` + 동적 `import()`/`require`·`materialCosts` 스키마 직접 사용을 막는 `no-restricted-syntax`), 모든 서버 함수는 첫 인자로 `cost.read`/`cost.write` 권한 검사에서 발급된 `CostAccess` 토큰을 요구합니다.
   USER 는 페이지·Action 모두 §4.7.1 거부 판정(FORBIDDEN, DB 무변경, 감사 denied)을 받고 원가 값이 응답에 실리지 않습니다.
   순매출 계산기 서버 함수(`calculateNetSalesAction`)는 `cost.read` 가 없으면 원가 입력을 무시하고 `costLocked: true` 를 돌려줍니다.
 - 로컬 데이터: `pnpm import:source --kind costs` (원본 487행 → 자재 157·계열 157·최신 157).
+
+## 홈 · 공지 · 검색 (PR-9)
+
+- `/`(HOME): 제품 바로가기 카드 4개(WAPPLES, D.AMO, iSIGN, Cloudbric → `/pricing?major=…`, `iSIGN PKI` 는 iSIGN 카드에
+  포함되고 조회 화면 대분류에서만 구분 — Q-10)와 최근 공지 5건(`중요` 배지).
+- `/notices`·`/notices/[id]`: 로그인 사용자 모두(`notice.read`). ADMIN 에게만 상세 하단에 수정/삭제가 보인다.
+- `/admin/notices`(ADMIN, `notice.write`): `+ 공지 등록`·수정·삭제. Action `upsertNoticeAction`/`deleteNoticeAction` 은
+  감사 로그 `notice.create|update|delete`(제목·작성자·중요·작성일·본문 길이 스냅샷)를 남기고, USER 호출은 §4.7.1 거부
+  판정(FORBIDDEN, `notices` 무변경, 감사 denied). 삭제는 soft delete.
+- 상단 검색 → `/search?q=`: 품목(판매단가의 품명·품번, 품번당 1건, 품목 마스터 상태 표시) + 공지(제목·본문) 결과 그룹.
+  원가(material_costs)는 조인·반환하지 않는다.
 
 ## DB 스키마 · 마이그레이션
 
