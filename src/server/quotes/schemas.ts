@@ -34,7 +34,12 @@ export const quoteLineSchema = z.object({
 
 export const saveQuoteSchema = z.object({
   productFamily: z.string().trim().min(1).max(50),
-  title: z.string().trim().max(200).optional(),
+  title: z
+    .string()
+    .trim()
+    .max(120)
+    .regex(/^[^<>]*$/, '제목에 < > 는 쓸 수 없습니다')
+    .optional(),
   lines: z.array(quoteLineSchema).min(1, '장바구니가 비어 있습니다').max(200),
 });
 

@@ -76,6 +76,11 @@ describe('ShareModal', () => {
 
     await userEvent.click(within(list).getByRole('button', { name: /폐기$/ }));
     expect(mocks.revoke).toHaveBeenCalledWith({ shareId: created.id });
+    // 폐기된 링크는 기본 숨김, 토글로 펼친다 (PR-8 QA INFO-5)
+    expect(await within(dialog).findByText('살아 있는 공유 링크가 없습니다.')).toBeInTheDocument();
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: '만료·폐기된 링크 1개 보기' }),
+    );
     expect(await within(list).findByText(/폐기·만료됨/)).toBeInTheDocument();
     expect(within(list).queryByRole('button', { name: '링크 복사' })).not.toBeInTheDocument();
   });
@@ -87,7 +92,8 @@ describe('ShareModal', () => {
       error: { code: 'FORBIDDEN', message: '다른 사용자의 견적입니다' },
     });
     render(<ShareModal quote={QUOTE} onClose={vi.fn()} />);
-    expect(await screen.findByText(/폐기·만료됨/)).toBeInTheDocument();
+    expect(await screen.findByText('살아 있는 공유 링크가 없습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '만료·폐기된 링크 1개 보기' })).toBeInTheDocument();
     const days = screen.getByLabelText('만료 (일)');
     await userEvent.clear(days);
     await userEvent.type(days, '7');

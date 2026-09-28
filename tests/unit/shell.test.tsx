@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AppLayout from '@/app/(app)/layout';
+import { ChatProvider } from '@/features/chat/ChatContext';
 import { Header } from '@/features/shell/Header';
 import { Sidebar } from '@/features/shell/Sidebar';
 
@@ -76,7 +77,12 @@ describe('Sidebar', () => {
 
 describe('Header', () => {
   it('검색·챗봇·공지 컨트롤과 게스트 상태를 렌더한다', () => {
-    render(<Header />);
+    // 헤더의 챗봇 런처는 ChatProvider 컨텍스트를 쓴다 (PR-10)
+    render(
+      <ChatProvider>
+        <Header />
+      </ChatProvider>,
+    );
     expect(screen.getByRole('searchbox', { name: '통합 검색' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '챗봇' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '공지사항' })).toBeInTheDocument();
@@ -85,7 +91,11 @@ describe('Header', () => {
   });
 
   it('사용자 정보가 있으면 이름·역할·이니셜을 표시한다', () => {
-    render(<Header user={{ name: '김도현', roleLabel: '관리자 · 가격정책팀' }} />);
+    render(
+      <ChatProvider>
+        <Header user={{ name: '김도현', roleLabel: '관리자 · 가격정책팀' }} />
+      </ChatProvider>,
+    );
     expect(screen.getByText('김도현')).toBeInTheDocument();
     expect(screen.getByText('관리자 · 가격정책팀')).toBeInTheDocument();
     expect(screen.getByText('김')).toBeInTheDocument();

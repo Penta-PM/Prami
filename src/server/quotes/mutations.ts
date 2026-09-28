@@ -1,10 +1,10 @@
 import 'server-only';
 
-import { and, desc, eq, isNull, like, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, like, sql } from 'drizzle-orm';
 
 import type { DbHandle } from '@/db';
 import { firstRow } from '@/db/rows';
-import { quoteLines, quotes, type Quote } from '@/db/schema';
+import { quoteLines, quotes, solutionGroups, type Quote } from '@/db/schema';
 import { withTransaction, type Tx } from '@/db/tx';
 import { hasPermission, type Role } from '@/lib/constants/permissions';
 import { computeLine, unitWithOptions } from '@/lib/pricing/quote';
@@ -104,6 +104,31 @@ function isUniqueViolation(error: unknown): boolean {
 }
 
 /** 제품군·제목: 라인 본품의 제품군이 하나면 그것, 여럿이면 '복수 제품군' (PR-7 QA INFO-3) */
+/** 제목: 제어 문자 제거·공백 정리·길이 제한 (PR-8 QA LOW-1). 스키마가 < > 는 이미 거부한다 */
+export const TITLE_MAX = 120;
+export function sanitizeTitle(raw: string | undefined): string {
+  return (raw ?? '')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, TITLE_MAX);
+}
+
+/** 그룹 라인의 groupId 는 삭제되지 않은 솔루션 그룹이어야 한다 (PR-8 QA LOW-2) */
+async function assertGroupsExist(db: DbHandle['db'], lines: readonly ParsedLine[]): Promise<void> {
+  const ids = [...new Set(lines.flatMap((line) => (line.groupId ? [line.groupId] : [])))];
+  if (ids.length === 0) return;
+  const rows = await db
+    .select({ id: solutionGroups.id })
+    .from(solutionGroups)
+    .where(and(inArray(solutionGroups.id, ids), isNull(solutionGroups.deletedAt)));
+  const found = new Set(rows.map((row) => row.id));
+  const missing = ids.filter((id) => !found.has(id));
+  if (missing.length > 0) {
+    throw new AppError('VALIDATION', '존재하지 않는 솔루션 그룹입니다', { groupId: missing });
+  }
+}
+
 function headOf(
   input: ReturnType<typeof saveQuoteSchema.parse>,
   families: readonly string[],
@@ -114,7 +139,7 @@ function headOf(
     families.length > 1
       ? `복수 제품군(${families.join(', ')}) 견적 ${quoteNo}`
       : `${productFamily} 견적 ${quoteNo}`;
-  return { productFamily, title: input.title || defaultTitle };
+  return { productFamily, title: sanitizeTitle(input.title) || defaultTitle };
 }
 
 async function insertQuote(
@@ -199,6 +224,7 @@ export async function saveQuote(
   raw: SaveQuoteInput,
 ): Promise<SavedQuoteResult> {
   const input = saveQuoteSchema.parse(raw);
+  await assertGroupsExist(ctx.handle.db, input.lines);
   const priced = await repriceLines(ctx.handle.db, input.lines);
   let lastError: unknown;
   for (let attempt = 0; attempt < MAX_RETRY; attempt += 1) {

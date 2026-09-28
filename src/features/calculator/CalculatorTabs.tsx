@@ -21,11 +21,14 @@ export function CalculatorTabs({
   savedQuotes,
   canSeeCost,
   initialTab = 'quote',
+  initial,
 }: {
   preload: readonly FamilyPreload[];
   savedQuotes: readonly SavedQuoteView[];
   canSeeCost: boolean;
   initialTab?: Tab;
+  /** 챗봇 견적 시작 링크로 넘어온 제품군·품번 */
+  initial?: { family?: string; itemCode?: string };
 }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   return (
@@ -38,7 +41,7 @@ export function CalculatorTabs({
         className="w-fit"
       />
       {tab === 'quote' ? (
-        <QuoteCalculator preload={preload} savedQuotes={savedQuotes} />
+        <QuoteCalculator preload={preload} savedQuotes={savedQuotes} initial={initial} />
       ) : (
         <MarginCalculator canSeeCost={canSeeCost} />
       )}
