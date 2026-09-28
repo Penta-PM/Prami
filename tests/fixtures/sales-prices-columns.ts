@@ -91,6 +91,8 @@ export const EXPECTED_TABLES = [
   'solution_group_items',
   'solution_groups',
   'stg_items',
+  'stg_material_costs',
+  'stg_part_mappings',
   'stg_sales_prices',
   'users',
 ] as const;

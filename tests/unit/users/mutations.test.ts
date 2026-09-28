@@ -27,7 +27,7 @@ beforeAll(async () => {
   ctx = {
     handle,
     actor: { id: admin.id, email: admin.email },
-    meta: { ip: '203.0.113.9, 10.0.0.1', userAgent: 'vitest' },
+    meta: { ip: '203.0.113.9', userAgent: 'vitest' },
     allowedDomains: ['pentasecurity.com'],
   };
 });

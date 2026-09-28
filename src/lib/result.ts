@@ -9,6 +9,8 @@ export type ActionError = {
   code: ErrorCode;
   message: string;
   fieldErrors?: Record<string, string[]>;
+  /** 오류에 딸린 안내 데이터 (예: 409 의 기존 배치 id) */
+  details?: Record<string, unknown>;
 };
 
 export type ActionResult<T> = { ok: true; data: T } | { ok: false; error: ActionError };
@@ -41,6 +43,7 @@ export class AppError extends Error {
     readonly code: ErrorCode,
     message: string,
     readonly fieldErrors?: Record<string, string[]>,
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'AppError';

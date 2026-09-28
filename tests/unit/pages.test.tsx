@@ -5,7 +5,6 @@ import AdminCostsPage from '@/app/(app)/admin/costs/page';
 import AdminGroupsPage from '@/app/(app)/admin/groups/page';
 import AdminNoticesPage from '@/app/(app)/admin/notices/page';
 import AdminPartsPage from '@/app/(app)/admin/parts/page';
-import AdminPoliciesPage from '@/app/(app)/admin/policies/page';
 import CalculatorPage from '@/app/(app)/calculator/page';
 import NoticesPage from '@/app/(app)/notices/page';
 import HomePage from '@/app/(app)/page';
@@ -19,7 +18,6 @@ const PAGES: Record<PageKey, () => React.JSX.Element> = {
   calculator: CalculatorPage,
   notices: NoticesPage,
   search: SearchPage,
-  adminPolicies: AdminPoliciesPage,
   adminCosts: AdminCostsPage,
   adminParts: AdminPartsPage,
   adminGroups: AdminGroupsPage,

@@ -1,4 +1,15 @@
-import { integer, jsonb, pgTable, primaryKey, text, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  char,
+  date,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  primaryKey,
+  text,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 import { importBatches } from './imports';
 import { salesPriceSourceColumns } from './sales-prices';
@@ -13,7 +24,7 @@ export const stgSalesPrices = pgTable(
     batchId: uuid('batch_id')
       .notNull()
       .references(() => importBatches.id, { onDelete: 'cascade' }),
-    /** 파일 내 데이터 행 순서 (0-base, 헤더 제외) */
+    /** 엑셀 행 번호 (1-base, 헤더 행 포함 기준) — 오류 목록·미리보기와 같은 번호 */
     rowIndex: integer('row_index').notNull(),
     ...salesPriceSourceColumns(),
   },
@@ -35,6 +46,46 @@ export const stgItems = pgTable(
     categoryMinor: text('category_minor'),
     itemStatusRaw: text('item_status_raw'),
     raw: jsonb('raw').$type<Record<string, unknown>>(),
+  },
+  (t) => [primaryKey({ columns: [t.batchId, t.rowIndex] })],
+);
+
+/** 원가 스테이징 (§4.3.4 12컬럼). 적용(material_costs 반영)은 PR-5 */
+export const stgMaterialCosts = pgTable(
+  'stg_material_costs',
+  {
+    batchId: uuid('batch_id')
+      .notNull()
+      .references(() => importBatches.id, { onDelete: 'cascade' }),
+    rowIndex: integer('row_index').notNull(),
+    materialCode: text('material_code').notNull(),
+    materialName: text('material_name').notNull(),
+    spec: text('spec'),
+    unit: text('unit').notNull(),
+    priceType: text('price_type').notNull(),
+    priceCategory: text('price_category').notNull(),
+    currency: char('currency', { length: 3 }).notNull(),
+    unitCost: numeric('unit_cost', { precision: 18, scale: 2 }).notNull(),
+    effectiveFrom: date('effective_from').notNull(),
+    isFinalSource: boolean('is_final_source').notNull(),
+    remark: text('remark'),
+    appliesToAllCustomers: boolean('applies_to_all_customers').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.batchId, t.rowIndex] })],
+);
+
+/** 파츠 매핑 스테이징 (§4.3.6 엑셀 등록). 적용(모델별 전체 교체)은 PR-6 */
+export const stgPartMappings = pgTable(
+  'stg_part_mappings',
+  {
+    batchId: uuid('batch_id')
+      .notNull()
+      .references(() => importBatches.id, { onDelete: 'cascade' }),
+    rowIndex: integer('row_index').notNull(),
+    modelItemCode: text('model_item_code').notNull(),
+    partItemCode: text('part_item_code').notNull(),
+    modelName: text('model_name'),
+    partName: text('part_name'),
   },
   (t) => [primaryKey({ columns: [t.batchId, t.rowIndex] })],
 );

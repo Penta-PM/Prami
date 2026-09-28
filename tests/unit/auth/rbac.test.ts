@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { z } from 'zod';
 
 import type { DbHandle } from '@/db';
+import { users } from '@/db/schema';
 import { AppError } from '@/lib/result';
 
 import { auditByAction, createTestDb, insertUser } from '../../helpers/pglite';
@@ -68,8 +69,11 @@ describe('requirePermission / runAction', () => {
     });
   });
 
-  it('AC-04: USER 세션으로 관리자 Action 을 직접 호출하면 FORBIDDEN, 감사 로그 denied', async () => {
+  it('AC-04 (§4.7.1 ①~④): USER 가 updateUser Action 직접 호출 → FORBIDDEN, 대상 무변경, 감사 denied 1행', async () => {
     state.sessionUserId = userId;
+    const usersBefore = await state.handle!.db.select().from(users).orderBy(users.id);
+    const deniedBefore = (await auditByAction(state.handle!, 'user.update')).length;
+
     const result = await actions.updateUserAction({
       id: userId,
       name: 'x',
@@ -77,8 +81,13 @@ describe('requirePermission / runAction', () => {
       status: 'active',
     });
 
-    expect(result).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
-    const denied = await auditByAction(state.handle!, 'auth.access_denied');
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'FORBIDDEN', message: '이 작업을 수행할 권한이 없습니다' },
+    });
+    expect(await state.handle!.db.select().from(users).orderBy(users.id)).toEqual(usersBefore);
+    const denied = await auditByAction(state.handle!, 'user.update');
+    expect(denied).toHaveLength(deniedBefore + 1);
     expect(denied.at(-1)).toMatchObject({
       actorUserId: userId,
       targetId: 'action:updateUser',
@@ -111,7 +120,7 @@ describe('runRoute (CSV 내보내기)', () => {
 
     state.sessionUserId = adminId;
     const ok = await exportCsv(
-      new Request('http://localhost/api/audit/export.csv?action=auth.access_denied'),
+      new Request('http://localhost/api/audit/export.csv?action=audit.export'),
     );
     expect(ok.status).toBe(200);
     expect(ok.headers.get('content-type')).toContain('text/csv');
@@ -119,7 +128,7 @@ describe('runRoute (CSV 내보내기)', () => {
     expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]); // UTF-8 BOM (엑셀 한글)
     const body = await ok.text();
     expect(body.startsWith('일시,사용자,행위')).toBe(true);
-    expect(body).toContain('auth.access_denied');
+    expect(body).toContain('audit.export');
   });
 });
 

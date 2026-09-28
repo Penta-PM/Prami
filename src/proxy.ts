@@ -41,10 +41,12 @@ async function recordAdminDenied(
   pathname: string,
   headers: Headers,
 ): Promise<void> {
-  const [{ getDb }, { AUDIT_ACTIONS, writeAudit }] = await Promise.all([
-    import('@/db'),
-    import('@/server/audit/log'),
-  ]);
+  // IP 산출은 audit/log.ts 의 단일 함수가 한다 (§4.8 r3) — proxy 는 헤더를 넘기기만 한다
+  const [
+    { getDb },
+    { AUDIT_ACTIONS, requestMetaFromHeaders, writeAudit },
+    { env, trustsProxyHeaders },
+  ] = await Promise.all([import('@/db'), import('@/server/audit/log'), import('@/env')]);
   try {
     await writeAudit(await getDb(), {
       actor: { id: userId, label },
@@ -52,10 +54,7 @@ async function recordAdminDenied(
       target: { type: 'route', id: pathname, label: pathname },
       after: { permission: 'admin-area', role },
       result: 'denied',
-      meta: {
-        ip: headers.get('x-forwarded-for') ?? headers.get('x-real-ip'),
-        userAgent: headers.get('user-agent'),
-      },
+      meta: requestMetaFromHeaders(headers, trustsProxyHeaders(env)),
     });
   } catch (error) {
     // 감사 기록 실패가 차단 자체를 막지 않도록 한다 (리다이렉트는 그대로 수행)

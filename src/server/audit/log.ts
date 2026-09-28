@@ -38,9 +38,9 @@ export type AuditEntry = {
   meta?: RequestMeta;
 };
 
-/** 쉼표로 이어진 x-forwarded-for 에서 첫 IP 만 취하고, inet 으로 저장할 수 없는 값은 버린다 */
+/** 단일 IP 문자열 정규화 (포트 제거). inet 으로 저장할 수 없는 값은 버린다 */
 export function normalizeIp(raw: string | null | undefined): string | null {
-  const first = raw?.split(',')[0]?.trim();
+  const first = raw?.trim();
   if (!first) return null;
   const withoutPort = /^[\d.]+:\d+$/.test(first) ? first.slice(0, first.lastIndexOf(':')) : first;
   const ipv4 = /^(\d{1,3}\.){3}\d{1,3}$/;
@@ -48,6 +48,24 @@ export function normalizeIp(raw: string | null | undefined): string | null {
   return ipv4.test(withoutPort) || (withoutPort.includes(':') && ipv6.test(withoutPort))
     ? withoutPort
     : null;
+}
+
+/**
+ * 감사 로그 IP·User-Agent 산출 — 이 함수 한 곳에서만 한다 (§4.8 r3). Action/Route/proxy 는 헤더를 직접 해석하지 않는다.
+ * - 신뢰 프록시 설정(TRUST_PROXY_HEADERS, 기본 비신뢰)이 꺼져 있으면 클라이언트가 위조할 수 있는
+ *   x-forwarded-for / x-real-ip 를 쓰지 않고 IP 는 NULL.
+ * - 켜져 있으면 x-real-ip, 없으면 x-forwarded-for 의 **오른쪽 끝**(신뢰 프록시가 덧붙인 값)을 쓴다.
+ *   왼쪽 값은 클라이언트가 넣을 수 있으므로 쓰지 않는다. Vercel 운영 헤더 확정은 PR-11(AC-93).
+ */
+export function requestMetaFromHeaders(source: Headers, trustProxy: boolean): RequestMeta {
+  const userAgent = source.get('user-agent');
+  if (!trustProxy) return { ip: null, userAgent };
+  const forwarded = source
+    .get('x-forwarded-for')
+    ?.split(',')
+    .map((part) => part.trim());
+  const ip = source.get('x-real-ip') ?? forwarded?.filter(Boolean).at(-1) ?? null;
+  return { ip: normalizeIp(ip), userAgent };
 }
 
 export function toAuditRow(entry: AuditEntry): NewAuditLog {

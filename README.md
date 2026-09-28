@@ -95,6 +95,7 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 | `pnpm db:migrate`       | `DB_DRIVER` 에 맞는 드라이버로 마이그레이션 적용                                                                                                                        |
 | `pnpm seed`             | 픽스처 ADMIN·USER, 공지 샘플, 감사 로그 `user.seed` 기록 (재실행 안전)                                                                                                  |
 | `pnpm test:e2e`         | Playwright E2E — `next dev`(포트 3100, `.next-e2e`) + Postgres `prami_e2e` DB(`E2E_DATABASE_URL`)에 자동 migrate·seed. 최초 1회 `pnpm exec playwright install chromium` |
+| `pnpm fixtures`         | 임포트 테스트 픽스처 생성 — 원본 `병합_가격_raw.xlsx`(`SOURCE_XLSX`)에서 200행 + 오류·품목조회 합성 파일 → `tests/fixtures/imports/`                                    |
 | `pnpm check`            | lint + typecheck + format:check + test 일괄                                                                                                                             |
 
 CI(`.github/workflows/ci.yml`)는 PR 마다 lint → typecheck → format → 단위(커버리지, PGlite) → build,
@@ -129,7 +130,8 @@ src/
 ├─ server/                 # 서버 전용
 │  ├─ auth/                # auth.ts(Auth.js v5, JWT), callbacks.ts(로그인 판정), rbac.ts(requirePermission), providers.ts
 │  ├─ audit/               # log.ts(writeAudit), queries.ts(필터·페이지)
-│  └─ users/               # 사용자 사전 등록·수정·비활성화 (감사 로그 동반)
+│  ├─ users/               # 사용자 사전 등록·수정·비활성화 (감사 로그 동반)
+│  └─ imports/             # 엑셀 임포트: parse-xlsx·header-detect·schemas(sales 20/items/costs 12/parts), upload, apply-policy(§4.4 1~6단계), series, invariants
 ├─ features/               # shell/, auth/, users/, audit/ 화면 컴포넌트 + Server Actions
 ├─ components/ui/          # 버튼·필·세그먼트·카드·입력·선택·모달·드로어·테이블 프리미티브
 └─ lib/                    # cn.ts, result.ts(봉투), constants/permissions.ts(PERMISSIONS), audit-format.ts
@@ -140,6 +142,23 @@ tests/
 ├─ fixtures/               # 디자인 토큰 원본 4파일, sales_prices 20컬럼 스냅샷
 └─ helpers/  setup.ts
 ```
+
+## 가격정책 임포트 (PR-3)
+
+`/admin/policies`(ADMIN) 상단에서 **판매단가 파일**·**품목상태 파일**을 각각 `신규 업로드` 또는 `기존 파일 재사용`으로
+고른 뒤 `가격정책 적용`을 누릅니다.
+
+1. 업로드(`POST /api/imports/{sales|items|costs|parts}`, multipart `file`, .xlsx ≤ 10MB): 시트 선택(판매단가는 `RAW` 우선)
+   → 상위 5행에서 헤더 감지(이름 정확 일치, 누락이면 배치 `failed`) → 행별 검증 → 스테이징(`stg_*`) + 미리보기 20행 + 오류 목록.
+   같은 파일 재업로드는 409 와 기존 배치 안내.
+2. 적용(`applyPolicyAction`): 한 트랜잭션에서 품목 마스터 반영 → 수동 행 충돌 처리(ERP 우선) → ERP 행 전량 교체(적용시작일
+   그대로) → 누락 품번 stub → 계열(품번·단가유형·단가구분·화폐·거래처코드)별 최신·종료일·운영상태 재계산(폐기 = 미사용)
+   → 불변식 I-1·I-2·행수 검증 → run·배치 상태·감사 `policy.apply`. 실패하면 전부 되돌리고 run 은 `failed`.
+3. 오류가 1건이라도 있는 배치는 적용할 수 없습니다. 품목조회 파일은 선택 사항입니다(없으면 모든 품번이 `미확인` stub).
+
+ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 오면 `src/server/imports/schemas/items.ts` 의 헤더 상수와
+`src/lib/constants/item-status.ts` 의 `ITEM_STATUS_MAP` 만 고칩니다. QA 는 `IMPORT_FAULT_INJECTION=<단계>`(개발·테스트 전용)로
+적용 중 실패를 재현할 수 있습니다.
 
 ## DB 스키마 · 마이그레이션
 
