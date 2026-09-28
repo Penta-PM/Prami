@@ -25,9 +25,22 @@ import {
 } from '@/server/quotes/mutations';
 import { listMyQuotes, type SavedQuote } from '@/server/quotes/queries';
 import type { DeleteQuoteInput, SaveQuoteInput } from '@/server/quotes/schemas';
+import {
+  AUDIT_QUOTE_SHARE_CREATE,
+  AUDIT_QUOTE_SHARE_LIST,
+  AUDIT_QUOTE_SHARE_REVOKE,
+  createQuoteShare,
+  listQuoteShares,
+  revokeQuoteShare,
+  type CreateShareInput,
+  type ListSharesInput,
+  type QuoteShareView,
+  type RevokeShareInput,
+} from '@/server/quotes/shares';
 
 /**
- * 견적 계산기 Server Actions (§4.7 `saveQuote`/`deleteQuote`, calculator.use = USER 이상).
+ * 견적 계산기 Server Actions (§4.7 `saveQuote`/`deleteQuote`/`createQuoteShare`/`revokeQuoteShare`, calculator.use = USER 이상).
+ * 저장은 서버가 DB 단가로 재가격화한 뒤 스냅샷을 남긴다(PR-7 QA MEDIUM). 공유 링크는 소유자·ADMIN 만 만들고 폐기한다.
  * 후보 조회는 운영중 판매단가만 보며 원가는 절대 싣지 않는다 (AC-43). 순매출 계산은 features/costs 의 Action 을 쓴다.
  */
 const itemFilterSchema = z.object({
@@ -108,5 +121,40 @@ export async function deleteQuoteAction(
   return runAction(
     { permission: 'calculator.use', auditAction: AUDIT_QUOTE_DELETE, name: 'deleteQuote' },
     async (actor) => deleteQuote(await context(actor), input),
+  );
+}
+
+export async function createQuoteShareAction(
+  input: CreateShareInput,
+): Promise<ActionResult<QuoteShareView>> {
+  return runAction(
+    {
+      permission: 'calculator.use',
+      auditAction: AUDIT_QUOTE_SHARE_CREATE,
+      name: 'createQuoteShare',
+    },
+    async (actor) => createQuoteShare(await context(actor), input),
+  );
+}
+
+export async function revokeQuoteShareAction(
+  input: RevokeShareInput,
+): Promise<ActionResult<QuoteShareView>> {
+  return runAction(
+    {
+      permission: 'calculator.use',
+      auditAction: AUDIT_QUOTE_SHARE_REVOKE,
+      name: 'revokeQuoteShare',
+    },
+    async (actor) => revokeQuoteShare(await context(actor), input),
+  );
+}
+
+export async function listQuoteSharesAction(
+  input: ListSharesInput,
+): Promise<ActionResult<QuoteShareView[]>> {
+  return runAction(
+    { permission: 'calculator.use', auditAction: AUDIT_QUOTE_SHARE_LIST, name: 'listQuoteShares' },
+    async (actor) => listQuoteShares(await context(actor), input),
   );
 }

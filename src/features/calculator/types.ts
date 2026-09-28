@@ -90,3 +90,59 @@ export type FamilyPreload = {
   groups: GroupChipView[];
   hardware: QuoteItemView[];
 };
+
+/** 공유 링크 (서버 QuoteShareView 와 동일 형태) */
+export type QuoteShareView = {
+  id: string;
+  quoteId: string;
+  quoteNo: string;
+  token: string;
+  path: string;
+  expiresAt: string;
+  createdAt: string;
+  isActive: boolean;
+};
+
+/** 읽기 전용 견적서 문서 (서버 QuoteDocument 와 동일 형태, 원가 없음) */
+export type QuoteDocumentView = {
+  id: string;
+  quoteNo: string;
+  title: string;
+  productFamily: string | null;
+  summary: string | null;
+  totalAmount: string | null;
+  currency: string | null;
+  subtotals: { currency: string; amount: number }[];
+  createdAt: string;
+  ownerName: string;
+  lines: {
+    lineNo: number;
+    kind: 'item' | 'group';
+    name: string;
+    itemCode: string | null;
+    priceType: string | null;
+    qty: number;
+    unitPrice: string;
+    currency: string;
+    discountRate: string;
+    preDiscount: string;
+    lineTotal: string;
+    options: {
+      label: '파츠' | '결합형' | '상세';
+      itemCode: string;
+      name: string;
+      unitPrice: number;
+      qty: number;
+    }[];
+  }[];
+};
+
+/** 서버 재가격화 보정 항목 (saveQuote 응답) */
+export type PriceAdjustmentView = {
+  lineNo: number;
+  name: string;
+  itemCode: string;
+  field: 'unitPrice' | 'currency';
+  client: string;
+  server: string;
+};

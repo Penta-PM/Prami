@@ -11,6 +11,7 @@ import { computeLine, unitWithOptions } from '@/lib/pricing/quote';
 import { AppError } from '@/lib/result';
 import { writeAudit, type AuditActor, type RequestMeta } from '@/server/audit/log';
 
+import { repriceLines, type PriceAdjustment, type RepriceResult } from './reprice';
 import {
   deleteQuoteSchema,
   saveQuoteSchema,
@@ -19,7 +20,8 @@ import {
 } from './schemas';
 
 /**
- * 견적 저장·삭제 (§4.3.8, §4.5.7, AC-63·66). 라인에 가격 스냅샷을 저장하고 금액은 서버에서 순수 함수로 다시 계산한다.
+ * 견적 저장·삭제 (§4.3.8, §4.5.7, AC-63·66). 단가는 서버가 DB 운영중 최신 행으로 다시 확정하고(reprice.ts, PR-7 QA MEDIUM)
+ * 라인에 그 스냅샷을 저장하며 금액은 순수 함수로 다시 계산한다. 클라이언트 단가와 다르면 `adjustments` 로 알린다.
  * 견적 번호 `Q-YYYY-NNNN` 은 연도별 시퀀스 — 트랜잭션 advisory lock + 연도 최대값 + 1, UNIQUE 충돌 시 재시도.
  */
 export type QuotesContext = {
@@ -37,6 +39,8 @@ export type SavedQuoteResult = {
   totalAmount: string;
   currency: string | null;
   lineCount: number;
+  /** 서버 재가격화로 보정된 항목 (비어 있으면 클라이언트 값과 일치) */
+  adjustments: PriceAdjustment[];
 };
 
 const QUOTE_NO_LOCK_KEY = 20_260_929;
@@ -99,22 +103,41 @@ function isUniqueViolation(error: unknown): boolean {
   return code === '23505' || causeCode === '23505';
 }
 
-async function insertQuote(ctx: QuotesContext, input: ReturnType<typeof saveQuoteSchema.parse>) {
-  const computed = input.lines.map((line) => ({ line, amounts: lineAmounts(line) }));
+/** 제품군·제목: 라인 본품의 제품군이 하나면 그것, 여럿이면 '복수 제품군' (PR-7 QA INFO-3) */
+function headOf(
+  input: ReturnType<typeof saveQuoteSchema.parse>,
+  families: readonly string[],
+  quoteNo: string,
+) {
+  const productFamily = families.length === 1 ? families[0]! : input.productFamily;
+  const defaultTitle =
+    families.length > 1
+      ? `복수 제품군(${families.join(', ')}) 견적 ${quoteNo}`
+      : `${productFamily} 견적 ${quoteNo}`;
+  return { productFamily, title: input.title || defaultTitle };
+}
+
+async function insertQuote(
+  ctx: QuotesContext,
+  input: ReturnType<typeof saveQuoteSchema.parse>,
+  priced: RepriceResult,
+) {
+  const computed = priced.lines.map((line) => ({ line, amounts: lineAmounts(line) }));
   const currencies = new Set(computed.map(({ line }) => line.currency));
   const total = computed.reduce((sum, { amounts }) => sum + amounts.lineTotal, 0);
   const currency = currencies.size === 1 ? [...currencies][0]! : null;
   return withTransaction(async (tx) => {
     const quoteNo = await nextQuoteNo(tx, new Date().getFullYear());
+    const head = headOf(input, priced.families, quoteNo);
     const created = firstRow(
       await tx
         .insert(quotes)
         .values({
           quoteNo,
           ownerUserId: ctx.actor.id,
-          productFamily: input.productFamily,
-          title: input.title || `${input.productFamily} 견적 ${quoteNo}`,
-          summary: summarize(input.lines),
+          productFamily: head.productFamily,
+          title: head.title,
+          summary: summarize(priced.lines),
           // 통화 혼합이면 단일 합계를 두지 않는다 (AC-65)
           totalAmount: currency ? String(Math.round(total)) : null,
           currency,
@@ -152,10 +175,11 @@ async function insertQuote(ctx: QuotesContext, input: ReturnType<typeof saveQuot
       target: { type: 'quote', id: created.id, label: quoteNo },
       after: {
         quoteNo,
-        productFamily: input.productFamily,
-        lineCount: input.lines.length,
+        productFamily: head.productFamily,
+        lineCount: priced.lines.length,
         totalAmount: created.totalAmount,
         currency,
+        adjustments: priced.adjustments.length,
       },
       meta: ctx.meta,
     });
@@ -164,7 +188,8 @@ async function insertQuote(ctx: QuotesContext, input: ReturnType<typeof saveQuot
       quoteNo,
       totalAmount: created.totalAmount ?? String(Math.round(total)),
       currency,
-      lineCount: input.lines.length,
+      lineCount: priced.lines.length,
+      adjustments: priced.adjustments,
     };
   }, ctx.handle);
 }
@@ -174,10 +199,11 @@ export async function saveQuote(
   raw: SaveQuoteInput,
 ): Promise<SavedQuoteResult> {
   const input = saveQuoteSchema.parse(raw);
+  const priced = await repriceLines(ctx.handle.db, input.lines);
   let lastError: unknown;
   for (let attempt = 0; attempt < MAX_RETRY; attempt += 1) {
     try {
-      return await insertQuote(ctx, input);
+      return await insertQuote(ctx, input, priced);
     } catch (error) {
       if (!isUniqueViolation(error)) throw error;
       lastError = error;
@@ -188,8 +214,15 @@ export async function saveQuote(
   });
 }
 
-/** 본인 것만, ADMIN 은 전체 (§4.5.7). 남의 견적이면 감사 denied 를 남기고 FORBIDDEN (§4.7.1 관찰 결과 ③) */
-async function findOwned(ctx: QuotesContext, id: string): Promise<Quote> {
+/**
+ * 본인 견적만, ADMIN 은 전체 (§4.5.7). 남의 견적이면 시도한 행위 키로 감사 denied 를 남기고 FORBIDDEN (§4.7.1 관찰 결과 ③).
+ * 삭제·PDF·공유 생성/폐기가 공통으로 쓴다.
+ */
+export async function findAccessibleQuote(
+  ctx: QuotesContext,
+  id: string,
+  auditAction: string,
+): Promise<Quote> {
   const [row] = await ctx.handle.db
     .select()
     .from(quotes)
@@ -198,7 +231,7 @@ async function findOwned(ctx: QuotesContext, id: string): Promise<Quote> {
   if (row.ownerUserId !== ctx.actor.id && !hasPermission(ctx.actor.role, 'users.manage')) {
     await writeAudit(ctx.handle.db, {
       actor: ctx.actor,
-      action: AUDIT_QUOTE_DELETE,
+      action: auditAction,
       target: { type: 'quote', id, label: row.quoteNo },
       reason: '다른 사용자의 견적',
       result: 'denied',
@@ -211,7 +244,7 @@ async function findOwned(ctx: QuotesContext, id: string): Promise<Quote> {
 
 export async function deleteQuote(ctx: QuotesContext, raw: DeleteQuoteInput) {
   const { id } = deleteQuoteSchema.parse(raw);
-  const before = await findOwned(ctx, id);
+  const before = await findAccessibleQuote(ctx, id, AUDIT_QUOTE_DELETE);
   return withTransaction(async (tx) => {
     await tx
       .update(quotes)

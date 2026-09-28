@@ -28,11 +28,19 @@ type CartPanelProps = {
   onSave: () => void;
   onReload: (quote: SavedQuoteView) => void;
   onDelete: (quote: SavedQuoteView) => void;
+  /** 출력·공유 대상 = 방금 저장했거나 담기로 불러온 견적 (없으면 버튼 비활성) */
+  activeQuote: SavedQuoteView | null;
+  onShare: (quote: SavedQuoteView) => void;
 };
 
-/** 우측 고정 패널: 장바구니 · 내 견적 목록(미리보기 + 전체보기 모달) · 예상 견적 금액 카드 */
+/** 견적서 PDF Route (§4.5.8) — 소유자·ADMIN 만 200, 타인 403 */
+export function quotePdfHref(quote: Pick<SavedQuoteView, 'id'>): string {
+  return `/api/quotes/${quote.id}/pdf`;
+}
+
+/** 우측 고정 패널: 장바구니 · 내 견적 목록(미리보기 + 전체보기 모달) · 예상 견적 금액 카드 · 출력/공유 */
 export function CartPanel(props: CartPanelProps) {
-  const { lines, saved, isPending } = props;
+  const { lines, saved, isPending, activeQuote } = props;
   const [listOpen, setListOpen] = useState(false);
   const totals = cartTotals(
     lines.map((line) => ({ currency: line.currency, lineTotal: line.lineTotal })),
@@ -180,18 +188,37 @@ export function CartPanel(props: CartPanelProps) {
             견적 저장
           </Button>
         </div>
+        <p className="m-0 text-[11px] text-white/60" data-testid="active-quote">
+          {activeQuote
+            ? `출력·공유 대상: ${activeQuote.quoteNo}`
+            : '견적을 저장하거나 목록에서 담으면 출력·공유할 수 있습니다'}
+        </p>
         <div className="flex gap-2">
+          {activeQuote ? (
+            <a
+              className="inline-flex flex-1 items-center justify-center rounded-lg border border-white/20 bg-transparent px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-white/10"
+              href={quotePdfHref(activeQuote)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`${activeQuote.quoteNo} 견적서 출력`}
+            >
+              견적서 출력
+            </a>
+          ) : (
+            <Button
+              className="flex-1 border border-white/20 bg-transparent text-white/50"
+              disabled
+              title="견적을 먼저 저장하세요"
+            >
+              견적서 출력
+            </Button>
+          )}
           <Button
-            className="flex-1 border border-white/20 bg-transparent text-white/50"
-            disabled
-            title="PR-8 에서 제공"
-          >
-            견적서 출력
-          </Button>
-          <Button
-            className="flex-1 border border-white/20 bg-transparent text-white/50"
-            disabled
-            title="PR-8 에서 제공"
+            className="flex-1 border border-white/20 bg-transparent text-white disabled:text-white/50"
+            disabled={!activeQuote}
+            title={activeQuote ? undefined : '견적을 먼저 저장하세요'}
+            aria-label={activeQuote ? `${activeQuote.quoteNo} 견적 공유` : '견적 공유'}
+            onClick={() => activeQuote && props.onShare(activeQuote)}
           >
             견적 공유
           </Button>
@@ -204,6 +231,10 @@ export function CartPanel(props: CartPanelProps) {
           onClose={() => setListOpen(false)}
           onReload={props.onReload}
           onDelete={props.onDelete}
+          onShare={(quote) => {
+            setListOpen(false);
+            props.onShare(quote);
+          }}
         />
       ) : null}
     </div>
@@ -220,11 +251,13 @@ function SavedQuotesModal({
   onClose,
   onReload,
   onDelete,
+  onShare,
 }: {
   saved: readonly SavedQuoteView[];
   onClose: () => void;
   onReload: (quote: SavedQuoteView) => void;
   onDelete: (quote: SavedQuoteView) => void;
+  onShare: (quote: SavedQuoteView) => void;
 }) {
   return (
     <Modal open onClose={onClose} title="내 견적 목록" className="w-[min(860px,calc(100vw-32px))]">
@@ -257,6 +290,23 @@ function SavedQuotesModal({
                   {totalLabel(quote)}
                 </TableCell>
                 <TableCell className="pr-5 text-right whitespace-nowrap">
+                  <a
+                    className="mr-1.5 text-[12px] font-semibold text-purple-500"
+                    href={quotePdfHref(quote)}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`${quote.quoteNo} PDF`}
+                  >
+                    PDF
+                  </a>
+                  <button
+                    type="button"
+                    aria-label={`${quote.quoteNo} 공유`}
+                    className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-500"
+                    onClick={() => onShare(quote)}
+                  >
+                    공유
+                  </button>
                   <button
                     type="button"
                     aria-label={`${quote.quoteNo} 장바구니 담기`}
