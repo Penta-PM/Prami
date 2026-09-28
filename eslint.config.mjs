@@ -51,6 +51,28 @@ const restrictCostSyntax = {
           "CallExpression[callee.name='require'] > Literal[value=/(^|[\/])server[\/]cost([\/]|$)/]",
         message: '원가 모듈(server/cost)은 require 로도 불러올 수 없습니다 (§4.8 AC-42).',
       },
+      {
+        // r5 AC-42 ③: 템플릿 리터럴·변수 경로 동적 import 는 경로를 정적으로 검사할 수 없으므로 통째로 막는다
+        selector: 'ImportExpression > :not(Literal)',
+        message:
+          '동적 import 경로는 문자열 리터럴만 허용합니다 — 원가 모듈(server/cost) 우회를 막기 위한 규칙입니다 (§4.8 AC-42).',
+      },
+      {
+        selector: "MemberExpression[property.name='materialCosts']",
+        message:
+          '원가 테이블 관계형 쿼리(db.query.materialCosts)는 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+      },
+      {
+        // raw SQL 로 원가 테이블을 직접 읽는 것도 막는다 (stg_material_costs 는 스테이징이라 제외)
+        selector: 'Literal[value=/(^|[^_a-zA-Z])material_costs/]',
+        message:
+          '원가 테이블(material_costs) raw SQL 은 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+      },
+      {
+        selector: 'TemplateElement[value.raw=/(^|[^_a-zA-Z])material_costs/]',
+        message:
+          '원가 테이블(material_costs) raw SQL 은 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+      },
     ],
     'no-restricted-imports': [
       'error',

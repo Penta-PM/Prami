@@ -23,6 +23,12 @@ const PREVIEW_COLUMNS: Record<ImportFileKind, readonly [string, string][]> = {
     ['categoryMinor', '소분류'],
     ['itemStatusRaw', '품목상태'],
   ],
+  parts: [
+    ['modelItemCode', '모델품번'],
+    ['modelName', '모델명'],
+    ['partItemCode', '파츠품번'],
+    ['partName', '파츠명'],
+  ],
   costs: [
     ['materialCode', '자재번호'],
     ['materialName', '자재명'],

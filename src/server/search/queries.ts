@@ -22,7 +22,13 @@ export type NoticeHit = {
   publishedAt: string;
 };
 
-export type SearchResult = { query: string; items: ItemHit[]; notices: NoticeHit[] };
+export type SearchResult = {
+  query: string;
+  items: ItemHit[];
+  notices: NoticeHit[];
+  /** 그룹당 상한(SEARCH_LIMIT)에 걸려 잘렸는지 (PR-9 QA INFO: "상위 20건만 표시") */
+  truncated: { items: boolean; notices: boolean };
+};
 
 export const SEARCH_LIMIT = 20;
 const MAX_QUERY = 100;
@@ -50,11 +56,15 @@ async function searchItems(db: Db, like: string): Promise<ItemHit[]> {
     .where(
       and(
         isNull(salesPrices.deletedAt),
-        or(ilike(salesPrices.itemName, like), ilike(salesPrices.itemCode, like)),
+        // 품명 NBSP 는 가격 조회 검색과 같이 공백으로 정규화 (PR-9 QA INFO)
+        or(
+          sql`replace(${salesPrices.itemName}, chr(160), ' ') ilike ${like}`,
+          ilike(salesPrices.itemCode, like),
+        ),
       ),
     )
     .orderBy(salesPrices.itemCode, desc(salesPrices.effectiveFrom))
-    .limit(SEARCH_LIMIT);
+    .limit(SEARCH_LIMIT + 1);
 }
 
 async function searchNotices(db: Db, like: string): Promise<NoticeHit[]> {
@@ -71,16 +81,28 @@ async function searchNotices(db: Db, like: string): Promise<NoticeHit[]> {
       and(isNull(notices.deletedAt), or(ilike(notices.title, like), ilike(notices.body, like))),
     )
     .orderBy(desc(notices.publishedAt), desc(notices.createdAt))
-    .limit(SEARCH_LIMIT);
+    .limit(SEARCH_LIMIT + 1);
+}
+
+/** 상한 + 1 건을 조회해 잘림 여부를 판정하고 상한만큼만 돌려준다 */
+function capped<T>(rows: T[]): { rows: T[]; truncated: boolean } {
+  return { rows: rows.slice(0, SEARCH_LIMIT), truncated: rows.length > SEARCH_LIMIT };
 }
 
 export async function searchAll(db: Db, rawQuery: string): Promise<SearchResult> {
   const query = normalizeQuery(rawQuery);
-  if (!query) return { query, items: [], notices: [] };
+  if (!query) return { query, items: [], notices: [], truncated: { items: false, notices: false } };
   const like = pattern(query);
   const [itemHits, noticeHits] = await Promise.all([
     searchItems(db, like),
     searchNotices(db, like),
   ]);
-  return { query, items: itemHits, notices: noticeHits };
+  const itemsCap = capped(itemHits);
+  const noticesCap = capped(noticeHits);
+  return {
+    query,
+    items: itemsCap.rows,
+    notices: noticesCap.rows,
+    truncated: { items: itemsCap.truncated, notices: noticesCap.truncated },
+  };
 }

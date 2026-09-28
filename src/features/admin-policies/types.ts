@@ -34,7 +34,7 @@ export type FileSelection = {
   reuseId: string;
 };
 
-export type ImportFileKind = 'sales' | 'items' | 'costs';
+export type ImportFileKind = 'sales' | 'items' | 'costs' | 'parts';
 
 export function selectedBatchId(selection: FileSelection): string | null {
   if (selection.mode === 'reuse') return selection.reuseId || null;

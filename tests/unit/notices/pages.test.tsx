@@ -38,7 +38,7 @@ vi.mock('@/server/search/queries', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/server/search/queries')>()),
   searchAll: async (_db: unknown, query: string) => {
     calls.searches.push(query);
-    return { query, items: [], notices: [NOTICE] };
+    return { query, items: [], notices: [NOTICE], truncated: { items: false, notices: false } };
   },
 }));
 vi.mock('next/navigation', () => ({

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { ESLint } from 'eslint';
@@ -83,6 +83,91 @@ describe('AC-42 server/cost import 제한', () => {
       }
     }
   }, 90_000);
+
+  it('r5 AC-42 우회 6케이스: 상대 경로·변수 경로 동적 import·db.query.materialCosts·schema.materialCosts·raw SQL 도 막는다', async () => {
+    const cases: [string, string][] = [
+      [
+        'template',
+        [
+          "const mod = 'cost';",
+          'export async function f() {',
+          '  return import(`@/server/${mod}/queries`);',
+          '}',
+          '',
+        ].join('\n'),
+      ],
+      [
+        'relative',
+        [
+          "import { getCostRows } from '../../server/cost/queries';",
+          'export const keep = getCostRows;',
+          '',
+        ].join('\n'),
+      ],
+      [
+        'schema-object',
+        ["import { schema } from '@/db';", 'export const t = schema.materialCosts;', ''].join('\n'),
+      ],
+      [
+        'relational',
+        [
+          "import { getDb } from '@/db';",
+          'export async function f() {',
+          '  return (await getDb()).query.materialCosts.findMany();',
+          '}',
+          '',
+        ].join('\n'),
+      ],
+      [
+        'rawsql',
+        [
+          "import { sql } from 'drizzle-orm';",
+          'export const q = sql`select unit_cost from material_costs`;',
+          "export const s = 'select * from material_costs';",
+          '',
+        ].join('\n'),
+      ],
+    ];
+    for (const [name, source] of cases) {
+      const file = path.join(ROOT, `src/features/pricing/__cost_${name}.tmp.ts`);
+      writeFileSync(file, source);
+      try {
+        const [result] = await eslint.lintFiles([file]);
+        expect(result?.errorCount, name).toBeGreaterThanOrEqual(1);
+        expect(
+          result?.messages.some(
+            (m) => m.ruleId === 'no-restricted-syntax' || m.ruleId === 'no-restricted-imports',
+          ),
+          name,
+        ).toBe(true);
+      } finally {
+        rmSync(file, { force: true });
+      }
+    }
+  }, 90_000);
+
+  it('소스 스캔: 허용 목록 밖 src 에 material_costs·materialCosts 참조가 없다 (lint 우회 가드)', () => {
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!/\.(ts|tsx)$/.test(entry.name)) continue;
+        const rel = full.slice(ROOT.length + 1).replace(/\\/g, '/');
+        if (/^src\/(server\/cost|features\/costs|app\/\(app\)\/admin\/costs|db)\//.test(rel))
+          continue;
+        const code = readFileSync(full, 'utf8')
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/\/\/.*$/gm, '');
+        if (/(^|[^_a-zA-Z])material_costs|\bmaterialCosts\b/.test(code)) offenders.push(rel);
+      }
+    };
+    walk(path.join(ROOT, 'src'));
+    expect(offenders).toEqual([]);
+  });
 
   it('허용 목록(features/costs)에서는 통과 — 동적 import 포함', async () => {
     const dynamicImport = [

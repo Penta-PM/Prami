@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { DbHandle } from '@/db';
@@ -72,8 +73,29 @@ describe('searchAll', () => {
   it('품번 일치, 빈 검색어는 빈 결과, LIKE 와일드카드는 문자 그대로', async () => {
     const byCode = await searchAll(handle.db, 'P1004010009');
     expect(byCode.items).toEqual([expect.objectContaining({ itemCode: 'P1004010009' })]);
-    expect(await searchAll(handle.db, '   ')).toEqual({ query: '', items: [], notices: [] });
+    expect(await searchAll(handle.db, '   ')).toEqual({
+      query: '',
+      items: [],
+      notices: [],
+      truncated: { items: false, notices: false },
+    });
     expect((await searchAll(handle.db, '%')).items).toEqual([]);
+  });
+
+  it('그룹당 20건 상한에 걸리면 truncated 표시, 아니면 false (PR-9 QA INFO)', async () => {
+    const wide = await searchAll(handle.db, 'P');
+    expect(wide.items).toHaveLength(20);
+    expect(wide.truncated).toEqual({ items: true, notices: false });
+    const narrow = await searchAll(handle.db, 'P1004010009');
+    expect(narrow.truncated).toEqual({ items: false, notices: false });
+  });
+
+  it('품명의 NBSP 는 공백으로 검색된다 (PR-9 QA INFO)', async () => {
+    await handle.db.execute(
+      sql`update sales_prices set item_name = replace(item_name, ' ', chr(160)) where item_code = 'P1004010009'`,
+    );
+    const hit = await searchAll(handle.db, 'Wapples SA-500');
+    expect(hit.items.map((item) => item.itemCode)).toContain('P1004010009');
   });
 
   it('AC-43: 결과 JSON 에 원가 키가 없다', async () => {

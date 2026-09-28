@@ -186,7 +186,7 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
 - 필터(제품군 탭, `적용시작일 기준`/`적용기간 기준`, 연도 칩, 기간, 검색, 페이지)는 가격정책 화면과 같은 컴포넌트·SQL 조건을
   쓰며 모두 URL 검색 파라미터입니다. 수정·삭제는 변경 사유가 필수이고 감사 로그(`material_cost.update|delete`, 12컬럼 스냅샷)를 남깁니다.
 - 원가 격리: `src/server/cost/**` 는 `src/features/costs/**`·`src/app/(app)/admin/costs/**` 에서만 import 할 수 있고(ESLint
-  `no-restricted-imports` + 동적 `import()`/`require`·`materialCosts` 스키마 직접 사용을 막는 `no-restricted-syntax`), 모든 서버 함수는 첫 인자로 `cost.read`/`cost.write` 권한 검사에서 발급된 `CostAccess` 토큰을 요구합니다.
+  `no-restricted-imports` + 동적 `import()`/`require`/템플릿 리터럴 import·`db.query.materialCosts`·raw SQL `material_costs` 를 막는 `no-restricted-syntax`, 소스 스캔 테스트), 모든 서버 함수는 첫 인자로 `cost.read`/`cost.write` 권한 검사에서 발급된 `CostAccess` 토큰을 요구합니다.
   USER 는 페이지·Action 모두 §4.7.1 거부 판정(FORBIDDEN, DB 무변경, 감사 denied)을 받고 원가 값이 응답에 실리지 않습니다.
   순매출 계산기 서버 함수(`calculateNetSalesAction`)는 `cost.read` 가 없으면 원가 입력을 무시하고 `costLocked: true` 를 돌려줍니다.
 - 로컬 데이터: `pnpm import:source --kind costs` (원본 487행 → 자재 157·계열 157·최신 157).
@@ -201,6 +201,20 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
   판정(FORBIDDEN, `notices` 무변경, 감사 denied). 삭제는 soft delete.
 - 상단 검색 → `/search?q=`: 품목(판매단가의 품명·품번, 품번당 1건, 품목 마스터 상태 표시) + 공지(제목·본문) 결과 그룹.
   원가(material_costs)는 조인·반환하지 않는다.
+
+## 파츠 관리 · 솔루션 그룹 (PR-6)
+
+- `/admin/parts`(ADMIN, `parts.write`): 제품군 탭 → `수동 등록`(모델 선택 → 장착 가능한 파츠 다중 선택 → 저장) /
+  `엑셀 등록`(`모델품번`, `파츠품번` 2컬럼 업로드 → 미리보기 → 적용). 저장은 모델 단위 **전체 교체**(기존 매핑이 있으면
+  경고 후 덮어씀)이고 "등록된 매핑" 표는 모델별 한 행에 파츠 품명(품번) 목록으로 그룹화한다(사용자 요구 2, 예:
+  Wapples-2700 (H2700) → N_51080). 파츠/본품 구분은 품목 마스터의 `item_kind` 가 있으면 그것을, 없으면
+  `category_mid='Parts'` 또는 품명 규칙(`N_…`/`N-…`)을 쓴다. 판매단가에만 있는 품번은 `items` stub 으로 만들어 FK 를
+  만족시킨다(§4.3.6). 감사 `part_mapping.save|delete`, `part_import.apply`.
+- `/admin/groups`(ADMIN, `groups.write`): 제품군 탭, 카드(그룹명 + 항목 칩·현재 단가), 생성/수정 모달(제품군의 운영중
+  정상판매 품목 체크), 삭제(soft). 항목 가격은 저장하지 않고 조회 시점의 최신 정상판매가를 보여 주며, 견적 계산기(PR-7)
+  그룹 칩은 `listGroupChips` 를 그대로 쓴다. 감사 `solution_group.create|update|delete`.
+- 홈 카드는 `/pricing?family=<제품군명>` 으로 들어가며 `PRODUCT_FAMILY_MAJORS` 로 대분류 집합으로 전개된다(iSIGN 카드 =
+  iSIGN + iSIGN PKI, 대분류 드롭다운은 여전히 별도 값, 배지 "제품군: iSIGN (iSIGN PKI 포함)"). 통합 검색은 그룹당 20건 상한에 걸리면 "상위 20건" 을 표시하고 품명 NBSP 를 공백으로 정규화한다.
 
 ## DB 스키마 · 마이그레이션
 
