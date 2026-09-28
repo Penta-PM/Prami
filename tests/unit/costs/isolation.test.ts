@@ -39,10 +39,65 @@ describe('AC-42 server/cost import 제한', () => {
     expect(result?.messages[0]?.message).toContain('server/cost');
   }, 60_000);
 
-  it('허용 목록(features/costs)에서는 통과', async () => {
-    writeFileSync(ALLOWED, SOURCE);
+  it('동적 import()·require·materialCosts 스키마 직접 사용도 막는다 (PR-5 QA LOW-2)', async () => {
+    const cases: [string, string][] = [
+      [
+        'dynamic',
+        [
+          'export async function f() {',
+          "  return (await import('@/server/cost/queries')).getCostRows;",
+          '}',
+          '',
+        ].join('\n'),
+      ],
+      [
+        'schema',
+        [
+          "import { materialCosts } from '@/db/schema';",
+          'export const t = materialCosts;',
+          '',
+        ].join('\n'),
+      ],
+      [
+        'schema-file',
+        [
+          "import { materialCosts } from '@/db/schema/material-costs';",
+          'export const t = materialCosts;',
+          '',
+        ].join('\n'),
+      ],
+    ];
+    for (const [name, source] of cases) {
+      const file = path.join(ROOT, `src/features/pricing/__cost_${name}.tmp.ts`);
+      writeFileSync(file, source);
+      try {
+        const [result] = await eslint.lintFiles([file]);
+        const rules = result?.messages.map((m) => m.ruleId) ?? [];
+        expect(result?.errorCount, name).toBeGreaterThanOrEqual(1);
+        expect(
+          rules.some((rule) => rule === 'no-restricted-syntax' || rule === 'no-restricted-imports'),
+          name,
+        ).toBe(true);
+      } finally {
+        rmSync(file, { force: true });
+      }
+    }
+  }, 90_000);
+
+  it('허용 목록(features/costs)에서는 통과 — 동적 import 포함', async () => {
+    const dynamicImport = [
+      'export async function g() {',
+      "  return (await import('@/server/cost/queries')).getCostRows;",
+      '}',
+      '',
+    ].join('\n');
+    writeFileSync(ALLOWED, `${SOURCE}${dynamicImport}`);
     const [result] = await eslint.lintFiles([ALLOWED]);
-    expect(result?.messages.filter((m) => m.ruleId === 'no-restricted-imports')).toEqual([]);
+    expect(
+      result?.messages.filter(
+        (m) => m.ruleId === 'no-restricted-imports' || m.ruleId === 'no-restricted-syntax',
+      ),
+    ).toEqual([]);
   }, 60_000);
 });
 

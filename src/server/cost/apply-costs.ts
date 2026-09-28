@@ -38,7 +38,12 @@ export type CostApplyStats = {
 };
 
 /** 적용 결과 = 통계 + 같은 날짜 중복 경고 목록(전부 / 값이 다른 그룹) — 경고는 적용을 막지 않는다 (§4.4.7 r4 3) */
-export type CostApplyResult = { stats: CostApplyStats; warnings: DuplicateWarnings };
+export type CostApplyResult = {
+  stats: CostApplyStats;
+  warnings: DuplicateWarnings;
+  /** 배치의 헤더 행 인덱스 — 경고의 source_row 를 엑셀 행 번호로 표시하기 위해 */
+  headerRowIndex: number;
+};
 
 export type CostApplyContext = { handle: DbHandle; access: CostAccess; meta: RequestMeta };
 
@@ -139,7 +144,7 @@ async function runApply(
   ctx: CostApplyContext,
   batchId: string,
   expected: number,
-): Promise<CostApplyResult> {
+): Promise<Omit<CostApplyResult, 'headerRowIndex'>> {
   await tx.execute(sql`select pg_advisory_xact_lock(${APPLY_LOCK_KEY})`);
   const manualConflicts = await supersedeManual(tx, batchId, ctx);
   const inserted = await loadBatch(tx, batchId);
@@ -186,7 +191,11 @@ export async function applyCostImport(
     eq(stgMaterialCosts.batchId, batch.id),
   );
   try {
-    return await withTransaction((tx) => runApply(tx, ctx, batch.id, expected), ctx.handle);
+    const applied = await withTransaction(
+      (tx) => runApply(tx, ctx, batch.id, expected),
+      ctx.handle,
+    );
+    return { ...applied, headerRowIndex: batch.headerRowIndex };
   } catch (error) {
     const reason =
       error instanceof ApplyInvariantError ? error.message : '적용 중 오류가 발생했습니다';

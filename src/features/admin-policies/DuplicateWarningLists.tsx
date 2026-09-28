@@ -4,20 +4,32 @@ type DuplicateWarningListsProps = {
   warnings: DuplicateWarnings;
   /** 미리보기(업로드) 인지 적용 결과인지 — 문구만 다르다 */
   stage: 'preview' | 'applied';
+  /** 헤더 행 인덱스(0-base). 표시 행 번호를 엑셀 행 번호로 바꾸는 데 쓴다 */
+  headerRowIndex: number;
 };
+
+/** source_row(데이터 행, 헤더 다음 = 1) → 엑셀 행 번호 (PR-5 QA LOW-1: 미리보기 표·행 오류와 같은 기준) */
+export function excelRowOf(sourceRow: number, headerRowIndex: number): number {
+  return sourceRow + headerRowIndex + 1;
+}
 
 const money = (value: string) => Number(value).toLocaleString('ko-KR');
 
-function groupLabel(group: DuplicateGroup) {
+function groupLabel(group: DuplicateGroup, headerRowIndex: number) {
   const [materialCode] = group.seriesKey.split('|');
-  return `${materialCode} · ${group.effectiveFrom} — 원본 ${group.sourceRows.join(', ')}행 (단가 ${group.unitCosts.map(money).join(' / ')})`;
+  const rows = group.sourceRows.map((row) => excelRowOf(row, headerRowIndex)).join(', ');
+  return `${materialCode} · ${group.effectiveFrom} — 엑셀 ${rows}행 (단가 ${group.unitCosts.map(money).join(' / ')})`;
 }
 
 /**
  * 원가 같은 날짜 중복 경고 (§4.4.7 r4 3): 전체 그룹을 나열하고, 값이 다른 그룹은 별도 목록(강조)으로 다시 보여 준다.
  * 경고이지 오류가 아니므로 적용은 막지 않는다 — 뒤 행(source_row 큰 행)이 우선한다.
  */
-export function DuplicateWarningLists({ warnings, stage }: DuplicateWarningListsProps) {
+export function DuplicateWarningLists({
+  warnings,
+  stage,
+  headerRowIndex,
+}: DuplicateWarningListsProps) {
   const { sameDateDuplicates, conflictingDuplicates } = warnings;
   if (sameDateDuplicates.length === 0) return null;
   const verb = stage === 'preview' ? '적용됩니다' : '적용되었습니다';
@@ -34,7 +46,9 @@ export function DuplicateWarningLists({ warnings, stage }: DuplicateWarningLists
         </p>
         <ul className="m-0 list-none p-0">
           {sameDateDuplicates.map((group) => (
-            <li key={`${group.seriesKey}|${group.effectiveFrom}`}>{groupLabel(group)}</li>
+            <li key={`${group.seriesKey}|${group.effectiveFrom}`}>
+              {groupLabel(group, headerRowIndex)}
+            </li>
           ))}
         </ul>
       </div>
@@ -49,7 +63,9 @@ export function DuplicateWarningLists({ warnings, stage }: DuplicateWarningLists
           </p>
           <ul className="m-0 list-none p-0">
             {conflictingDuplicates.map((group) => (
-              <li key={`${group.seriesKey}|${group.effectiveFrom}`}>{groupLabel(group)}</li>
+              <li key={`${group.seriesKey}|${group.effectiveFrom}`}>
+                {groupLabel(group, headerRowIndex)}
+              </li>
             ))}
           </ul>
         </div>

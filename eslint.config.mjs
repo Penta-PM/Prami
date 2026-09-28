@@ -31,10 +31,60 @@ const restrictCostImports = {
   },
 };
 
+/**
+ * PR-5 QA LOW-2 보강: 정적 import 외에 동적 `import('@/server/cost/…')`와 원가 테이블 스키마(materialCosts) 직접 사용도
+ * 허용 목록 밖에서는 막는다. 스키마 정의·관계(src/db)와 임포트 스테이징(server/imports)은 예외.
+ */
+const restrictCostSyntax = {
+  files: ['src/**/*.{ts,tsx}'],
+  ignores: [...COST_IMPORT_ALLOWLIST, 'src/db/**'],
+  rules: {
+    'no-restricted-syntax': [
+      'error',
+      {
+        selector: 'ImportExpression > Literal[value=/(^|[\/])server[\/]cost([\/]|$)/]',
+        message:
+          '원가 모듈(server/cost)은 동적 import 로도 허용 목록 밖에서 불러올 수 없습니다 (§4.8 AC-42).',
+      },
+      {
+        selector:
+          "CallExpression[callee.name='require'] > Literal[value=/(^|[\/])server[\/]cost([\/]|$)/]",
+        message: '원가 모듈(server/cost)은 require 로도 불러올 수 없습니다 (§4.8 AC-42).',
+      },
+    ],
+    'no-restricted-imports': [
+      'error',
+      {
+        paths: [
+          {
+            name: '@/db/schema',
+            importNames: ['materialCosts', 'MATERIAL_COST_SERIES_KEY_SQL'],
+            message:
+              '원가 테이블 스키마(materialCosts)는 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+          },
+        ],
+        patterns: [
+          {
+            group: ['@/server/cost', '@/server/cost/*', '**/server/cost', '**/server/cost/*'],
+            message:
+              '원가 모듈(server/cost)은 features/costs, app/(app)/admin/costs 에서만 import 할 수 있습니다 (§4.8 AC-42).',
+          },
+          {
+            group: ['@/db/schema/material-costs', '**/schema/material-costs'],
+            message:
+              '원가 테이블 스키마(material-costs)는 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+          },
+        ],
+      },
+    ],
+  },
+};
+
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
   restrictCostImports,
+  restrictCostSyntax,
   globalIgnores([
     '.next/**',
     '.next-e2e/**',

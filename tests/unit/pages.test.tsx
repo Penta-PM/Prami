@@ -2,22 +2,15 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import AdminGroupsPage from '@/app/(app)/admin/groups/page';
-import AdminNoticesPage from '@/app/(app)/admin/notices/page';
 import AdminPartsPage from '@/app/(app)/admin/parts/page';
 import CalculatorPage from '@/app/(app)/calculator/page';
-import NoticesPage from '@/app/(app)/notices/page';
-import HomePage from '@/app/(app)/page';
-import SearchPage from '@/app/(app)/search/page';
 import { PAGE_SPECS, type PageKey } from '@/features/shell/pages';
 
+/** PR-9 까지 구현되지 않은 화면만 자리표시자로 남는다 (계산기 PR-7, 파츠·그룹 PR-6) */
 const PAGES: Record<PageKey, () => React.JSX.Element> = {
-  home: HomePage,
   calculator: CalculatorPage,
-  notices: NoticesPage,
-  search: SearchPage,
   adminParts: AdminPartsPage,
   adminGroups: AdminGroupsPage,
-  adminNotices: AdminNoticesPage,
 };
 
 describe('자리표시자 페이지', () => {
