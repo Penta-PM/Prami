@@ -1,7 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import AdminCostsPage from '@/app/(app)/admin/costs/page';
 import AdminGroupsPage from '@/app/(app)/admin/groups/page';
 import AdminNoticesPage from '@/app/(app)/admin/notices/page';
 import AdminPartsPage from '@/app/(app)/admin/parts/page';
@@ -16,7 +15,6 @@ const PAGES: Record<PageKey, () => React.JSX.Element> = {
   calculator: CalculatorPage,
   notices: NoticesPage,
   search: SearchPage,
-  adminCosts: AdminCostsPage,
   adminParts: AdminPartsPage,
   adminGroups: AdminGroupsPage,
   adminNotices: AdminNoticesPage,

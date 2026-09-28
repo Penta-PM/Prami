@@ -19,6 +19,15 @@ export type SheetSpec<Row> = {
   columns: readonly SheetColumn[];
   /** 변환된 컬럼 값 → 행 객체 (추가 필드 계산 포함) */
   build: (values: Record<string, unknown>, extras: Record<string, unknown>) => Row;
-  /** 파일 내 중복 금지 키. 같은 키가 두 번 나오면 뒤 행이 오류 */
-  uniqueKey?: { describe: string; of: (row: Row) => string };
+  /**
+   * 파일 내 중복 키. 같은 키가 두 번 나오면 policy='error'(기본)는 뒤 행이 행 오류,
+   * policy='warn' 은 두 행 모두 적재하되 경고로 집계한다(값이 다르면 별도 표시). 원가는 warn (Main 결정, PR-5)
+   */
+  uniqueKey?: {
+    describe: string;
+    of: (row: Row) => string;
+    policy?: 'error' | 'warn';
+    /** warn 정책에서 값 비교에 쓸 대표 값 (예: 단가) */
+    compareValue?: (row: Row) => string;
+  };
 };

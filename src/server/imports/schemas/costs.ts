@@ -38,11 +38,14 @@ export const COST_SPEC: SheetSpec<CostRow> = {
   preferredSheets: ['Sheet1'],
   columns: COST_COLUMNS,
   build: (values) => values as CostRow,
+  // 원본 ERP 파일에 같은 계열·적용시작일 행이 실제로 있어(3쌍) 오류가 아니라 경고로 두고 전부 적재한다 (Main 결정, PR-5)
   uniqueKey: {
     describe: '계열(자재번호·단가유형·단가구분·화폐)과 적용시작일이 같은 행이 이미 있습니다',
     of: (row) =>
       [row.materialCode, row.priceType, row.priceCategory, row.currency, row.effectiveFrom].join(
         '|',
       ),
+    policy: 'warn',
+    compareValue: (row) => row.unitCost,
   },
 };

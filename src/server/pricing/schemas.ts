@@ -1,11 +1,17 @@
 import { z } from 'zod';
 
+import { withParticle } from '@/lib/korean';
+
 /**
  * 가격정책 등록·수정 모달 입력 (§4.5.3). `*` 필수: 제품군·품번·품명·단가구분·화폐·단가·적용시작일·단위·변경 사유.
  * 저장 시 source='manual'. 원본 20컬럼 중 id(source_id)·최종여부는 ERP 값이라 수동 행에서는 0/false.
  */
 const required = (label: string, max = 200) =>
-  z.string().trim().min(1, `${label}을(를) 입력하세요`).max(max, `${max}자 이하로 입력하세요`);
+  z
+    .string()
+    .trim()
+    .min(1, `${withParticle(label, '을/를')} 입력하세요`)
+    .max(max, `${max}자 이하로 입력하세요`);
 
 const optional = (max = 200) =>
   z

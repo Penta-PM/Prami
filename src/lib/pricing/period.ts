@@ -11,8 +11,14 @@ export function previousDay(isoDate: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** `2022-04-01 ~ 2025-12-31` / `2026-01-01 ~ 현재` */
+const NONE = '없음';
+
+/**
+ * `2022-04-01 ~ 2025-12-31` / `2026-01-01 ~ 현재`.
+ * 종료일이 시작일과 같거나 앞서면(원가 같은 날짜 중복의 앞 행, r4 §4.4.7 — 기간 0일) `없음`.
+ */
 export function periodLabel(effectiveFrom: string, effectiveTo: string | null): string {
+  if (effectiveTo && effectiveTo <= effectiveFrom) return NONE;
   return `${effectiveFrom} ~ ${effectiveTo ? previousDay(effectiveTo) : CURRENT}`;
 }
 

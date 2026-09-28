@@ -1,5 +1,6 @@
 import { Pill } from '@/components/ui';
 
+import { DuplicateWarningLists } from './DuplicateWarningLists';
 import type { ImportFileKind, UploadSummaryData } from './types';
 
 /** 미리보기 표에 보일 컬럼 (행 객체 키 → 엑셀 헤더) */
@@ -21,6 +22,16 @@ const PREVIEW_COLUMNS: Record<ImportFileKind, readonly [string, string][]> = {
     ['categoryMid', '중분류'],
     ['categoryMinor', '소분류'],
     ['itemStatusRaw', '품목상태'],
+  ],
+  costs: [
+    ['materialCode', '자재번호'],
+    ['materialName', '자재명'],
+    ['unit', '단위'],
+    ['priceType', '단가유형'],
+    ['currency', '화폐'],
+    ['unitCost', '단가'],
+    ['effectiveFrom', '적용시작일'],
+    ['isFinalSource', '최종여부'],
   ],
 };
 
@@ -54,20 +65,37 @@ export function UploadSummary({ kind, data }: { kind: ImportFileKind; data: Uplo
           데이터 {data.rowCount.toLocaleString('ko-KR')}행 · 오류{' '}
           {data.errorCount.toLocaleString('ko-KR')}건
           {data.warnings.length > 0 ? ` · 경고 ${data.warnings.length}건` : ''}
+          {data.duplicateWarnings.sameDateDuplicates.length > 0
+            ? ` · 같은 날짜 중복 ${data.duplicateWarnings.sameDateDuplicates.length}그룹`
+            : ''}
         </span>
       </div>
       {data.errors.length > 0 ? <ErrorList errors={data.errors} total={data.errorCount} /> : null}
-      {data.warnings.length > 0 ? (
+      <WarningLists data={data} />
+      {data.preview.length > 0 ? <PreviewTable kind={kind} data={data} /> : null}
+    </div>
+  );
+}
+
+const DUPLICATE_COLUMNS = ['같은 날짜 중복', '같은 날짜 중복(값 다름)'];
+
+/** 경고 목록 — 원가 같은 날짜 중복은 행 단위가 아니라 그룹 목록(DuplicateWarningLists)으로 보여 준다 (r4 §4.4.7 3) */
+function WarningLists({ data }: { data: UploadSummaryData }) {
+  const others = data.warnings.filter((w) => !DUPLICATE_COLUMNS.includes(w.column));
+  return (
+    <>
+      <DuplicateWarningLists warnings={data.duplicateWarnings} stage="preview" />
+      {others.length > 0 ? (
         <ul className="m-0 list-none p-0 text-[12px] text-amber-500">
-          {data.warnings.slice(0, 10).map((warning, index) => (
+          {others.slice(0, 10).map((warning, index) => (
             <li key={index}>
               경고: {warning.column} — {warning.message}
             </li>
           ))}
+          {others.length > 10 ? <li>외 경고 {others.length - 10}건</li> : null}
         </ul>
       ) : null}
-      {data.preview.length > 0 ? <PreviewTable kind={kind} data={data} /> : null}
-    </div>
+    </>
   );
 }
 

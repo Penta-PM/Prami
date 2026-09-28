@@ -25,6 +25,29 @@ export type ParseOutcome<Row> = {
 
 type RowContext = { excelRow: number; errors: ImportRowError[] };
 
+/** 같은 날짜 중복 경고 컬럼명 — UploadSummary 가 값이 다른 중복을 별도 목록으로 보여 주는 기준 */
+export const DUPLICATE_WARNING_COLUMN = '같은 날짜 중복';
+export const CONFLICTING_DUPLICATE_WARNING_COLUMN = '같은 날짜 중복(값 다름)';
+
+function duplicateWarning<Row>(
+  spec: SheetSpec<Row>,
+  row: Row,
+  earlier: { row: number; value: string | undefined },
+  excelRow: number,
+  key: string,
+): ImportRowError {
+  const value = spec.uniqueKey!.compareValue?.(row);
+  const conflicting = earlier.value !== undefined && value !== undefined && earlier.value !== value;
+  return {
+    row: excelRow,
+    column: conflicting ? CONFLICTING_DUPLICATE_WARNING_COLUMN : DUPLICATE_WARNING_COLUMN,
+    message: conflicting
+      ? `${earlier.row}행과 같은 계열·적용시작일이지만 값이 다릅니다 (${earlier.value} ≠ ${value}) — 둘 다 적재되며 뒤 행이 우선합니다`
+      : `${earlier.row}행과 같은 계열·적용시작일입니다 (값 동일) — 둘 다 적재됩니다`,
+    value: key,
+  };
+}
+
 function isBlankRow(row: readonly Cell[]): boolean {
   return row.every((cell) => cell === null || cell === undefined || String(cell).trim() === '');
 }
@@ -98,7 +121,7 @@ export function parseSheet<Row>(
     message: '정의되지 않은 컬럼이라 무시했습니다',
   }));
   const rows: ParsedRow<Row>[] = [];
-  const seen = new Map<string, number>();
+  const seen = new Map<string, { row: number; value: string | undefined }>();
   let rowCount = 0;
 
   sheet.rows.slice(header.rowIndex + 1).forEach((cells, offset) => {
@@ -108,16 +131,21 @@ export function parseSheet<Row>(
     const row = convertRow(spec, cells, header.columns, header.extras, { excelRow, errors });
     if (row === null) return;
     const key = spec.uniqueKey?.of(row);
-    if (key !== undefined && seen.has(key)) {
-      errors.push({
-        row: excelRow,
-        column: '',
-        message: `${spec.uniqueKey!.describe} (${seen.get(key)}행)`,
-        value: key,
-      });
-      return;
+    const earlier = key === undefined ? undefined : seen.get(key);
+    if (key !== undefined && earlier !== undefined) {
+      if (spec.uniqueKey!.policy !== 'warn') {
+        errors.push({
+          row: excelRow,
+          column: '',
+          message: `${spec.uniqueKey!.describe} (${earlier.row}행)`,
+          value: key,
+        });
+        return;
+      }
+      warnings.push(duplicateWarning(spec, row, earlier, excelRow, key));
+    } else if (key !== undefined) {
+      seen.set(key, { row: excelRow, value: spec.uniqueKey!.compareValue?.(row) });
     }
-    if (key !== undefined) seen.set(key, excelRow);
     rows.push({ rowIndex: excelRow, row });
   });
 

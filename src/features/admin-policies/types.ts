@@ -1,4 +1,5 @@
 import type { ImportRowError } from '@/db/schema';
+import type { DuplicateWarnings } from '@/lib/imports/duplicates';
 
 /** 클라이언트 컴포넌트가 주고받는 직렬화 가능한 모양 (서버 모듈을 import 하지 않기 위해 분리) */
 export type BatchOption = {
@@ -20,6 +21,8 @@ export type UploadSummaryData = {
   preview: { rowIndex: number; row: Record<string, unknown> }[];
   errors: ImportRowError[];
   warnings: ImportRowError[];
+  /** r4: 원가 같은 날짜 중복 그룹(전부 / 값이 다른 그룹). 다른 종류는 비어 있다 */
+  duplicateWarnings: DuplicateWarnings;
 };
 
 export type FileMode = 'new' | 'reuse';
@@ -31,7 +34,7 @@ export type FileSelection = {
   reuseId: string;
 };
 
-export type ImportFileKind = 'sales' | 'items';
+export type ImportFileKind = 'sales' | 'items' | 'costs';
 
 export function selectedBatchId(selection: FileSelection): string | null {
   if (selection.mode === 'reuse') return selection.reuseId || null;

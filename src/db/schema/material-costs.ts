@@ -5,10 +5,10 @@ import {
   char,
   date,
   index,
+  integer,
   numeric,
   pgTable,
   text,
-  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -64,15 +64,17 @@ export const materialCosts = pgTable(
     operationStatus: operationStatusEnum('operation_status').notNull().default('미사용'),
     /** 파생 — Q-03: 자재번호 접두 규칙 또는 별도 매핑표 */
     productFamily: text('product_family'),
+    /** r4: ERP 원본 파일의 데이터 행 번호(헤더 다음 행 = 1). erp 행은 NOT NULL, manual 은 NULL. 같은 날짜 tie-break 근거로만 쓴다 */
+    sourceRow: integer('source_row'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     deletedAt: deletedAt(),
     ...timestamps,
   },
   (t) => [
-    uniqueIndex('material_costs_series_effective_uq')
-      .on(t.seriesKey, t.effectiveFrom)
-      .where(sql`"deleted_at" is null`),
+    // r4 §4.3.4: 원본 ERP 파일에 같은 계열·적용시작일 행이 있어(1:1 보존) UNIQUE 를 두지 않는다 — 수동 등록·수정의
+    // 중복은 앱(server/cost/mutations)에서 검사한다. 판매단가(sales_prices)의 부분 UNIQUE 는 그대로 (Main 결정, PR-5)
+    index('material_costs_series_effective_idx').on(t.seriesKey, t.effectiveFrom, t.sourceRow),
     index('material_costs_material_code_idx').on(t.materialCode),
     index('material_costs_family_effective_idx').on(t.productFamily, t.effectiveFrom),
   ],

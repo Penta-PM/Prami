@@ -8,9 +8,15 @@ import type { Db, DbHandle } from '@/db';
 import { firstRow } from '@/db/rows';
 import { importBatches, items, salesPrices, type ImportRowError } from '@/db/schema';
 import { withTransaction } from '@/db/tx';
+import {
+  EMPTY_DUPLICATE_WARNINGS,
+  splitDuplicateGroups,
+  type DuplicateWarnings,
+} from '@/lib/imports/duplicates';
 import { AppError } from '@/lib/result';
 import { writeAudit, type AuditActor, type RequestMeta } from '@/server/audit/log';
 
+import { listStagedCostDuplicateGroups } from './cost-duplicates';
 import { KIND_DEFINITIONS, type ImportKind } from './kinds';
 import { MAX_STORED_ERRORS, parseSheet, type ParseOutcome } from './parse-sheet';
 import {
@@ -44,6 +50,8 @@ export type UploadResult = {
   preview: { rowIndex: number; row: Record<string, unknown> }[];
   errors: ImportRowError[];
   warnings: ImportRowError[];
+  /** r4 §4.4.7: 원가 파일의 같은 날짜 중복 그룹(전부 / 값이 다른 그룹). 다른 종류는 비어 있다 */
+  duplicateWarnings: DuplicateWarnings;
 };
 
 export const AUDIT_IMPORT_UPLOAD = 'import.upload';
@@ -73,7 +81,8 @@ async function guardDuplicate(db: Db, input: UploadInput, sha256: string): Promi
     .where(and(eq(importBatches.kind, dbKind), eq(importBatches.fileSha256, sha256)))
     .limit(1);
   if (!existing) return;
-  if (existing.status === 'failed') {
+  // 적용할 수 없는 배치(failed 또는 행 오류 있음)는 재업로드를 막지 않는다 — 지우고 다시 파싱한다
+  if (existing.status === 'failed' || existing.errorCount > 0) {
     await db.delete(importBatches).where(eq(importBatches.id, existing.id));
     return;
   }
@@ -153,7 +162,7 @@ export async function uploadImport(ctx: UploadContext, input: UploadInput): Prom
   const outcome = await parseUpload(ctx.handle.db, input);
   const definition = KIND_DEFINITIONS[input.kind];
 
-  const batchId = await withTransaction(async (tx) => {
+  const { batchId, duplicateWarnings } = await withTransaction(async (tx) => {
     const batch = firstRow(
       await tx
         .insert(importBatches)
@@ -174,6 +183,12 @@ export async function uploadImport(ctx: UploadContext, input: UploadInput): Prom
       'import_batches insert',
     );
     if (outcome.status === 'parsed') await definition.stage(tx, batch.id, outcome.rows as never);
+    const duplicateWarnings =
+      input.kind === 'costs' && outcome.status === 'parsed'
+        ? splitDuplicateGroups(
+            await listStagedCostDuplicateGroups(tx, batch.id, outcome.headerRowIndex),
+          )
+        : EMPTY_DUPLICATE_WARNINGS;
     await writeAudit(tx, {
       actor: ctx.actor,
       action: AUDIT_IMPORT_UPLOAD,
@@ -187,7 +202,7 @@ export async function uploadImport(ctx: UploadContext, input: UploadInput): Prom
       result: outcome.status === 'failed' ? 'error' : 'success',
       meta: ctx.meta,
     });
-    return batch.id;
+    return { batchId: batch.id, duplicateWarnings };
   }, ctx.handle);
 
   return {
@@ -203,5 +218,6 @@ export async function uploadImport(ctx: UploadContext, input: UploadInput): Prom
       .map(({ rowIndex, row }) => ({ rowIndex, row: row as Record<string, unknown> })),
     errors: outcome.errors,
     warnings: outcome.warnings,
+    duplicateWarnings,
   };
 }
