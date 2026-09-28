@@ -1,12 +1,56 @@
 import type { Metadata } from 'next';
 
-import { PlaceholderPage } from '@/components/placeholder-page';
-import { PAGE_SPECS } from '@/features/shell/pages';
+import { getDb } from '@/db';
+import { CalculatorTabs } from '@/features/calculator/CalculatorTabs';
+import type { FamilyPreload } from '@/features/calculator/types';
+import { hasPermission } from '@/lib/constants/permissions';
+import { requirePagePermission } from '@/server/auth/rbac';
+import { listGroupChips } from '@/server/groups/queries';
+import { listProductFamilies } from '@/server/parts/catalog';
+import {
+  listGroupHardware,
+  listQuoteCategories,
+  listQuotePriceTypes,
+} from '@/server/quotes/catalog';
+import { listMyQuotes } from '@/server/quotes/queries';
 
-const spec = PAGE_SPECS.calculator;
+export const metadata: Metadata = { title: '계산기' };
 
-export const metadata: Metadata = { title: spec.title };
+type CalculatorPageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-export default function CalculatorPage() {
-  return <PlaceholderPage {...spec} />;
+/**
+ * 계산기 (§4.5.7, calculator.use = USER 이상). 제품군별 STEP1(단가유형 DISTINCT)·STEP2(분류)·그룹 칩·하드웨어 후보를
+ * 미리 내려주고, 품목/파츠/결합형은 선택에 따라 Server Action 으로 가져온다. 순매출 원가 잠금은 역할로 결정한다.
+ */
+export default async function CalculatorPage({ searchParams }: CalculatorPageProps) {
+  const user = await requirePagePermission('calculator.use', '/calculator');
+  const db = await getDb();
+  const families = await listProductFamilies(db);
+  const preload: FamilyPreload[] = await Promise.all(
+    families.map(async (family) => {
+      const [priceTypes, categories, groups, hardware] = await Promise.all([
+        listQuotePriceTypes(db, family),
+        listQuoteCategories(db, family),
+        listGroupChips(db, family),
+        listGroupHardware(db, family),
+      ]);
+      return { family, priceTypes, categories, groups, hardware };
+    }),
+  );
+  const savedQuotes = await listMyQuotes(db, user);
+  const tab = (await searchParams).tab === 'margin' ? 'margin' : 'quote';
+
+  return (
+    <section aria-labelledby="page-title" className="flex flex-col gap-[18px]">
+      <h1 id="page-title" className="m-0 [font:var(--text-page-title)]">
+        계산기
+      </h1>
+      <CalculatorTabs
+        preload={preload}
+        savedQuotes={savedQuotes}
+        canSeeCost={hasPermission(user.role, 'cost.read')}
+        initialTab={tab}
+      />
+    </section>
+  );
 }

@@ -216,6 +216,22 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
 - 홈 카드는 `/pricing?family=<제품군명>` 으로 들어가며 `PRODUCT_FAMILY_MAJORS` 로 대분류 집합으로 전개된다(iSIGN 카드 =
   iSIGN + iSIGN PKI, 대분류 드롭다운은 여전히 별도 값, 배지 "제품군: iSIGN (iSIGN PKI 포함)"). 통합 검색은 그룹당 20건 상한에 걸리면 "상위 20건" 을 표시하고 품명 NBSP 를 공백으로 정규화한다.
 
+## 견적 · 순매출 계산기 (PR-7)
+
+- `/calculator`(로그인 사용자 모두, `calculator.use`): `견적 계산기` / `순매출 계산기` 탭.
+- 견적 계산기: 제품군 → 그룹 솔루션(PR-6 그룹 칩 → 하드웨어 선택 → 상세 제품 체크/수량 → 그룹 소계) → STEP1 단가유형
+  (**DB `DISTINCT price_type`**, 배수 없음) → STEP2 대/중/소(마스터 전에는 대분류 = 제품군) → STEP3 품목(운영중 + 선택
+  단가유형의 최신 행 가격)·수량 → STEP4 파츠(`part_mappings` 가 있으면 그 파츠만, 없으면 제품군 파츠 전체) → STEP5 결합형
+  (마스터 `item_kind='결합형'`) → STEP6 할인율 슬라이더 ↔ 목표금액 역산 동기화 → 장바구니(`useReducer` + `sessionStorage`,
+  통화가 섞이면 통화별 소계) → 견적 저장(`quotes` + 라인 가격 스냅샷, 번호 `Q-YYYY-NNNN` 연도별 시퀀스·재시도) →
+  내 견적 목록(본인만, ADMIN 전체) · 담기(라인 복원) · 삭제(soft). 견적서 출력·공유 버튼은 PR-8 까지 비활성.
+- 금액 규칙은 `src/lib/pricing/quote.ts` 순수 함수: `preDiscount = (본품 + Σ파츠 + Σ결합형) × 수량`,
+  `lineTotal = floor((preDiscount − 할인) / 1000) × 1000`, 역산 `rate = clamp((1 − target/pre) × 100, 0, 100)` 소수 1자리.
+- 순매출 계산기: `src/lib/pricing/margin.ts` — `정상 = 단가×수량`, `할인`, `실제 = 정상 − 할인`, `원가 = 단가×수량`(ADMIN 만),
+  `순매출 = 실제 − 원가 − 기타`, `이익률 = 순매출/실제`. USER 는 원가 입력이 잠기고 서버(PR-5 `calculateNetSalesAction`)가
+  응답에서 원가·이익률을 제외한다.
+- 감사 `quote.save|delete`. 남의 견적 삭제는 §4.7.1 거부(FORBIDDEN, 무변경, 감사 denied).
+
 ## DB 스키마 · 마이그레이션
 
 - 스키마는 `src/db/schema/*.ts` 에 테이블별로 두고 `drizzle.config.ts` 가 `schema/index.ts` 를 읽습니다.

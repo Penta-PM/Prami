@@ -97,6 +97,8 @@ describe('PartsManager (AC-30·31)', () => {
       screen.getByRole('button', { name: 'Wapples-2700 (H2700)-RAID (P1010010005)' }),
     );
     expect(screen.getByRole('alert')).toHaveTextContent('이미 등록된 모델입니다');
+    // PR-6 QA INFO-3: 재선택 시 기존 파츠(N_51240)가 체크 상태로 복원된다
+    expect(screen.getByLabelText('선택된 파츠')).toHaveTextContent('N_51240');
     expect(
       screen.getByRole('button', { name: 'Wapples-2700 (H2700)-RAID (P1010010005)' }),
     ).toHaveTextContent('등록됨');

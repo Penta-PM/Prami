@@ -46,6 +46,10 @@ test('AC-30·31: 모델 선택 → N_51080 체크 → 저장 → 그룹화 표, 
     .click();
   // Next 라우트 어나운서(role=alert)와 겹치지 않도록 본문 안에서 찾는다
   await expect(page.getByRole('main').getByRole('alert')).toContainText('이미 등록된 모델입니다');
+  // 재선택 시 기존 파츠(N_51080)가 체크 상태로 복원된다 (PR-6 QA INFO-3) → 해제하고 N_51240 만 선택
+  await expect(page.getByLabel('선택된 파츠')).toContainText('N_51080');
+  await page.getByRole('searchbox', { name: '파츠 검색' }).fill('N_51080');
+  await parts.getByRole('checkbox').uncheck();
   await page.getByRole('searchbox', { name: '파츠 검색' }).fill('N_51240');
   await parts.getByRole('checkbox').check();
   await page.getByRole('button', { name: '저장', exact: true }).click();

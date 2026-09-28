@@ -3,11 +3,12 @@ import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { DbHandle } from '@/db';
-import { importBatches, items, partMappings, stgPartMappings } from '@/db/schema';
+import { importBatches, items, partMappings, salesPrices, stgPartMappings } from '@/db/schema';
 import { AppError } from '@/lib/result';
 import { applyPolicy } from '@/server/imports/apply-policy';
 import { applyPartImport } from '@/server/parts/apply-parts';
-import { listPartsCatalog, listProductFamilies } from '@/server/parts/catalog';
+import { classifyItemName } from '@/lib/constants/item-kind-rules';
+import { listPartsCatalog, listProductFamilies, sortFamilies } from '@/server/parts/catalog';
 import {
   deletePartMapping,
   ensureItemStubs,
@@ -54,10 +55,56 @@ describe('listPartsCatalog / listProductFamilies', () => {
     expect(families).toContain('WAPPLES');
     const catalog = await listPartsCatalog(handle.db, 'WAPPLES');
     expect(catalog.parts.map((item) => item.itemCode)).toContain(N_51080);
-    expect(catalog.parts.every((item) => /^N[_-]\d/.test(item.itemName))).toBe(true);
+    expect(catalog.parts.every((item) => classifyItemName(item.itemName) === '파츠')).toBe(true);
     expect(catalog.models.some((item) => item.itemCode === N_51080)).toBe(false);
     expect(catalog.models.length).toBeGreaterThan(0);
     expect(catalog.models.every((item) => item.kind === '본품')).toBe(true);
+  });
+
+  it('PR-6 QA LOW-1: SSD/Memory/HDD/GBIC/가속카드는 파츠, 기술지원비·유지보수·M/D 는 서비스(모델 목록 제외)', async () => {
+    expect(classifyItemName('SSD 512GB')).toBe('파츠');
+    expect(classifyItemName('Memory DDR5 16GB')).toBe('파츠');
+    expect(classifyItemName('Memory(8G)')).toBe('파츠');
+    expect(classifyItemName('HDD 2TB')).toBe('파츠');
+    expect(classifyItemName('eoptolink Multi 10G GBIC')).toBe('파츠');
+    expect(classifyItemName('SSL가속카드 N_70002')).toBe('파츠');
+    expect(classifyItemName('N_51080 - 1G UTP 8포트(바이패스X)')).toBe('파츠');
+    expect(classifyItemName('기술지원비(M/D)')).toBe('서비스');
+    expect(classifyItemName('SA 유지보수')).toBe('서비스');
+    expect(classifyItemName('SA 긴급 장애지원 서비스')).toBe('서비스');
+    expect(classifyItemName('Delivery Fee')).toBe('서비스');
+    expect(classifyItemName('Wapples-2700 (H2700)')).toBe('본품');
+    expect(classifyItemName('Wapples SA-500')).toBe('본품');
+    // SQL 판정도 같은 규칙: 판매단가 품명을 바꿔 확인
+    const model = await firstModel();
+    await handle.db
+      .update(salesPrices)
+      .set({ itemName: 'SSD 2TB' })
+      .where(eq(salesPrices.itemCode, model.itemCode));
+    const catalog = await listPartsCatalog(handle.db, 'WAPPLES');
+    expect(catalog.parts.some((item) => item.itemCode === model.itemCode)).toBe(true);
+    await handle.db
+      .update(salesPrices)
+      .set({ itemName: '기술지원비(M/D)' })
+      .where(eq(salesPrices.itemCode, model.itemCode));
+    const service = await listPartsCatalog(handle.db, 'WAPPLES');
+    expect(service.models.some((item) => item.itemCode === model.itemCode)).toBe(false);
+    expect(service.parts.some((item) => item.itemCode === model.itemCode)).toBe(false);
+    await handle.db
+      .update(salesPrices)
+      .set({ itemName: model.itemName })
+      .where(eq(salesPrices.itemCode, model.itemCode));
+  });
+
+  it('PR-6 QA INFO-2: 제품군 탭 순서 = 홈 카드 순서, iSIGN PKI 는 iSIGN 다음', () => {
+    expect(sortFamilies(['Cloudbric', 'D.AMO', 'iSIGN', 'iSIGN PKI', 'WAPPLES', 'ZZ'])).toEqual([
+      'WAPPLES',
+      'D.AMO',
+      'iSIGN',
+      'iSIGN PKI',
+      'Cloudbric',
+      'ZZ',
+    ]);
   });
 
   it('품목 마스터가 item_kind 를 주면 그것을 우선한다', async () => {
