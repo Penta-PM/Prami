@@ -18,6 +18,8 @@ describe('적용기간·운영 연도 (§4.4.4, AC-13)', () => {
 
   it('종료일 없음 → ~ 현재, 같은 연도면 연도 하나', () => {
     expect(periodLabel('2026-01-01', null)).toBe('2026-01-01 ~ 현재');
+    // r4 §4.4.7: 원가 같은 날짜 중복의 앞 행은 종료일 = 시작일(기간 0일) → 없음
+    expect(periodLabel('2025-01-01', '2025-01-01')).toBe('없음');
     expect(operationYearsLabel('2026-01-01', null)).toBe('2026 ~ 현재');
     expect(operationYearsLabel('2024-03-01', '2024-09-01')).toBe('2024');
     expect(operationYearsLabel('2024-03-01', '2025-01-01')).toBe('2024');

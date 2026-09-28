@@ -10,8 +10,8 @@ import { TEST_META, uploadFixture } from '../../helpers/imports';
 import { auditByAction, createTestDb, insertUser } from '../../helpers/pglite';
 
 /**
- * 원가 Server Actions — AC-41 §4.7.1 거부 판정(USER: FORBIDDEN 봉투·원가 값 미반환·DB 무변경·감사 cost.read denied 1행),
- * ADMIN 성공 경로, 순매출 계산기 원가 잠금(§4.5.5).
+ * 원가 Server Actions — AC-41 §4.7.1 거부 판정(USER: FORBIDDEN 봉투·원가 값 미반환·DB 무변경·감사 denied 1행),
+ * ADMIN 성공 경로(등록/수정 = upsertMaterialCost), 순매출 계산기 원가 잠금(§4.5.5).
  */
 const state = vi.hoisted(() => ({
   handle: undefined as DbHandle | undefined,
@@ -40,6 +40,17 @@ let batchId: string;
 let rowId: number;
 
 const COST_KEYS = /unit_cost|unitCost|material_code|materialCode/;
+const NEW_COST = {
+  materialCode: 'W1X',
+  materialName: 'x',
+  unit: 'EA',
+  priceType: '표준구매원가',
+  priceCategory: '일반',
+  currency: 'KRW',
+  unitCost: '1',
+  effectiveFrom: '2025-01-01',
+  reason: 'x',
+};
 
 async function snapshot() {
   const db = state.handle!.db;
@@ -103,15 +114,20 @@ describe('AC-41 USER 거부 (§4.7.1)', () => {
       () => actions.applyCostImportAction({ batchId, reused: true }),
     ],
     [
-      'updateMaterialCost',
+      'upsertMaterialCost(update)',
       'material_cost.update',
       () =>
-        actions.updateMaterialCostAction({
+        actions.upsertMaterialCostAction({
           id: rowId,
           unitCost: '1',
           effectiveFrom: '2025-01-01',
           reason: 'x',
         }),
+    ],
+    [
+      'upsertMaterialCost(create)',
+      'material_cost.create',
+      () => actions.upsertMaterialCostAction(NEW_COST),
     ],
     [
       'deleteMaterialCost',
@@ -143,21 +159,53 @@ describe('AC-41 USER 거부 (§4.7.1)', () => {
 });
 
 describe('ADMIN', () => {
-  it('조회·적용(재사용)·수정·삭제 봉투', async () => {
+  it('조회·적용(재사용, 통계+경고)·등록(중복 필드 오류 → 성공)·수정·삭제 봉투', async () => {
     state.sessionUserId = adminId;
     const page = await actions.getCostRowsAction({ family: 'WAPPLES' });
     expect(page).toMatchObject({ ok: true, data: { total: 2 } });
     expect(JSON.stringify(page)).toMatch(COST_KEYS);
     expect(await actions.applyCostImportAction({ batchId, reused: true })).toMatchObject({
       ok: true,
-      data: { inserted: 3 },
+      data: {
+        stats: { inserted: 3 },
+        warnings: { sameDateDuplicates: [], conflictingDuplicates: [] },
+      },
     });
     // 재적용은 ERP 행을 지우고 다시 넣으므로 id 가 바뀐다
     const row = (
       await state.handle!.db.select().from(materialCosts).orderBy(materialCosts.id).limit(1)
     )[0]!;
     rowId = row.id;
-    const invalid = await actions.updateMaterialCostAction({
+
+    // AC-40 ⑦: 같은 계열·적용시작일 수동 등록 → CONFLICT + fieldErrors.effectiveFrom, 무변경
+    const before = await snapshot();
+    const clash = await actions.upsertMaterialCostAction({
+      ...NEW_COST,
+      materialCode: row.materialCode,
+      priceType: row.priceType,
+      priceCategory: row.priceCategory,
+      currency: row.currency,
+      effectiveFrom: row.effectiveFrom,
+    });
+    expect(clash).toMatchObject({
+      ok: false,
+      error: {
+        code: 'CONFLICT',
+        fieldErrors: { effectiveFrom: [expect.stringContaining('같은 적용시작일')] },
+      },
+    });
+    expect((await snapshot()).costs).toEqual(before.costs);
+    const created = await actions.upsertMaterialCostAction({
+      ...NEW_COST,
+      effectiveFrom: '2031-01-01',
+    });
+    expect(created).toMatchObject({ ok: true, data: { operationStatus: '운영중' } });
+    expect((await auditByAction(state.handle!, 'material_cost.create')).at(-1)).toMatchObject({
+      actorUserId: adminId,
+      result: 'success',
+    });
+
+    const invalid = await actions.upsertMaterialCostAction({
       id: rowId,
       unitCost: 'abc',
       effectiveFrom: '2025-01-01',
@@ -167,7 +215,7 @@ describe('ADMIN', () => {
     if (invalid.ok) throw new Error('unreachable');
     expect(invalid.error.fieldErrors?.reason?.[0]).toBe('변경 사유를 입력하세요');
     expect(
-      await actions.updateMaterialCostAction({
+      await actions.upsertMaterialCostAction({
         id: rowId,
         unitCost: '1000',
         effectiveFrom: row.effectiveFrom,
@@ -198,9 +246,7 @@ describe('순매출 계산기 원가 잠금 (§4.5.5)', () => {
         costLocked: true,
       },
     });
-    expect(JSON.stringify(result)).not.toMatch(
-      /cost|profit|margin/i.source.replace('cost', 'totalCost'),
-    );
+    expect(JSON.stringify(result)).not.toMatch(/totalCost|profit|margin/i);
   });
 
   it('ADMIN: 원가·이익·이익률 반환, costLocked=false; 잘못된 입력은 VALIDATION', async () => {

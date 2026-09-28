@@ -4,7 +4,7 @@ import { useState, useTransition, type FormEvent, type ReactNode } from 'react';
 
 import { Button, Input, Modal } from '@/components/ui';
 
-import { updateMaterialCostAction } from './actions';
+import { upsertMaterialCostAction } from './actions';
 import type { CostRowView } from './types';
 
 type CostEditModalProps = {
@@ -30,7 +30,7 @@ export function CostEditModal({ row, onClose, onSaved }: CostEditModalProps) {
   const submit = (event: FormEvent) => {
     event.preventDefault();
     startTransition(async () => {
-      const result = await updateMaterialCostAction({ id: row.id, ...values });
+      const result = await upsertMaterialCostAction({ id: row.id, ...values });
       if (!result.ok) {
         setError(result.error.message);
         setFieldErrors(result.error.fieldErrors ?? {});

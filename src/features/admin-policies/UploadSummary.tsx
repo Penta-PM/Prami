@@ -1,5 +1,6 @@
 import { Pill } from '@/components/ui';
 
+import { DuplicateWarningLists } from './DuplicateWarningLists';
 import type { ImportFileKind, UploadSummaryData } from './types';
 
 /** 미리보기 표에 보일 컬럼 (행 객체 키 → 엑셀 헤더) */
@@ -64,45 +65,28 @@ export function UploadSummary({ kind, data }: { kind: ImportFileKind; data: Uplo
           데이터 {data.rowCount.toLocaleString('ko-KR')}행 · 오류{' '}
           {data.errorCount.toLocaleString('ko-KR')}건
           {data.warnings.length > 0 ? ` · 경고 ${data.warnings.length}건` : ''}
+          {data.duplicateWarnings.sameDateDuplicates.length > 0
+            ? ` · 같은 날짜 중복 ${data.duplicateWarnings.sameDateDuplicates.length}그룹`
+            : ''}
         </span>
       </div>
       {data.errors.length > 0 ? <ErrorList errors={data.errors} total={data.errorCount} /> : null}
-      <WarningLists warnings={data.warnings} />
+      <WarningLists data={data} />
       {data.preview.length > 0 ? <PreviewTable kind={kind} data={data} /> : null}
     </div>
   );
 }
 
-const CONFLICTING_DUPLICATE = '같은 날짜 중복(값 다름)';
+const DUPLICATE_COLUMNS = ['같은 날짜 중복', '같은 날짜 중복(값 다름)'];
 
-/** 경고 목록. 값이 다른 같은 날짜 중복은 별도 목록(강조)으로 보여 준다 (Main 결정, PR-5) */
-function WarningLists({ warnings }: { warnings: UploadSummaryData['warnings'] }) {
-  const conflicting = warnings.filter((w) => w.column === CONFLICTING_DUPLICATE);
-  const others = warnings.filter((w) => w.column !== CONFLICTING_DUPLICATE);
-  if (warnings.length === 0) return null;
+/** 경고 목록 — 원가 같은 날짜 중복은 행 단위가 아니라 그룹 목록(DuplicateWarningLists)으로 보여 준다 (r4 §4.4.7 3) */
+function WarningLists({ data }: { data: UploadSummaryData }) {
+  const others = data.warnings.filter((w) => !DUPLICATE_COLUMNS.includes(w.column));
   return (
-    <div className="flex flex-col gap-2 text-[12px]">
-      {conflicting.length > 0 ? (
-        <div
-          role="note"
-          aria-label="값이 다른 같은 날짜 중복"
-          className="rounded-lg bg-amber-500/15 p-3 text-amber-500"
-        >
-          <p className="m-0 mb-1 font-semibold">
-            같은 계열·적용시작일인데 값이 다른 행 {conflicting.length}건 — 적용은 되며 뒤 행이
-            우선합니다
-          </p>
-          <ul className="m-0 list-none p-0">
-            {conflicting.map((warning, index) => (
-              <li key={index}>
-                {warning.row}행 — {warning.message} (값: {display(warning.value)})
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+    <>
+      <DuplicateWarningLists warnings={data.duplicateWarnings} stage="preview" />
       {others.length > 0 ? (
-        <ul className="m-0 list-none p-0 text-amber-500">
+        <ul className="m-0 list-none p-0 text-[12px] text-amber-500">
           {others.slice(0, 10).map((warning, index) => (
             <li key={index}>
               경고: {warning.column} — {warning.message}
@@ -111,7 +95,7 @@ function WarningLists({ warnings }: { warnings: UploadSummaryData['warnings'] })
           {others.length > 10 ? <li>외 경고 {others.length - 10}건</li> : null}
         </ul>
       ) : null}
-    </div>
+    </>
   );
 }
 

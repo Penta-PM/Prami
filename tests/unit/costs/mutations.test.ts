@@ -7,14 +7,22 @@ import { materialCosts } from '@/db/schema';
 import { AppError } from '@/lib/result';
 import { costAccessForTests } from '@/server/cost/access-token';
 import { applyCostImport } from '@/server/cost/apply-costs';
-import { deleteMaterialCost, updateMaterialCost } from '@/server/cost/mutations';
+import {
+  createMaterialCost,
+  deleteMaterialCost,
+  updateMaterialCost,
+  upsertMaterialCost,
+} from '@/server/cost/mutations';
 import { COST_I2_VIOLATIONS_SQL } from '@/server/cost/series';
 import { queryCount } from '@/server/imports/sql-rows';
 
 import { TEST_META, uploadFixture } from '../../helpers/imports';
 import { auditByAction, createTestDb } from '../../helpers/pglite';
 
-/** 원가 수정·삭제 (§4.5.5): 사유 필수, source manual, 계열 재계산, 감사 12컬럼 스냅샷, 중복 앱 검사 */
+/**
+ * 원가 등록·수정·삭제 (§4.5.5, §4.4.7 r4 4 upsertMaterialCost): 사유 필수, source manual, 계열 재계산,
+ * 감사 12컬럼 스냅샷, 같은 계열·적용시작일 앱 검사(ERP 행 포함, AC-40 ⑦)
+ */
 let handle: DbHandle;
 const access = costAccessForTests({ id: null, email: 'vitest' }, 'write');
 const ctx = () => ({ handle, access, meta: TEST_META });
@@ -26,6 +34,18 @@ const rowsOf = (code: string) =>
     .where(eq(materialCosts.materialCode, code))
     .orderBy(materialCosts.id);
 
+const NEW_COST = {
+  materialCode: 'W10100016',
+  materialName: 'WAPPLES-100 T4',
+  unit: 'EA',
+  priceType: '표준구매원가',
+  priceCategory: '일반',
+  currency: 'krw',
+  unitCost: '1234567',
+  effectiveFrom: '2027-01-01',
+  reason: '2027 계약',
+};
+
 beforeAll(async () => {
   handle = await createTestDb();
   const upload = await uploadFixture(handle, 'costs', 'costs-sample.xlsx');
@@ -34,6 +54,61 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await handle.close();
+});
+
+describe('createMaterialCost / upsertMaterialCost (AC-40 ⑦)', () => {
+  it('같은 계열·적용시작일이 ERP 행에 이미 있으면 CONFLICT + fieldErrors.effectiveFrom, material_costs 무변경', async () => {
+    const before = await handle.db.select().from(materialCosts).orderBy(materialCosts.id);
+    const error = await upsertMaterialCost(ctx(), {
+      ...NEW_COST,
+      effectiveFrom: before[0]!.effectiveFrom,
+    }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(AppError);
+    expect((error as AppError).code).toBe('CONFLICT');
+    expect((error as AppError).fieldErrors?.effectiveFrom?.[0]).toContain('같은 적용시작일');
+    expect(await handle.db.select().from(materialCosts).orderBy(materialCosts.id)).toEqual(before);
+    expect(await auditByAction(handle, 'material_cost.create')).toHaveLength(0);
+  });
+
+  it('새 날짜면 manual 행(source_row NULL)으로 등록 → 계열 최신 재계산, 제품군 파생, 감사 material_cost.create', async () => {
+    const result = await upsertMaterialCost(ctx(), NEW_COST);
+    expect(result).toMatchObject({ operationStatus: '운영중' });
+    const [created] = await handle.db
+      .select()
+      .from(materialCosts)
+      .where(eq(materialCosts.id, result.id));
+    expect(created).toMatchObject({
+      source: 'manual',
+      sourceRow: null,
+      currency: 'KRW',
+      unitCost: '1234567.00',
+      productFamily: 'WAPPLES',
+      isFinalSource: false,
+      isLatestInSeries: true,
+      effectiveTo: null,
+    });
+    const others = (await rowsOf('W10100016')).filter((row) => row.id !== result.id);
+    expect(others.every((row) => !row.isLatestInSeries)).toBe(true);
+    expect((await auditByAction(handle, 'material_cost.create')).at(-1)).toMatchObject({
+      reason: '2027 계약',
+      targetId: String(result.id),
+    });
+    expect(await queryCount(handle.db, COST_I2_VIOLATIONS_SQL)).toBe(0);
+    await deleteMaterialCost(ctx(), { id: result.id, reason: '정리' });
+  });
+
+  it('필수값 누락은 ZodError(조사 포함), read 토큰은 차단', async () => {
+    const error = await createMaterialCost(ctx(), {
+      ...NEW_COST,
+      materialCode: '',
+      reason: '',
+    }).catch((e: unknown) => e);
+    expect(JSON.stringify(error)).toContain('자재번호를 입력하세요');
+    const readOnly = costAccessForTests({ id: null, email: 'ro' }, 'read');
+    await expect(createMaterialCost({ ...ctx(), access: readOnly }, NEW_COST)).rejects.toThrow(
+      /write/,
+    );
+  });
 });
 
 describe('updateMaterialCost', () => {
@@ -60,10 +135,14 @@ describe('updateMaterialCost', () => {
       reason: '2026 계약 반영',
     });
     expect(result).toEqual({ id: older!.id, operationStatus: '운영중' });
-    const [wasNewer, updated] = [
-      await handle.db.select().from(materialCosts).where(eq(materialCosts.id, newer!.id)),
-      await handle.db.select().from(materialCosts).where(eq(materialCosts.id, older!.id)),
-    ].map((r) => r[0]!);
+    const [wasNewer] = await handle.db
+      .select()
+      .from(materialCosts)
+      .where(eq(materialCosts.id, newer!.id));
+    const [updated] = await handle.db
+      .select()
+      .from(materialCosts)
+      .where(eq(materialCosts.id, older!.id));
     expect(updated).toMatchObject({
       source: 'manual',
       unitCost: '999000.00',
@@ -87,7 +166,7 @@ describe('updateMaterialCost', () => {
     expect(await queryCount(handle.db, COST_I2_VIOLATIONS_SQL)).toBe(0);
   });
 
-  it('같은 계열·적용시작일로 옮기면 CONFLICT(앱 검사 — UNIQUE 인덱스 제거 후에도 수동 중복 차단)', async () => {
+  it('같은 계열·적용시작일로 옮기면 CONFLICT (앱 검사 — UNIQUE 없이도 수동 중복 차단)', async () => {
     const [a, b] = await rowsOf('W10100016');
     const error = await updateMaterialCost(ctx(), {
       id: a!.id,

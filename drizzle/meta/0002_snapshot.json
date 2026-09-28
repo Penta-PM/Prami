@@ -1,5 +1,5 @@
 {
-  "id": "fb583b93-ba09-49d0-9b79-9d178af3d5f8",
+  "id": "f46f5985-781b-42c0-bd3e-23b7a82694de",
   "prevId": "0ab03836-f0c9-4619-bb8a-59d2130b6e3c",
   "version": "7",
   "dialect": "postgresql",
@@ -749,6 +749,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "source_row": {
+          "name": "source_row",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by": {
           "name": "created_by",
           "type": "uuid",
@@ -793,6 +799,12 @@
             },
             {
               "expression": "effective_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_row",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

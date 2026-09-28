@@ -8,7 +8,7 @@ import type { ActionResult } from '@/lib/result';
 import { currentRequestMeta } from '@/server/audit/request-meta';
 import { runAction } from '@/server/auth/rbac';
 import { AUDIT_COST_READ, requireCostAccess } from '@/server/cost/access';
-import { applyCostImport, AUDIT_COST_APPLY, type CostApplyStats } from '@/server/cost/apply-costs';
+import { applyCostImport, AUDIT_COST_APPLY, type CostApplyResult } from '@/server/cost/apply-costs';
 import { parseCostFilter } from '@/server/cost/filter';
 import {
   calculateNetSalesFor,
@@ -16,12 +16,14 @@ import {
   type NetSalesOutcome,
 } from '@/server/cost/margin';
 import {
+  AUDIT_COST_CREATE,
   AUDIT_COST_DELETE,
   AUDIT_COST_UPDATE,
   deleteMaterialCost,
-  updateMaterialCost,
+  isUpdateInput,
+  upsertMaterialCost,
   type DeleteCostInput,
-  type UpdateCostInput,
+  type UpsertCostInput,
 } from '@/server/cost/mutations';
 import { getCostRows, type CostPage } from '@/server/cost/queries';
 
@@ -58,7 +60,7 @@ export async function getCostRowsAction(
 
 export async function applyCostImportAction(
   input: z.input<typeof applySchema>,
-): Promise<ActionResult<CostApplyStats>> {
+): Promise<ActionResult<CostApplyResult>> {
   const guard = {
     permission: 'cost.write',
     auditAction: AUDIT_COST_APPLY,
@@ -72,14 +74,15 @@ export async function applyCostImportAction(
   });
 }
 
-export async function updateMaterialCostAction(input: UpdateCostInput) {
+/** 등록(id 없음)·수정(id 있음) — §4.4.7 r4 4. 같은 계열·적용시작일이 있으면 fieldErrors.effectiveFrom */
+export async function upsertMaterialCostAction(input: UpsertCostInput) {
   const guard = {
     permission: 'cost.write',
-    auditAction: AUDIT_COST_UPDATE,
+    auditAction: isUpdateInput(input) ? AUDIT_COST_UPDATE : AUDIT_COST_CREATE,
     name: 'upsertMaterialCost',
   } as const;
   return runAction(guard, async () => {
-    const result = await updateMaterialCost(
+    const result = await upsertMaterialCost(
       await context('write', 'action:upsertMaterialCost'),
       input,
     );

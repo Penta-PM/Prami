@@ -67,6 +67,7 @@ describe('ImportPanel 선택 규칙', () => {
         preview: [],
         errors: [],
         warnings: [],
+        duplicateWarnings: { sameDateDuplicates: [], conflictingDuplicates: [] },
       },
     };
     expect(selectionBlocksApply(bad, true)).toBe(true);

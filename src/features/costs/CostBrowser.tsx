@@ -3,11 +3,13 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { Button } from '@/components/ui';
 import { OperationStatus } from '@/features/pricing/cells';
 import { cn } from '@/lib/cn';
 import { priceLabel } from '@/lib/pricing/format';
 import { periodLabel } from '@/lib/pricing/period';
 
+import { CostCreateModal } from './CostCreateModal';
 import { CostDeleteModal } from './CostDeleteModal';
 import { CostEditModal } from './CostEditModal';
 import type { CostRowView } from './types';
@@ -32,11 +34,13 @@ type Flash = { tone: 'ok' | 'error'; text: string };
 /** 원가 표 + 수정/삭제 모달 (ADMIN). 원가 값은 이 화면에만 노출된다 */
 export function CostBrowser({ rows }: { rows: readonly CostRowView[] }) {
   const router = useRouter();
+  const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<CostRowView | null>(null);
   const [deleting, setDeleting] = useState<CostRowView | null>(null);
   const [flash, setFlash] = useState<Flash | null>(null);
 
   const done = (text: string) => {
+    setCreating(false);
     setEditing(null);
     setDeleting(null);
     setFlash({ tone: 'ok', text });
@@ -58,7 +62,13 @@ export function CostBrowser({ rows }: { rows: readonly CostRowView[] }) {
           {flash.text}
         </p>
       ) : null}
+      <div className="flex justify-end">
+        <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
+          + 등록
+        </Button>
+      </div>
       <CostTable rows={rows} onEdit={setEditing} onDelete={setDeleting} />
+      {creating ? <CostCreateModal onClose={() => setCreating(false)} onSaved={done} /> : null}
       {editing ? (
         <CostEditModal row={editing} onClose={() => setEditing(null)} onSaved={done} />
       ) : null}

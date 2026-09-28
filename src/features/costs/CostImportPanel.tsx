@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui';
+import { DuplicateWarningLists } from '@/features/admin-policies/DuplicateWarningLists';
 import { ImportFileRow } from '@/features/admin-policies/ImportFileRow';
 import {
   selectedBatchId,
@@ -19,7 +20,8 @@ type CostImportPanelProps = {
   currentBatchId: string | null;
 };
 
-type Stats = Extract<Awaited<ReturnType<typeof applyCostImportAction>>, { ok: true }>['data'];
+type ApplyResult = Extract<Awaited<ReturnType<typeof applyCostImportAction>>, { ok: true }>['data'];
+type Stats = ApplyResult['stats'];
 
 const STAT_LABELS: readonly [keyof Stats, string][] = [
   ['inserted', 'ERP 적재 행'],
@@ -27,7 +29,7 @@ const STAT_LABELS: readonly [keyof Stats, string][] = [
   ['seriesCount', '계열 수'],
   ['latestCount', '계열 최신 행(운영중)'],
   ['otherFamilyRows', '제품군 기타'],
-  ['duplicateDateGroups', '같은 날짜 중복'],
+  ['sameDateDuplicateGroups', '같은 날짜 중복'],
   ['manualPreserved', '수동 등록 보존'],
   ['manualConflicts', '수동 등록 → ERP 우선 대체'],
 ];
@@ -44,7 +46,7 @@ export function CostImportPanel({ options, currentBatchId }: CostImportPanelProp
       : { mode: 'new', upload: null, reuseId: '' },
   );
   const [outcome, setOutcome] = useState<
-    { ok: true; stats: Stats } | { ok: false; message: string } | null
+    { ok: true; result: ApplyResult } | { ok: false; message: string } | null
   >(null);
   const [isPending, startTransition] = useTransition();
   const blocked = selectionBlocksApply(selection, false);
@@ -55,7 +57,9 @@ export function CostImportPanel({ options, currentBatchId }: CostImportPanelProp
       if (!batchId) return;
       const result = await applyCostImportAction({ batchId, reused: selection.mode === 'reuse' });
       setOutcome(
-        result.ok ? { ok: true, stats: result.data } : { ok: false, message: result.error.message },
+        result.ok
+          ? { ok: true, result: result.data }
+          : { ok: false, message: result.error.message },
       );
       if (result.ok) router.refresh();
     });
@@ -93,7 +97,12 @@ export function CostImportPanel({ options, currentBatchId }: CostImportPanelProp
           {outcome.message}
         </p>
       ) : null}
-      {outcome?.ok ? <CostApplyStats stats={outcome.stats} /> : null}
+      {outcome?.ok ? (
+        <>
+          <CostApplyStats stats={outcome.result.stats} />
+          <DuplicateWarningLists warnings={outcome.result.warnings} stage="applied" />
+        </>
+      ) : null}
     </section>
   );
 }
@@ -108,7 +117,7 @@ function CostApplyStats({ stats }: { stats: Stats }) {
       <p className="m-0 mb-2 text-[12px] font-semibold text-green-600">원가 적용 완료</p>
       <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-1 text-[12px] sm:grid-cols-4">
         {STAT_LABELS.map(([key, label]) => (
-          <div key={key} className="flex justify-between gap-3">
+          <div key={String(key)} className="flex justify-between gap-3">
             <dt className="text-text-tertiary">{label}</dt>
             <dd className="m-0 font-semibold tabular-nums">{stats[key].toLocaleString('ko-KR')}</dd>
           </div>

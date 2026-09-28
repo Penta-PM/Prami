@@ -21,7 +21,10 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const kindIndex = args.indexOf('--kind');
   const kind = kindIndex >= 0 && args[kindIndex + 1] === 'costs' ? 'costs' : 'sales';
-  const positional = args.filter((arg, index) => arg !== '--kind' && index !== kindIndex + 1);
+  // --kind 가 없으면 kindIndex = -1 이라 index 0(파일 경로)을 지우면 안 된다 (CI E2E globalSetup 회귀)
+  const positional = args.filter(
+    (arg, index) => arg !== '--kind' && !(kindIndex >= 0 && index === kindIndex + 1),
+  );
   const file = positional[0] ?? process.env.SOURCE_XLSX ?? DEFAULT_SOURCE[kind];
   const [{ createDb }, { uploadImport }] = await Promise.all([
     import('../src/db'),
@@ -65,7 +68,13 @@ async function main(): Promise<void> {
         import('../src/server/cost/access-token'),
       ]);
       const access = costAccessForTests({ id: null, email: 'script' });
-      const stats = await applyCostImport({ handle, access, meta: ctx.meta }, { batchId, reused });
+      const { stats, warnings } = await applyCostImport(
+        { handle, access, meta: ctx.meta },
+        { batchId, reused },
+      );
+      console.log(
+        `[import:source] 같은 날짜 중복 ${warnings.sameDateDuplicates.length}그룹 (값 다름 ${warnings.conflictingDuplicates.length})`,
+      );
       console.log(`[import:source] costs ${path.basename(file)} batch=${batchId}`);
       console.log(`[import:source] stats ${JSON.stringify(stats)}`);
       return;

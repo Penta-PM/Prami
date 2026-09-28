@@ -48,6 +48,7 @@ const UPLOAD_OK: UploadSummaryData = {
   ],
   errors: [],
   warnings: [{ row: 1, column: '메모', message: '정의되지 않은 컬럼이라 무시했습니다' }],
+  duplicateWarnings: { sameDateDuplicates: [], conflictingDuplicates: [] },
 };
 
 const STATS: PolicyApplyStats = {
@@ -225,6 +226,7 @@ describe('ImportPanel', () => {
         errorCount: 1,
         preview: [],
         warnings: [],
+        duplicateWarnings: { sameDateDuplicates: [], conflictingDuplicates: [] },
         errors: [{ row: 0, column: '', message: '필수 헤더 누락: 단가(1코어)' }],
       },
     });
