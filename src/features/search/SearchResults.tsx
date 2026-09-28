@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import { Pill } from '@/components/ui';
 import { NoticeRows } from '@/features/notices/NoticeRows';
-import type { SearchResult } from '@/server/search/queries';
+import { SEARCH_LIMIT, type SearchResult } from '@/server/search/queries';
 
 const ITEM_STATUS_LABEL: Record<string, string> = {
   active: '사용',
@@ -20,11 +20,17 @@ export function SearchResults({ result }: { result: SearchResult }) {
     );
   }
   const total = result.items.length + result.notices.length;
+  const anyTruncated = result.truncated.items || result.truncated.notices;
   return (
     <div className="flex flex-col gap-5">
       <p className="m-0 text-[13px] text-text-tertiary">
         <strong className="text-ink-900">“{result.query}”</strong> 검색 결과 {total}건 (품목{' '}
         {result.items.length} · 공지 {result.notices.length})
+        {anyTruncated ? (
+          <span role="note" className="ml-2 text-amber-500">
+            그룹당 상위 {SEARCH_LIMIT}건만 표시합니다 — 검색어를 더 구체적으로 입력하세요
+          </span>
+        ) : null}
       </p>
       <section
         aria-labelledby="search-items"
@@ -35,7 +41,9 @@ export function SearchResults({ result }: { result: SearchResult }) {
           className="m-0 border-b border-border-subtle px-5 py-4 [font:var(--text-h2)]"
         >
           품목{' '}
-          <span className="text-[13px] font-medium text-text-tertiary">{result.items.length}</span>
+          <span className="text-[13px] font-medium text-text-tertiary">
+            {result.truncated.items ? `상위 ${SEARCH_LIMIT}건` : result.items.length}
+          </span>
         </h2>
         {result.items.length === 0 ? (
           <p className="m-0 py-10 text-center text-[13px] text-text-tertiary">
@@ -75,7 +83,7 @@ export function SearchResults({ result }: { result: SearchResult }) {
         >
           공지사항{' '}
           <span className="text-[13px] font-medium text-text-tertiary">
-            {result.notices.length}
+            {result.truncated.notices ? `상위 ${SEARCH_LIMIT}건` : result.notices.length}
           </span>
         </h2>
         <NoticeRows notices={result.notices} emptyText="일치하는 공지가 없습니다." />

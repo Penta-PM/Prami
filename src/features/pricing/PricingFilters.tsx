@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useTransition, type FormEvent } from 'react';
 
+import { productFamilyMajors } from '@/lib/constants/product-cards';
 import { Input } from '@/components/ui';
 import { Icon } from '@/features/shell/icons';
 import { cn } from '@/lib/cn';
@@ -100,6 +101,13 @@ function CategorySelect({ label, value, values, disabled, bold, onChange }: Cate
   );
 }
 
+/** r5 §4.5.4 필터 배지: "제품군: iSIGN (iSIGN PKI 포함)" — family 만 있을 때 */
+function familyBadge(family: string): string {
+  const majors = productFamilyMajors(family) ?? [family];
+  const [first, ...rest] = majors;
+  return rest.length > 0 ? `${first} (${rest.join(', ')} 포함)` : String(first);
+}
+
 /** 상위 분류를 바꾸면 하위는 `전체`로 초기화 (디자인 로직 유지, AC-11) */
 function CategoryCascade({
   filter,
@@ -118,8 +126,18 @@ function CategoryCascade({
         bold
         value={filter.major}
         values={options.majors}
-        onChange={(major) => onChange({ major, mid: undefined, minor: undefined })}
+        onChange={(major) =>
+          onChange({ major, family: undefined, mid: undefined, minor: undefined })
+        }
       />
+      {filter.family ? (
+        <span
+          role="status"
+          className="rounded-pill bg-amber-500/15 px-2.5 py-1 text-[12px] font-semibold text-amber-500"
+        >
+          제품군: {familyBadge(filter.family)}
+        </span>
+      ) : null}
       <CategorySelect
         label="중분류"
         value={filter.mid}

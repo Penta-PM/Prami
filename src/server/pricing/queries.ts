@@ -3,6 +3,7 @@ import { and, asc, count, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '@/db';
 import { importBatches, items, salesPrices, type SalesPrice } from '@/db/schema';
 import type { PriceFilter } from '@/features/pricing/filter';
+import { productFamilyMajors } from '@/lib/constants/product-cards';
 import { ITEM_STATUS_UNKNOWN } from '@/lib/constants/item-status';
 
 import { dateConditions } from './date-filter';
@@ -54,6 +55,18 @@ export function dateCondition(filter: Pick<PriceFilter, 'dateMode' | 'from' | 't
 function buildWhere(filter: PriceFilter): SQL | undefined {
   const conditions: SQL[] = [isNull(salesPrices.deletedAt) as SQL, ...dateCondition(filter)];
   if (filter.major) conditions.push(sql`${MAJOR} = ${filter.major}`);
+  else if (filter.family) {
+    // 홈 카드 묶음 (예: iSIGN 카드 = iSIGN + iSIGN PKI, Q-10·PR-9 QA LOW-1). 모르는 값이면 결과 없음
+    const majors = productFamilyMajors(filter.family) ?? [];
+    conditions.push(
+      majors.length > 0
+        ? sql`${MAJOR} in (${sql.join(
+            majors.map((major) => sql`${major}`),
+            sql`, `,
+          )})`
+        : sql`false`,
+    );
+  }
   if (filter.mid) conditions.push(eq(items.categoryMid, filter.mid) as SQL);
   if (filter.minor) conditions.push(eq(items.categoryMinor, filter.minor) as SQL);
   if (filter.q) {

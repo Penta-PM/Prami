@@ -12,6 +12,8 @@ export const ALL = '전체';
 
 export type PriceFilter = {
   major?: string;
+  /** 홈 카드 묶음(product-cards id, 예: isign = iSIGN + iSIGN PKI). major 와 함께 오면 major 가 우선 */
+  family?: string;
   mid?: string;
   minor?: string;
   dateMode: DateMode;
@@ -37,6 +39,7 @@ const isoDate = z.iso.date().optional().catch(undefined);
 
 const schema = z.object({
   major: text,
+  family: text,
   mid: text,
   minor: text,
   dateMode: z.enum(DATE_MODES).catch('start').default('start'),
@@ -57,7 +60,7 @@ function first(params: Params, key: string): string | undefined {
  */
 export function parsePriceFilter(params: Params): { filter: PriceFilter; errors: FilterErrors } {
   const raw = Object.fromEntries(
-    ['major', 'mid', 'minor', 'dateMode', 'from', 'to', 'q', 'page'].map((key) => [
+    ['major', 'family', 'mid', 'minor', 'dateMode', 'from', 'to', 'q', 'page'].map((key) => [
       key,
       first(params, key),
     ]),
@@ -74,7 +77,8 @@ export function parsePriceFilter(params: Params): { filter: PriceFilter; errors:
   }
   const mid = parsed.major ? parsed.mid : undefined;
   const minor = mid ? parsed.minor : undefined;
-  return { filter: { ...parsed, from, to, mid, minor }, errors };
+  const family = parsed.major ? undefined : parsed.family;
+  return { filter: { ...parsed, family, from, to, mid, minor }, errors };
 }
 
 /** 필터 → 쿼리스트링 (기본값·빈 값·1페이지는 생략) */
@@ -82,6 +86,7 @@ export function filterToQuery(filter: Partial<PriceFilter>): string {
   const params = new URLSearchParams();
   const entries: [string, string | number | undefined][] = [
     ['major', filter.major],
+    ['family', filter.major ? undefined : filter.family],
     ['mid', filter.mid],
     ['minor', filter.minor],
     ['dateMode', filter.dateMode === 'period' ? 'period' : undefined],

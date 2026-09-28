@@ -16,7 +16,7 @@ test('AC-50: 홈 제품 카드 4개 → /pricing?major=…, 최근 공지 5건 �
   await loginAs(page, FIXTURE_USER, '/');
   const cards = page.getByRole('link', { name: /가격 정책 보기/ });
   await expect(cards).toHaveCount(4);
-  await expect(cards.nth(2)).toHaveAttribute('href', '/pricing?major=iSIGN');
+  await expect(cards.nth(2)).toHaveAttribute('href', '/pricing?family=iSIGN');
   const rows = page.getByRole('list', { name: '공지 목록' }).locator('li');
   const count = await rows.count();
   expect(count).toBeGreaterThan(0);
@@ -25,8 +25,10 @@ test('AC-50: 홈 제품 카드 4개 → /pricing?major=…, 최근 공지 5건 �
     page.getByRole('list', { name: '공지 목록' }).getByText('중요').first(),
   ).toBeVisible();
   await cards.first().click();
-  await expect(page).toHaveURL(/\/pricing\?major=WAPPLES$/);
-  await expect(page.getByLabel('대분류')).toHaveValue('WAPPLES');
+  await expect(page).toHaveURL(/\/pricing\?family=WAPPLES$/);
+  // r5: family 만 있으면 드롭다운은 전체, 표 위 배지 "제품군: WAPPLES"
+  await expect(page.getByLabel('대분류')).toHaveValue('전체');
+  await expect(page.getByRole('status')).toContainText('제품군: WAPPLES');
   await page.goto('/');
   await page.getByRole('link', { name: '전체보기 →' }).click();
   await expect(page).toHaveURL(/\/notices$/);

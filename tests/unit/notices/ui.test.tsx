@@ -55,11 +55,12 @@ describe('ProductCards (AC-50)', () => {
   it('제품 카드 4개 → /pricing?major=…, iSIGN PKI 카드는 없다 (Q-10)', () => {
     render(<ProductCards />);
     const links = within(screen.getByRole('list')).getAllByRole('link');
+    // iSIGN 카드는 iSIGN + iSIGN PKI 를 함께 보여 주는 묶음 파라미터 (PR-9 QA LOW-1)
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
-      '/pricing?major=WAPPLES',
-      '/pricing?major=D.AMO',
-      '/pricing?major=iSIGN',
-      '/pricing?major=Cloudbric',
+      '/pricing?family=WAPPLES',
+      '/pricing?family=D.AMO',
+      '/pricing?family=iSIGN',
+      '/pricing?family=Cloudbric',
     ]);
     expect(screen.getByRole('link', { name: 'WAPPLES 가격 정책 보기' })).toBeInTheDocument();
     expect(screen.queryByText(/PKI/)).not.toBeInTheDocument();
@@ -190,6 +191,7 @@ describe('SearchResults (AC-52)', () => {
             },
           ],
           notices: [NOTICES[0]!],
+          truncated: { items: false, notices: false },
         }}
       />,
     );
@@ -200,8 +202,22 @@ describe('SearchResults (AC-52)', () => {
     expect(screen.getByRole('list', { name: '공지 목록' })).toHaveTextContent('플랫폼 오픈 안내');
   });
 
+  it('그룹당 상한에 걸리면 "상위 20건" 표시 (PR-9 QA INFO)', () => {
+    render(
+      <SearchResults
+        result={{ query: '_', items: [], notices: [], truncated: { items: true, notices: false } }}
+      />,
+    );
+    expect(screen.getByRole('note')).toHaveTextContent('그룹당 상위 20건만 표시합니다');
+    expect(screen.getByRole('heading', { level: 2, name: /품목/ })).toHaveTextContent('상위 20건');
+  });
+
   it('검색어가 없으면 안내 문구', () => {
-    render(<SearchResults result={{ query: '', items: [], notices: [] }} />);
+    render(
+      <SearchResults
+        result={{ query: '', items: [], notices: [], truncated: { items: false, notices: false } }}
+      />,
+    );
     expect(screen.getByText(/상단 검색창에/)).toBeInTheDocument();
   });
 });
