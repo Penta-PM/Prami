@@ -62,7 +62,7 @@ export function Segmented<T extends string>({
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={cn(
-              'flex-1 rounded-pill border-0 px-3.5 py-[7px] text-[12px] font-semibold transition-colors',
+              'flex-1 rounded-pill border-0 px-3.5 py-[7px] text-[12px] font-semibold whitespace-nowrap transition-colors',
               isActive
                 ? 'bg-white text-ink-900 shadow-(--hairline-subtle)'
                 : 'bg-transparent text-text-tertiary hover:text-ink-900',

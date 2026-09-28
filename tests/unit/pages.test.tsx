@@ -8,13 +8,11 @@ import AdminPartsPage from '@/app/(app)/admin/parts/page';
 import CalculatorPage from '@/app/(app)/calculator/page';
 import NoticesPage from '@/app/(app)/notices/page';
 import HomePage from '@/app/(app)/page';
-import PricingPage from '@/app/(app)/pricing/page';
 import SearchPage from '@/app/(app)/search/page';
 import { PAGE_SPECS, type PageKey } from '@/features/shell/pages';
 
 const PAGES: Record<PageKey, () => React.JSX.Element> = {
   home: HomePage,
-  pricing: PricingPage,
   calculator: CalculatorPage,
   notices: NoticesPage,
   search: SearchPage,

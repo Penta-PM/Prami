@@ -96,6 +96,7 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 | `pnpm seed`             | 픽스처 ADMIN·USER, 공지 샘플, 감사 로그 `user.seed` 기록 (재실행 안전)                                                                                                  |
 | `pnpm test:e2e`         | Playwright E2E — `next dev`(포트 3100, `.next-e2e`) + Postgres `prami_e2e` DB(`E2E_DATABASE_URL`)에 자동 migrate·seed. 최초 1회 `pnpm exec playwright install chromium` |
 | `pnpm fixtures`         | 임포트 테스트 픽스처 생성 — 원본 `병합_가격_raw.xlsx`(`SOURCE_XLSX`)에서 200행 + 오류·품목조회 합성 파일 → `tests/fixtures/imports/`                                    |
+| `pnpm import:source`    | 판매단가 엑셀을 업로드·적용 경로 그대로 반영(기본: 원본 `병합_가격_raw.xlsx`, 인자로 경로 지정). 로컬·QA 데이터 준비용                                                  |
 | `pnpm check`            | lint + typecheck + format:check + test 일괄                                                                                                                             |
 
 CI(`.github/workflows/ci.yml`)는 PR 마다 lint → typecheck → format → 단위(커버리지, PGlite) → build,
@@ -159,6 +160,16 @@ tests/
 ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 오면 `src/server/imports/schemas/items.ts` 의 헤더 상수와
 `src/lib/constants/item-status.ts` 의 `ITEM_STATUS_MAP` 만 고칩니다. QA 는 `IMPORT_FAULT_INJECTION=<단계>`(개발·테스트 전용)로
 적용 중 실패를 재현할 수 있습니다.
+
+## 가격정책 조회 · 관리 (PR-4)
+
+- `/pricing`(USER 이상)·`/admin/policies`(ADMIN)는 같은 컬럼 정의(`src/features/pricing/columns.ts`)와 필터를 쓴다.
+  관리 표는 조회 표에 `적용시작일`·`운영 연도`·`관리`가 더해진다.
+- 필터(대/중/소분류, `적용시작일 기준`/`적용기간 기준`, 연도 칩, 기간, 검색, 페이지)는 모두 URL 검색 파라미터라
+  새로고침·공유해도 유지된다. 품목조회 파일이 적용되기 전에는 대분류 = 제품군이고 중/소분류는 비활성이다.
+- 행을 누르면 원본 20컬럼과 같은 계열 이력을 보여 주는 `행 상세` 드로어가 열린다.
+- 관리 화면의 `+ 등록`·수정·복사·삭제는 변경 사유가 필수이며, 저장 시 해당 계열만 다시 계산하고 불변식(I-1·I-2)을
+  확인한 뒤 감사 로그(`price_policy.create|update|delete`, 원본 20컬럼 스냅샷)를 남긴다. 폐기 품목은 운영중이 될 수 없다.
 
 ## DB 스키마 · 마이그레이션
 

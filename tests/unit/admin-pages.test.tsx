@@ -49,6 +49,12 @@ vi.mock('@/server/imports/queries', () => ({
   ],
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+// 관리 표 섹션은 비동기 서버 컴포넌트라 별도 테스트(pricing-section)에서 검증하고 여기서는 자리만 확인한다
+vi.mock('@/features/pricing/PricingSection', () => ({
+  PricingSection: ({ mode, basePath }: { mode: string; basePath: string }) => (
+    <div data-testid="pricing-section" data-mode={mode} data-base={basePath} />
+  ),
+}));
 
 const { default: AdminLayout } = await import('@/app/(app)/admin/layout');
 const { default: AdminUsersPage } = await import('@/app/(app)/admin/users/page');
@@ -82,12 +88,13 @@ describe('관리자 페이지', () => {
   });
 
   it('가격정책 관리는 pricing.write 를 검사하고 임포트 패널·현재 적용 배지·최근 실패를 보인다', async () => {
-    render(await AdminPoliciesPage());
+    render(await AdminPoliciesPage({ searchParams: Promise.resolve({}) }));
     expect(calls.guards).toContain('pricing.write:/admin/policies');
     expect(screen.getByRole('heading', { level: 1, name: '가격정책 관리' })).toBeInTheDocument();
     expect(screen.getByLabelText('현재 적용')).toHaveTextContent('판매단가 병합_가격_raw.xlsx');
     expect(screen.getByLabelText('현재 적용')).toHaveTextContent('품목상태 없음');
     expect(screen.getByRole('region', { name: '가격정책 파일 적용' })).toBeInTheDocument();
     expect(screen.getByText(/최근 실패한 적용/)).toHaveTextContent('불변식 I-1 위반');
+    expect(screen.getByTestId('pricing-section')).toHaveAttribute('data-mode', 'admin');
   });
 });

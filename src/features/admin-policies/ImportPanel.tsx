@@ -101,9 +101,6 @@ export function ImportPanel({
         <Button variant="primary" size="sm" disabled={blocked || isPending} onClick={apply}>
           {isPending ? '적용 중…' : '가격정책 적용'}
         </Button>
-        <Button size="sm" disabled title="가격정책 등록은 관리 표와 함께 제공됩니다 (PR-4)">
-          + 등록
-        </Button>
       </div>
       {outcome?.ok === false ? (
         <p
