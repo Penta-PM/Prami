@@ -158,6 +158,34 @@ async function main() {
     'Sheet1',
   );
 
+  // 원본과 같은 모양의 중복: 완전 동일 1쌍 + 값이 다른 1쌍 (Main 결정 B 회귀용)
+  const isign = (cost: number, from: string, final: boolean): Row => [
+    'W40100002',
+    'iSIGN 서버',
+    null,
+    'EA',
+    '표준구매원가',
+    '일반',
+    'KRW',
+    cost,
+    from,
+    final,
+    null,
+    false,
+  ];
+  const dupCosts: Row[] = [
+    ...costs,
+    [...costs[0]!],
+    isign(300000, '2025-01-01', false),
+    isign(280000, '2025-01-01', false),
+    isign(310000, '2026-01-01', true),
+  ];
+  await write(
+    'costs-dup.xlsx',
+    cells([['구매단가등록(계약)_pts'], costHeader, ...dupCosts]),
+    'Sheet1',
+  );
+
   const partCodes = [...new Set(sample.map((row) => row[2] as string))];
   await write(
     'parts-sample.xlsx',

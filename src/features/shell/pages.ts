@@ -1,14 +1,7 @@
 import type { PlaceholderPageProps } from '@/components/placeholder-page';
 
 export type PageKey =
-  | 'home'
-  | 'calculator'
-  | 'notices'
-  | 'search'
-  | 'adminCosts'
-  | 'adminParts'
-  | 'adminGroups'
-  | 'adminNotices';
+  'home' | 'calculator' | 'notices' | 'search' | 'adminParts' | 'adminGroups' | 'adminNotices';
 
 /** 라우트별 자리표시자 정보. 제목은 디자인 메뉴 라벨, 예정 PR 은 스펙 §6 기준 */
 export const PAGE_SPECS: Record<PageKey, PlaceholderPageProps> = {
@@ -31,11 +24,6 @@ export const PAGE_SPECS: Record<PageKey, PlaceholderPageProps> = {
     title: '검색',
     description: '상단 검색바 결과(품목·공지)를 표시합니다.',
     plannedPr: 'PR-9',
-  },
-  adminCosts: {
-    title: '원가 관리',
-    description: '구매단가(원가) 파일 임포트와 원가 조회·수정을 관리합니다. 관리자 전용입니다.',
-    plannedPr: 'PR-5',
   },
   adminParts: {
     title: '파츠 관리',

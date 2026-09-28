@@ -112,7 +112,7 @@ test('ADMIN 관리: 헤더(적용시작일·운영 연도·관리), 등록(사�
   await dialog.getByLabel('단가 *').fill('1500000');
   await dialog.getByLabel('적용시작일 *').fill('2025-04-01');
   await page.getByRole('button', { name: '저장' }).click();
-  await expect(dialog.getByText('변경 사유을(를) 입력하세요')).toBeVisible();
+  await expect(dialog.getByText('변경 사유를 입력하세요')).toBeVisible();
 
   await dialog.getByLabel('변경 사유 * (감사 로그에 기록됩니다)').fill('E2E 등록');
   await page.getByRole('button', { name: '저장' }).click();

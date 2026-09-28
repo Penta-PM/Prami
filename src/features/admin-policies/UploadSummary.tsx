@@ -22,6 +22,16 @@ const PREVIEW_COLUMNS: Record<ImportFileKind, readonly [string, string][]> = {
     ['categoryMinor', '소분류'],
     ['itemStatusRaw', '품목상태'],
   ],
+  costs: [
+    ['materialCode', '자재번호'],
+    ['materialName', '자재명'],
+    ['unit', '단위'],
+    ['priceType', '단가유형'],
+    ['currency', '화폐'],
+    ['unitCost', '단가'],
+    ['effectiveFrom', '적용시작일'],
+    ['isFinalSource', '최종여부'],
+  ],
 };
 
 /** 표시할 오류 최대 건수 (나머지는 건수만) */
@@ -57,16 +67,50 @@ export function UploadSummary({ kind, data }: { kind: ImportFileKind; data: Uplo
         </span>
       </div>
       {data.errors.length > 0 ? <ErrorList errors={data.errors} total={data.errorCount} /> : null}
-      {data.warnings.length > 0 ? (
-        <ul className="m-0 list-none p-0 text-[12px] text-amber-500">
-          {data.warnings.slice(0, 10).map((warning, index) => (
+      <WarningLists warnings={data.warnings} />
+      {data.preview.length > 0 ? <PreviewTable kind={kind} data={data} /> : null}
+    </div>
+  );
+}
+
+const CONFLICTING_DUPLICATE = '같은 날짜 중복(값 다름)';
+
+/** 경고 목록. 값이 다른 같은 날짜 중복은 별도 목록(강조)으로 보여 준다 (Main 결정, PR-5) */
+function WarningLists({ warnings }: { warnings: UploadSummaryData['warnings'] }) {
+  const conflicting = warnings.filter((w) => w.column === CONFLICTING_DUPLICATE);
+  const others = warnings.filter((w) => w.column !== CONFLICTING_DUPLICATE);
+  if (warnings.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-2 text-[12px]">
+      {conflicting.length > 0 ? (
+        <div
+          role="note"
+          aria-label="값이 다른 같은 날짜 중복"
+          className="rounded-lg bg-amber-500/15 p-3 text-amber-500"
+        >
+          <p className="m-0 mb-1 font-semibold">
+            같은 계열·적용시작일인데 값이 다른 행 {conflicting.length}건 — 적용은 되며 뒤 행이
+            우선합니다
+          </p>
+          <ul className="m-0 list-none p-0">
+            {conflicting.map((warning, index) => (
+              <li key={index}>
+                {warning.row}행 — {warning.message} (값: {display(warning.value)})
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {others.length > 0 ? (
+        <ul className="m-0 list-none p-0 text-amber-500">
+          {others.slice(0, 10).map((warning, index) => (
             <li key={index}>
               경고: {warning.column} — {warning.message}
             </li>
           ))}
+          {others.length > 10 ? <li>외 경고 {others.length - 10}건</li> : null}
         </ul>
       ) : null}
-      {data.preview.length > 0 ? <PreviewTable kind={kind} data={data} /> : null}
     </div>
   );
 }

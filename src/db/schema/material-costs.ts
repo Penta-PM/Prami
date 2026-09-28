@@ -8,7 +8,6 @@ import {
   numeric,
   pgTable,
   text,
-  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -70,9 +69,9 @@ export const materialCosts = pgTable(
     ...timestamps,
   },
   (t) => [
-    uniqueIndex('material_costs_series_effective_uq')
-      .on(t.seriesKey, t.effectiveFrom)
-      .where(sql`"deleted_at" is null`),
+    // 원본 ERP 파일에 같은 계열·적용시작일 행이 있어(1:1 보존 원칙) UNIQUE 대신 일반 인덱스 — 수동 등록·수정의
+    // 중복은 앱(server/cost/mutations)에서 검사한다. 판매단가(sales_prices)의 부분 UNIQUE 는 그대로 (Main 결정, PR-5)
+    index('material_costs_series_effective_idx').on(t.seriesKey, t.effectiveFrom),
     index('material_costs_material_code_idx').on(t.materialCode),
     index('material_costs_family_effective_idx').on(t.productFamily, t.effectiveFrom),
   ],

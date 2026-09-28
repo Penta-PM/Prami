@@ -3,19 +3,12 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useTransition, type FormEvent } from 'react';
 
-import { Input, Segmented } from '@/components/ui';
+import { Input } from '@/components/ui';
 import { Icon } from '@/features/shell/icons';
 import { cn } from '@/lib/cn';
 
-import {
-  activeYear,
-  ALL,
-  filterToQuery,
-  yearRange,
-  type DateMode,
-  type FilterErrors,
-  type PriceFilter,
-} from './filter';
+import { DateControls } from './DateFilter';
+import { ALL, filterToQuery, type FilterErrors, type PriceFilter } from './filter';
 import type { CategoryOptionsView } from './types';
 
 type PricingFiltersProps = {
@@ -28,27 +21,8 @@ type PricingFiltersProps = {
 
 type Patch = (patch: Partial<PriceFilter>) => void;
 
-const DATE_MODE_OPTIONS = [
-  { value: 'start', label: '적용시작일 기준' },
-  { value: 'period', label: '적용기간 기준' },
-] as const;
-
-/** 연도 퀵칩 최대 개수 (최근 연도부터) */
-const MAX_YEAR_CHIPS = 9;
-
 const SELECT_CLASS =
   'rounded-lg border-0 bg-surface-card px-3 py-[9px] text-[12px] shadow-(--hairline-default) outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--purple-500)] disabled:opacity-60';
-const DATE_CLASS =
-  'rounded-pill border-0 bg-surface-card px-3 py-2 text-[12px] font-semibold text-text-secondary shadow-(--hairline-default) outline-none';
-
-function chipClass(active: boolean) {
-  return cn(
-    'rounded-pill border-0 px-3 py-[7px] text-[12px] font-semibold whitespace-nowrap',
-    active
-      ? 'bg-ink-900 text-white'
-      : 'bg-surface-card text-text-secondary shadow-(--hairline-default) hover:text-ink-900',
-  );
-}
 
 /**
  * 조회·관리 공용 필터 (§4.5.1·§4.5.2): 대/중/소분류 연쇄 드롭다운(R-01), 날짜 기준 선택(R-13),
@@ -163,71 +137,6 @@ function CategoryCascade({
       {noSub ? (
         <span className="text-[12px] text-text-tertiary">
           품목조회 파일이 적용되면 중/소분류 필터가 활성화됩니다
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-type DateControlsProps = {
-  filter: PriceFilter;
-  errors: FilterErrors;
-  years: readonly number[];
-  onChange: Patch;
-};
-
-/** 날짜 기준(적용시작일/적용기간) + 전체·연도 칩 + 기간 입력 (§4.5.2) */
-function DateControls({ filter, errors, years, onChange }: DateControlsProps) {
-  const year = activeYear(filter);
-  const noDate = !filter.from && !filter.to;
-  const message = errors.from ?? errors.to;
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Segmented
-        aria-label="날짜 기준"
-        options={DATE_MODE_OPTIONS}
-        value={filter.dateMode}
-        onChange={(dateMode: DateMode) => onChange({ dateMode })}
-      />
-      <button
-        type="button"
-        aria-pressed={noDate}
-        className={chipClass(noDate)}
-        onClick={() => onChange({ from: undefined, to: undefined })}
-      >
-        {ALL}
-      </button>
-      {years.slice(0, MAX_YEAR_CHIPS).map((chip) => (
-        <button
-          key={chip}
-          type="button"
-          aria-pressed={year === chip}
-          className={chipClass(year === chip)}
-          onClick={() => onChange(yearRange(chip))}
-        >
-          {chip}
-        </button>
-      ))}
-      <input
-        type="date"
-        aria-label="시작일"
-        className={DATE_CLASS}
-        defaultValue={filter.from ?? ''}
-        key={`from-${filter.from ?? ''}`}
-        onChange={(event) => onChange({ from: event.target.value || undefined })}
-      />
-      <span className="text-[12px] text-text-tertiary">~</span>
-      <input
-        type="date"
-        aria-label="종료일"
-        className={DATE_CLASS}
-        defaultValue={filter.to ?? ''}
-        key={`to-${filter.to ?? ''}`}
-        onChange={(event) => onChange({ to: event.target.value || undefined })}
-      />
-      {message ? (
-        <span role="alert" className="text-[12px] text-red-500">
-          {message}
         </span>
       ) : null}
     </div>

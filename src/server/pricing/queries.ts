@@ -5,6 +5,8 @@ import { importBatches, items, salesPrices, type SalesPrice } from '@/db/schema'
 import type { PriceFilter } from '@/features/pricing/filter';
 import { ITEM_STATUS_UNKNOWN } from '@/lib/constants/item-status';
 
+import { dateConditions } from './date-filter';
+
 /** 조회·관리 표 (§4.5.3) — 서버 페이지네이션 50행, 정렬 effective_from DESC, item_name */
 export const PRICE_PAGE_SIZE = 50;
 
@@ -44,22 +46,9 @@ function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (char) => `\\${char}`);
 }
 
-/** 날짜 필터 SQL (§4.5.2). 적용시작일 기준 = 시작일 범위, 적용기간 기준 = 구간 겹침(배타적 종료일) */
+/** 날짜 필터 SQL (§4.5.2) — 원가와 공용 규칙 */
 export function dateCondition(filter: Pick<PriceFilter, 'dateMode' | 'from' | 'to'>): SQL[] {
-  const conditions: SQL[] = [];
-  const { from, to } = filter;
-  if (filter.dateMode === 'start') {
-    if (from) conditions.push(sql`${salesPrices.effectiveFrom} >= ${from}`);
-    if (to) conditions.push(sql`${salesPrices.effectiveFrom} <= ${to}`);
-    return conditions;
-  }
-  if (to) conditions.push(sql`${salesPrices.effectiveFrom} <= ${to}`);
-  if (from) {
-    conditions.push(
-      sql`(${salesPrices.effectiveTo} is null or ${salesPrices.effectiveTo} > ${from})`,
-    );
-  }
-  return conditions;
+  return dateConditions(salesPrices, filter);
 }
 
 function buildWhere(filter: PriceFilter): SQL | undefined {

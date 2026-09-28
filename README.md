@@ -60,7 +60,7 @@ pnpm dev            # http://localhost:3000
 
 모든 화면은 로그인이 필요합니다(비로그인은 `/login` 으로 이동). `AUTH_TEST_MODE=true` 이면 로그인 화면의
 **테스트 모드** 폼에서 픽스처 계정(`fixture-admin@pentasecurity.com` = ADMIN, `fixture-user@pentasecurity.com`
-= USER)과 `AUTH_TEST_PASSWORD` 로 로그인합니다. Google 로그인 버튼은 `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`
+= USER)과 `AUTH_TEST_PASSWORD` 로 로그인합니다. 비밀번호는 각자의 `.env.local` 에만 두고 PR·이슈·문서에 적지 않습니다. Google 로그인 버튼은 `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`
 (리다이렉트 URI `{origin}/api/auth/callback/google`)을 설정해야 활성화됩니다. `AUTH_TEST_MODE` 는 production
 에서 기동이 거부됩니다.
 
@@ -80,24 +80,24 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 
 ### 스크립트
 
-| 명령                    | 설명                                                                                                                                                                    |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`              | 개발 서버                                                                                                                                                               |
-| `pnpm build`            | 프로덕션 빌드 (빌드 전 `src/env.ts` 가 환경변수를 검증)                                                                                                                 |
-| `pnpm start`            | 빌드 결과 실행                                                                                                                                                          |
-| `pnpm lint`             | ESLint                                                                                                                                                                  |
-| `pnpm typecheck`        | `tsc --noEmit`                                                                                                                                                          |
-| `pnpm format:check`     | Prettier 검사 (`pnpm format` 으로 수정)                                                                                                                                 |
-| `pnpm test`             | Vitest 단위 테스트 (DB 테스트는 PGlite `memory://`)                                                                                                                     |
-| `pnpm test:coverage`    | 단위 테스트 + 커버리지(임계 80%)                                                                                                                                        |
-| `pnpm test:integration` | 실제 Postgres 통합 테스트 — `DB_DRIVER=pg` + `DATABASE_URL` 필요, 없으면 스킵                                                                                           |
-| `pnpm db:generate`      | 스키마(`src/db/schema`) 변경을 `drizzle/*.sql` 마이그레이션으로 생성                                                                                                    |
-| `pnpm db:migrate`       | `DB_DRIVER` 에 맞는 드라이버로 마이그레이션 적용                                                                                                                        |
-| `pnpm seed`             | 픽스처 ADMIN·USER, 공지 샘플, 감사 로그 `user.seed` 기록 (재실행 안전)                                                                                                  |
-| `pnpm test:e2e`         | Playwright E2E — `next dev`(포트 3100, `.next-e2e`) + Postgres `prami_e2e` DB(`E2E_DATABASE_URL`)에 자동 migrate·seed. 최초 1회 `pnpm exec playwright install chromium` |
-| `pnpm fixtures`         | 임포트 테스트 픽스처 생성 — 원본 `병합_가격_raw.xlsx`(`SOURCE_XLSX`)에서 200행 + 오류·품목조회 합성 파일 → `tests/fixtures/imports/`                                    |
-| `pnpm import:source`    | 판매단가 엑셀을 업로드·적용 경로 그대로 반영(기본: 원본 `병합_가격_raw.xlsx`, 인자로 경로 지정). 로컬·QA 데이터 준비용                                                  |
-| `pnpm check`            | lint + typecheck + format:check + test 일괄                                                                                                                             |
+| 명령                    | 설명                                                                                                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm dev`              | 개발 서버                                                                                                                                                                            |
+| `pnpm build`            | 프로덕션 빌드 (빌드 전 `src/env.ts` 가 환경변수를 검증)                                                                                                                              |
+| `pnpm start`            | 빌드 결과 실행                                                                                                                                                                       |
+| `pnpm lint`             | ESLint                                                                                                                                                                               |
+| `pnpm typecheck`        | `tsc --noEmit`                                                                                                                                                                       |
+| `pnpm format:check`     | Prettier 검사 (`pnpm format` 으로 수정)                                                                                                                                              |
+| `pnpm test`             | Vitest 단위 테스트 (DB 테스트는 PGlite `memory://`)                                                                                                                                  |
+| `pnpm test:coverage`    | 단위 테스트 + 커버리지(임계 80%)                                                                                                                                                     |
+| `pnpm test:integration` | 실제 Postgres 통합 테스트 — `DB_DRIVER=pg` + `DATABASE_URL` 필요, 없으면 스킵                                                                                                        |
+| `pnpm db:generate`      | 스키마(`src/db/schema`) 변경을 `drizzle/*.sql` 마이그레이션으로 생성                                                                                                                 |
+| `pnpm db:migrate`       | `DB_DRIVER` 에 맞는 드라이버로 마이그레이션 적용                                                                                                                                     |
+| `pnpm seed`             | 픽스처 ADMIN·USER, 공지 샘플, 감사 로그 `user.seed` 기록 (재실행 안전)                                                                                                               |
+| `pnpm test:e2e`         | Playwright E2E — `next dev`(포트 3100, `.next-e2e`) + Postgres `prami_e2e` DB(`E2E_DATABASE_URL`)에 자동 migrate·seed. 최초 1회 `pnpm exec playwright install chromium`              |
+| `pnpm fixtures`         | 임포트 테스트 픽스처 생성 — 원본 `병합_가격_raw.xlsx`(`SOURCE_XLSX`)에서 200행 + 오류·품목조회 합성 파일 → `tests/fixtures/imports/`                                                 |
+| `pnpm import:source`    | 엑셀을 업로드·적용 경로 그대로 반영. 기본은 판매단가(원본 `병합_가격_raw.xlsx`), `--kind costs` 면 원가(원본 `원자재코드 정보_260825.xlsx`). 인자로 경로 지정. 로컬·QA 데이터 준비용 |
+| `pnpm check`            | lint + typecheck + format:check + test 일괄                                                                                                                                          |
 
 CI(`.github/workflows/ci.yml`)는 PR 마다 lint → typecheck → format → 단위(커버리지, PGlite) → build,
 이어서 PostgreSQL 16 service container 에서 `db:migrate` → `seed` → 통합 테스트, 그리고 같은 service container 와
@@ -170,6 +170,24 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
 - 행을 누르면 원본 20컬럼과 같은 계열 이력을 보여 주는 `행 상세` 드로어가 열린다.
 - 관리 화면의 `+ 등록`·수정·복사·삭제는 변경 사유가 필수이며, 저장 시 해당 계열만 다시 계산하고 불변식(I-1·I-2)을
   확인한 뒤 감사 로그(`price_policy.create|update|delete`, 원본 20컬럼 스냅샷)를 남긴다. 폐기 품목은 운영중이 될 수 없다.
+
+## 원가 관리 (PR-5)
+
+- `/admin/costs`(ADMIN 전용) 상단에서 **원가 파일**(구매단가등록 12컬럼)을 `신규 업로드`/`기존 파일 재사용`으로 고른 뒤
+  `원가 적용`을 누릅니다. 적용(`applyCostImportAction`)은 한 트랜잭션에서 수동 행 충돌 처리(ERP 우선) → ERP 행 전량 교체 →
+  계열(자재번호·단가유형·단가구분·화폐)별 최신·종료일·운영상태 재계산 → 불변식 I-2·행수 검증 → 감사 `cost_import.apply`.
+- 제품군은 자재번호 접두로 파생합니다(`W1`=WAPPLES, `W2`=D.AMO, `W4`=iSIGN, 그 외 `기타`; `src/lib/constants/material-family.ts`).
+  라인업 칩은 매핑이 확정될 때까지 숨깁니다.
+- 원본 엑셀은 1:1 로 보존합니다. 같은 계열·같은 적용시작일 행이 여러 개여도 모두 적재하고(경고 `같은 날짜 중복`, 값이 다르면
+  `같은 날짜 중복(값 다름)` 으로 따로 표시), 최신 판정은 `적용시작일 desc, id desc`(파일 순서 뒤 행 우선)로 결정적입니다.
+  수동 등록·수정은 같은 계열·같은 적용시작일을 앱 검사로 막습니다.
+- 필터(제품군 탭, `적용시작일 기준`/`적용기간 기준`, 연도 칩, 기간, 검색, 페이지)는 가격정책 화면과 같은 컴포넌트·SQL 조건을
+  쓰며 모두 URL 검색 파라미터입니다. 수정·삭제는 변경 사유가 필수이고 감사 로그(`material_cost.update|delete`, 12컬럼 스냅샷)를 남깁니다.
+- 원가 격리: `src/server/cost/**` 는 `src/features/costs/**`·`src/app/(app)/admin/costs/**` 에서만 import 할 수 있고(ESLint
+  `no-restricted-imports`), 모든 서버 함수는 첫 인자로 `cost.read`/`cost.write` 권한 검사에서 발급된 `CostAccess` 토큰을 요구합니다.
+  USER 는 페이지·Action 모두 §4.7.1 거부 판정(FORBIDDEN, DB 무변경, 감사 denied)을 받고 원가 값이 응답에 실리지 않습니다.
+  순매출 계산기 서버 함수(`calculateNetSalesAction`)는 `cost.read` 가 없으면 원가 입력을 무시하고 `costLocked: true` 를 돌려줍니다.
+- 로컬 데이터: `pnpm import:source --kind costs` (원본 487행 → 자재 157·계열 157·최신 157).
 
 ## DB 스키마 · 마이그레이션
 

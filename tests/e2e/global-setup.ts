@@ -11,4 +11,8 @@ export default function globalSetup(): void {
   execSync('pnpm db:migrate', { stdio: 'inherit', env });
   execSync('pnpm seed', { stdio: 'inherit', env });
   execSync('pnpm import:source tests/fixtures/imports/sales-200.xlsx', { stdio: 'inherit', env });
+  execSync('pnpm import:source tests/fixtures/imports/costs-dup.xlsx --kind costs', {
+    stdio: 'inherit',
+    env,
+  });
 }

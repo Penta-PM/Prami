@@ -73,7 +73,8 @@ async function guardDuplicate(db: Db, input: UploadInput, sha256: string): Promi
     .where(and(eq(importBatches.kind, dbKind), eq(importBatches.fileSha256, sha256)))
     .limit(1);
   if (!existing) return;
-  if (existing.status === 'failed') {
+  // 적용할 수 없는 배치(failed 또는 행 오류 있음)는 재업로드를 막지 않는다 — 지우고 다시 파싱한다
+  if (existing.status === 'failed' || existing.errorCount > 0) {
     await db.delete(importBatches).where(eq(importBatches.id, existing.id));
     return;
   }

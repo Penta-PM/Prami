@@ -1,0 +1,67 @@
+import { z } from 'zod';
+
+import { DATE_MODES, type DateMode } from '@/features/pricing/filter';
+
+/** 원가 관리 필터 (§4.5.5): 제품군 탭 + 날짜 두 모드(§4.5.2 공용) + 검색 + 페이지 — URL 상태 */
+export type CostFilter = {
+  family?: string;
+  dateMode: DateMode;
+  from?: string;
+  to?: string;
+  q?: string;
+  page: number;
+};
+
+export type CostFilterErrors = Partial<Record<'from' | 'to', string>>;
+
+const text = z
+  .string()
+  .trim()
+  .max(100)
+  .transform((value) => (value === '' || value === '전체' ? undefined : value))
+  .optional()
+  .catch(undefined);
+
+const schema = z.object({
+  family: text,
+  dateMode: z.enum(DATE_MODES).catch('start').default('start'),
+  from: z.iso.date().optional().catch(undefined),
+  to: z.iso.date().optional().catch(undefined),
+  q: text,
+  page: z.coerce.number().int().min(1).max(100_000).catch(1).default(1),
+});
+
+type Params = Record<string, string | string[] | undefined>;
+
+export function parseCostFilter(params: Params): { filter: CostFilter; errors: CostFilterErrors } {
+  const pick = (key: string) => {
+    const value = params[key];
+    return Array.isArray(value) ? value[0] : value;
+  };
+  const raw = Object.fromEntries(
+    ['family', 'dateMode', 'from', 'to', 'q', 'page'].map((k) => [k, pick(k)]),
+  );
+  const parsed = schema.parse(raw);
+  const errors: CostFilterErrors = {};
+  if (raw.from && !parsed.from) errors.from = '날짜 형식(YYYY-MM-DD)이 아닙니다';
+  if (raw.to && !parsed.to) errors.to = '날짜 형식(YYYY-MM-DD)이 아닙니다';
+  let { from, to } = parsed;
+  if (from && to && from > to) {
+    errors.to = '종료일은 시작일 이후여야 합니다';
+    from = undefined;
+    to = undefined;
+  }
+  return { filter: { ...parsed, from, to }, errors };
+}
+
+export function costFilterToQuery(filter: Partial<CostFilter>): string {
+  const params = new URLSearchParams();
+  if (filter.family) params.set('family', filter.family);
+  if (filter.dateMode === 'period') params.set('dateMode', 'period');
+  if (filter.from) params.set('from', filter.from);
+  if (filter.to) params.set('to', filter.to);
+  if (filter.q) params.set('q', filter.q);
+  if (filter.page && filter.page > 1) params.set('page', String(filter.page));
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}

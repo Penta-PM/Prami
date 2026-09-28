@@ -242,7 +242,7 @@ describe('PricingBrowser — 드로어·관리 동작 (AC-15·16)', () => {
       error: {
         code: 'VALIDATION',
         message: '입력값을 확인하세요',
-        fieldErrors: { reason: ['변경 사유을(를) 입력하세요'] },
+        fieldErrors: { reason: ['변경 사유를 입력하세요'] },
       },
     });
     render(<PricingBrowser mode="admin" rows={[ROW]} />);
@@ -250,7 +250,7 @@ describe('PricingBrowser — 드로어·관리 동작 (AC-15·16)', () => {
     const dialog = screen.getByRole('dialog', { name: '가격정책 등록' });
     await userEvent.click(within(dialog.closest('dialog')!).getByRole('button', { name: '저장' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('입력값을 확인하세요');
-    expect(within(dialog).getByText('변경 사유을(를) 입력하세요')).toBeInTheDocument();
+    expect(within(dialog).getByText('변경 사유를 입력하세요')).toBeInTheDocument();
   });
 
   it('관리: 수정 → 원본 값 채움·ERP 경고·폐기 안내, 저장 성공 → 안내·새로고침', async () => {
@@ -282,7 +282,7 @@ describe('PricingBrowser — 드로어·관리 동작 (AC-15·16)', () => {
         error: {
           code: 'VALIDATION',
           message: 'x',
-          fieldErrors: { reason: ['변경 사유을(를) 입력하세요'] },
+          fieldErrors: { reason: ['변경 사유를 입력하세요'] },
         },
       })
       .mockResolvedValueOnce({ ok: true, data: { id: 7 } });
