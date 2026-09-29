@@ -42,7 +42,7 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-const { default: proxy, config } = await import('@/proxy');
+const { default: proxy, config, isPublicPath } = await import('@/proxy');
 const actions = await import('@/features/auth/actions');
 const { currentRequestMeta } = await import('@/server/audit/request-meta');
 const { requestMetaFromHeaders } = await import('@/server/audit/log');
@@ -96,13 +96,21 @@ describe('proxy (1차 방어)', () => {
     expect(state.audits).toHaveLength(0);
   });
 
-  it('matcher 는 로그인·Auth.js·정적 자원을 제외한다', () => {
+  it('matcher 는 정적 자원만 제외하고(문서·API 는 전부 CSP 대상), 로그인·공유·Auth.js 는 인증만 건너뛴다', () => {
     const pattern = new RegExp(`^${config.matcher[0]}$`);
     expect(pattern.test('/pricing')).toBe(true);
     expect(pattern.test('/admin/users')).toBe(true);
-    expect(pattern.test('/login')).toBe(false);
-    expect(pattern.test('/api/auth/session')).toBe(false);
+    expect(pattern.test('/login')).toBe(true);
+    expect(pattern.test('/share/quotes/abc')).toBe(true);
+    expect(pattern.test('/api/auth/session')).toBe(true);
     expect(pattern.test('/logo-prami-mark.png')).toBe(false);
+    expect(pattern.test('/_next/static/chunks/app.js')).toBe(false);
+    expect(pattern.test('/fonts/NotoSansKR-Regular-subset.ttf')).toBe(false);
+    expect(isPublicPath('/login')).toBe(true);
+    expect(isPublicPath('/login-other')).toBe(false);
+    expect(isPublicPath('/share/quotes/abc')).toBe(true);
+    expect(isPublicPath('/api/auth/callback/google')).toBe(true);
+    expect(isPublicPath('/calculator')).toBe(false);
   });
 });
 

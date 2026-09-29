@@ -25,6 +25,7 @@ import {
   supersedeManualRows,
 } from './apply-steps';
 import { ApplyInvariantError, assertInvariants, checkInvariants } from './invariants';
+import { logger } from '@/server/log';
 
 /**
  * "가격정책 적용" (§4.4.1 ~ §4.4.6, R-05 ~ R-08, R-11).
@@ -203,7 +204,7 @@ function failureReason(error: unknown): string {
 async function recordFailure(ctx: ApplyContext, runId: string, input: ApplyInput, error: unknown) {
   const reason = failureReason(error);
   const expected = error instanceof ApplyInvariantError || reason.startsWith('[실패 주입]');
-  if (!expected) console.error('[applyPolicy] 실패', error);
+  if (!expected) logger.error('import.policy_apply_failed', { runId, error });
   await ctx.handle.db
     .update(policyApplyRuns)
     .set({ status: 'failed', error: reason, finishedAt: new Date() })

@@ -1,4 +1,5 @@
-import { z } from 'zod';
+// 클라이언트(필터 UI)에서도 파싱하므로 JIT(eval) 탐지를 끈 zod 를 쓴다 (CSP, PR-11a QA L-1)
+import { z } from '@/lib/zod-jitless';
 
 /**
  * 가격정책 조회 필터 (§4.5.1·§4.5.2) — URL 검색 파라미터가 곧 상태다(공유·뒤로가기·새로고침 유지).

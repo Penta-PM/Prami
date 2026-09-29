@@ -14,7 +14,8 @@ import {
   type ActionResult,
 } from '@/lib/result';
 import { AUDIT_ACTIONS, writeAudit } from '@/server/audit/log';
-import { currentRequestMeta } from '@/server/audit/request-meta';
+import { currentRequestId, currentRequestMeta } from '@/server/audit/request-meta';
+import { logger } from '@/server/log';
 
 import { auth } from './auth';
 import { loadSessionUser, type SessionUser } from './session-user';
@@ -92,7 +93,12 @@ export async function requirePermission(guard: Guard): Promise<SessionUser> {
 }
 
 /** 예외를 봉투 오류로 바꾼다. 알 수 없는 예외는 내부 정보 없이 INTERNAL 로 감싼다 */
-export function toActionError(error: unknown): ActionError {
+/** 예상한 오류(AppError·ZodError)인지 — 아니면 구조화 로그를 남긴다 */
+function isExpected(error: unknown): boolean {
+  return error instanceof AppError || error instanceof ZodError;
+}
+
+export function toActionError(error: unknown, requestId?: string | null): ActionError {
   if (error instanceof AppError) {
     const base = fail(error.code, error.message, error.fieldErrors).error;
     return error.details ? { ...base, details: error.details } : base;
@@ -102,8 +108,9 @@ export function toActionError(error: unknown): ActionError {
     return fail('VALIDATION', '입력값을 확인하세요', flat.fieldErrors as Record<string, string[]>)
       .error;
   }
-  console.error('[action] 처리 중 오류', error);
-  return fail('INTERNAL', '요청을 처리하지 못했습니다. 잠시 후 다시 시도하세요').error;
+  const base = fail('INTERNAL', '요청을 처리하지 못했습니다. 잠시 후 다시 시도하세요').error;
+  // 문의 시 로그를 찾을 수 있도록 요청 ID 만 돌려준다 (오류 내용은 서버 로그에만)
+  return requestId ? { ...base, details: { requestId } } : base;
 }
 
 /**
@@ -118,7 +125,8 @@ export async function runAction<T>(
     const user = await requirePermission({ ...guard, target: `action:${guard.name}` });
     return ok(await fn(user));
   } catch (error) {
-    return { ok: false, error: toActionError(error) };
+    const requestId = await logUnexpected(error, `action:${guard.name}`);
+    return { ok: false, error: toActionError(error, requestId) };
   }
 }
 
@@ -131,7 +139,27 @@ export async function runRoute(
     const user = await requirePermission(guard);
     return await fn(user);
   } catch (error) {
-    const body = { ok: false as const, error: toActionError(error) };
-    return Response.json(body, { status: ERROR_STATUS[body.error.code] });
+    const requestId = await logUnexpected(error, guard.target);
+    const body = { ok: false as const, error: toActionError(error, requestId) };
+    return Response.json(body, {
+      status: ERROR_STATUS[body.error.code],
+      headers: retryHeaders(body.error),
+    });
   }
+}
+
+/** 예상 밖 오류면 요청 ID 와 함께 구조화 로그(비밀값 마스킹)를 남기고 요청 ID 를 돌려준다 */
+async function logUnexpected(error: unknown, target: string): Promise<string | null> {
+  if (isExpected(error)) return null;
+  const requestId = await currentRequestId();
+  logger.error('request.failed', { requestId, target, error });
+  return requestId;
+}
+
+/** 429 이면 Retry-After(초) 헤더 (§4.8 r6, AC-95) — 감사 로그 대신 구조화 로그만 남긴다 */
+function retryHeaders(error: ActionError): Record<string, string> | undefined {
+  if (error.code !== 'RATE_LIMITED') return undefined;
+  const seconds = Number(error.details?.retryAfterSeconds ?? 60);
+  logger.warn('rate_limited', { scope: 'route', retryAfterSeconds: seconds });
+  return { 'Retry-After': String(Math.max(1, Math.ceil(seconds))) };
 }

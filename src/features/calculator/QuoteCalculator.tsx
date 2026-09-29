@@ -131,6 +131,11 @@ export function QuoteCalculator({ preload, savedQuotes, initial }: QuoteCalculat
         if (found) {
           setSelected(found);
           setFlash({ tone: 'ok', text: `챗봇에서 넘어온 품목을 선택했습니다: ${found.itemName}` });
+        } else {
+          setFlash({
+            tone: 'error',
+            text: `챗봇에서 넘어온 품번(${pendingItem})을 ${family} · ${priceType} 목록에서 찾지 못했습니다. 품목을 직접 선택하세요.`,
+          });
         }
         setPendingItem(null);
       }

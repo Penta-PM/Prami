@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { and, eq, sql } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { Db, DbHandle } from '@/db';
 import { salesPrices } from '@/db/schema';
@@ -70,16 +70,31 @@ describe('respondToChat', () => {
     expect(JSON.stringify(result)).not.toMatch(COST_KEYS);
   });
 
-  it('모호한 품명은 후보 목록, 품번은 단일 확정, 없는 품명은 안내 + 제품 칩', async () => {
-    const ambiguous = await respondToChat(handle.db, USER, 'Wapples-2200 가격');
-    expect(ambiguous.intent).toBe('price');
-    expect(ambiguous.candidates.length).toBeGreaterThan(1);
-    expect(ambiguous.reply).toContain('여러 품목이 검색되었습니다');
-    const byCode = await respondToChat(handle.db, USER, ambiguous.candidates[0]!.itemCode);
-    expect(byCode.candidates).toEqual([]);
-    expect(byCode.reply).toContain(ambiguous.candidates[0]!.itemName.trim());
+  it('AC-80 r6 매칭: 후보 2개 병기 → 유일·품번 즉시 가격 → 4개 이상 목록 → 0개 도움말', async () => {
+    // ② 후보 2~3개: 한 문장에 각 후보 품명과 최신 정상판매 가격을 병기
+    const two = await respondToChat(handle.db, USER, 'Wapples-500 가격');
+    expect(two.intent).toBe('price');
+    expect(two.reply).toBe(
+      'Wapples-500 (H500 T2) 12,000,000원, Wapples-500 (H500 T3) 14,000,000원입니다. 어느 모델인가요?',
+    );
+    expect(two.candidates.map((hit) => hit.itemCode)).toEqual(['P10100015', 'P10100024']);
+    // ① 유일 후보 / 품번 정확 일치 → 즉시 가격
+    const unique = await respondToChat(handle.db, USER, 'Wapples-500 T2 가격');
+    expect(unique.candidates).toEqual([]);
+    expect(unique.reply).toMatch(/Wapples-500 \(H500 T2\)의 가격은 12,000,000원입니다\.$/);
+    const byCode = await respondToChat(handle.db, USER, 'P10100024');
+    expect(byCode.reply).toMatch(/Wapples-500 \(H500 T3\)의 가격은 14,000,000원입니다\.$/);
+    // ③ 4개 이상: 가격 없이 목록(최대 5) + 좁혀 달라는 안내
+    const many = await respondToChat(handle.db, USER, 'Wapples 가격');
+    expect(many.reply).toMatch(/^\d+개 품목이 검색되었습니다: /);
+    expect(many.reply).toContain('더 구체적으로');
+    expect(many.reply).not.toMatch(/\d원/);
+    expect(many.candidates.length).toBeGreaterThanOrEqual(4);
+    expect(many.candidates.length).toBeLessThanOrEqual(5);
+    // ④ 0개 → 도움말
     const missing = await respondToChat(handle.db, USER, 'ZZZ-9999 가격');
     expect(missing.reply).toContain('찾지 못했습니다');
+    expect(missing.reply).toContain(HELP_REPLY);
     expect(missing.showProductChips).toBe(true);
     const noModel = await respondToChat(handle.db, USER, '가격 알려줘');
     expect(noModel.reply).toBe(PRICE_NEED_MODEL);
@@ -140,6 +155,38 @@ describe('respondToChat', () => {
     expect(JSON.stringify([user, admin])).not.toMatch(COST_KEYS);
   });
 
+  it('AC-81 쿼리 로거: 원가 질문은 SQL 0건, 어떤 입력에도 material_costs 조회 없음 (USER·ADMIN)', async () => {
+    const client = (handle.db as unknown as { $client: { query: (...args: unknown[]) => unknown } })
+      .$client;
+    const statements: string[] = [];
+    const original = client.query.bind(client);
+    const spy = vi.spyOn(client, 'query').mockImplementation((...args: unknown[]) => {
+      statements.push(String(args[0]));
+      return original(...args);
+    });
+    try {
+      for (const actor of [USER, ADMIN]) {
+        statements.length = 0;
+        await respondToChat(handle.db, actor, 'Wapples-500 원가 알려줘');
+        await respondToChat(handle.db, actor, '마진이랑 이익률 얼마야');
+        expect(statements).toEqual([]);
+      }
+      for (const message of [
+        'Wapples-500 가격',
+        'Wapples-500 (H500 T2) 작년보다 올랐어?',
+        'WAPPLES 견적',
+        'P10100015',
+        '오늘 점심 뭐 먹지',
+      ]) {
+        await respondToChat(handle.db, ADMIN, message);
+      }
+      expect(statements.length).toBeGreaterThan(0);
+      expect(statements.join(' ')).not.toMatch(/material_costs/i);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('AC-82: 알 수 없는 입력 → 도움말 + 예시 (DB 접근 없음)', async () => {
     const result = await respondToChat(forbiddenDb, USER, '오늘 점심 뭐 먹지');
     expect(result).toMatchObject({ intent: 'help', reply: HELP_REPLY });
@@ -147,13 +194,11 @@ describe('respondToChat', () => {
   });
 
   it('검색은 ILIKE 와일드카드를 문자 그대로 다루고 제품군으로 좁힐 수 있다', async () => {
-    expect(await findChatItems(handle.db, '%')).toEqual([]);
-    const underscore = await findChatItems(handle.db, '_500');
-    expect(
-      underscore.every((hit) => `${hit.itemName} ${hit.itemCode}`.toLowerCase().includes('_500')),
-    ).toBe(true);
-    const inFamily = await findChatItems(handle.db, 'Wapples-500', 'D.AMO');
-    expect(inFamily).toEqual([]);
+    expect((await findChatItems(handle.db, '%')).hits).toEqual([]);
+    expect((await findChatItems(handle.db, 'P1010001_')).hits).toEqual([]);
+    expect((await findChatItems(handle.db, 'P10100015')).exactCode).toBe(true);
+    expect((await findChatItems(handle.db, 'Wapples-500', 'D.AMO')).hits).toEqual([]);
+    expect((await findChatItems(handle.db, 'Wapples-500', 'WAPPLES')).hits).toHaveLength(2);
     const rows = await handle.db
       .select({ code: salesPrices.itemCode })
       .from(salesPrices)

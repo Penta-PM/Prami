@@ -20,6 +20,10 @@ export function loginErrorMessage(code: string | undefined, allowedDomains: read
       return '등록되지 않은 사용자입니다. 관리자에게 사전 등록을 요청하세요.';
     case 'credentials':
       return '이메일 또는 테스트 비밀번호가 올바르지 않습니다.';
+    case 'test_mode_host':
+      return '테스트 로그인은 허용된 호스트(AUTH_TEST_ALLOWED_HOSTS)에서만 쓸 수 있습니다.';
+    case 'rate_limited':
+      return '로그인 시도가 너무 잦습니다. 1분 뒤 다시 시도하세요.';
     default:
       return '로그인하지 못했습니다. 잠시 후 다시 시도하세요.';
   }

@@ -17,6 +17,9 @@ import {
 } from '@/server/cost/queries';
 import { listReusableBatches } from '@/server/imports/queries';
 
+/** 이 페이지의 Server Action(임포트 적용: 5,885행 전체 교체)이 쓰는 함수 상한 — §4.8 maxDuration=60 */
+export const maxDuration = 60;
+
 export const metadata: Metadata = { title: '원가 관리' };
 
 type AdminCostsPageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };

@@ -1,37 +1,101 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 import { canAccessAdminArea } from '@/lib/constants/permissions';
+import { env, proxyTrustMode } from '@/env';
 import { auth } from '@/server/auth/auth';
+import { logger } from '@/server/log';
+import { ipScopeFor, rateLimitedResponse, rateLimiters, rateLimitIp } from '@/server/rate-limit';
+import {
+  buildCsp,
+  createNonce,
+  REQUEST_ID_HEADER,
+  resolveRequestId,
+} from '@/server/security/headers';
 
 /**
- * 1차 방어 (§4.6). Next 16 에서 middleware 는 proxy 로 이름이 바뀌었다 (Node 런타임).
- * - 비로그인: 페이지는 /login 으로, API 는 401 봉투로 응답
+ * 1차 방어 (§4.6) + 보안 헤더 (§4.8, AC-91). Next 16 에서 middleware 는 proxy 로 이름이 바뀌었다 (Node 런타임).
+ * - 모든 문서·API 응답: 요청별 CSP nonce(Next 가 자기 인라인 스크립트에 붙인다) + x-request-id
+ * - 공개 경로(/login, /share/*, /api/auth/*): 인증 없이 통과 — CSP 는 동일하게 적용 (공유 페이지 포함, PR-8 QA INFO-4)
+ * - 비로그인: 페이지는 /login 으로, API 는 401 봉투
  * - /admin/* 에 ADMIN 이 아닌 역할: 감사 로그(denied) 후 / 로 이동
  * 권한의 최종 판단은 각 페이지·Action·Route 의 requirePermission (2차 방어)이 한다.
- * 전체 auth 설정을 쓰므로 jwt 콜백이 DB 로 역할·활성 여부를 갱신하고 쿠키도 새 토큰으로 바뀐다.
+ * 정적 헤더(HSTS·X-Frame-Options 등)는 정적 자원까지 덮도록 next.config.ts headers() 가 붙인다.
  */
-export default auth(async (request) => {
-  const { pathname, search } = request.nextUrl;
-  const user = request.auth?.user;
+const PUBLIC_PREFIXES = ['/login', '/share/', '/api/auth/'] as const;
 
+export function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PREFIXES.some((prefix) =>
+    prefix.endsWith('/') ? pathname.startsWith(prefix) : pathname === prefix,
+  );
+}
+
+type SecurityContext = { csp: string; nonce: string; requestId: string };
+
+function securityContext(request: NextRequest): SecurityContext {
+  const nonce = createNonce();
+  const csp = buildCsp({
+    nonce,
+    isDev: process.env.NODE_ENV === 'development',
+    isHttps: (process.env.NEXT_PUBLIC_APP_URL ?? '').startsWith('https://'),
+  });
+  return { csp, nonce, requestId: resolveRequestId(request.headers.get(REQUEST_ID_HEADER)) };
+}
+
+/** 요청 헤더에 nonce·CSP·요청 ID 를 실어 다음 단계(페이지·Route)로 넘기고 응답에도 붙인다 */
+function passThrough(request: NextRequest, context: SecurityContext): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', context.nonce);
+  requestHeaders.set('Content-Security-Policy', context.csp);
+  requestHeaders.set(REQUEST_ID_HEADER, context.requestId);
+  return decorate(NextResponse.next({ request: { headers: requestHeaders } }), context);
+}
+
+function decorate(response: NextResponse, context: SecurityContext): NextResponse {
+  response.headers.set('Content-Security-Policy', context.csp);
+  response.headers.set(REQUEST_ID_HEADER, context.requestId);
+  return response;
+}
+
+/** 공유 페이지·PDF·auth 콜백은 IP 기준 분당 상한 (§4.8 r6, AC-95). 초과면 429 응답, 아니면 null */
+function limitByIp(request: NextRequest, context: SecurityContext): NextResponse | null {
+  const scope = ipScopeFor(request.nextUrl.pathname, request.method);
+  if (!scope) return null;
+  const decision = rateLimiters[scope].hit(rateLimitIp(request.headers, proxyTrustMode(env)));
+  if (decision.allowed) return null;
+  logger.warn('rate_limited', { scope, requestId: context.requestId });
+  const limited = rateLimitedResponse(decision);
+  return decorate(new NextResponse(limited.body, limited), context);
+}
+
+export default auth(async (request) => {
+  const context = securityContext(request);
+  const { pathname, search } = request.nextUrl;
+  const limited = limitByIp(request, context);
+  if (limited) return limited;
+  if (isPublicPath(pathname)) return passThrough(request, context);
+
+  const user = request.auth?.user;
   if (!user?.id) {
     if (pathname.startsWith('/api/')) {
-      return NextResponse.json(
-        { ok: false, error: { code: 'UNAUTHENTICATED', message: '로그인이 필요합니다' } },
-        { status: 401 },
+      return decorate(
+        NextResponse.json(
+          { ok: false, error: { code: 'UNAUTHENTICATED', message: '로그인이 필요합니다' } },
+          { status: 401 },
+        ),
+        context,
       );
     }
     const loginUrl = new URL('/login', request.nextUrl.origin);
     loginUrl.searchParams.set('callbackUrl', `${pathname}${search}`);
-    return NextResponse.redirect(loginUrl);
+    return decorate(NextResponse.redirect(loginUrl), context);
   }
 
   if (pathname.startsWith('/admin') && !canAccessAdminArea(user.role)) {
     await recordAdminDenied(user.id, user.email ?? user.id, user.role, pathname, request.headers);
-    return NextResponse.redirect(new URL('/', request.nextUrl.origin));
+    return decorate(NextResponse.redirect(new URL('/', request.nextUrl.origin)), context);
   }
 
-  return NextResponse.next();
+  return passThrough(request, context);
 });
 
 async function recordAdminDenied(
@@ -42,11 +106,10 @@ async function recordAdminDenied(
   headers: Headers,
 ): Promise<void> {
   // IP 산출은 audit/log.ts 의 단일 함수가 한다 (§4.8 r3) — proxy 는 헤더를 넘기기만 한다
-  const [
-    { getDb },
-    { AUDIT_ACTIONS, requestMetaFromHeaders, writeAudit },
-    { env, trustsProxyHeaders },
-  ] = await Promise.all([import('@/db'), import('@/server/audit/log'), import('@/env')]);
+  const [{ getDb }, { AUDIT_ACTIONS, requestMetaFromHeaders, writeAudit }] = await Promise.all([
+    import('@/db'),
+    import('@/server/audit/log'),
+  ]);
   try {
     await writeAudit(await getDb(), {
       actor: { id: userId, label },
@@ -54,17 +117,17 @@ async function recordAdminDenied(
       target: { type: 'route', id: pathname, label: pathname },
       after: { permission: 'admin-area', role },
       result: 'denied',
-      meta: requestMetaFromHeaders(headers, trustsProxyHeaders(env)),
+      meta: requestMetaFromHeaders(headers, proxyTrustMode(env)),
     });
   } catch (error) {
     // 감사 기록 실패가 차단 자체를 막지 않도록 한다 (리다이렉트는 그대로 수행)
-    console.error('[proxy] 접근 거부 감사 기록 실패', error);
+    logger.error('proxy.audit_failed', { pathname, error });
   }
 }
 
 export const config = {
-  // 로그인·Auth.js 엔드포인트·정적 자원·견적 공유 페이지(/share/*, 토큰이 접근 권한 — §4.5.8)는 제외
+  // 정적 자원·이미지 최적화·파비콘은 제외 (문서·API 는 전부 CSP 대상). 로그인·공유는 isPublicPath 로 인증만 건너뛴다
   matcher: [
-    '/((?!login|share/|api/auth|_next/static|_next/image|favicon.ico|.*\.(?:png|svg|ico|jpg|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|svg|ico|jpg|webp|ttf|woff2?)$).*)',
   ],
 };

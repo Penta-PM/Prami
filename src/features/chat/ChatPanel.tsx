@@ -81,7 +81,14 @@ export function ChatPanel() {
     const { data } = result;
     setMessages((list) => [
       ...list,
-      { id: nextId(), from: 'bot', text: data.reply, intent: data.intent, action: data.action },
+      {
+        id: nextId(),
+        from: 'bot',
+        text: data.reply,
+        intent: data.intent,
+        action: data.action,
+        notice: data.notice,
+      },
     ]);
     setShowProductChips(data.showProductChips);
     setCandidates(data.candidates);
@@ -184,6 +191,11 @@ function Bubble({ message }: { message: ChatMessage }) {
               : 'max-w-[78%] rounded-[14px] bg-gray-75 px-[15px] py-[11px] text-[13px] leading-[1.5] whitespace-pre-line text-text-primary'
         }
       >
+        {message.notice ? (
+          <span role="note" className="text-amber-600 mb-1 block text-[11px]">
+            {message.notice}
+          </span>
+        ) : null}
         {message.text}
         {message.action ? (
           <Link

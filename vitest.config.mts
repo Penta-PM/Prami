@@ -40,7 +40,7 @@ export default defineConfig({
           testTimeout: 30_000,
           // 파일마다 PGlite 를 띄우고 마이그레이션하므로 병렬·커버리지 실행에서는 준비 시간이 길어진다
           hookTimeout: 60_000,
-          env: { DB_DRIVER: 'pglite', PGLITE_DATA_DIR: 'memory://' },
+          env: { DB_DRIVER: 'pglite', PGLITE_DATA_DIR: 'memory://', RATE_LIMIT_PER_MIN: '1000' },
         },
       },
       {

@@ -55,8 +55,14 @@ pnpm db:migrate
 pnpm seed
 
 # 5) 개발 서버
-pnpm dev            # http://localhost:3000
+pnpm dev            # http://localhost:3000 (127.0.0.1 에만 바인드)
 ```
+
+> **테스트 모드는 로컬 전용입니다.** `pnpm dev` 는 기본으로 `127.0.0.1` 에만 바인드합니다. LAN 에 열어야 한다면
+> `pnpm dev -H 0.0.0.0` 처럼 **명시적으로** 지정하고, 그 전에 반드시 `AUTH_TEST_MODE` 를 끄세요 — 켜져 있으면 공용
+> `AUTH_TEST_PASSWORD` 로 누구나 ADMIN 픽스처 계정에 로그인할 수 있습니다. 2차 방어로 테스트 로그인은 `AUTH_TEST_ALLOWED_HOSTS`
+> (기본 `localhost,127.0.0.1`) 밖의 Host 에서 거부되고 감사 `auth.denied_test_mode` 가 남으며, `VERCEL_ENV` 가 있는 환경에서는
+> 기동 자체가 거부됩니다. 테스트 모드가 켜지면 로그인 화면·헤더에 **TEST MODE** 배너가 보입니다.
 
 모든 화면은 로그인이 필요합니다(비로그인은 `/login` 으로 이동). `AUTH_TEST_MODE=true` 이면 로그인 화면의
 **테스트 모드** 폼에서 픽스처 계정(`fixture-admin@pentasecurity.com` = ADMIN, `fixture-user@pentasecurity.com`
@@ -82,7 +88,8 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 
 | 명령                    | 설명                                                                                                                                                                                 |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm dev`              | 개발 서버                                                                                                                                                                            |
+| `pnpm dev`              | 개발 서버 (`127.0.0.1` 바인드, LAN 노출은 `-H 0.0.0.0` 명시 + 테스트 모드 끄기)                                                                                                      |
+| `pnpm check:secrets`    | 추적 파일 비밀값 검사 (원격 DB 자격 증명·`AUTH_SECRET=` 값·OAuth 시크릿, CI `secret scan` 잡, AC-96)                                                                                 |
 | `pnpm build`            | 프로덕션 빌드 (빌드 전 `src/env.ts` 가 환경변수를 검증)                                                                                                                              |
 | `pnpm start`            | 빌드 결과 실행                                                                                                                                                                       |
 | `pnpm lint`             | ESLint                                                                                                                                                                               |
@@ -259,12 +266,61 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
   "견적 뽑아줘"), 제품 퀵칩(WAPPLES · D.AMO · iSIGN · Cloudbric), 모호할 때 후보 품목 칩, 견적 시작 링크. **대화는 저장하지 않는다**(감사도 없음).
 - `POST /api/chat`(`chat.use` = 로그인 사용자, 비로그인 401): 본문 `{ message }` → 공백·제어 문자 정리·200자 제한(검색과 같은 규칙, ILIKE 는
   파라미터 바인딩 + 와일드카드 이스케이프) → 의도 분류(`src/server/chat/intent.ts`, 정규식·키워드, **LLM 호출 없음** Q-04b) → `sales_prices` 만 읽어
-  템플릿 문장(`respond.ts`). 사용자당 **분당 30회**(`rate-limit.ts`, 프로세스 메모리 슬라이딩 윈도우) 초과 → 429 `RATE_LIMITED`.
+  템플릿 문장(`respond.ts`). 사용자당 분당 `RATE_LIMIT_PER_MIN`(기본 30, `src/server/rate-limit.ts`) 초과 → 429 `RATE_LIMITED` + `Retry-After`.
+  200자를 넘으면 앞 200자만 쓰고 응답에 절단 안내를 붙인다.
 - 의도(우선순위): ① **원가** — USER·ADMIN 모두 거부 문구, DB 접근 0회(AC-81; ADMIN 도 챗봇에서는 원가 미노출로 단순화) ② **연도 비교**(작년/전년/올랐/내렸) —
   최신 운영중 행 vs 같은 단가유형의 이전 적용시작일 행, 없으면 안내 ③ **견적 시작** — 품목이면 `/calculator?family=&item=`(계산기가 품목을 선택해 둠),
-  제품군만이면 `/calculator?family=`, 없으면 제품 퀵칩 ④ **가격 조회**(품명·품번) — 최신 정상판매(없으면 운영중 아무 단가유형) 가격 문장, 여럿이면 후보 목록
+  제품군만이면 `/calculator?family=`, 없으면 제품 퀵칩 ④ **가격 조회**(품명·품번) — **토큰 경계 매칭**(r6: 부분 문자열 금지, `src/server/chat/match.ts`) 후 품번 정확 일치·후보 1개는 즉시 가격,
+  2~3개는 한 문장에 각 가격 병기, 4개 이상은 품명 목록(최대 5), 0개는 도움말
   ⑤ 그 외 도움말 + 예시(AC-82). "SA-500"·"H500" 은 Wapples-500 별칭으로 넓혀 검색한다.
 - 응답 봉투에 원가 키가 없다(AC-43) — `server/chat` 은 `server/cost` 를 import 하지 않으며(ESLint 차단) 원가 의도는 쿼리 자체를 만들지 않는다.
+
+## 하드닝 · 배포 준비 (PR-11a)
+
+배포 체크리스트·환경변수·Neon 전환 절차·§11.1 D-1~D-5 절차는 [`docs/deploy/vercel.md`](docs/deploy/vercel.md).
+
+- **보안 헤더 (AC-91)**: `src/proxy.ts` 가 모든 문서·API 응답에 요청별 **CSP nonce** (`script-src 'self' 'nonce-…' 'strict-dynamic'`,
+  인라인 스크립트는 Next 가 nonce 를 붙인 것만; `frame-ancestors 'none'`) 와 `x-request-id` 를 붙이고, `next.config.ts` 가 정적 자원까지
+  `Strict-Transport-Security`·`X-Frame-Options: DENY`·`X-Content-Type-Options: nosniff`·`Referrer-Policy`·`Permissions-Policy` 를 붙인다.
+  로그인·공유 페이지·PDF 포함. style 은 React `style` 속성 때문에 `'unsafe-inline'`, 개발 모드만 `'unsafe-eval'`·`ws:`.
+  정적 프리렌더 HTML 에는 nonce 를 넣을 수 없어 루트 레이아웃이 `connection()` 으로 **모든 경로를 동적 렌더**한다(404 포함), 페이지 오류는
+  `src/app/error.tsx`(동적). `pnpm check:prerender`(CI, 빌드 뒤)가 정적 페이지가 다시 생기면 실패한다(허용: Next 내부 `/_global-error`).
+  클라이언트 zod 파싱은 `src/lib/zod-jitless.ts`(`z.config({ jitless: true })`)로 eval 탐지 없이 동작한다.
+- **테스트 모드 하드닝 (AC-94 ①②③)**: 위 "로컬 실행" 상자 참고 (`src/server/auth/test-mode-guard.ts`, `src/env.ts`).
+- **감사 IP (AC-93 구조)**: `TRUST_PROXY_HEADERS` = `none`(기본, 위조 가능한 헤더 미사용 → ip NULL) · `vercel`(x-vercel-forwarded-for →
+  x-real-ip, **x-forwarded-for 는 쓰지 않음**) · `generic`(x-real-ip → XFF 오른쪽 끝). 이전의 "VERCEL=1 이면 자동 신뢰" 는 없앴다 —
+  Vercel 에서도 명시해야 켜진다. 실제 Vercel 헤더 확인은 11b(D-5).
+- **rate limit (AC-95)**: `src/server/rate-limit.ts` 단일 모듈, 키당 분당 `RATE_LIMIT_PER_MIN`(기본 30).
+
+  | 대상                                                                          | 키     | 초과 시                              |
+  | ----------------------------------------------------------------------------- | ------ | ------------------------------------ |
+  | `POST /api/chat` · `POST /api/imports/*`                                      | 사용자 | 429 + `Retry-After` + `RATE_LIMITED` |
+  | `/share/quotes/[token]` · `GET /api/quotes/[id]/pdf` · `/api/auth/callback/*` | IP     | 〃 (proxy)                           |
+  | 테스트 Credentials 로그인                                                     | 이메일 | 로그인 화면 오류 문구                |
+
+  **한계**: 프로세스 메모리 슬라이딩 윈도우라 Vercel 서버리스에서는 **인스턴스당 근사치**이고 콜드 스타트·재배포 때 초기화된다.
+  IP 키는 감사 IP 와 같은 신뢰 헤더 정책을 쓴다: `vercel`/`generic` 모드면 신뢰 프록시가 준 IP, 기본 `none` 이면 클라이언트가 보낸
+  `x-forwarded-for` 를 **무시**하고 경로 단위 공용 버킷(헤더 회전으로 우회 불가, 대신 그 경로 전체가 한도를 나눠 씀 — 운영은 `vercel` 전제).
+  Next 16 proxy 는 소켓 주소를 주지 않는다. 공유 저장소(Upstash/Vercel KV) 전환은 후속.
+  감사 로그는 남기지 않고 구조화 로그(`rate_limited`)만 남긴다.
+
+- **서버리스 제약 (`maxDuration`)**:
+
+  | 경로                                          | `maxDuration` | 로컬 측정 (Windows 11, Node 24, Docker Postgres 16)      |
+  | --------------------------------------------- | ------------- | -------------------------------------------------------- |
+  | `/admin/policies` Server Action (임포트 적용) | 60s           | 원본 5,885행 적용 491~541ms, 파싱 포함 CLI 전체 2.6~3.5s |
+  | `/admin/costs` Server Action (원가 적용)      | 60s           | 487행 — 가격정책보다 작다                                |
+  | `POST /api/imports/[kind]` (10MB 업로드·파싱) | 60s           | 위 파싱 포함                                             |
+  | `GET /api/quotes/[id]/pdf`                    | 30s           | 첫 요청 95~138ms(폰트 로드), 이후 39~80ms, 약 97KB       |
+  | `POST /api/chat`                              | 10s           | 규칙 기반 — DB 조회 수 회                                |
+
+  Vercel Hobby 는 함수 상한이 더 짧을 수 있다(플랜별) — 11b 에서 실측.
+
+- **로그**: `src/server/log.ts` — 한 줄 JSON(`level`·`event`·`time`·`requestId`…), 비밀 키 이름(password·secret·token·cookie·
+  database_url…)과 값 속 URL userinfo·Bearer 토큰을 `[REDACTED]` 로 가린다. 예상 밖 오류는 `request.failed` 로 남고 응답 봉투에는
+  `details.requestId` 만 준다. 외부 의존(pino)은 번들 크기 때문에 쓰지 않았다.
+- **비밀값 검사 (AC-96)**: `pnpm check:secrets` (CI `secret scan` 잡). 로컬 docker 기본값(`prami:prami@localhost`)·가짜 비밀번호
+  픽스처(`user:pw@…`)·빈 값·`$(…)`/`<…>` 자리표시자는 허용한다.
 
 ## DB 스키마 · 마이그레이션
 
@@ -302,14 +358,18 @@ Claude Design 프로젝트의 토큰 4파일(`colors/typography/spacing/effects.
 `.env.example` 에 스펙 §4.9.2 의 키가 값 없이 나열되어 있습니다. 실제 값은 `.env.local` 에만 두고
 커밋하지 않습니다. `src/env.ts` 가 기동/빌드 시 zod 로 검증하며, 빈 문자열은 미설정으로 취급합니다.
 
-| 키                                      | 규칙                                                                 |
-| --------------------------------------- | -------------------------------------------------------------------- |
-| `DB_DRIVER`                             | `neon` \| `pg` \| `pglite` (미설정 시 `pglite`)                      |
-| `DATABASE_URL`                          | `pg`/`neon` 이면 필수, URL 형식                                      |
-| `PGLITE_DATA_DIR`                       | PGlite 데이터 위치 (테스트 `memory://`)                              |
-| `AUTH_SECRET`                           | 32자 이상 (PR-2 부터 필수)                                           |
-| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth 클라이언트                                              |
-| `AUTH_TEST_MODE` / `AUTH_TEST_PASSWORD` | 테스트 로그인. `true` 이면 비밀번호 필수, **production 에서는 거부** |
-| `ALLOWED_EMAIL_DOMAINS`                 | 쉼표 구분 도메인 목록 (미설정 시 `pentasecurity.com`)                |
-| `ADMIN_EMAILS`                          | 쉼표 구분 이메일 목록, 최초 로그인 시 ADMIN 부트스트랩               |
-| `AUTH_AUTO_PROVISION`                   | 미등록 사용자 USER 자동 생성 (미설정 시 `true`)                      |
+| 키                                      | 규칙                                                                                       |
+| --------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `DB_DRIVER`                             | `neon` \| `pg` \| `pglite` (미설정 시 `pglite`)                                            |
+| `DATABASE_URL`                          | `pg`/`neon` 이면 필수, URL 형식                                                            |
+| `PGLITE_DATA_DIR`                       | PGlite 데이터 위치 (테스트 `memory://`)                                                    |
+| `AUTH_SECRET`                           | 32자 이상 (PR-2 부터 필수)                                                                 |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth 클라이언트                                                                    |
+| `AUTH_TEST_MODE` / `AUTH_TEST_PASSWORD` | 테스트 로그인. `true` 이면 비밀번호 필수, **production·`VERCEL_ENV` 정의 환경에서는 거부** |
+| `AUTH_TEST_ALLOWED_HOSTS`               | 테스트 로그인을 받을 Host (기본 `localhost,127.0.0.1`)                                     |
+| `AUTH_TEST_MODE_ALLOW_REMOTE`           | `VERCEL_ENV` 환경에서 테스트 모드 예외 허용 (기본 `false`, 비공개 배포 전용)               |
+| `TRUST_PROXY_HEADERS`                   | 감사 IP 신뢰 모드 `none`(기본) \| `vercel` \| `generic`                                    |
+| `RATE_LIMIT_PER_MIN`                    | 엔드포인트별 분당 상한 (기본 30, 테스트 1000)                                              |
+| `ALLOWED_EMAIL_DOMAINS`                 | 쉼표 구분 도메인 목록 (미설정 시 `pentasecurity.com`)                                      |
+| `ADMIN_EMAILS`                          | 쉼표 구분 이메일 목록, 최초 로그인 시 ADMIN 부트스트랩                                     |
+| `AUTH_AUTO_PROVISION`                   | 미등록 사용자 USER 자동 생성 (미설정 시 `true`)                                            |

@@ -267,6 +267,32 @@ describe('QuoteCalculator', () => {
     expect(mocks.remove).toHaveBeenCalledWith({ id: 'q1' });
   });
 
+  it('챗봇 링크 ?item=: 목록에 있으면 선택, 없으면 안내 (PR-10 QA L-3)', async () => {
+    mocks.items.mockResolvedValue({ ok: true, data: [ITEM] });
+    mocks.options.mockResolvedValue({ ok: true, data: { parts: [], bundles: [], mapped: false } });
+    const { unmount } = render(
+      <QuoteCalculator
+        preload={PRELOAD}
+        savedQuotes={[]}
+        initial={{ family: 'WAPPLES', itemCode: ITEM.itemCode }}
+      />,
+    );
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      `챗봇에서 넘어온 품목을 선택했습니다: ${ITEM.itemName}`,
+    );
+    unmount();
+    render(
+      <QuoteCalculator
+        preload={PRELOAD}
+        savedQuotes={[]}
+        initial={{ family: 'WAPPLES', itemCode: 'NOPE-0001' }}
+      />,
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '챗봇에서 넘어온 품번(NOPE-0001)을 WAPPLES · 정상판매 목록에서 찾지 못했습니다',
+    );
+  });
+
   it('품목을 바꾸면 수량·할인율·목표금액이 초기화된다 (PR-7 QA LOW)', async () => {
     mocks.items.mockResolvedValue({
       ok: true,

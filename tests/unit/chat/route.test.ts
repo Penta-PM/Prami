@@ -30,7 +30,10 @@ vi.mock('@/server/audit/request-meta', () => ({
 }));
 
 const { POST } = await import('@/app/api/chat/route');
-const { chatRateLimiter, CHAT_RATE_LIMIT } = await import('@/server/chat/rate-limit');
+const { rateLimiters } = await import('@/server/rate-limit');
+const chatRateLimiter = rateLimiters.chat;
+/** 테스트 env 는 1000 이라 이 파일에서만 스펙 기본값 30 으로 둔다 (AC-95 시나리오) */
+const CHAT_RATE_LIMIT = 30;
 const { invalidateSessionUser } = await import('@/server/auth/session-user');
 
 const COST_KEYS = /unit_cost|unitCost|material_code|materialCode|material_costs|원가:/;
@@ -62,6 +65,7 @@ afterAll(async () => {
 beforeEach(() => {
   invalidateSessionUser();
   chatRateLimiter.reset();
+  chatRateLimiter.configure(CHAT_RATE_LIMIT);
 });
 
 describe('POST /api/chat', () => {
@@ -103,7 +107,11 @@ describe('POST /api/chat', () => {
     expect((await post({ message: '   ' })).status).toBe(400);
     expect((await post({ message: 'a'.repeat(5000) })).status).toBe(400);
     // 200자 초과는 잘라서 처리 (검색과 같은 규칙)
-    expect((await post({ message: `Wapples-500 가격 ${'x'.repeat(300)}` })).status).toBe(200);
+    const long = await post({ message: `Wapples-500 가격 ${'x'.repeat(300)}` });
+    expect(long.status).toBe(200);
+    expect((await long.json()).data.notice).toBe('질문이 200자를 넘어 앞 200자만 사용했습니다.');
+    const short = await (await post({ message: 'Wapples-500 가격' })).json();
+    expect(short.data.notice).toBeUndefined();
   });
 
   it('분당 30회 초과 → 429 RATE_LIMITED (retryAfterSeconds 포함)', async () => {
@@ -113,6 +121,7 @@ describe('POST /api/chat', () => {
     }
     const limited = await post({ message: '안녕' });
     expect(limited.status).toBe(429);
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThanOrEqual(1);
     expect(await limited.json()).toMatchObject({
       ok: false,
       error: {

@@ -19,6 +19,7 @@ import {
   recomputeCostSeriesSql,
   RESET_DELETED_COSTS_SQL,
 } from './series';
+import { logger } from '@/server/log';
 
 /**
  * 원가 임포트 적용 (§4.4.7, R-14). 판매단가와 같은 배치 재사용 모델(R-11):
@@ -199,7 +200,9 @@ export async function applyCostImport(
   } catch (error) {
     const reason =
       error instanceof ApplyInvariantError ? error.message : '적용 중 오류가 발생했습니다';
-    if (!(error instanceof ApplyInvariantError)) console.error('[applyCostImport] 실패', error);
+    if (!(error instanceof ApplyInvariantError)) {
+      logger.error('import.cost_apply_failed', { batchId: batch.id, error });
+    }
     await writeAudit(ctx.handle.db, {
       actor: { id: ctx.access.userId, label: ctx.access.email },
       action: AUDIT_COST_APPLY,

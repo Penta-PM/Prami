@@ -29,11 +29,31 @@ const booleanFromString = (defaultValue: boolean) =>
     z.boolean(),
   );
 
-/** 미설정이면 undefined (호출자가 환경에 따라 기본값을 정한다) */
-const optionalBooleanFromString = z.preprocess(
-  (value) => (value === undefined || value === '' ? undefined : parseBooleanWord(value)),
-  z.boolean().optional(),
-);
+/** 양의 정수 (미설정이면 기본값) — rate limit 상한 등 */
+const positiveIntFromString = (defaultValue: number) =>
+  z.preprocess(
+    (value) => (value === undefined || value === '' ? defaultValue : Number(value)),
+    z.number().int().min(1).max(100_000),
+  );
+
+/**
+ * 감사 IP 신뢰 프록시 모드 (§4.8, AC-93):
+ * - none(기본): 클라이언트가 위조할 수 있는 헤더를 쓰지 않는다 → ip NULL
+ * - vercel: Vercel 이 덮어쓰는 x-vercel-forwarded-for → x-real-ip 순. x-forwarded-for 는 쓰지 않는다
+ * - generic: x-real-ip → x-forwarded-for 오른쪽 끝(신뢰 프록시가 덧붙인 값)
+ * "true" 는 generic, "false" 는 none 으로 받는다 (이전 설정 호환).
+ */
+export const PROXY_TRUST_MODES = ['none', 'vercel', 'generic'] as const;
+export type ProxyTrustMode = (typeof PROXY_TRUST_MODES)[number];
+
+const proxyTrustModeSchema = z.preprocess((value) => {
+  if (value === undefined || value === '') return 'none';
+  if (typeof value !== 'string') return value;
+  const normalized = value.trim().toLowerCase();
+  if (['true', '1', 'yes'].includes(normalized)) return 'generic';
+  if (['false', '0', 'no'].includes(normalized)) return 'none';
+  return normalized;
+}, z.enum(PROXY_TRUST_MODES));
 
 /** 쉼표 구분 목록 → 배열 (공백·빈 항목 제거) */
 const csvList = (item: z.ZodType<string>, defaultValue: string[]) =>
@@ -66,17 +86,24 @@ const envShape = z.object({
   /** true 이면 테스트 전용 Credentials provider 추가. production 에서는 거부한다 */
   AUTH_TEST_MODE: booleanFromString(false),
   AUTH_TEST_PASSWORD: optionalString,
+  /** 테스트 로그인을 받을 Host (포트 제외, 쉼표 구분). 밖이면 거부 + 감사 auth.denied_test_mode (§4.8 r5 ①) */
+  AUTH_TEST_ALLOWED_HOSTS: csvList(z.string().min(1), ['localhost', '127.0.0.1']),
+  /** VERCEL_ENV 가 있는 환경(preview/production)에서도 테스트 모드를 허용할지 — 비공개 배포 예외용, 기본 false (§4.8 r5 ②) */
+  AUTH_TEST_MODE_ALLOW_REMOTE: booleanFromString(false),
   ALLOWED_EMAIL_DOMAINS: csvList(z.string().min(1), ['pentasecurity.com']),
   ADMIN_EMAILS: csvList(z.email(), []),
   AUTH_AUTO_PROVISION: booleanFromString(true),
 
   // ── 요청 출처 (감사 로그 IP) ────────────────────────────────────────────
-  /**
-   * x-forwarded-for / x-real-ip 를 신뢰할지. 신뢰할 프록시(Vercel 등) 뒤에서만 true.
-   * 미설정 시 Vercel 환경(VERCEL=1)이면 true, 그 외(로컬 직접 노출)는 false → 위조 가능한 헤더를 IP 로 기록하지 않음
-   */
-  TRUST_PROXY_HEADERS: optionalBooleanFromString,
+  /** 감사 IP 신뢰 프록시 모드: none(기본) | vercel | generic. 위 PROXY_TRUST_MODES 설명 참고 */
+  TRUST_PROXY_HEADERS: proxyTrustModeSchema,
   VERCEL: optionalString,
+  /** Vercel 이 주입하는 배포 환경 (development | preview | production). 정의돼 있으면 테스트 모드 기동 거부 */
+  VERCEL_ENV: optionalString,
+
+  // ── rate limit (§4.8 r6, AC-95) ────────────────────────────────────────
+  /** 엔드포인트별 키(사용자/IP)당 분당 상한. 기본 30, 테스트 1000 — 표는 src/server/rate-limit.ts · docs/deploy/vercel.md */
+  RATE_LIMIT_PER_MIN: positiveIntFromString(30),
 
   // ── 임포트 (§4.4) ──────────────────────────────────────────────────────
   /** QA-03e 실패 주입: 지정 단계 이후 예외 (items|manual|load|recompute|verify). production 에서는 거부 */
@@ -95,6 +122,13 @@ function checkCrossFieldRules(env: EnvShape, ctx: z.RefinementCtx): void {
       code: 'custom',
       path: ['AUTH_TEST_MODE'],
       message: 'production 에서는 AUTH_TEST_MODE=true 를 허용하지 않습니다',
+    });
+  }
+  if (env.VERCEL_ENV && env.AUTH_TEST_MODE && !env.AUTH_TEST_MODE_ALLOW_REMOTE) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['AUTH_TEST_MODE'],
+      message: `VERCEL_ENV=${env.VERCEL_ENV} 환경에서는 AUTH_TEST_MODE=true 를 허용하지 않습니다 (예외: AUTH_TEST_MODE_ALLOW_REMOTE=true)`,
     });
   }
   if (env.AUTH_TEST_MODE && !env.AUTH_TEST_PASSWORD) {
@@ -122,9 +156,9 @@ function checkCrossFieldRules(env: EnvShape, ctx: z.RefinementCtx): void {
 
 export const envSchema = envShape.superRefine(checkCrossFieldRules);
 
-/** 프록시 헤더 신뢰 여부 (명시값 우선, 없으면 Vercel 여부) */
-export function trustsProxyHeaders(env: Pick<EnvShape, 'TRUST_PROXY_HEADERS' | 'VERCEL'>): boolean {
-  return env.TRUST_PROXY_HEADERS ?? env.VERCEL === '1';
+/** 감사 IP 신뢰 프록시 모드. 기본 none — Vercel 에서도 명시(TRUST_PROXY_HEADERS=vercel)해야 켜진다 (§4.8 기본 비신뢰) */
+export function proxyTrustMode(env: Pick<EnvShape, 'TRUST_PROXY_HEADERS'>): ProxyTrustMode {
+  return env.TRUST_PROXY_HEADERS;
 }
 
 export type Env = z.infer<typeof envSchema>;

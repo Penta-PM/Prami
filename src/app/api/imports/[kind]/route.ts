@@ -5,6 +5,10 @@ import { runRoute } from '@/server/auth/rbac';
 import { isImportKind, KIND_DEFINITIONS } from '@/server/imports/kinds';
 import { MAX_IMPORT_FILE_BYTES } from '@/server/imports/parse-xlsx';
 import { AUDIT_IMPORT_UPLOAD, uploadImport } from '@/server/imports/upload';
+import { rateLimiters, retryAfterSeconds } from '@/server/rate-limit';
+
+/** 10MB 파일 파싱·스테이징 적재 (§4.8 Vercel 함수 상한) — 로컬 측정치는 README "서버리스 제약" */
+export const maxDuration = 60;
 
 /**
  * POST /api/imports/{sales|items|costs|parts} — multipart `file` (§4.4.1, §4.7).
@@ -28,6 +32,18 @@ export async function POST(
     target: `/api/imports/${kind}`,
   };
   return runRoute(guard, async (user) => {
+    const decision = rateLimiters.imports.hit(user.id);
+    if (!decision.allowed) {
+      const seconds = retryAfterSeconds(decision);
+      throw new AppError(
+        'RATE_LIMITED',
+        `업로드가 너무 잦습니다. ${seconds}초 후 다시 시도하세요`,
+        undefined,
+        {
+          retryAfterSeconds: seconds,
+        },
+      );
+    }
     const file = await readUploadedFile(request);
     const result = await uploadImport(
       {
