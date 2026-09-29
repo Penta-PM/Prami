@@ -56,6 +56,8 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: 'Google 계정으로 로그인' })).toBeDisabled();
     expect(screen.getByText(/OAuth 클라이언트가 아직 설정되지 않았습니다/)).toBeInTheDocument();
     expect(screen.queryByRole('form', { name: '테스트 계정 로그인' })).not.toBeInTheDocument();
+    // AC-94 ③: 테스트 모드가 꺼져 있으면 TEST MODE 배너 없음
+    expect(screen.queryByText('TEST MODE')).not.toBeInTheDocument();
   });
 
   it('Google 설정·테스트 모드면 버튼 활성 + 테스트 로그인 폼, 오류 코드를 문구로 보인다', async () => {
@@ -69,6 +71,8 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: 'Google 계정으로 로그인' })).toBeEnabled();
     expect(screen.getByRole('form', { name: '테스트 계정 로그인' })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('비활성화된 계정입니다');
+    // AC-94 ③: 테스트 모드면 TEST MODE 배너
+    expect(screen.getByRole('status', { name: '테스트 모드' })).toHaveTextContent('TEST MODE');
   });
 
   it('이미 로그인했으면 callbackUrl(안전한 경로)로 보낸다', async () => {
@@ -132,6 +136,8 @@ describe('safeCallbackUrl / loginErrorMessage', () => {
     expect(loginErrorMessage('domain', domains)).toContain('@pentasecurity.com');
     expect(loginErrorMessage('unregistered', domains)).toContain('사전 등록');
     expect(loginErrorMessage('credentials', domains)).toContain('비밀번호');
+    expect(loginErrorMessage('test_mode_host', domains)).toContain('AUTH_TEST_ALLOWED_HOSTS');
+    expect(loginErrorMessage('rate_limited', domains)).toContain('너무 잦습니다');
     expect(loginErrorMessage('Configuration', domains)).toContain('로그인하지 못했습니다');
   });
 });

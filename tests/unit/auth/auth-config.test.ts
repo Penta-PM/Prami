@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { DbHandle } from '@/db';
 import { parseEnv } from '@/env';
 
-import { createTestDb, findUserByEmail, insertUser } from '../../helpers/pglite';
+import { createTestDb, auditByAction, findUserByEmail, insertUser } from '../../helpers/pglite';
 
 /**
  * Auth.js 설정 (auth.ts) — NextAuth 를 가짜로 바꿔 설정 객체를 붙잡고 콜백을 직접 실행한다.
@@ -73,7 +73,12 @@ function providerId(entry: NextAuthConfig['providers'][number]): string {
 
 const providerIds = (config: NextAuthConfig) => config.providers.map(providerId);
 
-type AuthorizeFn = (credentials: Record<string, unknown>) => Promise<unknown>;
+type AuthorizeFn = (credentials: Record<string, unknown>, request?: Request) => Promise<unknown>;
+
+/** Auth.js 가 authorize 에 넘기는 요청 (Host 헤더만 의미 있음) */
+const fromHost = (host: string) =>
+  new Request('http://internal/api/auth/callback/test', { method: 'POST', headers: { host } });
+const LOCAL = fromHost('localhost:3000');
 
 function testAuthorize(config: NextAuthConfig): AuthorizeFn {
   const provider = config.providers.find((entry) => providerId(entry) === 'test') as
@@ -118,10 +123,10 @@ describe('provider 등록', () => {
 describe('테스트 Credentials authorize (AC-02 로그인)', () => {
   it('고정 비밀번호가 맞으면 ADMIN_EMAILS 부트스트랩을 거쳐 사용자를 돌려준다', async () => {
     const authorize = testAuthorize(await loadConfig(TEST_ENV));
-    const user = await authorize({
-      email: 'fixture-admin@pentasecurity.com',
-      password: 'fixture-pass',
-    });
+    const user = await authorize(
+      { email: 'fixture-admin@pentasecurity.com', password: 'fixture-pass' },
+      LOCAL,
+    );
     expect(user).toMatchObject({ email: 'fixture-admin@pentasecurity.com' });
     expect((await findUserByEmail(state.handle!, 'fixture-admin@pentasecurity.com'))?.role).toBe(
       'ADMIN',
@@ -131,16 +136,53 @@ describe('테스트 Credentials authorize (AC-02 로그인)', () => {
   it('비밀번호가 틀리거나 비활성 사용자면 사유 코드와 함께 거부한다', async () => {
     const authorize = testAuthorize(await loadConfig(TEST_ENV));
     await expect(
-      authorize({ email: 'fixture-admin@pentasecurity.com', password: 'wrong' }),
+      authorize({ email: 'fixture-admin@pentasecurity.com', password: 'wrong' }, LOCAL),
     ).rejects.toMatchObject({ code: 'credentials' });
-    await expect(authorize({ password: 'fixture-pass' })).rejects.toMatchObject({
+    await expect(authorize({ password: 'fixture-pass' }, LOCAL)).rejects.toMatchObject({
       code: 'credentials',
     });
 
     await insertUser(state.handle!, { email: 'gone@pentasecurity.com', status: 'inactive' });
     await expect(
-      authorize({ email: 'gone@pentasecurity.com', password: 'fixture-pass' }),
+      authorize({ email: 'gone@pentasecurity.com', password: 'fixture-pass' }, LOCAL),
     ).rejects.toMatchObject({ code: 'inactive' });
+  });
+
+  it('AC-94 ①: 허용 목록 밖 Host(192.168.0.10:3000)는 비밀번호가 맞아도 거부 + 감사 auth.denied_test_mode, 사용자 미생성', async () => {
+    const authorize = testAuthorize(await loadConfig(TEST_ENV));
+    const email = 'lan-user@pentasecurity.com';
+    await expect(
+      authorize({ email, password: 'fixture-pass' }, fromHost('192.168.0.10:3000')),
+    ).rejects.toMatchObject({ code: 'test_mode_host' });
+    expect(await findUserByEmail(state.handle!, email)).toBeUndefined();
+    const [denied] = await auditByAction(state.handle!, 'auth.denied_test_mode');
+    expect(denied).toMatchObject({
+      actorLabel: email,
+      targetType: 'host',
+      targetId: '192.168.0.10',
+      targetLabel: '192.168.0.10:3000',
+      result: 'denied',
+    });
+    // localhost·127.0.0.1 은 통과 (세션 발급 대상 사용자 반환)
+    expect(await authorize({ email, password: 'fixture-pass' }, LOCAL)).toMatchObject({ email });
+    expect(
+      await authorize({ email, password: 'fixture-pass' }, fromHost('127.0.0.1:3100')),
+    ).toMatchObject({ email });
+  });
+
+  it('AUTH_TEST_ALLOWED_HOSTS 로 허용 목록을 바꿀 수 있다', async () => {
+    const authorize = testAuthorize(
+      await loadConfig({ ...TEST_ENV, AUTH_TEST_ALLOWED_HOSTS: 'prami.local' }),
+    );
+    await expect(
+      authorize({ email: 'fixture-admin@pentasecurity.com', password: 'fixture-pass' }, LOCAL),
+    ).rejects.toMatchObject({ code: 'test_mode_host' });
+    expect(
+      await authorize(
+        { email: 'fixture-admin@pentasecurity.com', password: 'fixture-pass' },
+        fromHost('prami.local:3000'),
+      ),
+    ).toMatchObject({ email: 'fixture-admin@pentasecurity.com' });
   });
 });
 

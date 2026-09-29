@@ -2,16 +2,19 @@ import 'server-only';
 
 import { eq } from 'drizzle-orm';
 import NextAuth, { CredentialsSignin } from 'next-auth';
+import { headers } from 'next/headers';
 
 import { getDb, getDbHandle } from '@/db';
 import { users } from '@/db/schema';
 import { env } from '@/env';
 import { currentRequestMeta } from '@/server/audit/request-meta';
+import { rateLimiters } from '@/server/rate-limit';
 
 import { authConfig } from './auth.config';
 import { normalizeEmail, resolveSignIn, type SignInInput, type SignInPolicy } from './callbacks';
 import { buildProviders, passwordMatches, type TestAuthorize } from './providers';
 import { loadSessionUser } from './session-user';
+import { guardTestLogin } from './test-mode-guard';
 
 export const signInPolicy: SignInPolicy = {
   allowedDomains: env.ALLOWED_EMAIL_DOMAINS,
@@ -32,10 +35,33 @@ async function signInWithPolicy(input: Omit<SignInInput, 'meta'>) {
   return resolveSignIn(await getDbHandle(), { ...input, meta }, signInPolicy);
 }
 
-/** 테스트 Credentials: 이메일 + 고정 AUTH_TEST_PASSWORD, 이후 판정은 Google 과 동일 규칙 */
-const authorizeTest: TestAuthorize = async (credentials) => {
+/** 요청 Host: Auth.js 가 넘긴 Request 우선, 없으면 현재 요청 헤더 (Server Action 경로) */
+async function requestHost(request?: Request): Promise<string | null> {
+  const fromRequest = request?.headers.get('host');
+  if (fromRequest) return fromRequest;
+  try {
+    return (await headers()).get('host');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 테스트 Credentials: Host 허용 목록·시도 횟수 검사(§4.8 r5 ①) → 이메일 + 고정 AUTH_TEST_PASSWORD → Google 과 동일 판정.
+ * Host 가 목록 밖이면 비밀번호를 보기 전에 거부하고 감사 auth.denied_test_mode 를 남긴다 (세션 미발급).
+ */
+const authorizeTest: TestAuthorize = async (credentials, request) => {
   const email = typeof credentials.email === 'string' ? credentials.email : '';
   const password = typeof credentials.password === 'string' ? credentials.password : '';
+  const decision = await guardTestLogin({
+    db: await getDb(),
+    host: await requestHost(request),
+    email,
+    allowedHosts: env.AUTH_TEST_ALLOWED_HOSTS,
+    limiter: rateLimiters.testLogin,
+    meta: await currentRequestMeta(),
+  });
+  if (decision !== 'ok') throw new TestSignInError(decision);
   if (!email || !env.AUTH_TEST_PASSWORD || !passwordMatches(password, env.AUTH_TEST_PASSWORD)) {
     throw new TestSignInError('credentials');
   }

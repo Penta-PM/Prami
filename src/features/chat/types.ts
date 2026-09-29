@@ -9,6 +9,7 @@ export type ChatReplyView = {
   candidates: { itemCode: string; itemName: string; productFamily: string }[];
   showProductChips: boolean;
   action: ChatActionView | null;
+  notice?: string;
 };
 
 export type ChatMessage = {
@@ -18,4 +19,5 @@ export type ChatMessage = {
   intent?: ChatIntentView;
   action?: ChatActionView | null;
   tone?: 'error';
+  notice?: string;
 };

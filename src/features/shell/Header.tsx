@@ -1,5 +1,6 @@
 import { Input } from '@/components/ui/input';
 import { signOutAction } from '@/features/auth/actions';
+import { TestModeBanner } from '@/features/auth/TestModeBanner';
 import { ChatLauncher } from '@/features/chat/ChatDock';
 
 import { Icon, type IconName } from './icons';
@@ -13,10 +14,12 @@ export type HeaderUser = {
 export type HeaderProps = {
   /** 로그인 사용자 (세션). 없으면 게스트 표시 */
   user?: HeaderUser;
+  /** AUTH_TEST_MODE 가 켜져 있으면 TEST MODE 배지 (§4.8 r5 ④) */
+  testMode?: boolean;
 };
 
 /** 앱 셸 헤더: 통합 검색, 챗봇/공지 버튼, 사용자 표시·로그아웃 */
-export function Header({ user }: HeaderProps) {
+export function Header({ user, testMode = false }: HeaderProps) {
   const initial = user?.name.trim().charAt(0) || '?';
 
   return (
@@ -31,6 +34,7 @@ export function Header({ user }: HeaderProps) {
         />
       </form>
       <div className="flex-1" />
+      {testMode ? <TestModeBanner variant="inline" /> : null}
       <ChatLauncher />
       <IconButton label="공지사항" icon="bell" />
       <div className="flex items-center gap-2.5 border-l border-border-subtle pl-3.5">

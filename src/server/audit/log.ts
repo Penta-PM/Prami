@@ -1,6 +1,7 @@
 import type { Db } from '@/db';
 import { auditLogs, type NewAuditLog } from '@/db/schema';
 import type { Tx } from '@/db/tx';
+import type { ProxyTrustMode } from '@/env';
 
 /** 감사 로그를 쓸 수 있는 실행자: 공유 DB 또는 진행 중인 트랜잭션 (변경과 같은 배치로 기록 — §4.2 원칙 4) */
 export type AuditExecutor = Db | Tx;
@@ -23,6 +24,7 @@ export const AUDIT_ACTIONS = {
   userUpdate: 'user.update',
   userDeactivate: 'user.deactivate',
   userSeed: 'user.seed',
+  deniedTestMode: 'auth.denied_test_mode',
 } as const;
 
 export type AuditActor = { id: string | null; label: string };
@@ -57,15 +59,33 @@ export function normalizeIp(raw: string | null | undefined): string | null {
  * - 켜져 있으면 x-real-ip, 없으면 x-forwarded-for 의 **오른쪽 끝**(신뢰 프록시가 덧붙인 값)을 쓴다.
  *   왼쪽 값은 클라이언트가 넣을 수 있으므로 쓰지 않는다. Vercel 운영 헤더 확정은 PR-11(AC-93).
  */
-export function requestMetaFromHeaders(source: Headers, trustProxy: boolean): RequestMeta {
+export function requestMetaFromHeaders(
+  source: Headers,
+  trust: ProxyTrustMode | boolean,
+): RequestMeta {
   const userAgent = source.get('user-agent');
-  if (!trustProxy) return { ip: null, userAgent };
+  const mode: ProxyTrustMode = trust === true ? 'generic' : trust === false ? 'none' : trust;
+  return { ip: normalizeIp(trustedClientIp(source, mode)), userAgent };
+}
+
+/**
+ * 신뢰 모드별 클라이언트 IP 후보 (AC-93 로컬 구조).
+ * - vercel: Vercel 엣지가 클라이언트 값을 덮어쓰는 x-vercel-forwarded-for(첫 값) → x-real-ip. x-forwarded-for 는 쓰지 않는다
+ * - generic: x-real-ip → x-forwarded-for 오른쪽 끝
+ * - none: 없음
+ */
+export function trustedClientIp(source: Headers, mode: ProxyTrustMode): string | null {
+  if (mode === 'none') return null;
+  if (mode === 'vercel') {
+    const vercel = source.get('x-vercel-forwarded-for')?.split(',')[0]?.trim();
+    return vercel || source.get('x-real-ip')?.trim() || null;
+  }
   const forwarded = source
     .get('x-forwarded-for')
     ?.split(',')
-    .map((part) => part.trim());
-  const ip = source.get('x-real-ip') ?? forwarded?.filter(Boolean).at(-1) ?? null;
-  return { ip: normalizeIp(ip), userAgent };
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return source.get('x-real-ip')?.trim() || forwarded?.at(-1) || null;
 }
 
 export function toAuditRow(entry: AuditEntry): NewAuditLog {

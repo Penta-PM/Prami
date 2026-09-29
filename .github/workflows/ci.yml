@@ -17,6 +17,27 @@ env:
   PGLITE_DATA_DIR: memory://
 
 jobs:
+  secrets:
+    # AC-96: 추적 파일에 원격 DB 자격 증명·AUTH_SECRET 값·OAuth 시크릿이 없는지 (scripts/secret-scan.ts)
+    name: secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Secret scan
+        run: pnpm check:secrets
+
   quality:
     name: lint · typecheck · unit · build
     runs-on: ubuntu-latest

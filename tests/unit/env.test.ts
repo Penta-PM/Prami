@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DB_DRIVERS, parseEnv, trustsProxyHeaders } from '@/env';
+import { DB_DRIVERS, parseEnv, proxyTrustMode } from '@/env';
 
 const PG_URL = 'postgres://prami:prami@localhost:5432/prami';
 
@@ -143,10 +143,45 @@ describe('parseEnv — PR-3 추가 키', () => {
     );
   });
 
-  it('TRUST_PROXY_HEADERS: 명시값 우선, 미설정이면 Vercel 에서만 신뢰', () => {
-    expect(trustsProxyHeaders(parseEnv({}))).toBe(false);
-    expect(trustsProxyHeaders(parseEnv({ VERCEL: '1' }))).toBe(true);
-    expect(trustsProxyHeaders(parseEnv({ VERCEL: '1', TRUST_PROXY_HEADERS: 'false' }))).toBe(false);
-    expect(trustsProxyHeaders(parseEnv({ TRUST_PROXY_HEADERS: 'true' }))).toBe(true);
+  it('TRUST_PROXY_HEADERS: 기본 none(Vercel 에서도 명시해야 신뢰), vercel·generic, true/false 호환 (§4.8, AC-93 구조)', () => {
+    expect(proxyTrustMode(parseEnv({}))).toBe('none');
+    expect(proxyTrustMode(parseEnv({ VERCEL: '1' }))).toBe('none');
+    expect(proxyTrustMode(parseEnv({ TRUST_PROXY_HEADERS: 'vercel' }))).toBe('vercel');
+    expect(proxyTrustMode(parseEnv({ TRUST_PROXY_HEADERS: 'VERCEL' }))).toBe('vercel');
+    expect(proxyTrustMode(parseEnv({ TRUST_PROXY_HEADERS: 'generic' }))).toBe('generic');
+    expect(proxyTrustMode(parseEnv({ TRUST_PROXY_HEADERS: 'true' }))).toBe('generic');
+    expect(proxyTrustMode(parseEnv({ TRUST_PROXY_HEADERS: 'false' }))).toBe('none');
+    expect(() => parseEnv({ TRUST_PROXY_HEADERS: 'cloudflare' })).toThrowError(
+      /TRUST_PROXY_HEADERS/,
+    );
+  });
+
+  it('AC-94 ②: VERCEL_ENV 가 정의되면 AUTH_TEST_MODE=true 기동 거부 (예외: AUTH_TEST_MODE_ALLOW_REMOTE=true)', () => {
+    const testMode = { AUTH_TEST_MODE: 'true', AUTH_TEST_PASSWORD: 'local-only-password' };
+    for (const vercelEnv of ['preview', 'production', 'development']) {
+      expect(() => parseEnv({ ...testMode, VERCEL_ENV: vercelEnv })).toThrowError(
+        new RegExp(`VERCEL_ENV=${vercelEnv} 환경에서는 AUTH_TEST_MODE=true 를 허용하지 않습니다`),
+      );
+    }
+    expect(
+      parseEnv({ ...testMode, VERCEL_ENV: 'preview', AUTH_TEST_MODE_ALLOW_REMOTE: 'true' })
+        .AUTH_TEST_MODE,
+    ).toBe(true);
+    expect(parseEnv({ VERCEL_ENV: 'preview' }).AUTH_TEST_MODE).toBe(false);
+    expect(parseEnv(testMode).AUTH_TEST_MODE).toBe(true);
+  });
+
+  it('AUTH_TEST_ALLOWED_HOSTS 기본 localhost·127.0.0.1, 쉼표 목록', () => {
+    expect(parseEnv({}).AUTH_TEST_ALLOWED_HOSTS).toEqual(['localhost', '127.0.0.1']);
+    expect(
+      parseEnv({ AUTH_TEST_ALLOWED_HOSTS: ' prami.local , 10.0.0.5 ' }).AUTH_TEST_ALLOWED_HOSTS,
+    ).toEqual(['prami.local', '10.0.0.5']);
+  });
+
+  it('RATE_LIMIT_PER_MIN 기본 30, 양의 정수만 (§4.8 r6)', () => {
+    expect(parseEnv({}).RATE_LIMIT_PER_MIN).toBe(30);
+    expect(parseEnv({ RATE_LIMIT_PER_MIN: '1000' }).RATE_LIMIT_PER_MIN).toBe(1000);
+    expect(() => parseEnv({ RATE_LIMIT_PER_MIN: '0' })).toThrowError(/RATE_LIMIT_PER_MIN/);
+    expect(() => parseEnv({ RATE_LIMIT_PER_MIN: 'abc' })).toThrowError(/RATE_LIMIT_PER_MIN/);
   });
 });

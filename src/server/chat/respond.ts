@@ -28,6 +28,8 @@ export type ChatReply = {
   showProductChips: boolean;
   /** 견적 시작 링크 */
   action: { type: 'calculator'; href: string; label: string } | null;
+  /** 입력 절단 등 부가 안내 (route 가 붙인다) */
+  notice?: string;
 };
 
 export const HELP_REPLY =
@@ -62,41 +64,71 @@ function priceSentence(price: ChatPrice): string {
   return `${yearOf(price.effectiveFrom)}년 기준 ${price.productFamily} ${price.itemName.trim()}의 가격은 ${priceLabel(price.unitPrice, price.currency)}입니다${type}.`;
 }
 
-function candidatesReply(intent: ChatIntent['kind'], hits: ChatItemHit[]): ChatReply {
+/** 후보 2~3개면 한 문장에 병기, 4개 이상이면 목록 (§4.5.9 r6 ②③) */
+export const PRICED_CANDIDATE_MAX = 3;
+export const LISTED_CANDIDATE_MAX = 5;
+
+async function candidatesReply(
+  db: Db,
+  intent: ChatIntent['kind'],
+  hits: ChatItemHit[],
+): Promise<ChatReply> {
+  if (hits.length <= PRICED_CANDIDATE_MAX) {
+    const priced = await Promise.all(
+      hits.map(async (hit) => ({ hit, price: await latestChatPrice(db, hit.itemCode) })),
+    );
+    const parts = priced.map(({ hit, price }) =>
+      price
+        ? `${hit.itemName.trim()} ${priceLabel(price.unitPrice, price.currency)}`
+        : `${hit.itemName.trim()} (운영중 가격 없음)`,
+    );
+    return reply({
+      intent,
+      reply: `${parts.join(', ')}입니다. 어느 모델인가요?`,
+      candidates: hits,
+    });
+  }
+  const shown = hits.slice(0, LISTED_CANDIDATE_MAX);
+  const more = hits.length > shown.length ? ` 외 ${hits.length - shown.length}개` : '';
   return reply({
     intent,
-    reply: '여러 품목이 검색되었습니다. 어떤 모델을 말씀하시나요? 아래에서 골라주세요.',
-    candidates: hits,
+    reply: `${hits.length}개 품목이 검색되었습니다: ${shown.map((hit) => hit.itemName.trim()).join(', ')}${more}.
+모델명을 더 구체적으로 알려주시거나 아래에서 골라주세요.`,
+    candidates: shown,
   });
 }
 
+/** 0개 → 도움말 (§4.5.9 r6 ④, AC-82) */
 function notFoundReply(intent: ChatIntent['kind'], query: string): ChatReply {
   return reply({
     intent,
-    reply: `"${query}" 에 해당하는 품목을 찾지 못했습니다. 품명이나 품번을 다시 확인해주세요. 예: "Wapples-500 가격"`,
+    reply: `"${query}" 에 해당하는 품목을 찾지 못했습니다. ${HELP_REPLY}`,
     showProductChips: true,
   });
 }
 
-/** 검색어 → 단일 품목 확정(정확 일치 1건이면 그것), 여럿이면 후보 목록 */
+/** 검색어 → 품번 정확 일치 또는 후보 1개면 확정, 아니면 후보 응답 (§4.5.9 r6 ①~④) */
 async function resolveItem(
   db: Db,
   intent: ChatIntent,
 ): Promise<{ item: ChatItemHit } | { reply: ChatReply }> {
   const query = intent.query!;
-  const hits = await findChatItemsByTerms(db, intent.terms, intent.family);
+  const { hits } = await findChatItemsByTerms(db, intent.terms, intent.family);
   if (hits.length === 0) return { reply: notFoundReply(intent.kind, query) };
   if (hits.length === 1) return { item: hits[0]! };
-  const lower = query.toLowerCase();
-  const exact = hits.filter(
-    (hit) => hit.itemCode.toLowerCase() === lower || hit.itemName.trim().toLowerCase() === lower,
-  );
-  if (exact.length === 1) return { item: exact[0]! };
-  return { reply: candidatesReply(intent.kind, hits) };
+  return { reply: await candidatesReply(db, intent.kind, hits) };
 }
 
-async function answerPrice(db: Db, intent: ChatIntent): Promise<ChatReply> {
-  if (!intent.query) {
+/** 제품군 이름만 말한 가격 질문("Wapples 가격")은 그 이름으로 검색해 후보 목록을 준다 (QA-10 "Wapples" → 후보 ≥4 목록) */
+function withFamilyQuery(intent: ChatIntent): ChatIntent | null {
+  if (intent.query) return intent;
+  if (!intent.family) return null;
+  return { ...intent, query: intent.family, terms: [intent.family] };
+}
+
+async function answerPrice(db: Db, rawIntent: ChatIntent): Promise<ChatReply> {
+  const intent = withFamilyQuery(rawIntent);
+  if (!intent) {
     return reply({ intent: 'price', reply: PRICE_NEED_MODEL, showProductChips: true });
   }
   const resolved = await resolveItem(db, intent);

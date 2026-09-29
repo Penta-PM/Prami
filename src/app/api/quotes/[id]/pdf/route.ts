@@ -16,6 +16,9 @@ import { pdfFilename, renderQuotePdf } from '@/server/quotes/pdf/render';
  */
 export const AUDIT_QUOTE_PDF = 'quote.pdf';
 
+/** PDF 렌더 로컬 측정 40~140ms (README "서버리스 제약"), 콜드 스타트 폰트 로드 여유 */
+export const maxDuration = 30;
+
 const idSchema = z.uuid();
 
 type RouteContext = { params: Promise<{ id: string }> };

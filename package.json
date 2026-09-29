@@ -8,7 +8,7 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -26,7 +26,8 @@
     "seed": "tsx scripts/seed.ts",
     "fixtures": "tsx scripts/make-fixtures.ts",
     "import:source": "tsx --conditions=react-server scripts/import-source.ts",
-    "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm test"
+    "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm test",
+    "check:secrets": "tsx scripts/secret-scan.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

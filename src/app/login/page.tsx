@@ -7,6 +7,7 @@ import { signInWithGoogle, signInWithTestAccount } from '@/features/auth/actions
 import { loginErrorMessage, safeCallbackUrl } from '@/features/auth/callback-url';
 import { GoogleButton } from '@/features/auth/GoogleButton';
 import { TestLoginForm } from '@/features/auth/TestLoginForm';
+import { TestModeBanner } from '@/features/auth/TestModeBanner';
 import { SEED_USERS } from '@/db/seed';
 import { auth } from '@/server/auth/auth';
 import { isGoogleConfigured, isTestModeEnabled } from '@/server/auth/providers';
@@ -39,6 +40,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         aria-labelledby="login-title"
         className="flex w-full max-w-[400px] flex-col gap-6 rounded-2xl bg-surface-card p-9 shadow-(--shadow-elevated)"
       >
+        {testMode ? <TestModeBanner /> : null}
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="flex items-center gap-2.5">
             <Image src="/logo-prami-mark.png" alt="" width={34} height={31} priority />

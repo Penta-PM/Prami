@@ -10,7 +10,10 @@ import type { Env } from '@/env';
 
 export const TEST_PROVIDER_ID = 'test';
 
-export type TestAuthorize = (credentials: Partial<Record<string, unknown>>) => Promise<{
+export type TestAuthorize = (
+  credentials: Partial<Record<string, unknown>>,
+  request?: Request,
+) => Promise<{
   id: string;
   email: string;
   name: string;
