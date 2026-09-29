@@ -283,6 +283,9 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
   인라인 스크립트는 Next 가 nonce 를 붙인 것만; `frame-ancestors 'none'`) 와 `x-request-id` 를 붙이고, `next.config.ts` 가 정적 자원까지
   `Strict-Transport-Security`·`X-Frame-Options: DENY`·`X-Content-Type-Options: nosniff`·`Referrer-Policy`·`Permissions-Policy` 를 붙인다.
   로그인·공유 페이지·PDF 포함. style 은 React `style` 속성 때문에 `'unsafe-inline'`, 개발 모드만 `'unsafe-eval'`·`ws:`.
+  정적 프리렌더 HTML 에는 nonce 를 넣을 수 없어 루트 레이아웃이 `connection()` 으로 **모든 경로를 동적 렌더**한다(404 포함), 페이지 오류는
+  `src/app/error.tsx`(동적). `pnpm check:prerender`(CI, 빌드 뒤)가 정적 페이지가 다시 생기면 실패한다(허용: Next 내부 `/_global-error`).
+  클라이언트 zod 파싱은 `src/lib/zod-jitless.ts`(`z.config({ jitless: true })`)로 eval 탐지 없이 동작한다.
 - **테스트 모드 하드닝 (AC-94 ①②③)**: 위 "로컬 실행" 상자 참고 (`src/server/auth/test-mode-guard.ts`, `src/env.ts`).
 - **감사 IP (AC-93 구조)**: `TRUST_PROXY_HEADERS` = `none`(기본, 위조 가능한 헤더 미사용 → ip NULL) · `vercel`(x-vercel-forwarded-for →
   x-real-ip, **x-forwarded-for 는 쓰지 않음**) · `generic`(x-real-ip → XFF 오른쪽 끝). 이전의 "VERCEL=1 이면 자동 신뢰" 는 없앴다 —
@@ -296,7 +299,9 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
   | 테스트 Credentials 로그인                                                     | 이메일 | 로그인 화면 오류 문구                |
 
   **한계**: 프로세스 메모리 슬라이딩 윈도우라 Vercel 서버리스에서는 **인스턴스당 근사치**이고 콜드 스타트·재배포 때 초기화된다.
-  IP 키는 신뢰 모드가 `none` 이면 Next 서버가 덧붙인 `x-forwarded-for` 오른쪽 끝(소켓 주소)을 쓴다. 공유 저장소(Upstash/Vercel KV) 전환은 후속.
+  IP 키는 감사 IP 와 같은 신뢰 헤더 정책을 쓴다: `vercel`/`generic` 모드면 신뢰 프록시가 준 IP, 기본 `none` 이면 클라이언트가 보낸
+  `x-forwarded-for` 를 **무시**하고 경로 단위 공용 버킷(헤더 회전으로 우회 불가, 대신 그 경로 전체가 한도를 나눠 씀 — 운영은 `vercel` 전제).
+  Next 16 proxy 는 소켓 주소를 주지 않는다. 공유 저장소(Upstash/Vercel KV) 전환은 후속.
   감사 로그는 남기지 않고 구조화 로그(`rate_limited`)만 남긴다.
 
 - **서버리스 제약 (`maxDuration`)**:

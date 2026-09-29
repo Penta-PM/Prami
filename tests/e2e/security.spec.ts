@@ -91,3 +91,39 @@ test('CSP 회귀: 비로그인 공유 페이지·로그인 화면에서도 위�
   expect(violations).toEqual([]);
   await anonymous.close();
 });
+
+test('PR-11a QA M-1: 404(없는 경로)·세그먼트 notFound 페이지에서도 CSP 위반 0건, 하이드레이션', async ({
+  page,
+}) => {
+  const violations = collectCspViolations(page);
+  await loginAs(page, FIXTURE_ADMIN, '/');
+  const missing = await page.goto('/definitely-missing-route');
+  expect(missing?.status()).toBe(404);
+  expect(missing!.headers()['content-security-policy']).toMatch(/'nonce-[^']+'/);
+  const segment = await page.goto('/notices/not-a-uuid');
+  expect(segment?.status()).toBe(404);
+  // 404 화면에서도 앱 셸(클라이언트 컴포넌트)이 동작 — 챗봇 열기
+  await page.getByRole('button', { name: '챗봇', exact: true }).click();
+  await expect(page.getByRole('complementary', { name: '가격정책 챗봇' })).toBeVisible();
+  expect(violations).toEqual([]);
+});
+
+test('PR-11a QA M-2: 기본 신뢰 모드(none)에서 X-Forwarded-For 를 매번 바꿔도 공유 페이지 31번째 → 429', async ({
+  request,
+}) => {
+  // 이 E2E 서버는 RATE_LIMIT_PER_MIN 기본 30, TRUST_PROXY_HEADERS 미설정(none) → 공유 경로는 공용 버킷
+  const path = `/share/quotes/${'d'.repeat(64)}`;
+  const statuses: number[] = [];
+  for (let index = 1; index <= 40; index += 1) {
+    const response = await request.get(path, { headers: { 'x-forwarded-for': `1.2.3.${index}` } });
+    statuses.push(response.status());
+    if (response.status() === 429) {
+      expect(Number(response.headers()['retry-after'])).toBeGreaterThanOrEqual(1);
+      expect(await response.json()).toMatchObject({ ok: false, error: { code: 'RATE_LIMITED' } });
+      break;
+    }
+  }
+  // 앞선 테스트가 같은 버킷을 조금 썼을 수 있으므로 "31회 이내에 429" 로 판정
+  expect(statuses.at(-1)).toBe(429);
+  expect(statuses.length).toBeLessThanOrEqual(31);
+});

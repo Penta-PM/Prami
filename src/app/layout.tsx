@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { connection } from 'next/server';
 import type { ReactNode } from 'react';
 
 import './globals.css';
@@ -19,7 +20,13 @@ export const metadata: Metadata = {
   icons: { icon: '/logo-prami-mark.png' },
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+/**
+ * 모든 경로를 요청 시점에 렌더한다 (PR-11a QA M-1). 정적 프리렌더 HTML(예: 기본 /_not-found)에는 요청별 CSP nonce 를
+ * 넣을 수 없어 `script-src 'nonce-…' 'strict-dynamic'` 아래에서 스크립트가 전부 차단된다. `connection()` 은 이 레이아웃을
+ * 쓰는 모든 페이지(404·에러 포함)를 동적으로 만든다 — 앱 화면은 원래 전부 로그인 세션 기반의 동적 렌더라 비용이 거의 없다.
+ */
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  await connection();
   return (
     <html lang="ko">
       <head>

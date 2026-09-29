@@ -8,6 +8,7 @@ import {
   rateLimitIp,
   RATE_LIMIT_DEFAULT,
   retryAfterSeconds,
+  SHARED_RATE_LIMIT_KEY,
 } from '@/server/rate-limit';
 
 /** 속도 제한 단일 모듈 (§4.8 r6, AC-95): 슬라이딩 윈도우·버킷 분리·IP 키·429 봉투 */
@@ -52,14 +53,22 @@ describe('ipScopeFor / rateLimitIp / rateLimitedResponse', () => {
     expect(ipScopeFor('/calculator', 'GET')).toBeNull();
   });
 
-  it('IP 키: 신뢰 모드면 audit 규칙, 아니면 XFF 오른쪽 끝(Next 가 덧붙인 소켓 주소), 없으면 unknown', () => {
+  it('IP 키 (PR-11a QA M-2): 신뢰 모드면 감사와 같은 규칙, none 이면 클라이언트 XFF 를 무시하고 경로 공용 키', () => {
     const headers = new Headers({
       'x-forwarded-for': '1.2.3.4, 10.0.0.7',
       'x-vercel-forwarded-for': '203.0.113.9',
+      'x-real-ip': '198.51.100.20',
     });
-    expect(rateLimitIp(headers, 'none')).toBe('10.0.0.7');
     expect(rateLimitIp(headers, 'vercel')).toBe('203.0.113.9');
-    expect(rateLimitIp(new Headers(), 'none')).toBe('unknown');
+    expect(rateLimitIp(headers, 'generic')).toBe('198.51.100.20');
+    expect(rateLimitIp(headers, 'none')).toBe(SHARED_RATE_LIMIT_KEY);
+    // none 에서는 XFF 를 바꿔도 같은 키 → 헤더 회전으로 우회 불가
+    for (const ip of ['5.5.5.5', '6.6.6.6', '1.2.3.4, 9.9.9.9']) {
+      expect(rateLimitIp(new Headers({ 'x-forwarded-for': ip }), 'none')).toBe(
+        SHARED_RATE_LIMIT_KEY,
+      );
+    }
+    expect(rateLimitIp(new Headers(), 'vercel')).toBe(SHARED_RATE_LIMIT_KEY);
   });
 
   it('429 봉투 + Retry-After + no-store', async () => {

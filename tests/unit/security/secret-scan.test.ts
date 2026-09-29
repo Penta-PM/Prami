@@ -46,6 +46,42 @@ describe('scanText', () => {
     ]);
   });
 
+  it('PR-11a QA L-2: `KEY: value`(YAML·JSON·TS 객체)·따옴표 키·소문자 키도 잡는다', () => {
+    const value = join('q8Zr4', 'TtLw2pVn6Yc');
+    const lines = [
+      join('AUTH_', 'SECRET: "', value, '"'),
+      join('  AUTH_', 'SECRET: ', value),
+      join('{ "AUTH_', 'SECRET": "', value, '" }'),
+      join('const cfg = { AUTH_', "SECRET: '", value, "' };"),
+      join('auth_', 'secret=', value),
+      join('AUTH_GOOGLE_', 'SECRET: ', value),
+    ];
+    for (const line of lines) {
+      expect(scanText('config.yml', line).map((finding) => finding.rule)).toHaveLength(1);
+      expect(scanText('config.ts', line).length).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('`KEY: value` 형태여도 테스트 전용·자리표시자 값은 허용', () => {
+    const allowed = [
+      join('AUTH_', "SECRET: 'e2e-only-secret-not-for-production-0123456789'"),
+      join('AUTH_', 'SECRET: ${{ secrets.AUTH_SECRET }}'),
+      join('AUTH_', 'SECRET: <발급값>'),
+      join('AUTH_', 'SECRET: ""'),
+      join('authSecretLength: 32'),
+    ].join('\n');
+    expect(scanText('ci.yml', allowed)).toEqual([]);
+    // 코드 파일: 따옴표 없는 값은 식(스키마 정의 등), 따옴표 값이라도 단어 조합은 가짜
+    const code = [
+      join('  AUTH_', 'SECRET: z.preprocess(emptyToUndefined, z.string().min(32)),'),
+      join('  AUTH_GOOGLE_', 'SECRET: optionalString,'),
+      join('  AUTH_GOOGLE_', "SECRET: 'client-secret',"),
+    ].join('\n');
+    expect(scanText('env.ts', code)).toEqual([]);
+    // 같은 코드 파일이라도 따옴표 안 무작위 값은 잡는다
+    expect(scanText('env.ts', join('  AUTH_', "SECRET: 'q8Zr4", "TtLw2pVn6Yc',"))).toHaveLength(1);
+  });
+
   it('로컬 docker 기본값·빈 값·자리표시자·가짜 비밀번호는 허용한다', () => {
     const allowed = [
       join('DATABASE_URL=postgres://prami:prami', '@localhost:5432/prami'),
@@ -82,11 +118,16 @@ describe('저장소 검사', () => {
       path.join(repo, 'deploy.env'),
       `${AUTH_SECRET_LINE}\nDATABASE_URL=${REMOTE_URL}\n`,
     );
+    writeFileSync(
+      path.join(repo, 'vercel.yml'),
+      `env:\n  ${join('AUTH_', 'SECRET')}: ${join('q8Zr4', 'TtLw2pVn6Yc')}\n`,
+    );
     git('add', '.');
     const failed = run();
     expect(failed.status).toBe(1);
     expect(failed.stderr).toContain('deploy.env:1 AUTH_SECRET 값 대입');
     expect(failed.stderr).toContain('deploy.env:2 원격 postgres 자격 증명');
+    expect(failed.stderr).toContain('vercel.yml:2 AUTH_SECRET 값 대입');
     // 값 전체를 다시 출력하지 않는다
     expect(failed.stderr).not.toContain('Ab3xY9qLm2');
   }, 60_000);

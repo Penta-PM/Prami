@@ -83,7 +83,9 @@ PR-11b 는 아래 "착수 조건" 4종이 사용자에게서 도착해야 시작
 
 **인메모리 한계**: 슬라이딩 윈도우가 프로세스 메모리에 있다. Vercel 서버리스는 인스턴스마다 메모리가 따로라 상한은 **인스턴스당 근사치**다.
 동시 인스턴스가 N개면 실제 허용량은 최대 N배가 될 수 있다. 콜드 스타트·재배포 때 카운트가 초기화된다.
-IP 키는 `TRUST_PROXY_HEADERS=vercel` 이면 `x-vercel-forwarded-for`, 아니면 `x-forwarded-for` 오른쪽 끝을 쓴다.
+IP 키는 감사 IP 와 같은 신뢰 헤더 정책을 쓴다. `TRUST_PROXY_HEADERS=vercel` 이면 `x-vercel-forwarded-for`(→ `x-real-ip`)이고,
+기본 `none` 이면 클라이언트 `x-forwarded-for` 를 무시하고 **경로 단위 공용 버킷**이 된다(우회 불가·대신 경로 전체가 한도를 공유).
+**운영에서는 반드시 `TRUST_PROXY_HEADERS=vercel`** 로 두어야 공유·PDF·auth 콜백 한도가 사용자(IP)별로 동작한다.
 공유 저장소(Upstash Redis / Vercel KV) 전환은 후속 과제다(스펙 위험 R-19 후보로 Plan 에 기록 요청).
 
 ## 6. 보안 헤더 (AC-91)

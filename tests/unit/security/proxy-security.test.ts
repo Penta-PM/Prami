@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 const state = vi.hoisted(() => ({
   session: null as null | { user: { id: string; email?: string; role: 'USER' | 'ADMIN' } },
+  trust: 'none' as 'none' | 'vercel' | 'generic',
 }));
 
 vi.mock('@/server/auth/auth', () => ({
@@ -16,6 +17,15 @@ vi.mock('@/server/auth/auth', () => ({
       handler(Object.assign(request, { auth: state.session })),
 }));
 vi.mock('@/db', () => ({ getDb: async () => ({}) }));
+vi.mock('@/env', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/env')>();
+  return {
+    ...actual,
+    get env() {
+      return { ...actual.env, TRUST_PROXY_HEADERS: state.trust };
+    },
+  };
+});
 
 const { default: proxy } = await import('@/proxy');
 const { rateLimiters } = await import('@/server/rate-limit');
@@ -28,6 +38,7 @@ const nonceOf = (csp: string | null) => /'nonce-([^']+)'/.exec(csp ?? '')?.[1];
 
 beforeEach(() => {
   state.session = null;
+  state.trust = 'none';
   for (const limiter of Object.values(rateLimiters)) {
     limiter.reset();
     limiter.configure(1000);
@@ -75,19 +86,34 @@ describe('CSP · 요청 ID (AC-91)', () => {
 });
 
 describe('IP 기준 rate limit (AC-95)', () => {
-  it('비로그인 공유 페이지: 같은 IP 31번째 → 429 + Retry-After + RATE_LIMITED, 다른 IP 는 200', async () => {
+  it('PR-11a QA M-2: 기본(none)에서 X-Forwarded-For 를 매번 바꿔도 31번째 → 429 + Retry-After + RATE_LIMITED', async () => {
     rateLimiters.share.configure(30);
     const path = `/share/quotes/${'b'.repeat(64)}`;
-    const from = (ip: string) => ({ headers: { 'x-forwarded-for': ip } });
-    for (let index = 0; index < 30; index += 1) {
-      expect((await run(path, from('10.0.0.1'))).status).toBe(200);
+    for (let index = 1; index <= 30; index += 1) {
+      const response = await run(path, { headers: { 'x-forwarded-for': `1.2.3.${index}` } });
+      expect(response.status).toBe(200);
     }
-    const limited = await run(path, from('10.0.0.1'));
+    const limited = await run(path, { headers: { 'x-forwarded-for': '9.9.9.9' } });
     expect(limited.status).toBe(429);
     expect(Number(limited.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
     expect(limited.headers.get('content-security-policy')).toBeTruthy();
     expect(await limited.json()).toMatchObject({ ok: false, error: { code: 'RATE_LIMITED' } });
-    expect((await run(path, from('10.0.0.2'))).status).toBe(200);
+    // 헤더 없이 와도 같은 공용 버킷
+    expect((await run(path)).status).toBe(429);
+  });
+
+  it('신뢰 모드(vercel): 플랫폼 IP 별 버킷 — 같은 IP 31번째 429, 다른 IP 200, 위조 XFF 는 키에 영향 없음', async () => {
+    state.trust = 'vercel';
+    rateLimiters.share.configure(30);
+    const path = `/share/quotes/${'c'.repeat(64)}`;
+    const from = (ip: string, forged: string) => ({
+      headers: { 'x-vercel-forwarded-for': ip, 'x-forwarded-for': forged },
+    });
+    for (let index = 1; index <= 30; index += 1) {
+      expect((await run(path, from('203.0.113.1', `1.2.3.${index}`))).status).toBe(200);
+    }
+    expect((await run(path, from('203.0.113.1', '7.7.7.7'))).status).toBe(429);
+    expect((await run(path, from('203.0.113.2', '1.2.3.1'))).status).toBe(200);
   });
 
   it('PDF(GET)·auth 콜백도 IP 버킷, 그 외 경로는 제한하지 않는다', async () => {

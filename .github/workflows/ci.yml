@@ -70,6 +70,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: 정적 프리렌더 페이지 없음 (CSP nonce, PR-11a QA M-1)
+        run: pnpm check:prerender
+
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4

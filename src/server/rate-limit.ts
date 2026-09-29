@@ -16,6 +16,7 @@ import { trustedClientIp } from '@/server/audit/log';
  * 초과 → HTTP 429 + `Retry-After`(초) + `{ok:false, error:{code:'RATE_LIMITED'}}`. 감사 로그는 남기지 않고 구조화 로그만.
  * 한계: Vercel 서버리스는 인스턴스마다 메모리가 따로라 상한이 "인스턴스당 근사치" 가 되고, 콜드 스타트·재배포 때 초기화된다.
  * 공유 저장소(Upstash/Vercel KV) 전환은 후속 (docs/deploy/vercel.md "rate limit").
+ * IP 키는 신뢰 프록시 모드에서만 실제 IP 이고, 기본(none)에서는 경로 단위 공용 버킷이다 (rateLimitIp).
  */
 export const RATE_LIMIT_DEFAULT = 30;
 export const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -102,20 +103,18 @@ export function ipScopeFor(pathname: string, method: string): RateLimitScope | n
   return null;
 }
 
+/** 신뢰할 IP 가 없을 때 쓰는 경로 단위 공용 키 */
+export const SHARED_RATE_LIMIT_KEY = 'shared:untrusted-client';
+
 /**
- * 제한 키로 쓸 클라이언트 IP. 신뢰 프록시 모드면 audit 과 같은 규칙(trustedClientIp),
- * 아니면 Next 서버가 소켓 주소를 덧붙이는 x-forwarded-for 의 오른쪽 끝, 없으면 'unknown'.
- * (감사 로그와 달리 여기서는 위조돼도 "자기 버킷을 바꾸는" 효과뿐이라 오른쪽 끝 값을 쓴다)
+ * 제한 키 (PR-11a QA M-2). 감사 IP 와 **같은 신뢰 헤더 정책**(`server/audit/log.ts` trustedClientIp)만 쓴다.
+ * - `vercel`/`generic`: 신뢰 프록시가 준 클라이언트 IP
+ * - `none`(기본) 또는 신뢰 헤더 없음: 클라이언트가 보낸 X-Forwarded-For 는 **무시**하고 경로 단위 공용 키 —
+ *   헤더를 바꿔 가며 한도를 우회할 수 없다. 대신 그 경로의 전체 요청이 한 버킷을 나눠 쓴다(운영은 vercel 모드 전제).
+ *   Next 16 proxy 에서는 소켓 주소를 얻을 수 없다(NextRequest.ip 제거) — `next start` 도 XFF 에 소켓 주소를 덧붙이지 않는다.
  */
 export function rateLimitIp(headers: Headers, mode: ProxyTrustMode): string {
-  const trusted = trustedClientIp(headers, mode);
-  if (trusted) return trusted;
-  const forwarded = headers
-    .get('x-forwarded-for')
-    ?.split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
-  return forwarded?.at(-1) ?? 'unknown';
+  return trustedClientIp(headers, mode) ?? SHARED_RATE_LIMIT_KEY;
 }
 
 /** 429 봉투 (Route·proxy 공용) */
