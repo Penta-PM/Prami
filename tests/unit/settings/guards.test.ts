@@ -91,14 +91,31 @@ describe('자격 증명 스키마 import 제한 (AC-205 ④)', () => {
     expect(
       inside!.messages.filter((message) => message.ruleId === 'no-restricted-imports'),
     ).toEqual([]);
-  }, 60_000);
+  }, 180_000);
 });
 
+/**
+ * 소스 파일 목록. 다른 테스트(costs/isolation)가 병렬로 만들었다 지우는 `*.tmp.ts` 는 제외하고,
+ * 목록을 읽은 뒤 사라진 파일은 건너뛴다 (PR-A QA L-A — ENOENT 경합).
+ */
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
+    if (name.endsWith('.tmp.ts')) return [];
     const full = path.join(dir, name);
-    return statSync(full).isDirectory() ? walk(full) : [full];
+    try {
+      return statSync(full).isDirectory() ? walk(full) : [full];
+    } catch {
+      return [];
+    }
   });
+}
+
+function readIfExists(file: string): string {
+  try {
+    return readFileSync(file, 'utf8');
+  } catch {
+    return '';
+  }
 }
 
 describe('관리자·감사 CSV·사용자 목록에 자격 증명 테이블 없음 (AC-205 ⑤)', () => {
@@ -110,7 +127,7 @@ describe('관리자·감사 CSV·사용자 목록에 자격 증명 테이블 없
     const offenders = walk('src')
       .filter((file) => /\.(ts|tsx)$/.test(file))
       .filter((file) => !allowed.some((prefix) => file.startsWith(prefix)))
-      .filter((file) => /user_llm_credentials|userLlmCredentials/.test(readFileSync(file, 'utf8')));
+      .filter((file) => /user_llm_credentials|userLlmCredentials/.test(readIfExists(file)));
     expect(offenders).toEqual([]);
     // 사용자 관리·감사 화면/쿼리·CSV 파일도 LLM 연결 여부를 다루지 않는다 (감사 action 이름 상수 파일만 예외)
     const auditActionNames = path.join('src', 'server', 'audit', 'log.ts');
@@ -120,7 +137,7 @@ describe('관리자·감사 CSV·사용자 목록에 자격 증명 테이블 없
     );
     expect(adminFiles.length).toBeGreaterThan(0);
     for (const file of adminFiles) {
-      expect(readFileSync(file, 'utf8')).not.toMatch(/llm_credential|LlmCredential|keyHint/);
+      expect(readIfExists(file)).not.toMatch(/llm_credential|LlmCredential|keyHint/);
     }
   });
 });

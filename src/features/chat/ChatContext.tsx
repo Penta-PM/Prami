@@ -8,6 +8,8 @@ type ChatContextValue = {
   open: () => void;
   close: () => void;
   toggle: () => void;
+  /** 설정되면 패널이 열릴 때·포커스 복귀 시 LLM 연결 상태를 조회한다 (PRAMI-002 §4.9) */
+  statusEndpoint?: string;
 };
 
 const ChatContext = createContext<ChatContextValue | null>(null);
@@ -15,15 +17,20 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 export function ChatProvider({
   children,
   initialOpen = false,
+  statusEndpoint,
 }: {
   children: ReactNode;
   initialOpen?: boolean;
+  statusEndpoint?: string;
 }) {
   const [isOpen, setOpen] = useState(initialOpen);
   const open = useCallback(() => setOpen(true), []);
   const close = useCallback(() => setOpen(false), []);
   const toggle = useCallback(() => setOpen((current) => !current), []);
-  const value = useMemo(() => ({ isOpen, open, close, toggle }), [isOpen, open, close, toggle]);
+  const value = useMemo(
+    () => ({ isOpen, open, close, toggle, statusEndpoint }),
+    [isOpen, open, close, toggle, statusEndpoint],
+  );
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
 }
 

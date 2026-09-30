@@ -1,4 +1,5 @@
 import { modelsFor } from '../models';
+import { createAnthropicChatModel } from './anthropic-chat';
 import { KEY_CHARSET, pickIds, type LlmVendor } from './types';
 
 /**
@@ -16,6 +17,7 @@ export const anthropic: LlmVendor = {
     url: `https://api.anthropic.com/v1/models?limit=1000${cursor ? `&after_id=${encodeURIComponent(cursor)}` : ''}`,
     headers: { 'x-api-key': secret, 'anthropic-version': '2023-06-01' },
   }),
+  createChatModel: createAnthropicChatModel,
   parseModelList: (body) => {
     const ids = pickIds(body, 'data', 'id');
     if (!ids) return null;

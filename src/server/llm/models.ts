@@ -23,7 +23,20 @@ export type LlmModelOption = {
   lifecycle: ModelLifecycle;
   /** 벤더당 정확히 1개 (current 중에서) */
   isDefault?: true;
+  /** Anthropic 모델별 요청 제약 (§4.5.3) — 어댑터가 이 플래그만 보고 요청을 만든다 */
+  anthropic?: AnthropicModelTraits;
 };
+
+/**
+ * Anthropic 요청 제약 (스펙 r2 §4.5.3, 2026-09-30 공식 문서 기준). `thinking` 파라미터는 어떤 모델에도 보내지 않는다
+ * (Opus 5.5 는 항상 adaptive — `{type:'disabled'}`·`budget_tokens` 400, Haiku 4.5 는 챗봇에서 사고 없이 호출).
+ * - effort: `output_config.effort` 값. null 이면 보내지 않는다(Haiku 4.5 는 effort 미지원)
+ * - serverFallback: `fallbacks: "default"` + 베타 헤더 `server-side-fallback-2026-07-01` (Claude API 직접 호출 전용)
+ */
+export type AnthropicModelTraits = { effort: 'low' | null; serverFallback: boolean };
+
+const ADAPTIVE_LOW_WITH_FALLBACK: AnthropicModelTraits = { effort: 'low', serverFallback: true };
+const HAIKU_TRAITS: AnthropicModelTraits = { effort: null, serverFallback: false };
 
 export const MODEL_TIER_LABELS: Record<ModelTier, string> = {
   low: '저가',
@@ -41,11 +54,36 @@ export const LLM_MODELS = {
       tier: 'top',
       lifecycle: 'current',
       isDefault: true,
+      anthropic: ADAPTIVE_LOW_WITH_FALLBACK,
     },
-    { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', tier: 'balanced', lifecycle: 'current' },
-    { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', tier: 'low', lifecycle: 'current' },
-    { id: 'claude-opus-5', label: 'Claude Opus 5', tier: 'top', lifecycle: 'legacy' },
-    { id: 'claude-sonnet-5', label: 'Claude Sonnet 5', tier: 'balanced', lifecycle: 'legacy' },
+    {
+      id: 'claude-sonnet-5-5',
+      label: 'Claude Sonnet 5.5',
+      tier: 'balanced',
+      lifecycle: 'current',
+      anthropic: ADAPTIVE_LOW_WITH_FALLBACK,
+    },
+    {
+      id: 'claude-haiku-4-5',
+      label: 'Claude Haiku 4.5',
+      tier: 'low',
+      lifecycle: 'current',
+      anthropic: HAIKU_TRAITS,
+    },
+    {
+      id: 'claude-opus-5',
+      label: 'Claude Opus 5',
+      tier: 'top',
+      lifecycle: 'legacy',
+      anthropic: ADAPTIVE_LOW_WITH_FALLBACK,
+    },
+    {
+      id: 'claude-sonnet-5',
+      label: 'Claude Sonnet 5',
+      tier: 'balanced',
+      lifecycle: 'legacy',
+      anthropic: ADAPTIVE_LOW_WITH_FALLBACK,
+    },
   ],
   openai: [
     {
@@ -77,6 +115,15 @@ export const LLM_MODELS = {
 
 export function modelsFor(vendor: string): readonly LlmModelOption[] {
   return (LLM_MODELS as Record<string, readonly LlmModelOption[]>)[vendor] ?? [];
+}
+
+/** 모델 표시 라벨 (§4.9 {모델} 치환 — 사용자 입력이 아니라 상수 라벨) */
+export function modelLabel(vendor: string, model: string): string {
+  return modelsFor(vendor).find((option) => option.id === model)?.label ?? model;
+}
+
+export function findModel(vendor: string, model: string): LlmModelOption | undefined {
+  return modelsFor(vendor).find((option) => option.id === model);
 }
 
 export function isKnownModel(vendor: string, model: string): boolean {

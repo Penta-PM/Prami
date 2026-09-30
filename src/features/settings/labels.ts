@@ -75,7 +75,8 @@ export const NOTICES = [
 ] as const;
 
 /** PR-B 머지 전까지 고정 (§6.1) */
-export const CHAT_LLM_COMING_SOON = '챗봇 LLM 연결은 곧 제공됩니다';
+/** PR-B 부터 챗봇이 이 기본값으로 LLM 을 호출한다 (PR-A 의 "곧 제공됩니다" 문구는 §6.1 대로 제거) */
+export const CHAT_DEFAULTS_CAPTION = '챗봇이 자연어 질문에 이 벤더·모델을 씁니다';
 
 /** available_models 밖 모델 (r2 §4.5.2, AC-208) */
 export const MODEL_UNAVAILABLE_LABEL = '이 키로 사용 불가';

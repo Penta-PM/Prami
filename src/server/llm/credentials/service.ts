@@ -122,7 +122,7 @@ function assertVerifyAllowed(userId: string): void {
 
 /** 복호화는 이 함수 하나로만 (§4.7.1). 평문은 콜백 안에서만 존재한다 */
 export async function withDecryptedSecret<T>(
-  ctx: Pick<CredentialsContext, 'handle' | 'keys'>,
+  ctx: { handle: Pick<DbHandle, 'db'>; keys: KeyProvider | null },
   userId: string,
   vendor: string,
   fn: (secret: string, credentialId: string) => Promise<T>,

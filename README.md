@@ -263,6 +263,8 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
 
 ## 가격정책 챗봇 (PR-10, 규칙 기반 MVP)
 
+> PRAMI-002 PR-B 이후 이 규칙 엔진은 LangGraph 그래프의 `ruleAnswer` 노드(키 없음·킬스위치·벤더 일시 오류 폴백)로 그대로 쓰인다 — 아래 "챗봇 LangGraph" 절.
+
 - 헤더 챗봇 버튼 · 우하단 플로팅 버튼 → 사이드 패널(`src/features/chat/`). 인사말·예시 질문 칩("Wapples-500 가격 알려줘", "작년보다 올랐어?",
   "견적 뽑아줘"), 제품 퀵칩(WAPPLES · D.AMO · iSIGN · Cloudbric), 모호할 때 후보 품목 칩, 견적 시작 링크. **대화는 저장하지 않는다**(감사도 없음).
 - `POST /api/chat`(`chat.use` = 로그인 사용자, 비로그인 401): 본문 `{ message }` → 공백·제어 문자 정리·200자 제한(검색과 같은 규칙, ILIKE 는
@@ -325,7 +327,7 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
 
 ## 사용자 설정 · LLM 키 (PRAMI-002 PR-A)
 
-스펙: PRAMI-002 §4.6~4.13. 챗봇은 아직 **규칙 기반 그대로**다 — 화면에 "챗봇 LLM 연결은 곧 제공됩니다" 로 안내하고, LangGraph·LLM 호출·스트리밍·OpenRouter OAuth 는 PR-B/C.
+스펙: PRAMI-002 §4.6~4.13. 챗봇 LLM 경로는 PR-B("챗봇 LangGraph" 절), 스트리밍·OpenRouter OAuth 는 PR-C. 기본 벤더·모델은 챗봇이 자연어 질문에 쓴다.
 
 - **화면 `/settings`** (헤더 "사용자 설정", 권한 `settings.self` = USER·ADMIN): ① 계정 연결 — 로그인 방식·이메일·마지막 로그인, Google 연결 여부는
   boolean 으로만(`google_sub` 값 미노출), "Google 계정으로 다시 로그인" ② LLM 연결 — Anthropic·OpenAI·Google Gemini 카드(상태 필·마스킹 힌트
@@ -356,6 +358,33 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
 - **로컬에서 보기**: `.env.local` 에 KEK 를 넣고 dev 서버를 재시작한다 (값은 저장소·문서에 적지 않는다):
   `node -e "console.log('1:'+require('crypto').randomBytes(32).toString('base64'))"` → `LLM_CREDENTIALS_KEKS=<출력>`, `LLM_CREDENTIALS_ACTIVE_KEK=1`,
   실키 없이 화면을 보려면 `LLM_VENDOR_MODE=fake` + `fake-valid-` 로 시작하는 16자 이상 키.
+
+## 챗봇 LangGraph (PRAMI-002 PR-B)
+
+스펙: PRAMI-002 §4.2~4.5·§4.8.3·§4.9. `POST /api/chat` 은 `src/server/chat/graph/*` 의 LangGraph 그래프로 답한다(`maxDuration=60`, `runtime='nodejs'`).
+패키지: `@langchain/langgraph` 1.4.18 · `@langchain/core` 1.2.13 · `@langchain/anthropic` 1.5.11 (+ `@anthropic-ai/sdk` 0.129.0 — 직접 호출 대안용, 현재 미사용).
+
+```
+prepare → precheck ─(원가 의도)→ costRefusal ─────────────────────────────┐
+                   └→ resolveCredential ─ready→ agent ⇄ tools              │
+                            │                  ├(401/403)→ setupGuide ─┐    │
+                            │                  ├(429/5xx/timeout/404)→ ruleAnswer
+                            ├disabled→ ruleAnswer                     │    ├→ compose → END
+                            └missing/invalid/forbidden/unreadable→ setupGuide ─(폴백)→ ruleAnswer
+```
+
+- **기능(도구) 레지스트리** `src/server/chat/features/`: `price_lookup`·`price_compare_previous`·`quote_start`(읽기 전용, 권한별 노출 + 실행 시 재검사).
+  새 기능은 `ChatFeature` 1개 + `registry.ts` 배열 1줄 — 그래프 코드는 그대로(AC-233). 도구 출력은 strict zod + 원가 키 검사를 통과한 값만 LLM 에 간다.
+- **원가 차단**: 원가 도구 없음, 원가 의도는 LLM·DB 전에 거부(`precheck`), 출력 가드가 "원가 + 금액" 문장을 역할별 거부 문구로 교체, import 그래프 테스트.
+- **키 격리**: 그래프 상태에 키·모델·DB 없음. 키는 `resolveCredential` 이 한 번 복호화해 만든 모델 팩토리 클로저 안에만 있다(요청마다 조회, 캐시 없음).
+- **Anthropic 요청 제약**(`src/server/llm/models.ts` 플래그 → `vendors/anthropic-chat.ts`): `thinking` 미전송, `output_config.effort:'low'`(Haiku 제외),
+  강제 `tool_choice` 없음 + 도구 `strict:true`, 서버측 폴백 `fallbacks:"default"` + `anthropic-beta: server-side-fallback-2026-07-01`(Haiku 제외),
+  `stop_reason:'refusal'` 은 content 를 버리고 거부 안내. `maxTokens`=`CHAT_LLM_MAX_OUTPUT_TOKENS`, 재시도 1회, 타임아웃 `CHAT_LLM_TIMEOUT_MS`, 도구 상한 `CHAT_LLM_MAX_TOOL_CALLS`.
+- **미등록·오류 안내**(`graph/messages.ts`): 패널 배너 + 첫 봇 메시지 + `/settings#llm` 링크, 결과 코드별 문구, 규칙 폴백(`CHAT_RULE_FALLBACK`), 킬스위치 `CHAT_LLM_ENABLED=false`.
+  `GET /api/chat/status` 가 상태만(키·힌트 없음) 준다. 대화는 저장하지 않고, LLM 연결 상태에서만 최근 10턴을 텍스트로 보낸다.
+- **fake 모드**(`LLM_VENDOR_MODE=fake`): 키 접두로 채팅 모델 동작을 고른다 — `fake-valid-`(도구 호출 → 요약), `fake-404-`·`fake-refusal-`(검증 정상, 채팅 오류),
+  `fake-429-`·`fake-500-`·`fake-timeout-` 등. 실벤더 호출은 하지 않았다(키 없음).
+- OpenAI·Gemini 채팅 어댑터·SSE 스트리밍·OpenRouter OAuth 는 PR-C. 현재 그 벤더 키만 있으면 "챗봇 연결 준비 중" 안내 + 규칙 답.
 
 ## DB 스키마 · 마이그레이션
 

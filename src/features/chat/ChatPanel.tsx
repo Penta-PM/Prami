@@ -1,16 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui';
 
 import { useChatPanel } from './ChatContext';
+import { BillingNotice, SetupBanner, SetupLink } from './SetupBanner';
 import type { ChatMessage, ChatReplyView } from './types';
+import { useChatConversation } from './useChatConversation';
+import { useChatStatus } from './useChatStatus';
 
 /**
  * 가격정책 챗봇 패널 (§4.5.9, 디자인 chatOpen 패널): 메시지 말풍선, 예시 질문 칩, 제품 퀵칩, 후보 품목 칩, 견적 시작 링크.
- * 서버(POST /api/chat)가 규칙 기반으로 답하고 대화는 어디에도 저장하지 않는다 — 패널을 닫아도 세션 동안만 메모리에 남는다.
+ * 서버(POST /api/chat)가 LangGraph(LLM) 또는 규칙 기반으로 답하고 대화는 어디에도 저장하지 않는다 — 패널을 닫아도 세션 동안만 메모리에 남는다.
+ * LLM 텍스트는 평문으로만 렌더링한다(마크다운·링크화 없음 — §4.3.10). 링크는 서버 아티팩트 action.href 와 설정 링크뿐.
  */
 export const PRODUCT_CHIPS = ['WAPPLES', 'D.AMO', 'iSIGN', 'Cloudbric'] as const;
 export const EXAMPLE_QUESTIONS = [
@@ -18,39 +22,21 @@ export const EXAMPLE_QUESTIONS = [
   '작년보다 올랐어?',
   '견적 뽑아줘',
 ] as const;
-export const GREETING =
-  '안녕하세요! WAPPLES, D.AMO, iSIGN, Cloudbric 가격정책과 견적에 대해 무엇이든 물어보세요.';
-
-let messageSeq = 0;
-const nextId = () => `m${(messageSeq += 1)}`;
-
-export async function askChat(
-  message: string,
-): Promise<{ ok: true; data: ChatReplyView } | { ok: false; message: string }> {
-  try {
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message }),
-    });
-    const body = (await response.json()) as
-      { ok: true; data: ChatReplyView } | { ok: false; error: { message: string } };
-    if (body.ok) return body;
-    return { ok: false, message: body.error.message };
-  } catch {
-    return { ok: false, message: '챗봇 서버에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.' };
-  }
-}
+export { askChat, GREETING } from './useChatConversation';
 
 export function ChatPanel() {
-  const { isOpen, close } = useChatPanel();
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: nextId(), from: 'bot', text: GREETING },
-  ]);
+  const { isOpen, close, statusEndpoint } = useChatPanel();
+  const { status, applyLlm } = useChatStatus(statusEndpoint, isOpen);
   const [input, setInput] = useState('');
-  const [isSending, setSending] = useState(false);
   const [showProductChips, setShowProductChips] = useState(false);
   const [candidates, setCandidates] = useState<ChatReplyView['candidates']>([]);
+  const [billingDismissed, setBillingDismissed] = useState(false);
+  const onReply = useCallback((data: ChatReplyView) => {
+    setShowProductChips(data.showProductChips);
+    setCandidates(data.candidates);
+  }, []);
+  const conversation = useChatConversation({ status, applyLlm, onReply });
+  const { messages, isSending } = conversation;
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,31 +53,7 @@ export function ChatPanel() {
     setInput('');
     setShowProductChips(false);
     setCandidates([]);
-    setMessages((list) => [...list, { id: nextId(), from: 'user', text }]);
-    setSending(true);
-    const result = await askChat(text);
-    setSending(false);
-    if (!result.ok) {
-      setMessages((list) => [
-        ...list,
-        { id: nextId(), from: 'bot', text: result.message, tone: 'error' },
-      ]);
-      return;
-    }
-    const { data } = result;
-    setMessages((list) => [
-      ...list,
-      {
-        id: nextId(),
-        from: 'bot',
-        text: data.reply,
-        intent: data.intent,
-        action: data.action,
-        notice: data.notice,
-      },
-    ]);
-    setShowProductChips(data.showProductChips);
-    setCandidates(data.candidates);
+    await conversation.send(text);
   };
 
   const askedByUser = messages.some((message) => message.from === 'user');
@@ -115,6 +77,10 @@ export function ChatPanel() {
           ×
         </button>
       </header>
+      {status?.setup ? <SetupBanner setup={status.setup} /> : null}
+      {status?.llm.status === 'ready' && !billingDismissed ? (
+        <BillingNotice onClose={() => setBillingDismissed(true)} />
+      ) : null}
       <div
         ref={logRef}
         role="log"
@@ -197,6 +163,21 @@ function Bubble({ message }: { message: ChatMessage }) {
           </span>
         ) : null}
         {message.text}
+        {message.setup ? (
+          <>
+            {message.setup.message !== message.text ? (
+              <span className="mt-2 block text-[12px] text-text-secondary">
+                {message.setup.message}
+              </span>
+            ) : null}
+            <SetupLink href={message.setup.href} />
+          </>
+        ) : null}
+        {message.footnote ? (
+          <span role="note" className="mt-1.5 block text-[11px] text-text-tertiary">
+            {message.footnote}
+          </span>
+        ) : null}
         {message.action ? (
           <Link
             href={message.action.href}

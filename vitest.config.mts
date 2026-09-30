@@ -52,6 +52,8 @@ export default defineConfig({
             LLM_CREDENTIALS_ACTIVE_KEK: '1',
             LLM_VENDOR_MODE: 'fake',
             LLM_VERIFY_PER_MIN: '1000',
+            // PRAMI-002 §4.13: 단위·통합의 모델 호출 타임아웃 (가짜 지연 테스트 AC-229 ③)
+            CHAT_LLM_TIMEOUT_MS: '2000',
           },
         },
       },

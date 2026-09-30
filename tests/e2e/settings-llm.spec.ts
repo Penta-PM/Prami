@@ -81,7 +81,9 @@ test('USER: 헤더 → 설정, fake 키 등록 → 힌트·정상, 교체 → �
   await page.getByRole('link', { name: '사용자 설정' }).click();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole('heading', { level: 1, name: '사용자 설정' })).toBeVisible();
-  await expect(page.getByText('챗봇 LLM 연결은 곧 제공됩니다')).toBeVisible();
+  // PR-B: "곧 제공됩니다" 문구는 제거되고 기본값 설명으로 바뀐다 (§6.1)
+  await expect(page.getByText('챗봇이 자연어 질문에 이 벤더·모델을 씁니다')).toBeVisible();
+  await expect(page.getByText('챗봇 LLM 연결은 곧 제공됩니다')).toHaveCount(0);
 
   const anthropic = 'Anthropic (Claude)';
   await registerKey(page, anthropic, USER_KEY);
