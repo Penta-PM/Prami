@@ -50,3 +50,16 @@ export const createdViaEnum = pgEnum('created_via', ['bootstrap', 'auto', 'admin
 
 /** 감사 로그 결과 (§4.3.10) */
 export const auditResultEnum = pgEnum('audit_result', ['success', 'denied', 'error']);
+
+/** LLM 자격 증명 연결 방식 (PRAMI-002 §4.10) */
+export const llmAuthTypeEnum = pgEnum('llm_auth_type', ['api_key', 'oauth_pkce']);
+
+/** LLM 자격 증명 검증 상태 (PRAMI-002 §4.10). `unreadable` 은 복호화 시점 판정이라 DB 값이 아니다 */
+export const llmCredentialStatusEnum = pgEnum('llm_credential_status', [
+  'unverified',
+  'valid',
+  'invalid',
+  'forbidden',
+  'rate_limited',
+  'error',
+]);

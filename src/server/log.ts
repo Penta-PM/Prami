@@ -9,14 +9,33 @@ export const MASK = '[REDACTED]';
 
 /** 키 이름에 이 단어가 들어가면 값을 통째로 가린다 */
 const SECRET_KEY_RE =
-  /pass(word)?|secret|token|authorization|cookie|api[-_]?key|database_url|credential|session/i;
+  /pass(word)?|secret|token|authorization|cookie|api[-_]?key|database_url|credential|session|dek|kek|ciphertext/i;
 
 /** 값 안에 섞인 비밀값 패턴: URL 의 userinfo, Bearer 토큰 */
 const URL_USERINFO_RE = /([a-z][a-z0-9+.-]*:\/\/)([^\s:/@]+):([^\s/@]+)@/gi;
 const BEARER_RE = /\b(Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/g;
 
+/**
+ * LLM 벤더 키 형식 (PRAMI-002 §4.7.3 T-3·§4.7.5). 평문을 로거로 넘기는 경로는 없지만, 벤더 SDK 오류 메시지 등에 섞여
+ * 들어와도 값이 남지 않도록 형식으로 한 번 더 가린다. fake 모드 테스트 키(`fake-…`)도 포함한다.
+ */
+export const LLM_KEY_PATTERNS: readonly RegExp[] = [
+  /\bsk-ant-[A-Za-z0-9_-]{8,}/g,
+  /\bsk-or-[A-Za-z0-9_-]{8,}/g,
+  /\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}/g,
+  /\bAIza[A-Za-z0-9_-]{20,}/g,
+  /\bfake-[a-z0-9]+-[A-Za-z0-9_.-]{8,}/g,
+];
+
+/** 로그용 문자열 정리: URL userinfo·Bearer 토큰·LLM 키 형식을 [REDACTED] 로 */
+export function sanitizeForLog(value: string): string {
+  return LLM_KEY_PATTERNS.reduce((text, pattern) => text.replace(pattern, MASK), value);
+}
+
 export function maskString(value: string): string {
-  return value.replace(URL_USERINFO_RE, `$1$2:${MASK}@`).replace(BEARER_RE, `$1 ${MASK}`);
+  return sanitizeForLog(
+    value.replace(URL_USERINFO_RE, `$1$2:${MASK}@`).replace(BEARER_RE, `$1 ${MASK}`),
+  );
 }
 
 const MAX_DEPTH = 5;

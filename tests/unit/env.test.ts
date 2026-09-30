@@ -49,6 +49,9 @@ describe('parseEnv — 기본값과 빈 값', () => {
       AUTH_GOOGLE_ID: 'client-id',
       AUTH_GOOGLE_SECRET: 'client-secret',
       NEXT_PUBLIC_APP_URL: 'https://prami.example.com',
+      // PRAMI-002 §4.13: production + CHAT_LLM_ENABLED(기본 true) 는 KEK 필수
+      LLM_CREDENTIALS_KEKS: `1:${Buffer.alloc(32, 'env-test').toString('base64')}`,
+      LLM_CREDENTIALS_ACTIVE_KEK: '1',
     });
     expect(env.NODE_ENV).toBe('production');
     expect(env.DB_DRIVER).toBe('neon');

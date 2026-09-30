@@ -18,6 +18,10 @@ import {
   listIndexes,
   listTables,
 } from '../../helpers/db-introspect';
+import {
+  assertCredentialColumns,
+  assertCredentialConstraints,
+} from '../../helpers/llm-schema-checks';
 
 /** AC-01: PGlite 에 drizzle/*.sql 을 적용한 뒤 sales_prices 원본 20컬럼을 스펙 §4.3.1 과 대조한다 */
 let handle: DbHandle;
@@ -155,5 +159,15 @@ describe('audit_logs append-only', () => {
     await expect(
       handle.db.execute(sql`delete from audit_logs where id = ${row?.id}`),
     ).rejects.toSatisfy(causeMatches(/append-only/));
+  });
+});
+
+describe('PRAMI-002 LLM 자격 증명 테이블 (AC-201)', () => {
+  it('user_llm_credentials 컬럼·bytea·인덱스, user_settings 컬럼이 스펙 §4.8 과 일치', async () => {
+    await assertCredentialColumns(handle);
+  });
+
+  it('UNIQUE(user_id, vendor)·CHECK(형식·길이·버전·힌트)·사용자 삭제 시 CASCADE', async () => {
+    await assertCredentialConstraints(handle, 'llm-schema@pentasecurity.com');
   });
 });

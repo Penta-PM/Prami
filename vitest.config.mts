@@ -3,6 +3,9 @@ import path from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
+/** 테스트 전용 KEK — 'test' 표식에서 파생 (PRAMI-002 §4.13) */
+const TEST_KEKS = `1:${Buffer.alloc(32, 'test-kek-v1').toString('base64')}`;
+
 const alias = {
   '@': path.resolve(import.meta.dirname, 'src'),
   'server-only': path.resolve(import.meta.dirname, 'tests/helpers/server-only.ts'),
@@ -40,7 +43,16 @@ export default defineConfig({
           testTimeout: 30_000,
           // 파일마다 PGlite 를 띄우고 마이그레이션하므로 병렬·커버리지 실행에서는 준비 시간이 길어진다
           hookTimeout: 60_000,
-          env: { DB_DRIVER: 'pglite', PGLITE_DATA_DIR: 'memory://', RATE_LIMIT_PER_MIN: '1000' },
+          env: {
+            DB_DRIVER: 'pglite',
+            PGLITE_DATA_DIR: 'memory://',
+            RATE_LIMIT_PER_MIN: '1000',
+            // PRAMI-002 §4.13: 테스트 KEK 는 코드로 만든다(저장소에 base64 리터럴을 두지 않음 — secret-scan)
+            LLM_CREDENTIALS_KEKS: TEST_KEKS,
+            LLM_CREDENTIALS_ACTIVE_KEK: '1',
+            LLM_VENDOR_MODE: 'fake',
+            LLM_VERIFY_PER_MIN: '1000',
+          },
         },
       },
       {

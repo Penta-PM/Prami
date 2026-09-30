@@ -6,6 +6,7 @@
  *   (빈 값·`$(...)`·`${{ secrets.X }}`·`<...>` 자리표시자, e2e/test/example 표식이 든 테스트 전용 값은 허용)
  * - Google OAuth 클라이언트 시크릿(`GOCSPX-…`)·클라이언트 ID(`…apps.googleusercontent.com`)
  * - Neon 비밀번호 접두사(`npg_…`)
+ * - LLM 벤더 키(Anthropic `sk-ant-`, OpenAI `sk-`/`sk-proj-`, Google `AIza`, OpenRouter `sk-or-`)·`LLM_CREDENTIALS_KEKS` 실제 값 (PRAMI-002 §4.7.5)
  * 로컬 docker-compose 기본값(`prami:prami@localhost`)과 테스트 전용 고정값은 로컬 개발용이라 허용한다.
  */
 import { execFileSync } from 'node:child_process';
@@ -68,6 +69,14 @@ function assignment(key: string): Rule {
   };
 }
 
+/** 벤더 키 형식 규칙 — 테스트 전용 표식(e2e/test/example…)이 든 값은 허용 (§4.7.5) */
+function llmKey(name: string, pattern: RegExp): Rule {
+  return {
+    name,
+    test: (line) => [...line.matchAll(pattern)].some((match) => !TEST_VALUE_RE.test(match[0])),
+  };
+}
+
 export const RULES: readonly Rule[] = [
   {
     name: '원격 postgres 자격 증명',
@@ -89,6 +98,18 @@ export const RULES: readonly Rule[] = [
     test: (line) => /\b\d{6,}-[a-z0-9]{20,}\.apps\.googleusercontent\.com\b/.test(line),
   },
   { name: 'Neon 비밀번호', test: (line) => /\bnpg_[A-Za-z0-9]{8,}\b/.test(line) },
+  // PRAMI-002 §4.7.5 — LLM 벤더 키·KEK (문서에는 `sk-…abcd` 마스킹 형식과 `<ANTHROPIC_API_KEY>` 자리표시자만)
+  llmKey('Anthropic API 키', /\bsk-ant-[A-Za-z0-9_-]{20,}/g),
+  llmKey('OpenRouter API 키', /\bsk-or-[A-Za-z0-9_-]{20,}/g),
+  llmKey('OpenAI API 키', /\bsk-(?:proj-)?[A-Za-z0-9_-]{32,}/g),
+  llmKey('Google API 키', /\bAIza[A-Za-z0-9_-]{35}\b/g),
+  {
+    name: 'LLM_CREDENTIALS_KEKS 값 대입',
+    test: (line) => {
+      const value = /LLM_CREDENTIALS_KEKS['"]?\s*[:=]\s*['"`]?([^\s'"`#;]+)/i.exec(line)?.[1];
+      return Boolean(value && /\d+:[A-Za-z0-9+/_-]{43}=?/.test(value));
+    },
+  },
 ];
 
 const BINARY_EXT = /\.(png|jpe?g|gif|webp|ico|ttf|otf|woff2?|pdf|xlsx|zip|gz)$/i;

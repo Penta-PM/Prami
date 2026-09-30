@@ -15,6 +15,12 @@ const nextConfig: NextConfig = {
     '/api/quotes/[id]/pdf': ['./src/assets/fonts/*.ttf', './public/logo-prami-mark.png'],
   },
   poweredByHeader: false,
+  logging: {
+    // 개발 모드에서 Next 는 Server Function 호출을 인자째 터미널에 찍는다(기본 true) — LLM API 키 평문이 dev 로그에 남으므로 끈다
+    // (PRAMI-002 QA H-1, 불변식 I-3·T-3). 문서: node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/logging.md
+    // production(`next start`)은 이 로그를 원래 남기지 않는다. 요청 로그(incomingRequests)는 인자가 없어 유지한다.
+    serverFunctions: false,
+  },
   // 보안 헤더 (§4.8, AC-91): 정적 자원 포함 전체. CSP 는 요청별 nonce 가 필요해 proxy.ts 가 붙인다
   async headers() {
     return [{ source: '/:path*', headers: [...STATIC_SECURITY_HEADERS] }];

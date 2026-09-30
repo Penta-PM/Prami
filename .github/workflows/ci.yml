@@ -69,6 +69,9 @@ jobs:
 
       - name: Build
         run: pnpm build
+        env:
+          # PRAMI-002 §4.13: production 빌드는 KEK 가 없으면 LLM 킬스위치를 꺼야 env 검증을 통과한다 (CI 는 KEK 를 두지 않음)
+          CHAT_LLM_ENABLED: 'false'
 
       - name: 정적 프리렌더 페이지 없음 (CSP nonce, PR-11a QA M-1)
         run: pnpm check:prerender

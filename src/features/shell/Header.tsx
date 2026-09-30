@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { Input } from '@/components/ui/input';
 import { signOutAction } from '@/features/auth/actions';
 import { TestModeBanner } from '@/features/auth/TestModeBanner';
@@ -48,6 +50,14 @@ export function Header({ user, testMode = false }: HeaderProps) {
           <div className="text-[13px] font-semibold">{user?.name ?? '로그인 필요'}</div>
           <div className="text-[11px] font-medium text-text-tertiary">{user?.roleLabel ?? ''}</div>
         </div>
+        {user ? (
+          <Link
+            href="/settings"
+            className="ml-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-text-tertiary hover:bg-gray-100 hover:text-ink-900"
+          >
+            사용자 설정
+          </Link>
+        ) : null}
         {user ? (
           <form action={signOutAction}>
             <button

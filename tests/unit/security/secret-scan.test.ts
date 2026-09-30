@@ -96,6 +96,36 @@ describe('scanText', () => {
   });
 });
 
+describe('PRAMI-002 LLM 키·KEK (AC-211)', () => {
+  const tail = 'Qm7Rz2Kp9Lw4Xv8Nb3Hj6Tc1';
+  const kekValue = Buffer.alloc(32, 7).toString('base64');
+
+  it.each([
+    ['Anthropic API 키', join('sk-', 'ant-api03-', tail)],
+    ['OpenRouter API 키', join('sk-', 'or-v1-', tail)],
+    ['OpenAI API 키', join('sk-', 'proj-', tail, 'AbCdEfGhIj')],
+    ['Google API 키', join('AI', 'za', 'Sy', tail, 'AbCdEfGhI')],
+    ['LLM_CREDENTIALS_KEKS 값 대입', join('LLM_CREDENTIALS_', 'KEKS=1:', kekValue)],
+  ])('%s 를 주입하면 잡는다', (rule, line) => {
+    expect(scanText('leak.md', `value: ${line}`).map((finding) => finding.rule)).toContain(rule);
+  });
+
+  it('마스킹 힌트·자리표시자·fake 테스트 키·키 이름만 있는 줄은 허용', () => {
+    const allowed = [
+      'sk-…abcd',
+      'sk-ant-…WXYZ',
+      'AIza…9876',
+      '<ANTHROPIC_API_KEY>',
+      join('fake-', 'valid-', tail),
+      join('sk-', 'ant-test', tail),
+      join('LLM_CREDENTIALS_', 'KEKS='),
+      join('LLM_CREDENTIALS_', 'KEKS=<1:base64(32바이트)>'),
+      join('LLM_CREDENTIALS_', 'KEKS: z.string().optional(),'),
+    ].join('\n');
+    expect(scanText('docs.md', allowed)).toEqual([]);
+  });
+});
+
 describe('저장소 검사', () => {
   it('추적 중인 파일에 비밀값 패턴이 없다', () => {
     const root = process.cwd();

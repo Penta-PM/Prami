@@ -91,6 +91,8 @@ export const rateLimiters = {
   share: createRateLimiter('share', LIMIT),
   authCallback: createRateLimiter('auth-callback', LIMIT),
   testLogin: createRateLimiter('test-login', LIMIT),
+  /** PRAMI-002 §4.6.3: 키 검증 사용자당 분당 LLM_VERIFY_PER_MIN (키 오라클 방지) */
+  llmVerify: createRateLimiter('llm-verify', env.LLM_VERIFY_PER_MIN),
 } as const;
 
 export type RateLimitScope = keyof typeof rateLimiters;
