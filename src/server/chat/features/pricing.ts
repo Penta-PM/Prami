@@ -28,6 +28,7 @@ const output = z
 export const priceLookupTool: ChatToolDef<typeof input, typeof output> = {
   name: 'price_lookup',
   description: '판매단가를 품명 또는 품번으로 조회한다. 여러 품목이 걸리면 후보 목록을 준다.',
+  statusLabel: '가격 조회 중',
   input,
   output,
   run: async ({ query, family }, { db }) => {

@@ -327,7 +327,7 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
 
 ## 사용자 설정 · LLM 키 (PRAMI-002 PR-A)
 
-스펙: PRAMI-002 §4.6~4.13. 챗봇 LLM 경로는 PR-B("챗봇 LangGraph" 절), 스트리밍·OpenRouter OAuth 는 PR-C. 기본 벤더·모델은 챗봇이 자연어 질문에 쓴다.
+스펙: PRAMI-002 §4.6~4.13. 챗봇 LLM 경로는 PR-B("챗봇 LangGraph" 절), 다중 벤더·스트리밍·OpenRouter OAuth 는 PR-C 절. 기본 벤더·모델은 챗봇이 자연어 질문에 쓴다.
 
 - **화면 `/settings`** (헤더 "사용자 설정", 권한 `settings.self` = USER·ADMIN): ① 계정 연결 — 로그인 방식·이메일·마지막 로그인, Google 연결 여부는
   boolean 으로만(`google_sub` 값 미노출), "Google 계정으로 다시 로그인" ② LLM 연결 — Anthropic·OpenAI·Google Gemini 카드(상태 필·마스킹 힌트
@@ -384,7 +384,26 @@ prepare → precheck ─(원가 의도)→ costRefusal ────────�
   `GET /api/chat/status` 가 상태만(키·힌트 없음) 준다. 대화는 저장하지 않고, LLM 연결 상태에서만 최근 10턴을 텍스트로 보낸다.
 - **fake 모드**(`LLM_VENDOR_MODE=fake`): 키 접두로 채팅 모델 동작을 고른다 — `fake-valid-`(도구 호출 → 요약), `fake-404-`·`fake-refusal-`(검증 정상, 채팅 오류),
   `fake-429-`·`fake-500-`·`fake-timeout-` 등. 실벤더 호출은 하지 않았다(키 없음).
-- OpenAI·Gemini 채팅 어댑터·SSE 스트리밍·OpenRouter OAuth 는 PR-C. 현재 그 벤더 키만 있으면 "챗봇 연결 준비 중" 안내 + 규칙 답.
+- 다중 벤더·스트리밍·OpenRouter OAuth 는 아래 PR-C 절.
+
+## 챗봇 다중 벤더 · 스트리밍 · OAuth (PRAMI-002 PR-C)
+
+- **채팅 어댑터**(`src/server/llm/vendors/*-chat.ts`, 요청마다 새 인스턴스·재시도 1·타임아웃·강제 도구 선택 없음): Anthropic(`@langchain/anthropic`),
+  OpenAI(`@langchain/openai` 1.6.0 — Chat Completions, 도구 strict), Google Gemini(`@langchain/google-genai` 2.3.2 — 호출 signal 을 넘기려고
+  스트리밍 경로 사용), OpenRouter(OpenAI 호환 API, baseURL `https://openrouter.ai/api/v1`). 모델 ID 는 `models.ts` 상수만.
+- **벤더 추가** = 어댑터 1개 + `registry.ts` 1줄 + 모델 상수 — 설정 카드·검증(벤더별 상수 `host` 만 허용)·챗봇 경로가 레지스트리에서 파생한다.
+- **SSE 스트리밍**(옵트인): `POST /api/chat` 에 `Accept: text/event-stream` → `event: token`(agent 텍스트) · `status`(도구 진행) ·
+  `final`(가드·금지 키 검사를 거친 정본 ChatReply) · `done`. `Accept` 가 없으면 기존 JSON. 패널은 LLM 연결 상태에서 SSE 로 받아 점진 표시하고
+  `final` 로 교체, 패널을 닫으면 요청을 중단(서버 → 그래프·모델 호출 signal). CSP 변경 없음(같은 출처 fetch).
+- **OpenRouter OAuth PKCE**(플래그 `LLM_OAUTH_OPENROUTER=true`, 기본 off): 설정 카드 [OpenRouter로 연결] → `/api/settings/oauth/openrouter/start`
+  (code_verifier·state 를 AUTH_SECRET 파생 키로 암호화한 HttpOnly 쿠키 10분) → OpenRouter 인증 → `callback`(state·쿠키·세션 사용자 검증 →
+  코드 교환 → 키를 봉투 암호화 `auth_type='oauth_pkce'`, 감사 `settings.oauth.connect`). 삭제 = 연결 해제(`settings.oauth.disconnect`).
+  플래그 off 면 두 라우트 404·카드 미표시. 로컬 `callback_url` 은 `NEXT_PUBLIC_APP_URL` 출처.
+- **Anthropic 서버측 폴백**은 공식 지원 모델(Opus 5.5·Sonnet 5.5·Opus 5)에만 — 레거시 Sonnet 5·Haiku 4.5 에는 `fallbacks`·베타 헤더를 보내지 않는다.
+- **출력 가드**: NFKC·제로폭 문자 제거 후 판정, 한글 수사·단위 금액·비율·텍스트 속 원가 키 JSON 도 교체. LLM 텍스트에만 적용(규칙 답은 결정적 템플릿). 판정용 사본에서 이번 요청 도구 결과의 품명·품번을 가려 품명 속 "cost"·"원가" 오탐을 막는다(원문 불변). SSE 토큰도 같은 판정을 문장 단위로 거친다. 가드는 2차 방어이고 1차 방어는 모델 컨텍스트에 원가 데이터가 없다는 것이다.
+- 확장 가이드: [`docs/chat/extending.md`](docs/chat/extending.md) (7단계 + 예제 기능·테스트, 문서-코드 일치 테스트).
+- **실벤더 스모크**(선택, CI 미실행): `pnpm smoke:llm` — 로컬 env `ANTHROPIC_API_KEY`·`OPENAI_API_KEY`·`GOOGLE_API_KEY`(또는 `GEMINI_API_KEY`)·
+  `OPENROUTER_API_KEY` 가 있는 벤더만 검증 호출 + "Wapples-500 가격" 1회, 없으면 skip. 벤더·모델·성공·토큰 수만 출력(키 미출력).
 
 ## DB 스키마 · 마이그레이션
 

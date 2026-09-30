@@ -139,6 +139,25 @@ describe('POST /api/chat (LLM 경로)', () => {
     expectNoSecret(JSON.stringify(body), KEY, 'chat 응답');
   });
 
+  it('AC-243: Accept text/event-stream → SSE(final·done, no-store·x-accel-buffering), 키 없음 / Accept 없으면 JSON', async () => {
+    const response = await POST(
+      new Request('http://localhost/api/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
+        body: JSON.stringify({ message: 'Wapples-500 가격' }),
+      }),
+    );
+    expect(response.headers.get('content-type')).toBe('text/event-stream; charset=utf-8');
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('x-accel-buffering')).toBe('no');
+    const raw = await response.text();
+    expect(raw).toMatch(/event: final\ndata: \{.*"mode":"llm"/);
+    expect(raw.trimEnd().endsWith('event: done\ndata: {}')).toBe(true);
+    expectNoSecret(raw, KEY, 'SSE 응답');
+    const json = await post({ message: 'Wapples-500 가격' });
+    expect(json.headers.get('content-type')).toContain('application/json');
+  });
+
   it('AC-229 ④: LLM·규칙 경로를 섞어 1분 31회 → 31번째 429 + Retry-After (버킷 공유)', async () => {
     rateLimiters.chat.configure(30);
     for (let index = 0; index < 30; index += 1) {

@@ -27,6 +27,8 @@ export type ChatToolDef<I extends z.ZodType = z.ZodType, O extends z.ZodType = z
   name: string;
   /** 고정 문자열 (원가 언급 금지) */
   description: string;
+  /** 스트리밍 진행 표시 (SSE `event: status`, §4.3.9) — 없으면 기본 문구 */
+  statusLabel?: string;
   /** LLM 인자 검증 — strict 객체. 선택 인자는 nullable 로 (strict tool use 호환) */
   input: I;
   /** strict — 이 스키마를 통과한 값만 LLM 에 전달된다 (§4.4.2) */
@@ -40,6 +42,7 @@ export type ChatFeature = {
   /** 도구 노출·실행 모두 이 권한으로 거른다 */
   permission: PermissionKey;
   sideEffect: 'none';
+  /** 기능 플래그 (§4.3.4·§4.3.6 ③, r4 시그니처) — 없으면 항상 켜짐. 예: `enabled: () => env.CHAT_FEATURE_X` (`@/env`) */
   enabled?: () => boolean;
   /** 시스템 프롬프트 "사용 가능한 기능" 한 줄 (고정) */
   promptHint: string;

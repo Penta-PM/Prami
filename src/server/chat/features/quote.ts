@@ -34,6 +34,7 @@ const EMPTY: Omit<Output, 'status'> = { item: null, href: null, candidates: [] }
 export const quoteStartTool: ChatToolDef<typeof input, typeof output> = {
   name: 'quote_start',
   description: '견적 계산기를 여는 링크를 만든다. 품목이나 제품군을 알면 미리 선택된 링크를 준다.',
+  statusLabel: '견적 링크 준비 중',
   input,
   output,
   run: async ({ query, family }, { db }) => {

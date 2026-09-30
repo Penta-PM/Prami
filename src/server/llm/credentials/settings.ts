@@ -15,7 +15,12 @@ import {
   MODEL_TIER_LABELS,
   type LlmModelOption,
 } from '../models';
-import { LLM_VENDORS } from '../vendors/registry';
+import {
+  acceptsApiKey,
+  activeVendors,
+  type LlmVendor,
+  type VendorFlags,
+} from '../vendors/registry';
 import type { KeyProvider } from './keyring';
 import {
   findCredentialRow,
@@ -43,6 +48,10 @@ export type VendorView = {
   id: string;
   label: string;
   consoleUrl: string;
+  /** 키 직접 입력 가능 여부 — false 면 카드에 OAuth 연결 버튼(connectHref) */
+  manualKeyEntry: boolean;
+  /** OAuth 전용 벤더의 연결 시작 경로 (§4.6.2 OpenRouter) */
+  connectHref: string | null;
   models: (LlmModelOption & { tierLabel: string; lifecycleLabel: string | null })[];
 };
 
@@ -84,16 +93,34 @@ async function accountOf(db: Db, userId: string, testMode: boolean): Promise<Acc
   };
 }
 
-export const VENDOR_VIEWS: VendorView[] = LLM_VENDORS.map((vendor) => ({
-  id: vendor.id,
-  label: vendor.label,
-  consoleUrl: vendor.consoleUrl,
-  models: vendor.models.map((model) => ({
-    ...model,
-    tierLabel: MODEL_TIER_LABELS[model.tier],
-    lifecycleLabel: model.lifecycle === 'legacy' ? LEGACY_LABEL : null,
-  })),
-}));
+/** OAuth PKCE 연결 시작 경로 (벤더 id 로 파생 — 라우트는 벤더마다 1쌍) */
+export function oauthStartHref(vendorId: string): string {
+  return `/api/settings/oauth/${vendorId}/start`;
+}
+
+function toVendorView(vendor: LlmVendor): VendorView {
+  const apiKey = acceptsApiKey(vendor);
+  return {
+    id: vendor.id,
+    label: vendor.label,
+    consoleUrl: vendor.consoleUrl,
+    manualKeyEntry: apiKey,
+    connectHref: apiKey ? null : oauthStartHref(vendor.id),
+    models: vendor.models.map((model) => ({
+      ...model,
+      tierLabel: MODEL_TIER_LABELS[model.tier],
+      lifecycleLabel: model.lifecycle === 'legacy' ? LEGACY_LABEL : null,
+    })),
+  };
+}
+
+/** 설정 화면 벤더 카드 — 플래그 off 벤더(OpenRouter)는 제외 (§4.6.2) */
+export function vendorViews(flags: VendorFlags): VendorView[] {
+  return activeVendors(flags).map(toVendorView);
+}
+
+/** 플래그 모두 off 인 기본 목록 (API 키 3사) */
+export const VENDOR_VIEWS: VendorView[] = vendorViews({ oauthOpenRouter: false });
 
 export async function getMySettings(input: {
   db: Db;
@@ -101,6 +128,8 @@ export async function getMySettings(input: {
   keys: KeyProvider | null;
   mode: 'live' | 'fake';
   testMode: boolean;
+  /** 벤더 노출 플래그 (env LLM_OAUTH_OPENROUTER) — 없으면 모두 off */
+  flags?: VendorFlags;
 }): Promise<MySettings> {
   const [account, rows, settings, unreadable] = await Promise.all([
     accountOf(input.db, input.userId, input.testMode),
@@ -115,7 +144,7 @@ export async function getMySettings(input: {
       settings?.chatDefaultVendor ?? null,
       settings?.chatDefaultModel ?? null,
     ),
-    vendors: VENDOR_VIEWS,
+    vendors: vendorViews(input.flags ?? { oauthOpenRouter: false }),
     keyringReady: input.keys !== null,
     fakeMode: input.mode === 'fake',
   };

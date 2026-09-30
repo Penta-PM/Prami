@@ -10,10 +10,17 @@ export type VerifyRequest = { url: string; headers: Record<string, string> };
 /** 목록 API 한 페이지에서 읽은 모델 ID 와 다음 페이지 커서 (없으면 null) */
 export type ModelListPage = { ids: string[]; next: string | null };
 
+/** 벤더 노출 플래그 (env 에서 — 예: OpenRouter OAuth 는 LLM_OAUTH_OPENROUTER) */
+export type VendorFlags = { oauthOpenRouter: boolean };
+
 export type LlmVendor = {
   id: string;
   label: string;
   authTypes: readonly LlmAuthType[];
+  /** 검증·채팅 호출이 나가는 호스트 (코드 상수 — SSRF 방지, T-12). 벤더 추가 시 이 값만 허용된다 */
+  host: string;
+  /** 설정 화면·연결 라우트 노출 여부. 없으면 항상 (§4.6.2 OpenRouter 는 플래그) */
+  enabled?: (flags: VendorFlags) => boolean;
   /** 약한 형식 검사 (최종 판정은 검증 호출) */
   keyFormat: { minLength: number; maxLength: number; pattern: RegExp; hintPrefix: RegExp };
   consoleUrl: string;
@@ -25,7 +32,7 @@ export type LlmVendor = {
   /** 벤더 고유 응답 판정(예: Gemini 400 API_KEY_INVALID). 없으면 공통 규칙만 */
   isInvalidKeyResponse?: (status: number, body: unknown) => boolean;
   /**
-   * 채팅 모델 팩토리 (§4.5.1, PR-B 는 Anthropic 만 — OpenAI·Gemini 는 PR-C). 없으면 챗봇 LLM 경로에서 쓸 수 없는 벤더다.
+   * 채팅 모델 팩토리 (§4.5.1 — Anthropic(PR-B)·OpenAI·Gemini·OpenRouter(PR-C)). 없으면 챗봇 LLM 경로에서 쓸 수 없는 벤더다.
    * 요청마다 새 인스턴스. 키는 반환된 인스턴스 안에만 있다(I-3).
    */
   createChatModel?: (

@@ -40,4 +40,8 @@ export type ChatMessage = {
   footnote?: string;
   /** 히스토리 대상인 실제 문답인지 (인사·안내·오류 말풍선은 제외) */
   exchange?: boolean;
+  /** SSE 로 받는 중 (토큰 점진 표시) */
+  streaming?: boolean;
+  /** 도구 진행 표시 (SSE status) */
+  statusLabel?: string;
 };

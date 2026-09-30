@@ -17,19 +17,26 @@ export type RecordedCall = { messages: BaseMessage[]; tools: string[] };
 
 export class ScriptedChatModel extends BaseChatModel {
   readonly calls: RecordedCall[];
+  /** 지연 단계에서 호출 신호가 끊긴 적이 있는지 (SSE 중단 관찰, AC-243) */
+  readonly observed: { aborted: boolean };
   private readonly steps: ScriptStep[];
   private readonly toolNames: string[];
   private readonly cursor: { index: number };
 
   constructor(
     steps: ScriptStep[],
-    shared?: { calls: RecordedCall[]; cursor: { index: number } },
+    shared?: {
+      calls: RecordedCall[];
+      cursor: { index: number };
+      observed?: { aborted: boolean };
+    },
     toolNames: string[] = [],
   ) {
     super({});
     this.steps = steps;
     this.calls = shared?.calls ?? [];
     this.cursor = shared?.cursor ?? { index: 0 };
+    this.observed = shared?.observed ?? { aborted: false };
     this.toolNames = toolNames;
   }
 
@@ -40,7 +47,7 @@ export class ScriptedChatModel extends BaseChatModel {
   override bindTools(tools: { name: string }[]): ScriptedChatModel {
     return new ScriptedChatModel(
       this.steps,
-      { calls: this.calls, cursor: this.cursor },
+      { calls: this.calls, cursor: this.cursor, observed: this.observed },
       tools.map((tool) => tool.name),
     );
   }
@@ -68,6 +75,7 @@ export class ScriptedChatModel extends BaseChatModel {
       await new Promise((resolve, reject) => {
         const timer = setTimeout(resolve, step.delayMs);
         signal?.addEventListener('abort', () => {
+          this.observed.aborted = true;
           clearTimeout(timer);
           reject(Object.assign(new Error('aborted'), { name: 'TimeoutError' }));
         });

@@ -11,6 +11,7 @@ export const anthropic: LlmVendor = {
   label: 'Anthropic (Claude)',
   authTypes: ['api_key'],
   keyFormat: { minLength: 16, maxLength: 256, pattern: KEY_CHARSET, hintPrefix: /^sk-ant-/ },
+  host: 'api.anthropic.com',
   consoleUrl: 'https://console.anthropic.com/settings/keys',
   models: modelsFor('anthropic'),
   verifyRequest: (secret, cursor) => ({
