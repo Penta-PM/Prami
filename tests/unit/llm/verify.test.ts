@@ -2,10 +2,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { maskKey } from '@/server/llm/credentials/mask';
-import { isKnownModel, LLM_MODELS } from '@/server/llm/models';
+import {
+  defaultModelFor,
+  intersectAvailableModels,
+  isKnownModel,
+  LLM_MODELS,
+  modelsFor,
+} from '@/server/llm/models';
 import {
   assertSafeVerifyRequest,
   classifyVerifyResponse,
+  MAX_MODEL_LIST_PAGES,
   UnsafeVerifyRequestError,
   verifyCredential,
 } from '@/server/llm/verify';
@@ -22,13 +29,13 @@ describe('검증 요청 빌더 (AC-207, T-12)', () => {
 
   it('벤더별 URL·헤더가 스펙 §4.6.3 과 같고 URL 에 키가 없다 (Gemini 는 x-goog-api-key 헤더)', () => {
     const a = anthropic.verifyRequest(secret);
-    expect(a.url).toBe('https://api.anthropic.com/v1/models?limit=1');
+    expect(a.url).toBe('https://api.anthropic.com/v1/models?limit=1000');
     expect(a.headers).toEqual({ 'x-api-key': secret, 'anthropic-version': '2023-06-01' });
     const o = openai.verifyRequest(secret);
     expect(o.url).toBe('https://api.openai.com/v1/models');
     expect(o.headers).toEqual({ authorization: `Bearer ${secret}` });
     const g = google.verifyRequest(secret);
-    expect(g.url).toBe('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1');
+    expect(g.url).toBe('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000');
     expect(g.headers).toEqual({ 'x-goog-api-key': secret });
     for (const vendor of LLM_VENDORS) {
       const request = vendor.verifyRequest(secret);
@@ -67,10 +74,12 @@ describe('판정 (AC-207)', () => {
     expect(classifyVerifyResponse(anthropic, 200, null)).toEqual({
       outcome: 'valid',
       errorCode: null,
+      availableModels: null,
     });
     expect(classifyVerifyResponse(openai, 401, null)).toEqual({
       outcome: 'invalid',
       errorCode: 'invalid_key',
+      availableModels: null,
     });
     const geminiInvalid = {
       error: { status: 'INVALID_ARGUMENT', details: [{ reason: 'API_KEY_INVALID' }] },
@@ -84,14 +93,17 @@ describe('판정 (AC-207)', () => {
     expect(classifyVerifyResponse(openai, 403, null)).toEqual({
       outcome: 'forbidden',
       errorCode: 'forbidden',
+      availableModels: null,
     });
     expect(classifyVerifyResponse(openai, 429, null)).toEqual({
       outcome: 'rate_limited',
       errorCode: 'rate_limited',
+      availableModels: null,
     });
     expect(classifyVerifyResponse(openai, 503, null)).toEqual({
       outcome: 'error',
       errorCode: 'unavailable',
+      availableModels: null,
     });
   });
 
@@ -102,7 +114,7 @@ describe('판정 (AC-207)', () => {
       verifyCredential(anthropic, secret, { mode: 'live', fetchImpl }),
     ).resolves.toMatchObject({ outcome: 'valid' });
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://api.anthropic.com/v1/models?limit=1',
+      'https://api.anthropic.com/v1/models?limit=1000',
       expect.objectContaining({
         method: 'GET',
         redirect: 'error',
@@ -120,7 +132,7 @@ describe('판정 (AC-207)', () => {
     });
     await expect(
       verifyCredential(openai, secret, { mode: 'live', fetchImpl: failing }),
-    ).resolves.toEqual({ outcome: 'error', errorCode: 'unavailable' });
+    ).resolves.toEqual({ outcome: 'error', errorCode: 'unavailable', availableModels: null });
   });
 
   it.each([
@@ -181,5 +193,127 @@ describe('형식·마스킹·레지스트리', () => {
     expect(isKnownModel('anthropic', LLM_MODELS.anthropic[0].id)).toBe(true);
     expect(isKnownModel('anthropic', 'gpt-6.1-sol')).toBe(false);
     expect(isKnownModel('nope', 'x')).toBe(false);
+  });
+});
+
+describe('사용 가능 모델 = 목록 ∩ 상수 (AC-207 ⑦, r2)', () => {
+  const ids = (vendor: string) => modelsFor(vendor).map((model) => model.id);
+
+  it('정규화: Anthropic 날짜 스냅샷·Gemini models/ 접두를 떼고, 상수 밖 ID 는 버리며 상수 순서를 따른다', () => {
+    expect(
+      intersectAvailableModels('anthropic', [
+        'claude-sonnet-5',
+        'claude-haiku-4-5-20251001',
+        'claude-opus-5-5',
+        'claude-3-legacy-x',
+      ]),
+    ).toEqual(['claude-opus-5-5', 'claude-haiku-4-5', 'claude-sonnet-5']);
+    expect(
+      intersectAvailableModels('google', ['models/gemini-3.5-flash-lite', 'models/embedding-x']),
+    ).toEqual(['gemini-3.5-flash-lite']);
+    expect(intersectAvailableModels('openai', [])).toEqual([]);
+    expect(intersectAvailableModels('nope', ['x'])).toEqual([]);
+  });
+
+  it.each([
+    ['anthropic', anthropic],
+    ['openai', openai],
+    ['google', google],
+  ] as const)(
+    '%s: fake-valid 전부, fake-partial 기본 모델만, fake-paged 2페이지 합산',
+    async (id, vendor) => {
+      const run = (prefix: string) =>
+        verifyCredential(vendor, makeFakeKey(prefix), { mode: 'fake' });
+      await expect(run('fake-valid-')).resolves.toEqual({
+        outcome: 'valid',
+        errorCode: null,
+        availableModels: ids(id),
+      });
+      await expect(run('fake-partial-')).resolves.toMatchObject({
+        outcome: 'valid',
+        availableModels: [defaultModelFor(id)],
+      });
+      await expect(run('fake-paged-')).resolves.toMatchObject({ availableModels: ids(id) });
+    },
+  );
+
+  it('목록 호출 실패는 정상이지만 NULL(미확인): 다음 페이지 500·목록 형식 아님, 비정상 판정도 NULL', async () => {
+    for (const prefix of ['fake-pagefail-', 'fake-nolist-']) {
+      await expect(
+        verifyCredential(google, makeFakeKey(prefix), { mode: 'fake' }),
+      ).resolves.toEqual({
+        outcome: 'valid',
+        errorCode: null,
+        availableModels: null,
+      });
+    }
+    for (const prefix of [
+      'fake-invalid-',
+      'fake-403-',
+      'fake-429-',
+      'fake-500-',
+      'fake-timeout-',
+    ]) {
+      await expect(
+        verifyCredential(anthropic, makeFakeKey(prefix), { mode: 'fake' }),
+      ).resolves.toMatchObject({ availableModels: null });
+    }
+  });
+
+  it(`live: 다음 페이지는 커서를 붙인 상수 URL 로 요청(키는 헤더), ${MAX_MODEL_LIST_PAGES}페이지를 넘으면 NULL`, async () => {
+    const secret = makeFakeKey('AIza');
+    const urls: string[] = [];
+    const endless = vi.fn(async (url: string) => {
+      urls.push(url);
+      return Response.json({
+        models: [{ name: 'models/gemini-3.8-flash' }],
+        nextPageToken: `t${urls.length}`,
+      });
+    });
+    await expect(
+      verifyCredential(google, secret, {
+        mode: 'live',
+        fetchImpl: endless as unknown as typeof fetch,
+      }),
+    ).resolves.toEqual({
+      outcome: 'valid',
+      errorCode: null,
+      availableModels: null,
+    });
+    expect(urls).toHaveLength(MAX_MODEL_LIST_PAGES);
+    expect(urls[1]).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&pageToken=t1',
+    );
+    for (const url of urls) expect(url).not.toContain(secret);
+    const twoPages = vi.fn(async (url: string) =>
+      Response.json(
+        url.includes('after_id')
+          ? { data: [{ id: 'claude-sonnet-5-5' }], has_more: false }
+          : { data: [{ id: 'claude-opus-5-5' }], has_more: true, last_id: 'claude-opus-5-5' },
+      ),
+    );
+    await expect(
+      verifyCredential(anthropic, makeFakeKey('sk-ant-'), {
+        mode: 'live',
+        fetchImpl: twoPages as unknown as typeof fetch,
+      }),
+    ).resolves.toMatchObject({ availableModels: ['claude-opus-5-5', 'claude-sonnet-5-5'] });
+    expect(twoPages).toHaveBeenLastCalledWith(
+      'https://api.anthropic.com/v1/models?limit=1000&after_id=claude-opus-5-5',
+      expect.anything(),
+    );
+  });
+
+  it('모델 상수: Anthropic 기본 claude-opus-5-5, 레거시 2종, 벤더당 기본 1개, 날짜 접미사 없음', () => {
+    expect(defaultModelFor('anthropic')).toBe('claude-opus-5-5');
+    expect(
+      LLM_MODELS.anthropic.filter((model) => model.lifecycle === 'legacy').map((model) => model.id),
+    ).toEqual(['claude-opus-5', 'claude-sonnet-5']);
+    for (const models of Object.values(LLM_MODELS)) {
+      const list: readonly { id: string; lifecycle: string; isDefault?: true }[] = models;
+      expect(list.filter((model) => model.isDefault)).toHaveLength(1);
+      expect(list.find((model) => model.isDefault)?.lifecycle).toBe('current');
+      for (const model of list) expect(model.id).not.toMatch(/-\d{8}$/);
+    }
   });
 });

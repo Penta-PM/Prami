@@ -75,9 +75,11 @@ export function LlmSection({
       setFlash({ tone: 'ok', text: '챗봇 기본값을 저장했습니다' });
     });
 
-  const validVendorIds = credentials
-    .filter((entry) => entry.status === 'valid')
-    .map((entry) => entry.vendor);
+  const available = Object.fromEntries(
+    credentials
+      .filter((entry) => entry.status === 'valid')
+      .map((entry) => [entry.vendor, entry.availableModels]),
+  );
   const orphaned = credentials.filter(
     (entry) => !vendors.some((vendor) => vendor.id === entry.vendor),
   );
@@ -136,9 +138,9 @@ export function LlmSection({
         </div>
       </section>
       <ChatDefaultsForm
-        key={validVendorIds.join(',')}
+        key={JSON.stringify(available)}
         vendors={vendors}
-        validVendorIds={validVendorIds}
+        available={available}
         defaults={defaults}
         busy={busy}
         onSave={saveDefaults}

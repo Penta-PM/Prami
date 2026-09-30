@@ -24,6 +24,7 @@ const viewColumns = {
   lastVerifiedAt: userLlmCredentials.lastVerifiedAt,
   lastErrorCode: userLlmCredentials.lastErrorCode,
   lastUsedAt: userLlmCredentials.lastUsedAt,
+  availableModels: userLlmCredentials.availableModels,
   createdAt: userLlmCredentials.createdAt,
 };
 
@@ -37,6 +38,7 @@ export type CredentialRow = {
   lastVerifiedAt: Date | null;
   lastErrorCode: string | null;
   lastUsedAt: Date | null;
+  availableModels: string[] | null;
   createdAt: Date;
 };
 
@@ -105,6 +107,8 @@ export type StatusPatch = {
   status?: CredentialRow['status'];
   lastVerifiedAt?: Date;
   lastErrorCode: string | null;
+  /** 검증 시 목록 ∩ 상수, null = 미확인 (r2 §4.5.2) */
+  availableModels: string[] | null;
 };
 
 export async function updateOwnStatus(

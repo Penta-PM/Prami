@@ -3,7 +3,7 @@ import { google } from './google';
 import { openai } from './openai';
 import type { LlmVendor } from './types';
 
-export type { LlmAuthType, LlmVendor, VerifyRequest } from './types';
+export type { LlmAuthType, LlmVendor, ModelListPage, VerifyRequest } from './types';
 
 /**
  * LLM 벤더 레지스트리 (PRAMI-002 §4.5.1) — PR-A 는 **검증(verify) 부분**만. 채팅 모델 생성은 PR-B.

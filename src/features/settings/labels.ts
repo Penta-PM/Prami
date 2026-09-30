@@ -43,6 +43,11 @@ export const NOTICES = [
 /** PR-B 머지 전까지 고정 (§6.1) */
 export const CHAT_LLM_COMING_SOON = '챗봇 LLM 연결은 곧 제공됩니다';
 
+/** available_models 밖 모델 (r2 §4.5.2, AC-208) */
+export const MODEL_UNAVAILABLE_LABEL = '이 키로 사용 불가';
+
+export const MODEL_REPLACED_NOTICE = '선택한 모델이 더 이상 제공되지 않아 기본 모델로 바뀌었습니다';
+
 export const DELETE_DONE_MESSAGE =
   '키를 삭제했습니다. 벤더 콘솔에서도 키를 폐기하는 것을 권장합니다.';
 

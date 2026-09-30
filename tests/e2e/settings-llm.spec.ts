@@ -70,9 +70,13 @@ test('USER: 헤더 → 설정, fake 키 등록 → 힌트·정상, 교체 → �
   expect(html).toContain(USER_HINT);
   expect(html).not.toContain(USER_KEY.slice(-12));
 
-  // AC-208: 정상 벤더만 선택 가능, 저장
+  // AC-208 (r2): 정상 벤더만, Anthropic 기본 선택 claude-opus-5-5, 레거시 선택 시 배지, 저장
   const defaults = page.getByRole('region', { name: '챗봇 기본값' });
-  await defaults.getByLabel('모델').selectOption({ index: 1 });
+  const modelSelect = defaults.getByLabel('모델');
+  await expect(modelSelect).toHaveValue('claude-opus-5-5');
+  await expect(defaults.getByTestId('legacy-badge')).toHaveCount(0);
+  await modelSelect.selectOption('claude-opus-5');
+  await expect(defaults.getByTestId('legacy-badge')).toHaveText('레거시');
   await defaults.getByRole('button', { name: '기본값 저장' }).click();
   await expect(page.getByRole('status')).toHaveText('챗봇 기본값을 저장했습니다');
 
@@ -91,6 +95,28 @@ test('USER: 헤더 → 설정, fake 키 등록 → 힌트·정상, 교체 → �
   const dump = await dumpCredentialRows();
   expect(dump).not.toContain(USER_KEY.slice(-12));
   expect(dump).not.toContain(REPLACED_KEY.slice(-12));
+});
+
+test('AC-207 ⑦·AC-208: 목록에 기본 모델만 있는 키 → 다른 모델은 "이 키로 사용 불가" 비활성', async ({
+  page,
+}) => {
+  await loginAs(page, FIXTURE_USER, '/settings');
+  await registerKey(page, 'OpenAI', `fake-partial-${tail()}`);
+  await expect(page.getByTestId('status-openai')).toHaveText('정상');
+  const defaults = page.getByRole('region', { name: '챗봇 기본값' });
+  await defaults.getByLabel('기본 벤더').selectOption('openai');
+  const modelSelect = defaults.getByLabel('모델');
+  await expect(modelSelect).toHaveValue('gpt-6.1-sol');
+  for (const id of ['gpt-6-luna', 'gpt-6-astra']) {
+    const option = modelSelect.locator(`option[value="${id}"]`);
+    await expect(option).toHaveAttribute('disabled', '');
+    await expect(option).toContainText('이 키로 사용 불가');
+  }
+  await defaults.getByRole('button', { name: '기본값 저장' }).click();
+  await expect(page.getByRole('status')).toHaveText('챗봇 기본값을 저장했습니다');
+  await card(page, 'OpenAI').getByRole('button', { name: '삭제' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '삭제' }).click();
+  await expect(page.getByTestId('status-openai')).toHaveText('미등록');
 });
 
 test('ADMIN 도 다른 사용자의 키를 볼 수 없다 (본인 설정만)', async ({ page, browser }) => {

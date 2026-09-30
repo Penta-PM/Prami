@@ -52,6 +52,8 @@ export const userLlmCredentials = pgTable(
     /** 정규화 코드만 (벤더 메시지 저장 금지, T-6) */
     lastErrorCode: text('last_error_code'),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    /** 검증 시 벤더 목록 API ∩ models.ts 상수 (r2 §4.5.2). NULL = 미확인(검증 전·목록 호출 실패) — 상수 전체 허용 */
+    availableModels: text('available_models').array(),
     ...timestamps,
   },
   (t) => [

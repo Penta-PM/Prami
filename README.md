@@ -329,7 +329,7 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
 
 - **화면 `/settings`** (헤더 "사용자 설정", 권한 `settings.self` = USER·ADMIN): ① 계정 연결 — 로그인 방식·이메일·마지막 로그인, Google 연결 여부는
   boolean 으로만(`google_sub` 값 미노출), "Google 계정으로 다시 로그인" ② LLM 연결 — Anthropic·OpenAI·Google Gemini 카드(상태 필·마스킹 힌트
-  `sk-ant-…WXYZ`·등록/교체/검증/삭제·콘솔 링크) ③ 챗봇 기본값 — **정상** 검증된 벤더와 그 벤더의 모델 상수(`src/server/llm/models.ts`)만 ④ 요금·데이터 안내.
+  `sk-ant-…WXYZ`·등록/교체/검증/삭제·콘솔 링크) ③ 챗봇 기본값 — **정상** 검증된 벤더와 그 벤더의 모델 상수(`src/server/llm/models.ts`)만, 이 키의 사용 가능 모델 밖은 "이 키로 사용 불가"(비활성), 레거시는 '레거시' 배지 ④ 요금·데이터 안내.
   저장된 키를 다시 보여주는 UI 는 없다(교체만). 입력은 password·autocomplete off, 제출 즉시 비운다.
 - **본인만** (§4.7.1): 모든 조회·변경·검증은 세션 사용자 id 로만 스코프된다 — 입력에 userId 를 받지 않고(strict 스키마), ADMIN 도 남의 키를
   보거나 바꾸거나 검증할 수 없다. 관리자 화면·감사 CSV·사용자 목록에 LLM 연결 정보는 없다. 사용자 삭제 시 키·설정은 FK CASCADE 로 함께 삭제.
@@ -342,6 +342,13 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
   2xx 정상 / 401·Gemini 400 `API_KEY_INVALID` 키 무효 / 403 권한 부족 / 429 한도 초과 / 5xx·타임아웃 확인 실패. 저장 직후 자동 검증 1회. 저장(자동 검증)과 수동 검증을 합쳐
   사용자당 분당 `LLM_VERIFY_PER_MIN`(기본 5, AC-95 모듈 재사용). `LLM_VENDOR_MODE=fake`(로컬·테스트 전용, production/Vercel 거부)면
   `fake-valid-…`·`fake-invalid-…`·`fake-429-…` 등 접두로 결과를 흉내 낸다 — 단위·E2E 는 전부 fake, **실벤더 호출은 하지 않았다**.
+- **모델 상수 · 사용 가능 모델 (r2)**: `src/server/llm/models.ts` 한 곳 — 출처 URL·확인일(2026-09-30) 주석. Anthropic 기본 `claude-opus-5-5`,
+  선택지 `claude-sonnet-5-5`·`claude-haiku-4-5`(별칭, 날짜 접미사 금지), 레거시 `claude-opus-5`·`claude-sonnet-5`(선택 가능·배지), OpenAI
+  `gpt-6.1-sol`(기본)·`gpt-6-luna`·`gpt-6-astra`, Gemini `gemini-3.8-flash`(기본)·`gemini-3.5-flash-lite`. 검증 때 목록 API(Anthropic `limit=1000`+`after_id`,
+  Gemini `pageSize=1000`+`pageToken` 최대 5페이지) 응답 ID ∩ 상수를 `user_llm_credentials.available_models`(text[])에 저장한다(Gemini `models/` 접두·
+  Anthropic 날짜 스냅샷 접미는 떼고 비교). 검증 전·목록 실패·비정상 판정이면 NULL(미확인 → 상수 전체 허용). `updateChatDefaults` 는 교집합 안의
+  모델만 받는다. 저장된 기본 모델이 상수에서 사라지면 벤더 기본 모델로 대체해 보이고 안내한다. fake 접두 `fake-partial-`(기본 모델만)·
+  `fake-paged-`(2페이지)·`fake-pagefail-`(다음 페이지 500)·`fake-nolist-`(목록 형식 아님).
 - **KEK 회전**: `LLM_CREDENTIALS_KEKS="1:<base64 32B>,2:<base64 32B>"` + `LLM_CREDENTIALS_ACTIVE_KEK=2` 로 새 키 추가 → 새 등록은 v2,
   기존 행은 v1 로 계속 복호화 → `pnpm credentials:rewrap` 이 DEK 만 v2 로 다시 감싼다(감사 `system.kek_rewrap`) → 이후 v1 제거.
   rewrap 전에 옛 KEK 를 지우면 그 행은 "재등록 필요". KEK 가 없으면 화면은 동작하되 등록을 막고 안내한다(production 은

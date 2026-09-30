@@ -8,7 +8,13 @@ import { withTransaction } from '@/db/tx';
 import { AppError } from '@/lib/result';
 import { AUDIT_ACTIONS, writeAudit } from '@/server/audit/log';
 
-import { isKnownModel, MODEL_TIER_LABELS, type LlmModelOption } from '../models';
+import {
+  defaultModelFor,
+  isKnownModel,
+  LEGACY_LABEL,
+  MODEL_TIER_LABELS,
+  type LlmModelOption,
+} from '../models';
 import { LLM_VENDORS } from '../vendors/registry';
 import type { KeyProvider } from './keyring';
 import {
@@ -37,10 +43,15 @@ export type VendorView = {
   id: string;
   label: string;
   consoleUrl: string;
-  models: (LlmModelOption & { tierLabel: string })[];
+  models: (LlmModelOption & { tierLabel: string; lifecycleLabel: string | null })[];
 };
 
-export type ChatDefaultsView = { vendor: string | null; model: string | null };
+export type ChatDefaultsView = {
+  vendor: string | null;
+  model: string | null;
+  /** 저장된 모델이 상수에서 사라져 벤더 기본 모델로 대체됨 → 안내 문구 (§4.5.2) */
+  modelReplaced: boolean;
+};
 
 export type MySettings = {
   account: AccountView;
@@ -77,7 +88,11 @@ export const VENDOR_VIEWS: VendorView[] = LLM_VENDORS.map((vendor) => ({
   id: vendor.id,
   label: vendor.label,
   consoleUrl: vendor.consoleUrl,
-  models: vendor.models.map((model) => ({ ...model, tierLabel: MODEL_TIER_LABELS[model.tier] })),
+  models: vendor.models.map((model) => ({
+    ...model,
+    tierLabel: MODEL_TIER_LABELS[model.tier],
+    lifecycleLabel: model.lifecycle === 'legacy' ? LEGACY_LABEL : null,
+  })),
 }));
 
 export async function getMySettings(input: {
@@ -95,17 +110,27 @@ export async function getMySettings(input: {
   return {
     account,
     credentials: rows.map((row) => toCredentialView(row, input.keys)),
-    defaults: {
-      vendor: settings?.chatDefaultVendor ?? null,
-      model: settings?.chatDefaultModel ?? null,
-    },
+    defaults: resolveDefaults(
+      settings?.chatDefaultVendor ?? null,
+      settings?.chatDefaultModel ?? null,
+    ),
     vendors: VENDOR_VIEWS,
     keyringReady: input.keys !== null,
     fakeMode: input.mode === 'fake',
   };
 }
 
-/** 본인 `valid` 자격 증명이 있는 벤더 + 모델 상수 목록의 모델만 (AC-208) */
+/** 저장된 모델이 상수에 없으면 벤더 기본 모델로 대체해 보여준다 (DB 는 다음 저장 때 바뀐다) */
+function resolveDefaults(vendor: string | null, model: string | null): ChatDefaultsView {
+  if (!vendor || !model || isKnownModel(vendor, model))
+    return { vendor, model, modelReplaced: false };
+  return { vendor, model: defaultModelFor(vendor), modelReplaced: true };
+}
+
+/**
+ * 본인 `valid` 자격 증명이 있는 벤더 + 모델 상수 목록의 모델 + (available_models 가 있으면) 그 교집합 안의 모델만 (AC-208, r2).
+ * 그 외는 VALIDATION 이고 행은 무변경.
+ */
 export async function updateChatDefaults(
   ctx: CredentialsContext,
   input: { vendor: string; model: string },
@@ -117,6 +142,9 @@ export async function updateChatDefaults(
   const credential = await findCredentialRow(ctx.handle.db, ctx.actor.id, vendor.id);
   if (!credential || credential.status !== 'valid') {
     throw new AppError('VALIDATION', '정상 검증된 키가 있는 벤더만 기본값으로 정할 수 있습니다');
+  }
+  if (credential.availableModels && !credential.availableModels.includes(input.model)) {
+    throw new AppError('VALIDATION', '이 키로 사용할 수 없는 모델입니다');
   }
   return withTransaction(async (tx) => {
     const before = await getOwnSettings(tx, ctx.actor.id);
@@ -135,6 +163,6 @@ export async function updateChatDefaults(
       after: { vendor: saved.chatDefaultVendor, model: saved.chatDefaultModel },
       meta: ctx.meta,
     });
-    return { vendor: saved.chatDefaultVendor, model: saved.chatDefaultModel };
+    return { vendor: saved.chatDefaultVendor, model: saved.chatDefaultModel, modelReplaced: false };
   }, ctx.handle);
 }

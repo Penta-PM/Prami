@@ -162,6 +162,7 @@ describe('등록 → 검증 → 교체 → 삭제 전 흐름에서 키 노출 �
     const view = (settings as { credentials: Record<string, unknown>[] }).credentials[0]!;
     expect(Object.keys(view).sort()).toEqual([
       'authType',
+      'availableModels',
       'createdAt',
       'keyHint',
       'lastErrorCode',
@@ -358,7 +359,7 @@ describe('기본값 (AC-208)', () => {
       await actions.updateChatDefaultsAction({ vendor: 'anthropic', model: 'claude-sonnet-5-5' }),
     ).toEqual({
       ok: true,
-      data: { vendor: 'anthropic', model: 'claude-sonnet-5-5' },
+      data: { vendor: 'anthropic', model: 'claude-sonnet-5-5', modelReplaced: false },
     });
     const audits = await queryRows<{ before: unknown; after: unknown }>(
       state.handle!.db,
@@ -370,6 +371,120 @@ describe('기본값 (AC-208)', () => {
         after: { vendor: 'anthropic', model: 'claude-sonnet-5-5' },
       },
     ]);
+  });
+});
+
+describe('사용 가능 모델 저장·기본값 교집합 (AC-207 ⑦·AC-208, r2)', () => {
+  const availableOf = async (userId: string, vendor: string) =>
+    (
+      await queryRows<{ available_models: string[] | null }>(
+        state.handle!.db,
+        sql`select available_models from user_llm_credentials where user_id = ${userId} and vendor = ${vendor}`,
+      )
+    )[0]?.available_models;
+  const settingsRow = async (userId: string) =>
+    queryRows<{ chat_default_vendor: string | null; chat_default_model: string | null }>(
+      state.handle!.db,
+      sql`select chat_default_vendor, chat_default_model from user_settings where user_id = ${userId}`,
+    );
+
+  it('검증 시 목록 ∩ 상수를 저장, 목록 실패·검증 전은 NULL, 교체하면 다시 계산', async () => {
+    as(userB);
+    const partial = await actions.saveLlmCredentialAction({
+      vendor: 'openai',
+      apiKey: makeFakeKey('fake-partial-'),
+    });
+    expect(partial).toMatchObject({
+      ok: true,
+      data: { status: 'valid', availableModels: ['gpt-6.1-sol'] },
+    });
+    expect(await availableOf(userB, 'openai')).toEqual(['gpt-6.1-sol']);
+    await actions.saveLlmCredentialAction({
+      vendor: 'openai',
+      apiKey: makeFakeKey('fake-nolist-'),
+    });
+    expect(await availableOf(userB, 'openai')).toBeNull();
+    await actions.saveLlmCredentialAction({ vendor: 'openai', apiKey: makeFakeKey('fake-valid-') });
+    expect(await availableOf(userB, 'openai')).toEqual([
+      'gpt-6.1-sol',
+      'gpt-6-luna',
+      'gpt-6-astra',
+    ]);
+    // 수동 재검증도 같은 계산 + 감사 verify 1행
+    expect(await actions.verifyLlmCredentialAction({ vendor: 'openai' })).toMatchObject({
+      ok: true,
+      data: { availableModels: ['gpt-6.1-sol', 'gpt-6-luna', 'gpt-6-astra'] },
+    });
+    await actions.deleteLlmCredentialAction({ vendor: 'openai' });
+  });
+
+  it('available_models 밖 모델은 VALIDATION·무변경, 안의 모델과 레거시는 허용, NULL 이면 상수 전체 허용', async () => {
+    as(userB);
+    await actions.saveLlmCredentialAction({
+      vendor: 'openai',
+      apiKey: makeFakeKey('fake-partial-'),
+    });
+    await actions.saveLlmCredentialAction({
+      vendor: 'anthropic',
+      apiKey: makeFakeKey('fake-nolist-'),
+    });
+    const before = await settingsRow(userB);
+    for (const input of [
+      { vendor: 'openai', model: 'gpt-6-luna' },
+      { vendor: 'openai', model: 'gpt-6-astra' },
+    ]) {
+      expect(await actions.updateChatDefaultsAction(input)).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION', message: '이 키로 사용할 수 없는 모델입니다' },
+      });
+    }
+    expect(await settingsRow(userB)).toEqual(before);
+    expect(
+      await actions.updateChatDefaultsAction({ vendor: 'openai', model: 'gpt-6.1-sol' }),
+    ).toMatchObject({ ok: true });
+    // anthropic 은 목록 미확인(NULL) → 상수 전체, 레거시 claude-opus-5 도 선택 가능
+    expect(await availableOf(userB, 'anthropic')).toBeNull();
+    expect(
+      await actions.updateChatDefaultsAction({ vendor: 'anthropic', model: 'claude-opus-5' }),
+    ).toEqual({
+      ok: true,
+      data: { vendor: 'anthropic', model: 'claude-opus-5', modelReplaced: false },
+    });
+    const audits = await queryRows<{ before: unknown; after: unknown }>(
+      state.handle!.db,
+      sql`select before, after from audit_logs where action = 'settings.llm_default.update' and actor_user_id = ${userB} order by id`,
+    );
+    expect(audits.at(-1)).toEqual({
+      before: { vendor: 'openai', model: 'gpt-6.1-sol' },
+      after: { vendor: 'anthropic', model: 'claude-opus-5' },
+    });
+    await actions.deleteLlmCredentialAction({ vendor: 'openai' });
+    await actions.deleteLlmCredentialAction({ vendor: 'anthropic' });
+  });
+
+  it('저장된 모델이 상수에서 사라지면 벤더 기본 모델로 대체해 보이고 안내 플래그', async () => {
+    await state.handle!.db.execute(
+      sql`insert into user_settings (user_id, chat_default_vendor, chat_default_model) values (${admin}, 'anthropic', 'claude-retired-x')
+          on conflict (user_id) do update set chat_default_vendor = 'anthropic', chat_default_model = 'claude-retired-x'`,
+    );
+    const view = await getMySettings({
+      db: state.handle!.db,
+      userId: admin,
+      keys: keyringFromEnv(env),
+      mode: 'fake',
+      testMode: true,
+    });
+    expect(view.defaults).toEqual({
+      vendor: 'anthropic',
+      model: 'claude-opus-5-5',
+      modelReplaced: true,
+    });
+    const anthropicView = view.vendors.find((vendor) => vendor.id === 'anthropic')!;
+    expect(
+      anthropicView.models
+        .filter((model) => model.lifecycleLabel === '레거시')
+        .map((model) => model.id),
+    ).toEqual(['claude-opus-5', 'claude-sonnet-5']);
   });
 });
 

@@ -29,6 +29,7 @@ export const CREDENTIAL_COLUMNS = [
   'last_verified_at',
   'last_error_code',
   'last_used_at',
+  'available_models',
   'created_at',
   'updated_at',
 ] as const;

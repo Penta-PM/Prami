@@ -1,5 +1,5 @@
 {
-  "id": "2699215d-c211-48fe-a667-86a63eefe524",
+  "id": "dab8e2a7-b141-4f4f-9249-484403439c2c",
   "prevId": "f46f5985-781b-42c0-bd3e-23b7a82694de",
   "version": "7",
   "dialect": "postgresql",
@@ -717,6 +717,12 @@
         "last_used_at": {
           "name": "last_used_at",
           "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "available_models": {
+          "name": "available_models",
+          "type": "text[]",
           "primaryKey": false,
           "notNull": false
         },

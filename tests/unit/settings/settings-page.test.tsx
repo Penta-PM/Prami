@@ -97,7 +97,7 @@ describe('SettingsPage', () => {
   });
 });
 
-const emptyDefaults = { vendor: null, model: null };
+const emptyDefaults = { vendor: null, model: null, modelReplaced: false };
 
 function savedView(vendor: string, keyHint: string): CredentialView {
   return {
@@ -109,6 +109,7 @@ function savedView(vendor: string, keyHint: string): CredentialView {
     lastVerifiedAt: '2026-09-30T01:00:00.000Z',
     lastErrorCode: null,
     lastUsedAt: null,
+    availableModels: null,
     createdAt: '2026-09-30T01:00:00.000Z',
   };
 }
@@ -177,5 +178,58 @@ describe('LlmSection 키 입력 (AC-213)', () => {
     for (const button of screen.getAllByRole('button', { name: '등록' })) {
       expect(button).toBeDisabled();
     }
+  });
+});
+
+describe('ChatDefaultsForm 모델 선택 (AC-208, r2)', () => {
+  const view = (vendor: string, availableModels: string[] | null): CredentialView => ({
+    ...savedView(vendor, 'fake-…WXYZ'),
+    availableModels,
+  });
+
+  it('Anthropic 기본 선택은 claude-opus-5-5, 레거시는 표시·선택 시 배지, 목록 밖 모델은 "이 키로 사용 불가" 비활성', async () => {
+    render(
+      <LlmSection
+        vendors={VENDOR_VIEWS}
+        initialCredentials={[
+          view('anthropic', ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-opus-5']),
+        ]}
+        initialDefaults={emptyDefaults}
+        keyringReady
+      />,
+    );
+    const region = screen.getByRole('region', { name: '챗봇 기본값' });
+    const modelSelect = within(region).getByLabelText(/모델/) as HTMLSelectElement;
+    expect(modelSelect.value).toBe('claude-opus-5-5');
+    expect(screen.queryByTestId('legacy-badge')).not.toBeInTheDocument();
+    const option = (id: string) =>
+      within(modelSelect)
+        .getAllByRole('option')
+        .find((node) => (node as HTMLOptionElement).value === id) as HTMLOptionElement;
+    expect(option('claude-haiku-4-5')).toBeDisabled();
+    expect(option('claude-haiku-4-5')).toHaveTextContent('이 키로 사용 불가');
+    expect(option('claude-sonnet-5')).toBeDisabled();
+    expect(option('claude-sonnet-5')).toHaveTextContent('레거시');
+    expect(option('claude-opus-5')).not.toBeDisabled();
+    expect(option('claude-opus-5')).toHaveTextContent('Claude Opus 5 · 최상위 · 레거시');
+    await userEvent.selectOptions(modelSelect, 'claude-opus-5');
+    expect(screen.getByTestId('legacy-badge')).toHaveTextContent('레거시');
+  });
+
+  it('available_models 가 NULL(미확인)이면 상수 전체 선택 가능, 저장값이 사라졌으면 대체 안내', () => {
+    render(
+      <LlmSection
+        vendors={VENDOR_VIEWS}
+        initialCredentials={[view('anthropic', null)]}
+        initialDefaults={{ vendor: 'anthropic', model: 'claude-opus-5-5', modelReplaced: true }}
+        keyringReady
+      />,
+    );
+    const region = screen.getByRole('region', { name: '챗봇 기본값' });
+    const options = within(region).getAllByRole('option') as HTMLOptionElement[];
+    expect(options.filter((node) => node.disabled)).toEqual([]);
+    expect(within(region).getByRole('status')).toHaveTextContent(
+      '선택한 모델이 더 이상 제공되지 않아 기본 모델로 바뀌었습니다',
+    );
   });
 });

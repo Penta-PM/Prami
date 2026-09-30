@@ -22,6 +22,8 @@ export type CredentialView = {
   lastVerifiedAt: string | null;
   lastErrorCode: string | null;
   lastUsedAt: string | null;
+  /** 이 키로 쓸 수 있는 모델 ID (목록 ∩ 상수). null = 미확인 → 상수 전체 허용 (r2 §4.5.2) */
+  availableModels: string[] | null;
   createdAt: string;
 };
 
@@ -49,6 +51,7 @@ export function toCredentialView(
     lastVerifiedAt: row.lastVerifiedAt?.toISOString() ?? null,
     lastErrorCode: row.lastErrorCode,
     lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+    availableModels: row.availableModels ? [...row.availableModels] : null,
     createdAt: row.createdAt.toISOString(),
   };
 }

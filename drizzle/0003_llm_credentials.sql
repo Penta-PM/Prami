@@ -17,6 +17,7 @@ CREATE TABLE "user_llm_credentials" (
 	"last_verified_at" timestamp with time zone,
 	"last_error_code" text,
 	"last_used_at" timestamp with time zone,
+	"available_models" text[],
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone,
 	CONSTRAINT "user_llm_credentials_user_vendor_uq" UNIQUE("user_id","vendor"),

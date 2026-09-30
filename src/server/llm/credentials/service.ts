@@ -132,8 +132,15 @@ export async function withDecryptedSecret<T>(
 }
 
 function statusPatch(result: VerifyResult, now: Date) {
-  if (result.outcome === 'error') return { lastErrorCode: result.errorCode };
-  return { status: result.outcome, lastVerifiedAt: now, lastErrorCode: result.errorCode };
+  // 사용 가능 모델은 정상 + 목록 전체를 읽었을 때만, 그 밖(목록 실패·비정상 판정)은 NULL = 미확인 (AC-207 ⑦)
+  const availableModels = result.availableModels;
+  if (result.outcome === 'error') return { lastErrorCode: result.errorCode, availableModels };
+  return {
+    status: result.outcome,
+    lastVerifiedAt: now,
+    lastErrorCode: result.errorCode,
+    availableModels,
+  };
 }
 
 async function runVerify(ctx: CredentialsContext, vendor: LlmVendor): Promise<CredentialView> {
