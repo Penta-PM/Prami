@@ -23,6 +23,10 @@ export const E2E_ENV = {
   AUTH_GOOGLE_SECRET: '',
   NEXT_DIST_DIR: '.next-e2e',
   NEXT_TELEMETRY_DISABLED: '1',
+  // PRAMI-002: E2E 는 가짜 벤더 검증기 + 코드로 만든 테스트 KEK (저장소에 KEK 리터럴 없음)
+  LLM_CREDENTIALS_KEKS: `1:${Buffer.alloc(32, 'test-kek-e2e').toString('base64')}`,
+  LLM_CREDENTIALS_ACTIVE_KEK: '1',
+  LLM_VENDOR_MODE: 'fake',
 } as const;
 
 export default defineConfig({

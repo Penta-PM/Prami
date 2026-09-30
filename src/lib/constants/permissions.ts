@@ -15,6 +15,8 @@ export const PERMISSIONS = {
   'notice.read': ['USER', 'ADMIN'],
   search: ['USER', 'ADMIN'],
   'chat.use': ['USER', 'ADMIN'],
+  /** PRAMI-002 §4.11: 본인 LLM 키·기본 모델 (대상은 항상 본인) */
+  'settings.self': ['USER', 'ADMIN'],
   'pricing.write': ['ADMIN'],
   'notice.write': ['ADMIN'],
   'cost.read': ['ADMIN'],
@@ -45,6 +47,7 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
   { label: '가격정책 조회', keys: ['pricing.read'] },
   { label: '견적 계산기 / 순매출 계산기', keys: ['calculator.use'] },
   { label: '검색 / 공지사항 / 챗봇', keys: ['search', 'notice.read', 'chat.use'] },
+  { label: '사용자 설정 (본인 LLM 키 · 기본 모델)', keys: ['settings.self'] },
   { label: '가격정책 등록 · 수정 · 삭제', keys: ['pricing.write'] },
   { label: '원가 조회 · 등록 · 수정 · 삭제', keys: ['cost.read', 'cost.write'] },
   { label: '파츠 · 솔루션 그룹 관리', keys: ['parts.write', 'groups.write'] },

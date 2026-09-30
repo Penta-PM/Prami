@@ -86,25 +86,26 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 
 ### 스크립트
 
-| 명령                    | 설명                                                                                                                                                                                 |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm dev`              | 개발 서버 (`127.0.0.1` 바인드, LAN 노출은 `-H 0.0.0.0` 명시 + 테스트 모드 끄기)                                                                                                      |
-| `pnpm check:secrets`    | 추적 파일 비밀값 검사 (원격 DB 자격 증명·`AUTH_SECRET=` 값·OAuth 시크릿, CI `secret scan` 잡, AC-96)                                                                                 |
-| `pnpm build`            | 프로덕션 빌드 (빌드 전 `src/env.ts` 가 환경변수를 검증)                                                                                                                              |
-| `pnpm start`            | 빌드 결과 실행                                                                                                                                                                       |
-| `pnpm lint`             | ESLint                                                                                                                                                                               |
-| `pnpm typecheck`        | `tsc --noEmit`                                                                                                                                                                       |
-| `pnpm format:check`     | Prettier 검사 (`pnpm format` 으로 수정)                                                                                                                                              |
-| `pnpm test`             | Vitest 단위 테스트 (DB 테스트는 PGlite `memory://`)                                                                                                                                  |
-| `pnpm test:coverage`    | 단위 테스트 + 커버리지(임계 80%)                                                                                                                                                     |
-| `pnpm test:integration` | 실제 Postgres 통합 테스트 — `DB_DRIVER=pg` + `DATABASE_URL` 필요, 없으면 스킵                                                                                                        |
-| `pnpm db:generate`      | 스키마(`src/db/schema`) 변경을 `drizzle/*.sql` 마이그레이션으로 생성                                                                                                                 |
-| `pnpm db:migrate`       | `DB_DRIVER` 에 맞는 드라이버로 마이그레이션 적용                                                                                                                                     |
-| `pnpm seed`             | 픽스처 ADMIN·USER, 공지 샘플, 감사 로그 `user.seed` 기록 (재실행 안전)                                                                                                               |
-| `pnpm test:e2e`         | Playwright E2E — `next dev`(포트 3100, `.next-e2e`) + Postgres `prami_e2e` DB(`E2E_DATABASE_URL`)에 자동 migrate·seed. 최초 1회 `pnpm exec playwright install chromium`              |
-| `pnpm fixtures`         | 임포트 테스트 픽스처 생성 — 원본 `병합_가격_raw.xlsx`(`SOURCE_XLSX`)에서 200행 + 오류·품목조회 합성 파일 → `tests/fixtures/imports/`                                                 |
-| `pnpm import:source`    | 엑셀을 업로드·적용 경로 그대로 반영. 기본은 판매단가(원본 `병합_가격_raw.xlsx`), `--kind costs` 면 원가(원본 `원자재코드 정보_260825.xlsx`). 인자로 경로 지정. 로컬·QA 데이터 준비용 |
-| `pnpm check`            | lint + typecheck + format:check + test 일괄                                                                                                                                          |
+| 명령                      | 설명                                                                                                                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm dev`                | 개발 서버 (`127.0.0.1` 바인드, LAN 노출은 `-H 0.0.0.0` 명시 + 테스트 모드 끄기)                                                                                                      |
+| `pnpm check:secrets`      | 추적 파일 비밀값 검사 (원격 DB 자격 증명·`AUTH_SECRET=` 값·OAuth 시크릿·LLM 벤더 키·KEK 값, CI `secret scan` 잡, AC-96·211)                                                          |
+| `pnpm build`              | 프로덕션 빌드 (빌드 전 `src/env.ts` 가 환경변수를 검증)                                                                                                                              |
+| `pnpm start`              | 빌드 결과 실행                                                                                                                                                                       |
+| `pnpm lint`               | ESLint                                                                                                                                                                               |
+| `pnpm typecheck`          | `tsc --noEmit`                                                                                                                                                                       |
+| `pnpm format:check`       | Prettier 검사 (`pnpm format` 으로 수정)                                                                                                                                              |
+| `pnpm test`               | Vitest 단위 테스트 (DB 테스트는 PGlite `memory://`)                                                                                                                                  |
+| `pnpm test:coverage`      | 단위 테스트 + 커버리지(임계 80%)                                                                                                                                                     |
+| `pnpm test:integration`   | 실제 Postgres 통합 테스트 — `DB_DRIVER=pg` + `DATABASE_URL` 필요, 없으면 스킵                                                                                                        |
+| `pnpm db:generate`        | 스키마(`src/db/schema`) 변경을 `drizzle/*.sql` 마이그레이션으로 생성                                                                                                                 |
+| `pnpm db:migrate`         | `DB_DRIVER` 에 맞는 드라이버로 마이그레이션 적용                                                                                                                                     |
+| `pnpm seed`               | 픽스처 ADMIN·USER, 공지 샘플, 감사 로그 `user.seed` 기록 (재실행 안전)                                                                                                               |
+| `pnpm test:e2e`           | Playwright E2E — `next dev`(포트 3100, `.next-e2e`) + Postgres `prami_e2e` DB(`E2E_DATABASE_URL`)에 자동 migrate·seed. 최초 1회 `pnpm exec playwright install chromium`              |
+| `pnpm fixtures`           | 임포트 테스트 픽스처 생성 — 원본 `병합_가격_raw.xlsx`(`SOURCE_XLSX`)에서 200행 + 오류·품목조회 합성 파일 → `tests/fixtures/imports/`                                                 |
+| `pnpm import:source`      | 엑셀을 업로드·적용 경로 그대로 반영. 기본은 판매단가(원본 `병합_가격_raw.xlsx`), `--kind costs` 면 원가(원본 `원자재코드 정보_260825.xlsx`). 인자로 경로 지정. 로컬·QA 데이터 준비용 |
+| `pnpm credentials:rewrap` | LLM 키 DEK 를 활성 KEK 로 다시 감싼다 (KEK 회전, PRAMI-002)                                                                                                                          |
+| `pnpm check`              | lint + typecheck + format:check + test 일괄                                                                                                                                          |
 
 CI(`.github/workflows/ci.yml`)는 PR 마다 lint → typecheck → format → 단위(커버리지, PGlite) → build,
 이어서 PostgreSQL 16 service container 에서 `db:migrate` → `seed` → 통합 테스트, 그리고 같은 service container 와
@@ -321,6 +322,33 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
   `details.requestId` 만 준다. 외부 의존(pino)은 번들 크기 때문에 쓰지 않았다.
 - **비밀값 검사 (AC-96)**: `pnpm check:secrets` (CI `secret scan` 잡). 로컬 docker 기본값(`prami:prami@localhost`)·가짜 비밀번호
   픽스처(`user:pw@…`)·빈 값·`$(…)`/`<…>` 자리표시자는 허용한다.
+
+## 사용자 설정 · LLM 키 (PRAMI-002 PR-A)
+
+스펙: PRAMI-002 §4.6~4.13. 챗봇은 아직 **규칙 기반 그대로**다 — 화면에 "챗봇 LLM 연결은 곧 제공됩니다" 로 안내하고, LangGraph·LLM 호출·스트리밍·OpenRouter OAuth 는 PR-B/C.
+
+- **화면 `/settings`** (헤더 "사용자 설정", 권한 `settings.self` = USER·ADMIN): ① 계정 연결 — 로그인 방식·이메일·마지막 로그인, Google 연결 여부는
+  boolean 으로만(`google_sub` 값 미노출), "Google 계정으로 다시 로그인" ② LLM 연결 — Anthropic·OpenAI·Google Gemini 카드(상태 필·마스킹 힌트
+  `sk-ant-…WXYZ`·등록/교체/검증/삭제·콘솔 링크) ③ 챗봇 기본값 — **정상** 검증된 벤더와 그 벤더의 모델 상수(`src/server/llm/models.ts`)만 ④ 요금·데이터 안내.
+  저장된 키를 다시 보여주는 UI 는 없다(교체만). 입력은 password·autocomplete off, 제출 즉시 비운다.
+- **본인만** (§4.7.1): 모든 조회·변경·검증은 세션 사용자 id 로만 스코프된다 — 입력에 userId 를 받지 않고(strict 스키마), ADMIN 도 남의 키를
+  보거나 바꾸거나 검증할 수 없다. 관리자 화면·감사 CSV·사용자 목록에 LLM 연결 정보는 없다. 사용자 삭제 시 키·설정은 FK CASCADE 로 함께 삭제.
+- **봉투 암호화** (`src/server/llm/credentials/`): 키마다 무작위 DEK(32B) 로 AES-256-GCM, DEK 는 `LLM_CREDENTIALS_KEKS` 의 활성 KEK 로 다시
+  AES-256-GCM. IV 12B·태그 16B, AAD = `prami:llm-cred:v1|행id|userId|vendor|authType`(행 사이 복사 방지). 평문은 DB·로그·감사·응답·오류 어디에도
+  남지 않는다 — 감사는 `settings.llm_credential.create|replace|delete|verify`·`settings.llm_default.update` 에 벤더·상태·KEK 버전만.
+  삭제는 행을 즉시 지운다(백업 잔존은 `docs/deploy/vercel.md` §9).
+- **스키마 접근 제한**: `user_llm_credentials` 는 `src/server/llm/credentials/**` 밖에서 import 하면 ESLint 오류(원가 규칙과 병합된 `no-restricted-imports`).
+- **검증** (`src/server/llm/verify.ts`): 벤더 모델 목록 GET 1회(토큰 사용 없음), 호스트는 코드 상수·URL 에 키 없음·redirect 금지·10초 타임아웃.
+  2xx 정상 / 401·Gemini 400 `API_KEY_INVALID` 키 무효 / 403 권한 부족 / 429 한도 초과 / 5xx·타임아웃 확인 실패. 저장 직후 자동 검증 1회. 저장(자동 검증)과 수동 검증을 합쳐
+  사용자당 분당 `LLM_VERIFY_PER_MIN`(기본 5, AC-95 모듈 재사용). `LLM_VENDOR_MODE=fake`(로컬·테스트 전용, production/Vercel 거부)면
+  `fake-valid-…`·`fake-invalid-…`·`fake-429-…` 등 접두로 결과를 흉내 낸다 — 단위·E2E 는 전부 fake, **실벤더 호출은 하지 않았다**.
+- **KEK 회전**: `LLM_CREDENTIALS_KEKS="1:<base64 32B>,2:<base64 32B>"` + `LLM_CREDENTIALS_ACTIVE_KEK=2` 로 새 키 추가 → 새 등록은 v2,
+  기존 행은 v1 로 계속 복호화 → `pnpm credentials:rewrap` 이 DEK 만 v2 로 다시 감싼다(감사 `system.kek_rewrap`) → 이후 v1 제거.
+  rewrap 전에 옛 KEK 를 지우면 그 행은 "재등록 필요". KEK 가 없으면 화면은 동작하되 등록을 막고 안내한다(production 은
+  `CHAT_LLM_ENABLED=true` 에 KEK 없으면 기동 거부).
+- **로컬에서 보기**: `.env.local` 에 KEK 를 넣고 dev 서버를 재시작한다 (값은 저장소·문서에 적지 않는다):
+  `node -e "console.log('1:'+require('crypto').randomBytes(32).toString('base64'))"` → `LLM_CREDENTIALS_KEKS=<출력>`, `LLM_CREDENTIALS_ACTIVE_KEK=1`,
+  실키 없이 화면을 보려면 `LLM_VENDOR_MODE=fake` + `fake-valid-` 로 시작하는 16자 이상 키.
 
 ## DB 스키마 · 마이그레이션
 

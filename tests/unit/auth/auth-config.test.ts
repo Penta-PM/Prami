@@ -106,6 +106,8 @@ describe('provider 등록', () => {
       NODE_ENV: 'production',
       AUTH_GOOGLE_ID: 'id',
       AUTH_GOOGLE_SECRET: 'secret',
+      // PRAMI-002 §4.13: production 에서 KEK 가 없으면 LLM 킬스위치를 꺼야 기동한다
+      CHAT_LLM_ENABLED: 'false',
     });
     expect(providerIds(config)).toEqual(['google']);
     expect(() =>

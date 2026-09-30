@@ -73,6 +73,8 @@ describe('관리자 페이지', () => {
     expect(calls.guards).toContain('users.manage:/admin/users');
     expect(screen.getByRole('table', { name: '사용자 목록' })).toBeInTheDocument();
     expect(screen.getByRole('table', { name: '역할별 권한' })).toBeInTheDocument();
+    // PRAMI-002 AC-212: settings.self 행 (USER·ADMIN 모두 허용)
+    expect(screen.getByText('사용자 설정 (본인 LLM 키 · 기본 모델)')).toBeInTheDocument();
   });
 
   it('감사 로그 페이지는 audit.read 를 검사하고 필터를 유지한 CSV 링크를 제공한다', async () => {

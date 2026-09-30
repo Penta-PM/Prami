@@ -117,3 +117,23 @@ IP 키는 감사 IP 와 같은 신뢰 헤더 정책을 쓴다. `TRUST_PROXY_HEAD
 4. `/calculator` 견적 저장 → PDF(한글) → 공유 링크 비로그인 열람 → 폐기 404.
 5. 챗봇 "Wapples-500 가격".
 6. `curl -sI` 헤더 검사(§6), rate limit 31회(§5) 1회 확인.
+
+## 9. LLM 자격 증명 (PRAMI-002)
+
+PRAMI-002 PR-A 가 추가한 사용자 LLM 키 저장(봉투 암호화)과 관련 환경변수다. 위 절(D-1~D-5·신뢰 헤더)은 PRAMI-001 PR-11b 소관이라 건드리지 않는다.
+
+| 변수 | Preview | Production | 비고 |
+| --- | --- | --- | --- |
+| `LLM_CREDENTIALS_KEKS` | preview 전용 KEK | production 전용 KEK | **시크릿(Sensitive)**. `버전:base64(32바이트)` 쉼표 나열. 저장소·문서·로그에 실제 값 금지(secret-scan 이 대입값을 검사) |
+| `LLM_CREDENTIALS_ACTIVE_KEK` | `1` | 운영 값 | KEKS 에 있는 버전 |
+| `CHAT_LLM_ENABLED` | `true` | `true` | production 에서 `true` 이면 KEK 필수(없으면 기동 거부). 배포 게이트 미완이면 `false` |
+| `LLM_VENDOR_MODE` | **설정하지 않음**(`live`) | **설정하지 않음** | `fake` 는 production·`VERCEL_ENV` 에서 기동 거부 |
+| `LLM_VERIFY_PER_MIN` | `5` | `5` | 키 검증 사용자당 분당 |
+| `LANGSMITH_TRACING`, `LANGCHAIN_TRACING_V2` | **설정하지 않음** | **설정하지 않음** | 켜면 기동 거부 (외부 트레이싱 금지) |
+
+- **KEK 생성**: `openssl rand -base64 32` 로 만들고 Vercel 환경변수(Sensitive)에만 넣는다. preview 와 production 은 반드시 다른 KEK 를 쓴다(T-11).
+- **KEK 회전** (§4.7.2): 새 버전을 `LLM_CREDENTIALS_KEKS` 에 추가 → `LLM_CREDENTIALS_ACTIVE_KEK` 를 새 버전으로 → 재배포 →
+  대상 DB 연결로 `pnpm credentials:rewrap` 실행(DEK 만 다시 감쌈, 감사 `system.kek_rewrap`) → 구버전 행이 0 이면 옛 KEK 제거.
+  rewrap 전에 옛 KEK 를 지우면 해당 자격 증명은 "재등록 필요" 로 표시되고 앱은 계속 동작한다. KEK 노출이 의심되면 즉시 회전하고 "모든 사용자 키 재등록 권고" 를 공지한다.
+- **백업 잔존(T-2)**: 삭제한 키도 DB 백업·PITR 보존 기간 동안 암호문으로 남는다(KEK 없이는 복호화 불가). Neon 보존 기간은 PR-11b(D-2)에서 이 절에 기록한다(배포 게이트 D2-4).
+- 키 평문은 DB·로그·감사·응답 어디에도 남지 않는다. 사용자 목록·감사 CSV 에 LLM 연결 여부도 나오지 않는다.

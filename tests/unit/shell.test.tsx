@@ -100,6 +100,8 @@ describe('Header', () => {
     expect(screen.getByText('관리자 · 가격정책팀')).toBeInTheDocument();
     expect(screen.getByText('김')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '로그아웃' })).toBeInTheDocument();
+    // PRAMI-002: 본인 설정 진입점
+    expect(screen.getByRole('link', { name: '사용자 설정' })).toHaveAttribute('href', '/settings');
   });
 });
 

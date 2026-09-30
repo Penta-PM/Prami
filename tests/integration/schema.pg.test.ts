@@ -13,6 +13,7 @@ import {
   SALES_PRICE_SOURCE_COLUMNS,
 } from '../fixtures/sales-prices-columns';
 import { describeColumns, listExtensions, listTables } from '../helpers/db-introspect';
+import { assertCredentialColumns, assertCredentialConstraints } from '../helpers/llm-schema-checks';
 
 /**
  * AC-01/AC-02 — 실제 PostgreSQL 16 (DB_DRIVER=pg). 로컬 docker compose 또는 CI service container.
@@ -42,6 +43,11 @@ describe.skipIf(!enabled)('PostgreSQL (DB_DRIVER=pg) 마이그레이션 · 시�
   it('sales_prices 원본 20컬럼이 스펙 §4.3.1 과 일치한다 (PGlite 스냅샷과 동일 기준)', async () => {
     const actual = await describeColumns(handle.db, 'sales_prices');
     expect(actual.slice(1, 21)).toEqual(SALES_PRICE_SOURCE_COLUMNS.map(dbShape));
+  });
+
+  it('PRAMI-002 AC-201: LLM 자격 증명 테이블 컬럼·제약·CASCADE (PGlite 와 동일 기준)', async () => {
+    await assertCredentialColumns(handle);
+    await assertCredentialConstraints(handle, `llm-schema-${Date.now()}@pentasecurity.com`);
   });
 
   it('seed 후 픽스처 ADMIN·USER 와 user.seed 감사 로그가 있다', async () => {

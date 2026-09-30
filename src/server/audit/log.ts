@@ -25,6 +25,13 @@ export const AUDIT_ACTIONS = {
   userDeactivate: 'user.deactivate',
   userSeed: 'user.seed',
   deniedTestMode: 'auth.denied_test_mode',
+  // PRAMI-002 §4.11 — 값(키·힌트·암호문)은 기록하지 않는다
+  llmCredentialCreate: 'settings.llm_credential.create',
+  llmCredentialReplace: 'settings.llm_credential.replace',
+  llmCredentialDelete: 'settings.llm_credential.delete',
+  llmCredentialVerify: 'settings.llm_credential.verify',
+  llmDefaultUpdate: 'settings.llm_default.update',
+  kekRewrap: 'system.kek_rewrap',
 } as const;
 
 export type AuditActor = { id: string | null; label: string };
