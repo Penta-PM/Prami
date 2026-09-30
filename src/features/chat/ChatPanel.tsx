@@ -35,7 +35,7 @@ export function ChatPanel() {
     setShowProductChips(data.showProductChips);
     setCandidates(data.candidates);
   }, []);
-  const conversation = useChatConversation({ status, applyLlm, onReply });
+  const conversation = useChatConversation({ status, applyLlm, onReply, isOpen });
   const { messages, isSending } = conversation;
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -160,6 +160,11 @@ function Bubble({ message }: { message: ChatMessage }) {
         {message.notice ? (
           <span role="note" className="text-amber-600 mb-1 block text-[11px]">
             {message.notice}
+          </span>
+        ) : null}
+        {message.streaming && !message.text ? (
+          <span role="status" className="text-[12px] text-text-tertiary">
+            {message.statusLabel ?? '답변을 쓰는 중…'}
           </span>
         ) : null}
         {message.text}

@@ -7,6 +7,7 @@ import { runRoute } from '@/server/auth/rbac';
 import { HistorySchema } from '@/server/chat/graph/history';
 import { TRUNCATED_NOTICE } from '@/server/chat/graph/messages';
 import { runChat } from '@/server/chat/graph/run';
+import { streamChat } from '@/server/chat/graph/stream';
 import { chatGraph, createChatRuntime } from '@/server/chat/graph/runtime';
 import { CHAT_MAX_LENGTH, normalizeMessage } from '@/server/chat/intent';
 import { rateLimiters, retryAfterSeconds } from '@/server/rate-limit';
@@ -16,6 +17,7 @@ import { rateLimiters, retryAfterSeconds } from '@/server/rate-limit';
  * 기존 규칙 엔진(ruleAnswer 노드)으로 폴백한다. 대화는 저장하지 않고 감사도 남기지 않는다(권한 거부만 runRoute 가 기록).
  * 사용자당 분당 RATE_LIMIT_PER_MIN 회 — LLM·규칙 경로가 기존 chat 버킷을 공유(AC-95). 응답에 원가 키·API 키가 없다.
  * LLM 경로 오류는 HTTP 200 + data.setup/notice 로 대화 안에서 안내한다(§4.8.3).
+ * `Accept: text/event-stream` 이면 SSE(token·status·final·done, §4.3.9 — PR-C), 없으면 기존 JSON 그대로.
  */
 export const AUDIT_CHAT_ASK = 'chat.ask';
 export { TRUNCATED_NOTICE };
@@ -61,6 +63,11 @@ function rateLimit(userId: string) {
   );
 }
 
+/** `Accept: text/event-stream` 이면 SSE, 아니면 기존 JSON 봉투 (호환 유지) */
+function wantsEventStream(request: Request): boolean {
+  return (request.headers.get('accept') ?? '').includes('text/event-stream');
+}
+
 export async function POST(request: Request): Promise<Response> {
   const guard = {
     permission: 'chat.use',
@@ -71,11 +78,25 @@ export async function POST(request: Request): Promise<Response> {
     const { message, truncated, history } = await parseBody(request);
     const decision = rateLimit(user.id);
     const db = await getDb();
-    const data = await runChat(
-      chatGraph,
-      { text: message, truncated, history, actor: { userId: user.id, role: user.role } },
-      createChatRuntime({ db, userId: user.id, env }),
-    );
+    const input = {
+      text: message,
+      truncated,
+      history,
+      actor: { userId: user.id, role: user.role },
+    };
+    const chatRuntime = createChatRuntime({ db, userId: user.id, env });
+    if (wantsEventStream(request)) {
+      // SSE 옵트인 (§4.3.9) — 연결이 끊기면 request.signal 로 그래프·모델 호출을 중단한다
+      return new Response(streamChat(chatGraph, input, chatRuntime, request.signal), {
+        headers: {
+          'content-type': 'text/event-stream; charset=utf-8',
+          'cache-control': 'no-store',
+          'x-accel-buffering': 'no',
+          'x-ratelimit-remaining': String(decision.remaining),
+        },
+      });
+    }
+    const data = await runChat(chatGraph, input, chatRuntime);
     return Response.json(
       { ok: true, data },
       {

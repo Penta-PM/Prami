@@ -3,7 +3,7 @@ import type { LangGraphRunnableConfig } from '@langchain/langgraph';
 
 import type { ChatArtifact } from '../../features/types';
 import type { ChatReply } from '../../respond';
-import { assertNoCostKeys, guardReplyText } from '../guard';
+import { assertNoCostKeys, guardReplyText, productTermsOf } from '../guard';
 import { EMPTY_LLM_REPLY, REFUSED_REPLY, TOO_LONG_REPLY } from '../messages';
 import type { ChatGraphState, ChatGraphUpdate } from '../state';
 import type { ChatReplyOut } from '../types';
@@ -66,12 +66,22 @@ function draft(state: ChatGraphState): ChatReplyOut {
 export function compose(state: ChatGraphState, config: LangGraphRunnableConfig): ChatGraphUpdate {
   runtimeOf(config);
   const reply = draft(state);
-  const text = guardReplyText({
-    text: reply.reply,
-    role: state.actor.role,
-    vendor: state.llm.vendor,
-    model: state.llm.model,
-  });
+  // 출력 가드는 LLM 이 만든 텍스트에만 (PR-B QA L-2): 규칙·거부·안내 문구는 판매단가 DB 에서 만든 결정적 템플릿이라
+  // 품명에 가드 단어가 들어 있어도 정상 가격 답이 거부 문구로 바뀌면 안 된다
+  const text =
+    reply.mode === 'llm'
+      ? guardReplyText({
+          text: reply.reply,
+          terms: productTermsOf(
+            thisTurn(state.messages).filter(
+              (message): message is ToolMessage => message instanceof ToolMessage,
+            ),
+          ),
+          role: state.actor.role,
+          vendor: state.llm.vendor,
+          model: state.llm.model,
+        })
+      : reply.reply;
   const notice = state.notices.map((entry) => entry.text).join(' ') || undefined;
   const final: ChatReplyOut = {
     ...reply,

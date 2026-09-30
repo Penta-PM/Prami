@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { askChatStream } from './chatStream';
 import type {
   ChatHistoryItem,
   ChatLlmView,
@@ -56,16 +57,24 @@ type Options = {
   status: ChatStatusView | null;
   applyLlm: (llm: ChatLlmView | undefined) => void;
   onReply: (data: ChatReplyView) => void;
+  /** 패널이 닫히면 진행 중인 스트림을 중단한다 (벤더 과금 절감, §4.3.9) */
+  isOpen?: boolean;
 };
 
-export function useChatConversation({ status, applyLlm, onReply }: Options) {
+export function useChatConversation({ status, applyLlm, onReply, isOpen = true }: Options) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: nextId(), from: 'bot', text: GREETING },
   ]);
   const [isSending, setSending] = useState(false);
   const shownSetup = useRef<string | null>(null);
-  const push = (message: Omit<ChatMessage, 'id'>) =>
-    setMessages((list) => [...list, { id: nextId(), ...message }]);
+  const inflight = useRef<AbortController | null>(null);
+  const push = (message: Omit<ChatMessage, 'id'>) => {
+    const id = nextId();
+    setMessages((list) => [...list, { id, ...message }]);
+    return id;
+  };
+  const patch = (id: string, update: (message: ChatMessage) => Partial<ChatMessage>) =>
+    setMessages((list) => list.map((m) => (m.id === id ? { ...m, ...update(m) } : m)));
 
   // 상태 조회로 설정이 필요하면 첫 봇 메시지(인사말)에 안내를 붙인다 (한 번 — 말풍선 수는 그대로)
   useEffect(() => {
@@ -77,32 +86,70 @@ export function useChatConversation({ status, applyLlm, onReply }: Options) {
     );
   }, [status?.setup]);
 
-  const send = useCallback(
-    async (text: string) => {
-      const history = status?.llm.status === 'ready' ? buildHistory(messages) : undefined;
-      push({ from: 'user', text, exchange: true });
-      setSending(true);
-      const result = await askChat(text, history);
+  useEffect(() => {
+    if (!isOpen) inflight.current?.abort();
+  }, [isOpen]);
+
+  /** 최종 응답 → 봇 말풍선 필드 (JSON·SSE final 공통) */
+  const replyFields = (data: ChatReplyView): Omit<ChatMessage, 'id'> => {
+    // 원가 거부(precheck)는 자격 증명 확인 전에 끝나 llm 이 기본값이다 — 배너·상태를 갱신하지 않는다 (r4 §4.3.11)
+    if (!(data.mode === 'refusal' && data.intent === 'cost')) applyLlm(data.llm);
+    const repeated = data.setup && shownSetup.current === data.setup.status;
+    if (data.setup && !repeated) shownSetup.current = data.setup.status;
+    return {
+      from: 'bot',
+      text: data.reply,
+      intent: data.intent,
+      action: data.action,
+      notice: data.notice,
+      footnote: repeated && data.setup?.status === 'missing' ? MISSING_SHORT : undefined,
+      setup: repeated ? undefined : data.setup,
+      exchange: true,
+      statusLabel: undefined,
+      streaming: false,
+    };
+  };
+
+  /** LLM 연결 상태: SSE 로 받아 말풍선을 점진 갱신, final 로 교체 */
+  const sendStreaming = async (text: string, history: ChatHistoryItem[]) => {
+    const controller = new AbortController();
+    inflight.current = controller;
+    const id = push({ from: 'bot', text: '', streaming: true });
+    const result = await askChatStream(text, history, controller.signal, {
+      onToken: (token) => patch(id, (m) => ({ text: m.text + token, statusLabel: undefined })),
+      onStatus: (label) => patch(id, () => ({ statusLabel: label })),
+    });
+    inflight.current = null;
+    if (!result.ok) {
+      patch(id, () => ({
+        text: result.message,
+        tone: 'error',
+        streaming: false,
+        statusLabel: undefined,
+      }));
+      return null;
+    }
+    patch(id, () => replyFields(result.data));
+    return result.data;
+  };
+
+  const send = async (text: string) => {
+    const ready = status?.llm.status === 'ready';
+    const history = ready ? buildHistory(messages) : undefined;
+    push({ from: 'user', text, exchange: true });
+    setSending(true);
+    if (ready) {
+      const data = await sendStreaming(text, history ?? []);
       setSending(false);
-      if (!result.ok) return push({ from: 'bot', text: result.message, tone: 'error' });
-      const { data } = result;
-      applyLlm(data.llm);
-      const repeated = data.setup && shownSetup.current === data.setup.status;
-      if (data.setup && !repeated) shownSetup.current = data.setup.status;
-      push({
-        from: 'bot',
-        text: data.reply,
-        intent: data.intent,
-        action: data.action,
-        notice: data.notice,
-        footnote: repeated && data.setup?.status === 'missing' ? MISSING_SHORT : undefined,
-        setup: repeated ? undefined : data.setup,
-        exchange: true,
-      });
-      onReply(data);
-    },
-    [messages, status, applyLlm, onReply],
-  );
+      if (data) onReply(data);
+      return;
+    }
+    const result = await askChat(text, history);
+    setSending(false);
+    if (!result.ok) return void push({ from: 'bot', text: result.message, tone: 'error' });
+    push(replyFields(result.data));
+    onReply(result.data);
+  };
 
   return { messages, isSending, send };
 }

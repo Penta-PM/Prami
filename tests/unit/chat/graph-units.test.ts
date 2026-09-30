@@ -171,6 +171,13 @@ describe('플러그인 등록만으로 라우팅 (AC-233)', () => {
     expect(reply.reply).toBe('공지 개수를 확인했습니다.');
   });
 
+  it('기능 플래그 enabled?: () => boolean (r4 시그니처): false 면 권한이 있어도 도구 목록에서 빠진다', () => {
+    const off: ChatFeature = { ...sampleFeature(), enabled: () => false };
+    const on: ChatFeature = { ...sampleFeature(), enabled: () => true };
+    expect(toolsFor([off], { role: 'ADMIN' })).toEqual([]);
+    expect(toolsFor([on], { role: 'ADMIN' }).map((t) => t.name)).toEqual(['notice_count']);
+  });
+
   it('권한 없는 역할(users.manage 변형 + USER): bindTools 목록에 없고, 강제 호출해도 ToolNode 래퍼가 거부', async () => {
     const features = [...CHAT_FEATURES, sampleFeature('users.manage')];
     expect(toolsFor(features, { role: 'USER' }).map((t) => t.name)).not.toContain('notice_count');

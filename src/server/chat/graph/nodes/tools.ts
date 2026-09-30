@@ -25,6 +25,9 @@ const TOOL_ERRORS = {
   failed: '도구 실행 중 오류가 발생했습니다.',
 } as const;
 
+/** 도구 진행 표시 기본 문구 (라벨 없는 도구) */
+const DEFAULT_STATUS_LABEL = '정보를 확인하는 중';
+
 function errorMessage(call: ToolCall, code: keyof typeof TOOL_ERRORS): ToolMessage {
   return new ToolMessage({
     tool_call_id: call.id ?? call.name,
@@ -81,6 +84,8 @@ export function makeTools(features: readonly ChatFeature[]) {
         messages.push(errorMessage(call, 'limit'));
       else {
         executed += 1;
+        // 스트리밍 진행 표시 (streamMode 'custom' 일 때만 writer 가 있다 — JSON 경로에는 영향 없음)
+        config.writer?.({ type: 'tool_status', label: def.statusLabel ?? DEFAULT_STATUS_LABEL });
         messages.push(await execute(def, call, deps));
       }
     }

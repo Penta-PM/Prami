@@ -9,7 +9,13 @@ import { AUDIT_ACTIONS, writeAudit, type AuditActor, type RequestMeta } from '@/
 import { rateLimiters, retryAfterSeconds } from '@/server/rate-limit';
 
 import { verifyCredential, type VerifyResult } from '../verify';
-import { findVendor, isAcceptableKey, type LlmVendor } from '../vendors/registry';
+import {
+  acceptsApiKey,
+  findVendor,
+  isAcceptableKey,
+  type LlmAuthType,
+  type LlmVendor,
+} from '../vendors/registry';
 import { CredentialUnreadableError, isSealedIntact, openSecret, sealSecret } from './crypto';
 import type { KeyProvider } from './keyring';
 import { maskKey } from './mask';
@@ -40,6 +46,7 @@ export type CredentialsContext = {
 
 export const KEYRING_MISSING_MESSAGE =
   '서버에 암호화 키가 설정되지 않아 LLM 키를 등록할 수 없습니다 (관리자 문의)';
+const OAUTH_ONLY_MESSAGE = '이 벤더는 OAuth 연결로만 등록할 수 있습니다';
 const KEY_FORMAT_MESSAGE = 'API 키 형식이 올바르지 않습니다 (16~256자, 영문·숫자·- _ . 만)';
 
 export function requireVendor(id: string): LlmVendor {
@@ -61,7 +68,12 @@ const auditShape = (row: Pick<CredentialRow, 'vendor' | 'authType' | 'status' | 
 });
 
 /** 등록·교체: 교체는 새 id·새 DEK 로 한 트랜잭션에서 옛 행 삭제 + 새 행 삽입 (§4.7.1) */
-async function storeSealed(ctx: CredentialsContext, vendor: LlmVendor, apiKey: string) {
+async function storeSealed(
+  ctx: CredentialsContext,
+  vendor: LlmVendor,
+  apiKey: string,
+  authType: LlmAuthType = 'api_key',
+) {
   const keys = requireKeys(ctx);
   const keyHint = maskKey(vendor, apiKey);
   if (!keyHint) throw new AppError('VALIDATION', KEY_FORMAT_MESSAGE);
@@ -70,12 +82,12 @@ async function storeSealed(ctx: CredentialsContext, vendor: LlmVendor, apiKey: s
     await lockOwnVendor(tx, userId, vendor.id);
     const before = await deleteOwn(tx, userId, vendor.id);
     const id = randomUUID();
-    const aad = { credentialId: id, userId, vendor: vendor.id, authType: 'api_key' as const };
+    const aad = { credentialId: id, userId, vendor: vendor.id, authType };
     const created = await insertSealed(tx, {
       id,
       userId,
       vendor: vendor.id,
-      authType: 'api_key',
+      authType,
       keyHint,
       ...sealSecret(apiKey, aad, keys),
     });
@@ -96,6 +108,8 @@ export async function saveCredential(
   input: { vendor: string; apiKey: string },
 ): Promise<CredentialView> {
   const vendor = requireVendor(input.vendor);
+  // OAuth 전용 벤더(OpenRouter)는 키 직접 입력을 받지 않는다 — PKCE 콜백 경로(saveOAuthCredential)만
+  if (!acceptsApiKey(vendor)) throw new AppError('VALIDATION', OAUTH_ONLY_MESSAGE);
   if (!isAcceptableKey(vendor, input.apiKey, ctx.mode === 'fake')) {
     throw new AppError('VALIDATION', KEY_FORMAT_MESSAGE);
   }
@@ -105,6 +119,29 @@ export async function saveCredential(
   await storeSealed(ctx, vendor, input.apiKey);
   // 저장 성공 시 자동 검증 1회 (§4.6.1)
   return runVerify(ctx, vendor);
+}
+
+/**
+ * OAuth PKCE 교환으로 받은 키 저장 (PRAMI-002 §4.6.2, PR-C) — 봉투 암호화(PR-A)를 그대로 쓰고 auth_type='oauth_pkce',
+ * 감사 `settings.oauth.connect`(값 없이 벤더만). 교환 응답의 키는 이 함수 인자와 암호화 과정에만 있다.
+ * 자동 검증은 하지 않는다(교환 자체가 벤더 발급 확인) — 상태는 검증 대기, 사용자가 [검증] 또는 챗봇 사용 시 판정.
+ */
+export async function saveOAuthCredential(
+  ctx: CredentialsContext,
+  input: { vendor: string; apiKey: string },
+): Promise<CredentialView> {
+  const vendor = requireVendor(input.vendor);
+  if (!vendor.authTypes.includes('oauth_pkce'))
+    throw new AppError('VALIDATION', OAUTH_ONLY_MESSAGE);
+  const created = await storeSealed(ctx, vendor, input.apiKey, 'oauth_pkce');
+  await writeAudit(ctx.handle.db, {
+    actor: ctx.actor,
+    action: AUDIT_ACTIONS.oauthConnect,
+    target: { type: 'llm_credential', id: vendor.id, label: vendor.label },
+    after: { vendor: vendor.id },
+    meta: ctx.meta,
+  });
+  return toCredentialView(created, ctx.keys);
 }
 
 /** 사용자당 분당 LLM_VERIFY_PER_MIN (§4.7.3 키 오라클 방지). 수동 검증·저장 후 자동 검증 모두 1회로 센다 */
@@ -257,6 +294,17 @@ export async function deleteOwnCredential(
       after: null,
       meta: ctx.meta,
     });
+    // OAuth 연결 해제 = 자격 증명 삭제 (§4.6.2 ③) — 벤더 측 키 폐기는 콘솔 링크로 안내
+    if (before.authType === 'oauth_pkce') {
+      await writeAudit(tx, {
+        actor: ctx.actor,
+        action: AUDIT_ACTIONS.oauthDisconnect,
+        target: { type: 'llm_credential', id: input.vendor, label: input.vendor },
+        before: { vendor: before.vendor },
+        after: null,
+        meta: ctx.meta,
+      });
+    }
     return { deleted: true as const };
   }, ctx.handle);
 }

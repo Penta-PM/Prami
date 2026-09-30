@@ -32,6 +32,9 @@ export const AUDIT_ACTIONS = {
   llmCredentialVerify: 'settings.llm_credential.verify',
   llmDefaultUpdate: 'settings.llm_default.update',
   kekRewrap: 'system.kek_rewrap',
+  /** PRAMI-002 §4.11 OpenRouter OAuth 연결/해제 (값 없이 벤더만) */
+  oauthConnect: 'settings.oauth.connect',
+  oauthDisconnect: 'settings.oauth.disconnect',
 } as const;
 
 export type AuditActor = { id: string | null; label: string };

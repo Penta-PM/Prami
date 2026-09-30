@@ -10,6 +10,8 @@
  *   Fable 5.1 은 요금이 커서 챗봇 조회 용도 선택지에서 제외(스펙 표).
  * - OpenAI: https://developers.openai.com/api/docs/models — gpt-6-astra · gpt-6.1-sol · gpt-6-luna.
  * - Google: https://ai.google.dev/gemini-api/docs/models — gemini-3.8-flash · gemini-3.5-flash-lite (stable). Pro 는 preview 뿐이라 제외.
+ * - OpenRouter(PR-C, OAuth 전용·플래그): 모델 페이지(2026-09-30) https://openrouter.ai/anthropic/claude-sonnet-5.5 ·
+ *   https://openrouter.ai/openai/gpt-6.1-sol · https://openrouter.ai/google/gemini-3.8-flash 의 모델 ID.
  */
 export type ModelTier = 'low' | 'balanced' | 'top';
 export type ModelLifecycle = 'current' | 'legacy';
@@ -36,6 +38,12 @@ export type LlmModelOption = {
 export type AnthropicModelTraits = { effort: 'low' | null; serverFallback: boolean };
 
 const ADAPTIVE_LOW_WITH_FALLBACK: AnthropicModelTraits = { effort: 'low', serverFallback: true };
+/**
+ * 서버측 폴백 미지원 레거시 (PR-B QA M-1): 공식 문서 https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback
+ * (2026-09-30 확인)는 안전 분류기·서버측 폴백 대상을 Fable 5.1·Fable 5·Opus 5.5·Opus 5·Sonnet 5.5 로만 명시한다.
+ * Sonnet 5 는 목록에 없고 Sonnet 5.5 의 폴백 대상일 뿐이다 → 보내지 않는다(불확실하면 보내지 않는 쪽이 기본).
+ */
+const ADAPTIVE_LOW_NO_FALLBACK: AnthropicModelTraits = { effort: 'low', serverFallback: false };
 const HAIKU_TRAITS: AnthropicModelTraits = { effort: null, serverFallback: false };
 
 export const MODEL_TIER_LABELS: Record<ModelTier, string> = {
@@ -82,7 +90,7 @@ export const LLM_MODELS = {
       label: 'Claude Sonnet 5',
       tier: 'balanced',
       lifecycle: 'legacy',
-      anthropic: ADAPTIVE_LOW_WITH_FALLBACK,
+      anthropic: ADAPTIVE_LOW_NO_FALLBACK,
     },
   ],
   openai: [
@@ -108,6 +116,27 @@ export const LLM_MODELS = {
       id: 'gemini-3.5-flash-lite',
       label: 'Gemini 3.5 Flash-Lite',
       tier: 'low',
+      lifecycle: 'current',
+    },
+  ],
+  openrouter: [
+    {
+      id: 'anthropic/claude-sonnet-5.5',
+      label: 'Claude Sonnet 5.5 (OpenRouter)',
+      tier: 'balanced',
+      lifecycle: 'current',
+      isDefault: true,
+    },
+    {
+      id: 'openai/gpt-6.1-sol',
+      label: 'GPT-6.1 Sol (OpenRouter)',
+      tier: 'balanced',
+      lifecycle: 'current',
+    },
+    {
+      id: 'google/gemini-3.8-flash',
+      label: 'Gemini 3.8 Flash (OpenRouter)',
+      tier: 'balanced',
       lifecycle: 'current',
     },
   ],

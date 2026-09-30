@@ -50,10 +50,14 @@ export class UnsafeVerifyRequestError extends Error {
 }
 
 /** 요청 빌더 검사 (T-12·AC-207): https, 상수 호스트, URL 에 키 없음 */
-export function assertSafeVerifyRequest(request: VerifyRequest, secret: string): void {
+export function assertSafeVerifyRequest(
+  request: VerifyRequest,
+  secret: string,
+  allowedHosts: readonly string[] = VENDOR_HOSTS,
+): void {
   const url = new URL(request.url);
   if (url.protocol !== 'https:') throw new UnsafeVerifyRequestError('https 가 아님');
-  if (!(VENDOR_HOSTS as readonly string[]).includes(url.hostname)) {
+  if (!allowedHosts.includes(url.hostname)) {
     throw new UnsafeVerifyRequestError('허용 목록 밖 호스트');
   }
   if (request.url.includes(secret) || request.url.includes(encodeURIComponent(secret))) {
@@ -82,7 +86,8 @@ function pageFetcher(vendor: LlmVendor, secret: string, options: VerifyOptions):
     options.fetchImpl ?? (options.mode === 'fake' ? fakeFetchFor(secret, vendor.id) : fetch);
   return (cursor) => {
     const request = vendor.verifyRequest(secret, cursor);
-    assertSafeVerifyRequest(request, secret);
+    // 이 벤더의 상수 호스트만 (벤더 추가 시에도 다른 벤더 호스트로 키가 가지 않는다)
+    assertSafeVerifyRequest(request, secret, [vendor.host]);
     return fetchImpl(request.url, {
       method: 'GET',
       headers: request.headers,

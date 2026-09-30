@@ -9,7 +9,7 @@ import { assertNoCostKeys } from '@/server/chat/graph/guard';
 import { COST_REPLY, COST_REPLY_USER } from '@/server/chat/respond';
 import { logger } from '@/server/log';
 
-import { leakyFeature } from '../../fixtures/chat/sample-feature';
+import { leakyFeature } from '../../fixtures/chat/leaky-feature';
 import { ScriptedChatModel, serializeCalls } from '../../fixtures/chat/scripted-model';
 import { ask, captureSql, scriptedRuntime, setupChatDb, type ChatTestDb } from '../../helpers/chat';
 

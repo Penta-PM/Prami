@@ -55,23 +55,31 @@ function fromStatus(status: number, bodyCodes: readonly string[]): LlmErrorCode 
   return null;
 }
 
-/** 본문 객체에서 코드 후보 문자열만 모은다 (error.type·error.code·error.status·details[].reason) */
-function bodyCodesOf(error: ErrorLike): string[] {
-  const body = error.error as
-    | {
-        type?: unknown;
-        error?: { type?: unknown; code?: unknown; status?: unknown; details?: unknown };
-      }
-    | undefined;
+/**
+ * 본문 객체에서 코드 후보 문자열만 모은다 — 벤더별 오류 형태(설치 버전으로 확인):
+ * Anthropic/LangChain `error.error.{type,code,status,details[].reason}`, OpenAI SDK `error.{type,code}`·`code`,
+ * Gemini SDK(GoogleGenerativeAIFetchError) `errorDetails[].reason`. 메시지 문자열은 읽지 않는다.
+ */
+type Body = { type?: unknown; code?: unknown; status?: unknown; details?: unknown; error?: Body };
+
+function reasons(details: unknown): unknown[] {
+  return Array.isArray(details) ? (details as { reason?: unknown }[]).map((d) => d?.reason) : [];
+}
+
+function bodyCodesOf(error: ErrorLike & { errorDetails?: unknown }): string[] {
+  const body = error.error as Body | undefined;
   const inner = body?.error;
-  const details = Array.isArray(inner?.details) ? (inner.details as { reason?: unknown }[]) : [];
   return [
     body?.type,
+    body?.code,
+    body?.status,
     inner?.type,
     inner?.code,
     inner?.status,
     error.code,
-    ...details.map((d) => d?.reason),
+    ...reasons(body?.details),
+    ...reasons(inner?.details),
+    ...reasons(error.errorDetails),
   ].filter((value): value is string => typeof value === 'string');
 }
 

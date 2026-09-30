@@ -26,7 +26,8 @@ export function LlmCredentialCard({
   busy,
   handlers,
 }: {
-  vendor: Pick<VendorView, 'id' | 'label' | 'consoleUrl'>;
+  vendor: Pick<VendorView, 'id' | 'label' | 'consoleUrl'> &
+    Partial<Pick<VendorView, 'connectHref'>>;
   credential: CredentialView | null;
   keyringReady: boolean;
   busy: boolean;
@@ -71,7 +72,16 @@ export function LlmCredentialCard({
         />
       ) : (
         <div className="flex flex-wrap gap-2">
-          {supported ? (
+          {supported && vendor.connectHref ? (
+            // OAuth 전용 벤더(OpenRouter §4.6.2): 키 입력 대신 PKCE 연결 — 서버 라우트가 벤더 인증 화면으로 보낸다
+            <a
+              href={keyringReady ? vendor.connectHref : undefined}
+              aria-disabled={!keyringReady}
+              className="inline-flex items-center rounded-lg bg-purple-500 px-3 py-1.5 text-[12px] font-semibold text-white aria-disabled:opacity-50"
+            >
+              {credential ? `${vendor.label} 다시 연결` : `${vendor.label}로 연결`}
+            </a>
+          ) : supported ? (
             <Button
               size="sm"
               variant="primary"

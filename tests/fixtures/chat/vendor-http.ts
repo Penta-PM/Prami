@@ -1,0 +1,133 @@
+/**
+ * OpenAI Chat Completions · Gemini generateContent 전송 계층 스텁 (PRAMI-002 AC-241·AC-243). 실제로 나가는 요청(URL·헤더·본문)을
+ * 기록하고 스크립트한 응답을 돌려준다 — 비스트리밍 JSON 과 SSE(stream:true / streamGenerateContent?alt=sse) 모두.
+ * 실벤더로는 아무것도 나가지 않는다.
+ */
+import type { CapturedRequest } from './anthropic-http';
+
+export type VendorTurn =
+  | { text: string }
+  | { toolCall: { name: string; args: Record<string, unknown> } }
+  | { error: { status: number; body: unknown } }
+  | { hang: true };
+
+type Stub = { fetch: typeof fetch; requests: CapturedRequest[] };
+
+function capture(requests: CapturedRequest[], url: string, init?: RequestInit) {
+  const headers: Record<string, string> = {};
+  new Headers(init?.headers as HeadersInit).forEach((value, key) => {
+    headers[key] = value;
+  });
+  const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {};
+  requests.push({ url, headers, body });
+  return body;
+}
+
+function sse(events: unknown[], done = false): Response {
+  const lines = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('');
+  return new Response(`${lines}${done ? 'data: [DONE]\n\n' : ''}`, {
+    headers: { 'content-type': 'text/event-stream' },
+  });
+}
+
+/** 신호가 끊길 때까지 응답하지 않는 요청 (타임아웃·중단 관찰) */
+function hang(init?: RequestInit): Promise<Response> {
+  return new Promise((_, reject) => {
+    const fail = () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+    if (init?.signal?.aborted) return fail();
+    init?.signal?.addEventListener('abort', fail, { once: true });
+  });
+}
+
+function openAiMessage(turn: VendorTurn) {
+  if ('toolCall' in turn) {
+    const call = {
+      id: 'call_1',
+      type: 'function',
+      function: { name: turn.toolCall.name, arguments: JSON.stringify(turn.toolCall.args) },
+    };
+    return {
+      message: { role: 'assistant', content: null, tool_calls: [call] },
+      finish: 'tool_calls',
+    };
+  }
+  return {
+    message: { role: 'assistant', content: 'text' in turn ? turn.text : '' },
+    finish: 'stop',
+  };
+}
+
+function openAiResponse(turn: VendorTurn, stream: boolean): Response {
+  const { message, finish } = openAiMessage(turn);
+  const base = { id: 'chatcmpl-1', created: 1, model: 'gpt-6.1-sol' };
+  if (!stream) {
+    return Response.json({
+      ...base,
+      object: 'chat.completion',
+      choices: [{ index: 0, message, finish_reason: finish }],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    });
+  }
+  const delta = message.tool_calls
+    ? {
+        role: 'assistant',
+        tool_calls: message.tool_calls.map((call, index) => ({ index, ...call })),
+      }
+    : { role: 'assistant', content: message.content };
+  return sse(
+    [
+      {
+        ...base,
+        object: 'chat.completion.chunk',
+        choices: [{ index: 0, delta, finish_reason: null }],
+      },
+      {
+        ...base,
+        object: 'chat.completion.chunk',
+        choices: [{ index: 0, delta: {}, finish_reason: finish }],
+      },
+    ],
+    true,
+  );
+}
+
+export function createOpenAIStub(turns: VendorTurn[]): Stub {
+  const requests: CapturedRequest[] = [];
+  let index = 0;
+  const fetchImpl = async (url: string | URL | Request, init?: RequestInit) => {
+    const body = capture(requests, String(url), init);
+    const turn = turns[Math.min(index, turns.length - 1)]!;
+    index += 1;
+    if ('hang' in turn) return hang(init);
+    if ('error' in turn) return Response.json(turn.error.body, { status: turn.error.status });
+    return openAiResponse(turn, body.stream === true);
+  };
+  return { fetch: fetchImpl as typeof fetch, requests };
+}
+
+function geminiCandidate(turn: VendorTurn) {
+  const parts =
+    'toolCall' in turn
+      ? [{ functionCall: { name: turn.toolCall.name, args: turn.toolCall.args } }]
+      : [{ text: 'text' in turn ? turn.text : '' }];
+  return {
+    candidates: [{ content: { role: 'model', parts }, finishReason: 'STOP', index: 0 }],
+    usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5, totalTokenCount: 15 },
+  };
+}
+
+/** Gemini SDK 는 fetch 주입이 없어 전역 fetch 로 끼운다 (테스트에서 vi.stubGlobal) */
+export function createGeminiStub(turns: VendorTurn[]): Stub {
+  const requests: CapturedRequest[] = [];
+  let index = 0;
+  const fetchImpl = async (url: string | URL | Request, init?: RequestInit) => {
+    capture(requests, String(url), init);
+    const turn = turns[Math.min(index, turns.length - 1)]!;
+    index += 1;
+    if ('hang' in turn) return hang(init);
+    if ('error' in turn) return Response.json(turn.error.body, { status: turn.error.status });
+    const payload = geminiCandidate(turn);
+    return String(url).includes('streamGenerateContent') ? sse([payload]) : Response.json(payload);
+  };
+  return { fetch: fetchImpl as typeof fetch, requests };
+}

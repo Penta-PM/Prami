@@ -37,6 +37,7 @@ function changePct(before: string, after: string, sameCurrency: boolean): number
 export const priceCompareTool: ChatToolDef<typeof input, typeof output> = {
   name: 'price_compare_previous',
   description: '품목의 현재 판매단가와 이전 적용 판매단가를 비교해 변동률을 준다.',
+  statusLabel: '가격 변동 비교 중',
   input,
   output,
   run: async ({ query }, { db }) => {

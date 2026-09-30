@@ -48,6 +48,3 @@ export function createAnthropicChatModel(
     },
   });
 }
-
-/** 도구 바인딩 옵션: 강제 tool_choice 없음(Opus/Sonnet 5.5 는 any/tool 400), 모든 도구 strict (§4.5.3) */
-export const ANTHROPIC_BIND_OPTIONS = { strict: true } as const;

@@ -137,3 +137,20 @@ describe('어댑터 상한 (AC-229 ①)', () => {
     expect(model.clientOptions.timeout).toBe(20_000);
   });
 });
+
+describe('서버측 폴백 적용 모델 (PR-B QA M-1, 공식 문서 2026-09-30)', () => {
+  it('fallbacks 는 공식 지원 모델(Opus 5.5·Sonnet 5.5·Opus 5)에만, 레거시 Sonnet 5·Haiku 4.5 요청 본문·헤더에는 없다', async () => {
+    const supported = LLM_MODELS.anthropic
+      .filter((model) => model.anthropic?.serverFallback)
+      .map((model) => model.id);
+    expect(supported).toEqual(['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-opus-5']);
+    for (const modelId of ['claude-sonnet-5', 'claude-haiku-4-5']) {
+      const { requests } = await runWith(modelId, [FINAL_ROUND]);
+      expect(requests[0]!.body).not.toHaveProperty('fallbacks');
+      expect(requests[0]!.headers['anthropic-beta'] ?? '').not.toContain('server-side-fallback');
+      // r4 AC-231 ⑥: 다른 베타가 없으므로 헤더 자체가 없고 엔드포인트는 베타가 아닌 /v1/messages
+      expect(requests[0]!.headers).not.toHaveProperty('anthropic-beta');
+      expect(requests[0]!.url).toBe('https://api.anthropic.com/v1/messages');
+    }
+  });
+});

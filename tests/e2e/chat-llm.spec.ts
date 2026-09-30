@@ -75,6 +75,43 @@ test('키 없음 → 배너·안내·규칙 답, 설정에서 fake 키 저장 �
   // 응답의 llm 상태로 배너가 사라지고 과금 고지가 보인다
   await expect(banner).toHaveCount(0);
   await expect(panel.getByRole('note', { name: '과금 안내' })).toContainText('본인 벤더 계정');
+
+  // AC-243: LLM 연결 상태의 다음 질문은 SSE(event-stream)로 점진 수신 — CSP 헤더는 JSON 응답과 같다(요청별 nonce 제외)
+  const sseResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/chat') && response.request().method() === 'POST',
+  );
+  const streamed = await ask(page, 'Wapples-500 가격');
+  const response = await sseResponse;
+  expect(response.request().headers()['accept']).toBe('text/event-stream');
+  expect(response.headers()['content-type']).toContain('text/event-stream');
+  await expect(streamed).toContainText('[fake LLM] 조회 결과');
+  const json = await page.request.post('/api/chat', { data: { message: 'Wapples-500 가격' } });
+  expect(json.headers()['content-type']).toContain('application/json');
+  const normalize = (csp: string | undefined) => (csp ?? '').replace(/'nonce-[^']+'/g, "'nonce-*'");
+  expect(normalize(response.headers()['content-security-policy'])).toBe(
+    normalize(json.headers()['content-security-policy']),
+  );
+  expect(normalize(response.headers()['content-security-policy'])).toContain(
+    "script-src 'self' 'nonce-*'",
+  );
+});
+
+test('AC-244: OpenRouter OAuth 플래그 off(기본) → 설정 카드 없음, 연결 라우트 404', async ({
+  page,
+}) => {
+  await loginAs(page, FIXTURE_USER, '/settings');
+  await expect(page.getByRole('article', { name: 'Anthropic (Claude) 연결' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'OpenRouter 연결' })).toHaveCount(0);
+  expect(
+    (await page.request.get('/api/settings/oauth/openrouter/start', { maxRedirects: 0 })).status(),
+  ).toBe(404);
+  expect(
+    (
+      await page.request.get('/api/settings/oauth/openrouter/callback?state=x&code=y', {
+        maxRedirects: 0,
+      })
+    ).status(),
+  ).toBe(404);
 });
 
 test('원가 질문은 키가 있어도 LLM 없이 기존 거부 문구 (AC-225)', async ({ page }) => {

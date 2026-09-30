@@ -133,6 +133,28 @@ describe('LLM 연결 (AC-230 ①·§4.8.2)', () => {
     });
   });
 
+  it('r4 §4.3.11: 원가 거부 응답의 기본값 llm(missing)으로 배너·상태를 바꾸지 않는다', async () => {
+    route(status('ready'), [
+      reply({
+        intent: 'cost',
+        reply: '원가 정보는 관리자만 조회할 수 있습니다.',
+        mode: 'refusal',
+        llm: { status: 'missing', vendor: null, model: null },
+      }),
+      reply({ reply: '다음 답', mode: 'llm' }),
+    ]);
+    const panel = await openPanel();
+    await within(panel).findByRole('note', { name: '과금 안내' });
+    await userEvent.type(within(panel).getByLabelText('질문 입력'), '원가 알려줘{enter}');
+    await within(panel).findByText('원가 정보는 관리자만 조회할 수 있습니다.');
+    expect(within(panel).queryByRole('status', { name: 'LLM 연결 안내' })).not.toBeInTheDocument();
+    expect(within(panel).getByRole('note', { name: '과금 안내' })).toBeInTheDocument();
+    await userEvent.type(within(panel).getByLabelText('질문 입력'), '가격{enter}');
+    await within(panel).findByText('다음 답');
+    // 여전히 ready 로 보고 대화 히스토리를 보낸다
+    expect(chatBodies()[1]).toHaveProperty('history');
+  });
+
   it('AC-227 ④: LLM 텍스트 속 외부 URL 은 링크(<a>)로 렌더링하지 않는다 — 링크는 action.href 뿐', async () => {
     route(status('ready'), [
       reply({

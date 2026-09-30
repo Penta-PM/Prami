@@ -19,7 +19,12 @@ import {
 import { anthropic } from '@/server/llm/vendors/anthropic';
 import { google } from '@/server/llm/vendors/google';
 import { openai } from '@/server/llm/vendors/openai';
-import { findVendor, isAcceptableKey, LLM_VENDORS } from '@/server/llm/vendors/registry';
+import {
+  activeVendors,
+  findVendor,
+  isAcceptableKey,
+  LLM_VENDORS,
+} from '@/server/llm/vendors/registry';
 
 import { makeFakeKey } from '../../helpers/secret';
 
@@ -187,9 +192,34 @@ describe('형식·마스킹·레지스트리', () => {
     expect(maskKey(anthropic, '---------------_')).toBeNull();
   });
 
-  it('레지스트리 3사, 모델 상수 검증', () => {
-    expect(LLM_VENDORS.map((vendor) => vendor.id)).toEqual(['anthropic', 'openai', 'google']);
-    expect(findVendor('openrouter')).toBeUndefined();
+  it('레지스트리 3사 + OpenRouter(OAuth 전용·플래그), 벤더별 상수 호스트, 모델 상수 검증', () => {
+    expect(LLM_VENDORS.map((vendor) => vendor.id)).toEqual([
+      'anthropic',
+      'openai',
+      'google',
+      'openrouter',
+    ]);
+    expect(activeVendors({ oauthOpenRouter: false }).map((vendor) => vendor.id)).toEqual([
+      'anthropic',
+      'openai',
+      'google',
+    ]);
+    expect(activeVendors({ oauthOpenRouter: true }).map((vendor) => vendor.id)).toContain(
+      'openrouter',
+    );
+    expect(findVendor('openrouter')?.authTypes).toEqual(['oauth_pkce']);
+    for (const vendor of LLM_VENDORS) {
+      expect(new URL(vendor.verifyRequest('k'.repeat(20)).url).hostname).toBe(vendor.host);
+      expect(vendor.createChatModel).toBeTypeOf('function');
+    }
+    // 다른 벤더 호스트로의 요청은 이 벤더에서 거부 (벤더별 상수 호스트)
+    expect(() =>
+      assertSafeVerifyRequest(
+        { url: 'https://api.openai.com/v1/models', headers: {} },
+        'secret-x',
+        ['api.anthropic.com'],
+      ),
+    ).toThrow(UnsafeVerifyRequestError);
     expect(isKnownModel('anthropic', LLM_MODELS.anthropic[0].id)).toBe(true);
     expect(isKnownModel('anthropic', 'gpt-6.1-sol')).toBe(false);
     expect(isKnownModel('nope', 'x')).toBe(false);

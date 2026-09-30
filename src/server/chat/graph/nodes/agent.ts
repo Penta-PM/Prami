@@ -3,7 +3,6 @@ import type { LangGraphRunnableConfig } from '@langchain/langgraph';
 
 import { isAuthError, normalizeLlmError, type LlmErrorCode } from '@/server/llm/errors';
 import { logger } from '@/server/log';
-import { ANTHROPIC_BIND_OPTIONS } from '@/server/llm/vendors/anthropic-chat';
 
 import { toolsFor } from '../../features/registry';
 import { toLangChainTool } from '../../features/tool-factory';
@@ -20,6 +19,18 @@ import { runtimeOf } from './util';
  * - refusal(stop_reason) 은 content 를 읽기 전에 확인하고 content 를 버린다 (§4.5.3)
  * - 벤더 오류는 코드로만 정규화 (§4.8.3). 인증 계열이면 자격 증명 상태를 갱신한다
  */
+/**
+ * 도구 바인딩 옵션 — 모든 벤더 공통: 강제 tool_choice 없음 + strict (Anthropic·OpenAI 는 도구별 strict:true 로 싣고,
+ * Gemini 어댑터는 strict 를 무시한다 — 계약 테스트 AC-241)
+ */
+const BIND_OPTIONS: Record<string, unknown> = { strict: true };
+
+/** 모델 호출 신호 = 요청 타임아웃 + 클라이언트 중단(SSE 연결 끊김, §4.3.9) */
+function callSignal(config: LangGraphRunnableConfig, timeoutMs: number): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return config.signal ? AbortSignal.any([config.signal, timeout]) : timeout;
+}
+
 function isRefusal(message: AIMessage): boolean {
   return (
     (message.response_metadata as { stop_reason?: unknown } | undefined)?.stop_reason === 'refusal'
@@ -56,11 +67,9 @@ export function makeAgent(features: readonly ChatFeature[]) {
     runtime.llmCalls += 1;
     let message: AIMessage;
     try {
-      // strict 는 ChatAnthropic 호출 옵션 (BaseChatModel 공용 타입에는 없다 — 가짜 모델은 무시)
-      const options = ANTHROPIC_BIND_OPTIONS as Record<string, unknown>;
-      const bound = model.bindTools ? model.bindTools(tools, options) : model;
+      const bound = model.bindTools ? model.bindTools(tools, BIND_OPTIONS) : model;
       message = (await bound.invoke(state.messages, {
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: callSignal(config, timeoutMs),
       })) as AIMessage;
     } catch (error) {
       return onError(state, runtime, normalizeLlmError(error));

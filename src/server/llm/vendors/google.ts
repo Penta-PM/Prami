@@ -1,4 +1,5 @@
 import { modelsFor } from '../models';
+import { createGoogleChatModel } from './google-chat';
 import { KEY_CHARSET, pickIds, type LlmVendor } from './types';
 
 /**
@@ -10,6 +11,7 @@ export const google: LlmVendor = {
   label: 'Google Gemini',
   authTypes: ['api_key'],
   keyFormat: { minLength: 16, maxLength: 256, pattern: KEY_CHARSET, hintPrefix: /^AIza/ },
+  host: 'generativelanguage.googleapis.com',
   consoleUrl: 'https://aistudio.google.com/app/apikey',
   models: modelsFor('google'),
   // URL 쿼리 `?key=` 금지 — 프록시·로그에 남는다. 헤더 x-goog-api-key 만 쓴다
@@ -17,6 +19,7 @@ export const google: LlmVendor = {
     url: `https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000${cursor ? `&pageToken=${encodeURIComponent(cursor)}` : ''}`,
     headers: { 'x-goog-api-key': secret },
   }),
+  createChatModel: createGoogleChatModel,
   parseModelList: (body) => {
     const ids = pickIds(body, 'models', 'name');
     if (!ids) return null;
