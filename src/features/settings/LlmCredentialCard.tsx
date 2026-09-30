@@ -6,7 +6,7 @@ import { Button, Modal, Pill } from '@/components/ui';
 import type { CredentialView } from '@/server/llm/credentials/view';
 import type { VendorView } from '@/server/llm/credentials/settings';
 
-import { ERROR_CODE_LABELS, formatDateTime, STATUS_LABELS } from './labels';
+import { ERROR_CODE_LABELS, formatDateTime, STATUS_LABELS, UNREADABLE_NOTICE } from './labels';
 import { LlmCredentialForm } from './LlmCredentialForm';
 
 /**
@@ -48,6 +48,11 @@ export function LlmCredentialCard({
           {status.label}
         </Pill>
       </header>
+      {credential?.status === 'unreadable' ? (
+        <p role="alert" className="m-0 rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-500">
+          {UNREADABLE_NOTICE}
+        </p>
+      ) : null}
       {credential ? (
         <CredentialFacts credential={credential} />
       ) : (

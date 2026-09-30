@@ -1,11 +1,15 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { createElement, type ImgHTMLAttributes } from 'react';
 import { afterEach, vi } from 'vitest';
 
 afterEach(() => {
   cleanup();
 });
+
+// findBy*/waitFor 기본 대기 1초는 CI 커버리지 실행(파일마다 PGlite·병렬)에서 부족해 드물게 실패했다
+// (PRAMI-002 QA I-6: calculator ui.test `findByRole('Wapples-500 …')`). 통과 시에는 즉시 반환되므로 느려지지 않는다.
+configure({ asyncUtilTimeout: 5_000 });
 
 // next/image 는 jsdom 에서 최적화 로더가 필요 없으므로 일반 <img> 로 대체한다.
 vi.mock('next/image', () => ({

@@ -10,14 +10,16 @@ import { rateLimiters, retryAfterSeconds } from '@/server/rate-limit';
 
 import { verifyCredential, type VerifyResult } from '../verify';
 import { findVendor, isAcceptableKey, type LlmVendor } from '../vendors/registry';
-import { CredentialUnreadableError, openSecret, sealSecret } from './crypto';
+import { CredentialUnreadableError, isSealedIntact, openSecret, sealSecret } from './crypto';
 import type { KeyProvider } from './keyring';
 import { maskKey } from './mask';
 import {
   deleteOwn,
   findCredentialRow,
   insertSealed,
+  listSealedRows,
   loadSealed,
+  lockOwnVendor,
   updateOwnStatus,
   type CredentialRow,
 } from './repository';
@@ -65,6 +67,7 @@ async function storeSealed(ctx: CredentialsContext, vendor: LlmVendor, apiKey: s
   if (!keyHint) throw new AppError('VALIDATION', KEY_FORMAT_MESSAGE);
   const userId = ctx.actor.id;
   return withTransaction(async (tx) => {
+    await lockOwnVendor(tx, userId, vendor.id);
     const before = await deleteOwn(tx, userId, vendor.id);
     const id = randomUUID();
     const aad = { credentialId: id, userId, vendor: vendor.id, authType: 'api_key' as const };
@@ -122,13 +125,35 @@ export async function withDecryptedSecret<T>(
   ctx: Pick<CredentialsContext, 'handle' | 'keys'>,
   userId: string,
   vendor: string,
-  fn: (secret: string) => Promise<T>,
+  fn: (secret: string, credentialId: string) => Promise<T>,
 ): Promise<T> {
   const row = await loadSealed(ctx.handle.db, userId, vendor);
   if (!row) throw new AppError('NOT_FOUND', '등록된 키가 없습니다');
   if (!ctx.keys) throw new CredentialUnreadableError('kek_missing');
   const aad = { credentialId: row.id, userId, vendor, authType: row.authType };
-  return fn(openSecret(row, aad, ctx.keys));
+  return fn(openSecret(row, aad, ctx.keys), row.id);
+}
+
+/**
+ * 읽을 수 없는 본인 자격 증명의 벤더 (QA L-1). 변조(무결성 실패)·KEK 누락 행은 DB 상태와 무관하게 조회 시점에 "unreadable".
+ * 키링이 없으면 전부 읽을 수 없다.
+ */
+export async function unreadableVendors(
+  db: DbHandle['db'],
+  userId: string,
+  keys: KeyProvider | null,
+): Promise<Set<string>> {
+  const rows = await listSealedRows(db, userId);
+  const broken = rows.filter(
+    (row) =>
+      !keys ||
+      !isSealedIntact(
+        row,
+        { credentialId: row.id, userId, vendor: row.vendor, authType: row.authType },
+        keys,
+      ),
+  );
+  return new Set(broken.map((row) => row.vendor));
 }
 
 function statusPatch(result: VerifyResult, now: Date) {
@@ -146,38 +171,55 @@ function statusPatch(result: VerifyResult, now: Date) {
 async function runVerify(ctx: CredentialsContext, vendor: LlmVendor): Promise<CredentialView> {
   const userId = ctx.actor.id;
   let result: VerifyResult | 'unreadable';
+  let credentialId: string | null = null;
   try {
-    result = await withDecryptedSecret(ctx, userId, vendor.id, (secret) =>
-      verifyCredential(vendor, secret, { mode: ctx.mode }),
-    );
+    result = await withDecryptedSecret(ctx, userId, vendor.id, (secret, id) => {
+      credentialId = id;
+      return verifyCredential(vendor, secret, { mode: ctx.mode });
+    });
   } catch (error) {
     if (!(error instanceof CredentialUnreadableError)) throw error;
     result = 'unreadable';
   }
-  return recordVerify(ctx, vendor, result);
+  return recordVerify(ctx, vendor, result, credentialId);
 }
 
 async function recordVerify(
   ctx: CredentialsContext,
   vendor: LlmVendor,
   result: VerifyResult | 'unreadable',
+  credentialId: string | null,
 ): Promise<CredentialView> {
   const userId = ctx.actor.id;
-  const updated =
-    result === 'unreadable'
-      ? await findCredentialRow(ctx.handle.db, userId, vendor.id)
-      : await updateOwnStatus(ctx.handle.db, userId, vendor.id, statusPatch(result, new Date()));
+  const written =
+    result === 'unreadable' || !credentialId
+      ? null
+      : await updateOwnStatus(
+          ctx.handle.db,
+          userId,
+          vendor.id,
+          credentialId,
+          statusPatch(result, new Date()),
+        );
+  // 검증 도중 교체됐으면(행 id 불일치) 결과를 쓰지 않고 현재 행을 그대로 보여준다 (QA L-3)
+  const superseded = result !== 'unreadable' && !written;
+  const updated = written ?? (await findCredentialRow(ctx.handle.db, userId, vendor.id));
   if (!updated) throw new AppError('NOT_FOUND', '등록된 키가 없습니다');
   const outcome = result === 'unreadable' ? 'unreadable' : result.outcome;
   await writeAudit(ctx.handle.db, {
     actor: ctx.actor,
     action: AUDIT_ACTIONS.llmCredentialVerify,
     target: { type: 'llm_credential', id: vendor.id, label: vendor.label },
-    after: { vendor: vendor.id, status: updated.status, outcome },
+    after: {
+      vendor: vendor.id,
+      status: updated.status,
+      outcome,
+      ...(superseded && { superseded }),
+    },
     result: outcome === 'valid' ? 'success' : 'error',
     meta: ctx.meta,
   });
-  return toCredentialView(updated, ctx.keys, result === 'unreadable');
+  return toCredentialView(updated, ctx.keys, result === 'unreadable' && !superseded);
 }
 
 export async function verifyOwnCredential(

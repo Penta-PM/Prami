@@ -12,7 +12,12 @@ import {
   verifyLlmCredentialAction,
 } from './actions';
 import { ChatDefaultsForm } from './ChatDefaultsForm';
-import { DELETE_DONE_MESSAGE, KEYRING_MISSING_NOTICE, NOTICES } from './labels';
+import {
+  DELETE_DONE_MESSAGE,
+  KEYRING_MISSING_NOTICE,
+  NOTICES,
+  verifyResultMessage,
+} from './labels';
 import { LlmCredentialCard, type CardHandlers } from './LlmCredentialCard';
 
 type Flash = { tone: 'ok' | 'error'; text: string };
@@ -48,7 +53,7 @@ export function LlmSection({
         return false;
       }
       upsert(result.data);
-      setFlash({ tone: 'ok', text: `${result.data.vendorLabel} 키를 저장하고 검증했습니다` });
+      setFlash(verifyResultMessage(result.data, 'save'));
       return true;
     },
     onVerify: async (vendor) =>
@@ -56,7 +61,7 @@ export function LlmSection({
         const result = await verifyLlmCredentialAction({ vendor });
         if (!result.ok) return setFlash({ tone: 'error', text: result.error.message });
         upsert(result.data);
-        setFlash({ tone: 'ok', text: `${result.data.vendorLabel} 키 검증을 마쳤습니다` });
+        setFlash(verifyResultMessage(result.data, 'verify'));
       }),
     onDelete: async (vendor) =>
       startTransition(async () => {

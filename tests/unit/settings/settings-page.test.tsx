@@ -233,3 +233,58 @@ describe('ChatDefaultsForm 모델 선택 (AC-208, r2)', () => {
     );
   });
 });
+
+describe('결과별 알림 (QA L-1·L-2)', () => {
+  const result = (data: Partial<CredentialView>) => ({
+    ok: true,
+    data: { ...savedView('openai', 'fake-…WXYZ'), vendorLabel: 'OpenAI', ...data },
+  });
+
+  it.each([
+    [{ status: 'valid' as const }, 'status', 'OpenAI 키를 저장하고 검증했습니다'],
+    [
+      { status: 'unverified' as const, lastErrorCode: 'unavailable' },
+      'alert',
+      'OpenAI 키를 저장했지만 벤더 응답이 없어 확인하지 못했습니다',
+    ],
+    [
+      { status: 'invalid' as const, lastErrorCode: 'invalid_key' },
+      'alert',
+      'OpenAI 키를 저장했지만 사용할 수 없습니다: 키가 유효하지 않거나 만료되었습니다',
+    ],
+    [{ status: 'unreadable' as const }, 'alert', '키를 읽을 수 없습니다 — 다시 등록하세요'],
+  ])('저장 결과 %o → %s "%s"', async (data, role, text) => {
+    state.save.mockResolvedValue(result(data));
+    render(
+      <LlmSection
+        vendors={VENDOR_VIEWS}
+        initialCredentials={[]}
+        initialDefaults={emptyDefaults}
+        keyringReady
+      />,
+    );
+    const card = screen.getByRole('article', { name: 'OpenAI 연결' });
+    await userEvent.click(within(card).getByRole('button', { name: '등록' }));
+    await userEvent.type(within(card).getByLabelText('OpenAI API 키 등록'), makeFakeKey());
+    await userEvent.click(within(card).getByRole('button', { name: '저장하고 검증' }));
+    const flash = await screen.findAllByRole(role as 'status' | 'alert');
+    expect(flash.map((node) => node.textContent).join(' ')).toContain(text);
+    if (role === 'alert')
+      expect(screen.queryByText(/저장하고 검증했습니다/)).not.toBeInTheDocument();
+  });
+
+  it('읽을 수 없는 키 카드는 "키를 읽을 수 없습니다 — 다시 등록하세요" 를 보인다', () => {
+    render(
+      <LlmSection
+        vendors={VENDOR_VIEWS}
+        initialCredentials={[{ ...savedView('openai', 'fake-…WXYZ'), status: 'unreadable' }]}
+        initialDefaults={emptyDefaults}
+        keyringReady
+      />,
+    );
+    const card = screen.getByRole('article', { name: 'OpenAI 연결' });
+    expect(within(card).getByRole('alert')).toHaveTextContent(
+      '키를 읽을 수 없습니다 — 다시 등록하세요',
+    );
+  });
+});

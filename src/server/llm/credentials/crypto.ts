@@ -116,6 +116,32 @@ export function openSecret(sealed: SealedSecret, aad: AadParts, keys: KeyProvide
   }
 }
 
+/**
+ * 무결성 확인 (QA L-1): 복호화가 되는지만 본다. 평문은 Buffer 로만 존재하고 즉시 0 으로 덮으며 문자열로 만들지 않는다.
+ * 조회 화면이 변조·KEK 누락 행을 "읽을 수 없음"으로 보이게 하는 데 쓴다.
+ */
+export function isSealedIntact(sealed: SealedSecret, aad: AadParts, keys: KeyProvider): boolean {
+  const additional = buildAad(aad);
+  let dek: Buffer | null = null;
+  try {
+    dek = unwrapDek(sealed, additional, keys);
+    const plaintext = gcmDecrypt(
+      dek,
+      sealed.secretCiphertext,
+      sealed.secretIv,
+      sealed.secretTag,
+      additional,
+    );
+    plaintext.fill(0);
+    return true;
+  } catch (error) {
+    if (error instanceof CredentialUnreadableError) return false;
+    throw error;
+  } finally {
+    dek?.fill(0);
+  }
+}
+
 /** 키 회전(§4.7.2): 비밀값은 그대로 두고 DEK 만 활성 KEK 로 다시 감싼다 */
 export function rewrapDek(
   sealed: SealedSecret,

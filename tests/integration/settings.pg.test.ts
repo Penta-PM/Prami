@@ -90,4 +90,23 @@ describe.skipIf(!enabled)('PostgreSQL LLM 자격 증명 (AC-207 ⑦·AC-208)', (
     await deleteOwnCredential(ctx, { vendor: 'anthropic' });
     await deleteOwnCredential(ctx, { vendor: 'google' });
   });
+
+  it('QA L-3: 같은 사용자·벤더 동시 교체 6건 → 모두 성공, 행 1개, 남은 행은 그중 하나로 복호화', async () => {
+    // 동시성만 본다 — 검증 상한(분당 5)은 별도 테스트(AC-207)가 다룬다
+    rateLimiters.llmVerify.configure(1000);
+    const keys = Array.from({ length: 6 }, () => makeFakeKey('fake-valid-'));
+    const results = await Promise.allSettled(
+      keys.map((apiKey) => saveCredential(ctx, { vendor: 'openai', apiKey })),
+    );
+    expect(results.filter((result) => result.status === 'rejected')).toEqual([]);
+    const rows = await queryRows<{ n: number }>(
+      handle.db,
+      sql`select count(*)::int n from user_llm_credentials where user_id = ${ctx.actor.id} and vendor = 'openai'`,
+    );
+    expect(rows[0]!.n).toBe(1);
+    const stored = await withDecryptedSecret(ctx, ctx.actor.id, 'openai', async (secret) => secret);
+    expect(keys).toContain(stored);
+    await deleteOwnCredential(ctx, { vendor: 'openai' });
+    rateLimiters.llmVerify.configure(5);
+  });
 });

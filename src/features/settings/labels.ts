@@ -34,6 +34,40 @@ export const ERROR_CODE_LABELS: Record<string, string> = {
   unavailable: '벤더 응답이 없어 확인하지 못했습니다 (잠시 후 다시 검증)',
 };
 
+/** 변조·KEK 누락으로 복호화할 수 없는 키 (QA L-1) */
+export const UNREADABLE_NOTICE = '키를 읽을 수 없습니다 — 다시 등록하세요';
+
+type VerifiedView = {
+  vendorLabel: string;
+  status: CredentialStatusView;
+  lastErrorCode: string | null;
+};
+
+/**
+ * 저장·검증 결과 알림 (QA L-2): 결과 코드별로 문구·톤을 나눈다. 정상일 때만 성공 톤.
+ * 확인 실패(unavailable)는 상태가 바뀌지 않으므로 status 보다 lastErrorCode 를 먼저 본다.
+ */
+export function verifyResultMessage(
+  view: VerifiedView,
+  kind: 'save' | 'verify',
+): { tone: 'ok' | 'error'; text: string } {
+  const saved = kind === 'save' ? '저장했지만 ' : '';
+  if (view.status === 'unreadable')
+    return { tone: 'error', text: `${view.vendorLabel}: ${UNREADABLE_NOTICE}` };
+  if (view.lastErrorCode === 'unavailable') {
+    return {
+      tone: 'error',
+      text: `${view.vendorLabel} 키를 ${saved}벤더 응답이 없어 확인하지 못했습니다 — 잠시 후 [검증]을 다시 누르세요`,
+    };
+  }
+  if (view.status === 'valid') {
+    const text = kind === 'save' ? '키를 저장하고 검증했습니다' : '키 검증을 마쳤습니다 — 정상';
+    return { tone: 'ok', text: `${view.vendorLabel} ${text}` };
+  }
+  const reason = ERROR_CODE_LABELS[view.lastErrorCode ?? ''] ?? STATUS_LABELS[view.status].label;
+  return { tone: 'error', text: `${view.vendorLabel} 키를 ${saved}사용할 수 없습니다: ${reason}` };
+}
+
 export const NOTICES = [
   '사용 요금은 등록한 본인 벤더 계정으로 청구됩니다.',
   '질문 내용과 조회된 판매단가가 선택한 LLM 벤더로 전송됩니다. 원가 정보는 전송되지 않습니다.',

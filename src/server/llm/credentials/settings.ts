@@ -23,7 +23,7 @@ import {
   listCredentialRows,
   upsertOwnSettings,
 } from './repository';
-import { requireVendor, type CredentialsContext } from './service';
+import { requireVendor, unreadableVendors, type CredentialsContext } from './service';
 import { toCredentialView, type CredentialView } from './view';
 
 /**
@@ -102,14 +102,15 @@ export async function getMySettings(input: {
   mode: 'live' | 'fake';
   testMode: boolean;
 }): Promise<MySettings> {
-  const [account, rows, settings] = await Promise.all([
+  const [account, rows, settings, unreadable] = await Promise.all([
     accountOf(input.db, input.userId, input.testMode),
     listCredentialRows(input.db, input.userId),
     getOwnSettings(input.db, input.userId),
+    unreadableVendors(input.db, input.userId, input.keys),
   ]);
   return {
     account,
-    credentials: rows.map((row) => toCredentialView(row, input.keys)),
+    credentials: rows.map((row) => toCredentialView(row, input.keys, unreadable.has(row.vendor))),
     defaults: resolveDefaults(
       settings?.chatDefaultVendor ?? null,
       settings?.chatDefaultModel ?? null,
@@ -140,7 +141,8 @@ export async function updateChatDefaults(
     throw new AppError('VALIDATION', '선택할 수 없는 모델입니다');
   }
   const credential = await findCredentialRow(ctx.handle.db, ctx.actor.id, vendor.id);
-  if (!credential || credential.status !== 'valid') {
+  const unreadable = await unreadableVendors(ctx.handle.db, ctx.actor.id, ctx.keys);
+  if (!credential || credential.status !== 'valid' || unreadable.has(vendor.id)) {
     throw new AppError('VALIDATION', '정상 검증된 키가 있는 벤더만 기본값으로 정할 수 있습니다');
   }
   if (credential.availableModels && !credential.availableModels.includes(input.model)) {

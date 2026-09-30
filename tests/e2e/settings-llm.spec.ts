@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
@@ -33,7 +34,11 @@ function card(page: Page, label: string) {
   return page.getByRole('article', { name: `${label} 연결` });
 }
 
+/** 이 파일에서 입력한 모든 더미 키 — 마지막 테스트가 dev 서버 로그에서 0건을 확인한다 (QA H-1) */
+const USED_KEYS: string[] = [];
+
 async function registerKey(page: Page, label: string, key: string) {
+  USED_KEYS.push(key);
   const vendorCard = card(page, label);
   await vendorCard.getByRole('button', { name: /^(등록|교체)$/ }).click();
   const input = vendorCard.getByLabel(new RegExp(`${label.replace(/[()]/g, '\\$&')} API 키`));
@@ -44,6 +49,25 @@ async function registerKey(page: Page, label: string, key: string) {
 }
 
 test.describe.configure({ mode: 'serial' });
+
+// 재실행 안전: 픽스처 사용자의 LLM 자격 증명·기본값을 비우고 시작한다 (감사 로그는 append-only 라 그대로)
+test.beforeAll(async () => {
+  const client = new pg.Client({ connectionString: E2E_ENV.DATABASE_URL });
+  await client.connect();
+  try {
+    const users = `select id from users where email in ($1, $2)`;
+    await client.query(`delete from user_llm_credentials where user_id in (${users})`, [
+      FIXTURE_USER,
+      FIXTURE_ADMIN,
+    ]);
+    await client.query(`delete from user_settings where user_id in (${users})`, [
+      FIXTURE_USER,
+      FIXTURE_ADMIN,
+    ]);
+  } finally {
+    await client.end();
+  }
+});
 
 test('비로그인으로 /settings 에 오면 로그인으로 보낸다', async ({ page }) => {
   await page.goto('/settings');
@@ -139,4 +163,23 @@ test('ADMIN 도 다른 사용자의 키를 볼 수 없다 (본인 설정만)', a
   const usersTable = page.getByRole('table', { name: '사용자 목록' });
   await expect(usersTable).toBeVisible();
   await expect(usersTable.getByText(/LLM|fake-…/)).toHaveCount(0);
+});
+
+test('QA H-1: dev 서버 터미널 로그에 입력한 키 평문이 0건 (Server Function 인자 로깅 꺼짐)', async () => {
+  const logPath = E2E_ENV.E2E_SERVER_LOG;
+  expect(
+    existsSync(logPath),
+    `${logPath} 없음 — E2E 서버를 scripts/e2e-dev-server.ts 로 띄워야 한다`,
+  ).toBe(true);
+  expect(USED_KEYS.length).toBeGreaterThanOrEqual(4);
+  // 로그 캡처가 실제로 동작하는지(공허한 통과 방지): Server Action 이 가는 POST /settings 요청 로그가 있어야 한다
+  await expect
+    .poll(() => readFileSync(logPath, 'utf8'), { timeout: 10_000 })
+    .toMatch(/POST \/settings/);
+  const log = readFileSync(logPath, 'utf8');
+  expect(log).not.toMatch(/saveLlmCredentialAction\(|verifyLlmCredentialAction\(/);
+  for (const key of USED_KEYS) {
+    expect(log.includes(key), 'dev 로그에 키 전체').toBe(false);
+    expect(log.includes(key.slice(-12)), 'dev 로그에 키 끝 12자').toBe(false);
+  }
 });

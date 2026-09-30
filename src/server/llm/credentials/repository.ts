@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, eq, lt } from 'drizzle-orm';
+import { and, asc, eq, lt, sql } from 'drizzle-orm';
 
 import type { Db } from '@/db';
 import { userLlmCredentials, userSettings } from '@/db/schema';
@@ -65,6 +65,19 @@ export async function findCredentialRow(
 export type SealedRow = CredentialRow & SealedSecret & { userId: string };
 
 /** 암호문 포함 조회 — service.withDecryptedSecret·rewrap 전용 */
+/**
+ * 같은 사용자·벤더의 등록·교체를 직렬화한다 (QA L-3). 트랜잭션 끝에 자동 해제되는 advisory lock —
+ * 행이 아직 없을 때도 걸리므로 "삭제 → 삽입" 사이 경합(UNIQUE 위반)을 막는다.
+ */
+export async function lockOwnVendor(tx: Tx, userId: string, vendor: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`llm-cred|${userId}|${vendor}`}))`);
+}
+
+/** 본인 행 전체(암호 컬럼 포함) — 서비스의 무결성 확인 전용 */
+export async function listSealedRows(db: Executor, userId: string): Promise<SealedRow[]> {
+  return db.select().from(userLlmCredentials).where(eq(userLlmCredentials.userId, userId));
+}
+
 export async function loadSealed(
   db: Executor,
   userId: string,
@@ -111,16 +124,20 @@ export type StatusPatch = {
   availableModels: string[] | null;
 };
 
+/**
+ * 검증 결과 기록 — **검증한 그 행(id)** 에만 (QA L-3). 검증 도중 키가 교체되면 새 행 id 가 달라 0건이 되고 null 을 돌려준다.
+ */
 export async function updateOwnStatus(
   db: Executor,
   userId: string,
   vendor: string,
+  credentialId: string,
   patch: StatusPatch,
 ): Promise<CredentialRow | null> {
   const [updated] = await db
     .update(userLlmCredentials)
     .set({ ...patch, updatedAt: new Date() })
-    .where(ownRow(userId, vendor))
+    .where(and(ownRow(userId, vendor), eq(userLlmCredentials.id, credentialId)))
     .returning(viewColumns);
   return updated ?? null;
 }

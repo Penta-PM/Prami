@@ -27,6 +27,7 @@ export const E2E_ENV = {
   LLM_CREDENTIALS_KEKS: `1:${Buffer.alloc(32, 'test-kek-e2e').toString('base64')}`,
   LLM_CREDENTIALS_ACTIVE_KEK: '1',
   LLM_VENDOR_MODE: 'fake',
+  E2E_SERVER_LOG: '.e2e-logs/next-dev.log',
 } as const;
 
 export default defineConfig({
@@ -47,7 +48,8 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `pnpm exec next dev -p ${PORT}`,
+    // 래퍼가 서버 출력을 E2E_SERVER_LOG 에도 남긴다 — settings-llm.spec 이 dev 로그에 키 평문 0건을 검사 (QA H-1)
+    command: `pnpm exec tsx scripts/e2e-dev-server.ts ${PORT}`,
     url: `${BASE_URL}/login`,
     reuseExistingServer: !isCI,
     timeout: 180_000,

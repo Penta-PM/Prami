@@ -14,7 +14,7 @@ import {
   withDecryptedSecret,
   type CredentialsContext,
 } from '@/server/llm/credentials/service';
-import { getMySettings } from '@/server/llm/credentials/settings';
+import { getMySettings, updateChatDefaults } from '@/server/llm/credentials/settings';
 
 import { auditByAction, createTestDb, insertUser } from '../../helpers/pglite';
 import { makeFakeKey } from '../../helpers/secret';
@@ -112,5 +112,29 @@ describe('KEK 회전 (AC-210)', () => {
       createKeyring([v2, { version: 3, key: randomBytes(32) }], 3),
     );
     expect(summary.unreadable).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('변조된 행 (QA L-1)', () => {
+  it('암호문 1바이트 변조 → 새로고침(조회)에도 "unreadable", 기본값 지정 거부, 재등록하면 정상', async () => {
+    const owner = (await insertUser(handle, { email: 'tamper@pentasecurity.com', role: 'USER' }))
+      .id;
+    const keys = createKeyring([v1], 1);
+    const ctx = { ...ctxWith(keys), actor: { id: owner, label: 'tamper' } };
+    await saveCredential(ctx, { vendor: 'anthropic', apiKey: makeFakeKey() });
+    await handle.db.execute(
+      sql`update user_llm_credentials set secret_ciphertext = set_byte(secret_ciphertext, 0, get_byte(secret_ciphertext, 0) # 255) where user_id = ${owner}`,
+    );
+    const view = () =>
+      getMySettings({ db: handle.db, userId: owner, keys, mode: 'fake', testMode: true });
+    // 검증 전(조회만)에도 읽을 수 없음을 보인다
+    expect((await view()).credentials.map((entry) => entry.status)).toEqual(['unreadable']);
+    expect((await verifyOwnCredential(ctx, { vendor: 'anthropic' })).status).toBe('unreadable');
+    expect((await view()).credentials.map((entry) => entry.status)).toEqual(['unreadable']);
+    await expect(
+      updateChatDefaults(ctx, { vendor: 'anthropic', model: 'claude-opus-5-5' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION' });
+    await saveCredential(ctx, { vendor: 'anthropic', apiKey: makeFakeKey() });
+    expect((await view()).credentials.map((entry) => entry.status)).toEqual(['valid']);
   });
 });
