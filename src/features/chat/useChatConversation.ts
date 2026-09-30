@@ -118,6 +118,8 @@ export function useChatConversation({ status, applyLlm, onReply, isOpen = true }
     const result = await askChatStream(text, history, controller.signal, {
       onToken: (token) => patch(id, (m) => ({ text: m.text + token, statusLabel: undefined })),
       onStatus: (label) => patch(id, () => ({ statusLabel: label })),
+      // 거부 전 부분 출력은 화면·히스토리 어디에도 남기지 않는다 (final 이 거부 안내로 채운다)
+      onDiscard: () => patch(id, () => ({ text: '' })),
     });
     inflight.current = null;
     if (!result.ok) {

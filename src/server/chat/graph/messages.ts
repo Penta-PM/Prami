@@ -30,9 +30,9 @@ const TEMPLATES: Record<SetupStatus, (labels: Labels) => string> = {
   unavailable: ({ vendor }) => `${vendor} 응답이 지연되고 있습니다. 이번 답변은 기본 응답입니다.`,
 };
 
-/** 채팅 어댑터가 아직 없는 벤더 키만 있을 때 (OpenAI·Gemini 채팅은 PR-C) */
+/** 지금 챗봇에서 쓸 수 없는 벤더 키만 있을 때 (관리자가 끈 OpenRouter 연결 등 — QA L-3) */
 export function unsupportedVendorsMessage(labels: readonly string[]): string {
-  return `${labels.join('·')} 키는 챗봇 연결을 준비 중입니다. 지금은 Anthropic 키로 자연어 질문을 쓸 수 있어요. 이번 답변은 기본 응답입니다.`;
+  return `${labels.join('·')} 연결은 현재 챗봇에서 사용할 수 없습니다. 사용자 설정에서 연결을 해제하거나 다른 벤더 키를 등록하세요. 이번 답변은 기본 응답입니다.`;
 }
 
 export function setupFor(status: SetupStatus, labels: Partial<Labels> = {}): SetupInfo {

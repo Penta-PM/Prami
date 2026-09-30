@@ -103,6 +103,40 @@ describe('패널 스트리밍', () => {
     expect(within(panel).queryByText('가격 조회 중')).not.toBeInTheDocument();
   });
 
+  it('discard 계약 (QA L-1, Main 결정 A): 받는 즉시 부분 출력을 비우고 final 로 교체, 다음 턴 history 에 남지 않음', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const bodies: Record<string, unknown>[] = [];
+    let call = 0;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url === '/api/chat/status') return { ok: true, json: async () => READY };
+      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      call += 1;
+      const chunks =
+        call === 1
+          ? [
+              sse('token', { text: '부분 출력 문장입니다.' }),
+              sse('discard', { reason: 'refusal' }),
+              sse('final', { ...final('이 요청은 처리할 수 없습니다.'), mode: 'refusal' }) +
+                sse('done', {}),
+            ]
+          : [sse('final', final('다음 답입니다.')) + sse('done', {})];
+      return new Response(sseBody(chunks, call === 1 ? gate : undefined), {
+        headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+      });
+    });
+    const panel = await openPanel();
+    await userEvent.type(within(panel).getByLabelText('질문 입력'), '가격{enter}');
+    const log = within(panel).getByRole('log', { name: '대화' });
+    // final 전(게이트 대기 중)에도 discard 로 부분 출력이 사라진다
+    await vi.waitFor(() => expect(within(log).queryByText(/부분 출력/)).not.toBeInTheDocument());
+    await act(async () => release());
+    expect(await within(log).findByText('이 요청은 처리할 수 없습니다.')).toBeInTheDocument();
+    await userEvent.type(within(panel).getByLabelText('질문 입력'), '다시{enter}');
+    await within(log).findByText('다음 답입니다.');
+    expect(JSON.stringify(bodies[1])).not.toContain('부분 출력');
+  });
+
   it('패널을 닫으면 진행 중 요청 signal 이 abort 된다', async () => {
     let signal: AbortSignal | undefined;
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {

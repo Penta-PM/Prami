@@ -27,7 +27,9 @@ export const OAUTH_TTL_SECONDS = 600;
 const EXCHANGE_TIMEOUT_MS = 10_000;
 
 export class OAuthFlowError extends Error {
-  constructor(readonly code: 'state' | 'cookie' | 'user' | 'expired' | 'exchange' | 'config') {
+  constructor(
+    readonly code: 'state' | 'cookie' | 'user' | 'expired' | 'reused' | 'exchange' | 'config',
+  ) {
     super(`oauth:${code}`);
     this.name = 'OAuthFlowError';
   }

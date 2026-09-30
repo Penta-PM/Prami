@@ -13,8 +13,11 @@ import {
   acceptsApiKey,
   findVendor,
   isAcceptableKey,
+  isVendorActive,
+  VENDOR_FLAGS_OFF,
   type LlmAuthType,
   type LlmVendor,
+  type VendorFlags,
 } from '../vendors/registry';
 import { CredentialUnreadableError, isSealedIntact, openSecret, sealSecret } from './crypto';
 import type { KeyProvider } from './keyring';
@@ -42,11 +45,25 @@ export type CredentialsContext = {
   meta: RequestMeta;
   keys: KeyProvider | null;
   mode: 'live' | 'fake';
+  /** 벤더 노출 플래그 (env) — 없으면 모두 off. off 벤더 키는 검증·기본값 지정 불가, 삭제만 가능 (QA L-3) */
+  flags?: VendorFlags;
 };
 
 export const KEYRING_MISSING_MESSAGE =
   '서버에 암호화 키가 설정되지 않아 LLM 키를 등록할 수 없습니다 (관리자 문의)';
 const OAUTH_ONLY_MESSAGE = '이 벤더는 OAuth 연결로만 등록할 수 있습니다';
+export const VENDOR_DISABLED_MESSAGE =
+  '이 연결은 현재 관리자 설정으로 꺼져 있어 사용할 수 없습니다. 연결 해제(삭제)만 할 수 있습니다';
+
+/** 플래그 off 벤더면 VALIDATION (삭제 경로에는 쓰지 않는다) */
+export function assertVendorActive(
+  ctx: Pick<CredentialsContext, 'flags'>,
+  vendor: LlmVendor,
+): void {
+  if (!isVendorActive(vendor, ctx.flags ?? VENDOR_FLAGS_OFF)) {
+    throw new AppError('VALIDATION', VENDOR_DISABLED_MESSAGE);
+  }
+}
 const KEY_FORMAT_MESSAGE = 'API 키 형식이 올바르지 않습니다 (16~256자, 영문·숫자·- _ . 만)';
 
 export function requireVendor(id: string): LlmVendor {
@@ -267,6 +284,7 @@ export async function verifyOwnCredential(
   if (!(await findCredentialRow(ctx.handle.db, ctx.actor.id, vendor.id))) {
     throw new AppError('NOT_FOUND', '등록된 키가 없습니다');
   }
+  assertVendorActive(ctx, vendor);
   assertVerifyAllowed(ctx.actor.id);
   return runVerify(ctx, vendor);
 }

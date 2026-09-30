@@ -18,6 +18,8 @@ import {
 import {
   acceptsApiKey,
   activeVendors,
+  LLM_VENDORS,
+  VENDOR_FLAGS_OFF,
   type LlmVendor,
   type VendorFlags,
 } from '../vendors/registry';
@@ -28,7 +30,12 @@ import {
   listCredentialRows,
   upsertOwnSettings,
 } from './repository';
-import { requireVendor, unreadableVendors, type CredentialsContext } from './service';
+import {
+  assertVendorActive,
+  requireVendor,
+  unreadableVendors,
+  type CredentialsContext,
+} from './service';
 import { toCredentialView, type CredentialView } from './view';
 
 /**
@@ -52,6 +59,8 @@ export type VendorView = {
   manualKeyEntry: boolean;
   /** OAuth 전용 벤더의 연결 시작 경로 (§4.6.2 OpenRouter) */
   connectHref: string | null;
+  /** 플래그 off 벤더인데 본인 자격 증명이 남아 있음 — 카드는 안내 + 삭제만 (QA L-3) */
+  disabled: boolean;
   models: (LlmModelOption & { tierLabel: string; lifecycleLabel: string | null })[];
 };
 
@@ -98,14 +107,15 @@ export function oauthStartHref(vendorId: string): string {
   return `/api/settings/oauth/${vendorId}/start`;
 }
 
-function toVendorView(vendor: LlmVendor): VendorView {
-  const apiKey = acceptsApiKey(vendor);
+function toVendorView(vendor: LlmVendor, disabled = false): VendorView {
+  const apiKey = acceptsApiKey(vendor) && !disabled;
   return {
     id: vendor.id,
     label: vendor.label,
     consoleUrl: vendor.consoleUrl,
     manualKeyEntry: apiKey,
-    connectHref: apiKey ? null : oauthStartHref(vendor.id),
+    connectHref: apiKey || disabled ? null : oauthStartHref(vendor.id),
+    disabled,
     models: vendor.models.map((model) => ({
       ...model,
       tierLabel: MODEL_TIER_LABELS[model.tier],
@@ -115,8 +125,19 @@ function toVendorView(vendor: LlmVendor): VendorView {
 }
 
 /** 설정 화면 벤더 카드 — 플래그 off 벤더(OpenRouter)는 제외 (§4.6.2) */
-export function vendorViews(flags: VendorFlags): VendorView[] {
-  return activeVendors(flags).map(toVendorView);
+export function vendorViews(
+  flags: VendorFlags,
+  ownedVendorIds: readonly string[] = [],
+): VendorView[] {
+  const active = activeVendors(flags);
+  // 플래그가 꺼져도 본인 키가 남아 있으면 카드를 보여 파기할 수 있게 한다 (연결·검증·사용은 막음)
+  const disabled = LLM_VENDORS.filter(
+    (vendor) => !active.includes(vendor) && ownedVendorIds.includes(vendor.id),
+  );
+  return [
+    ...active.map((vendor) => toVendorView(vendor)),
+    ...disabled.map((vendor) => toVendorView(vendor, true)),
+  ];
 }
 
 /** 플래그 모두 off 인 기본 목록 (API 키 3사) */
@@ -144,7 +165,10 @@ export async function getMySettings(input: {
       settings?.chatDefaultVendor ?? null,
       settings?.chatDefaultModel ?? null,
     ),
-    vendors: vendorViews(input.flags ?? { oauthOpenRouter: false }),
+    vendors: vendorViews(
+      input.flags ?? VENDOR_FLAGS_OFF,
+      rows.map((row) => row.vendor),
+    ),
     keyringReady: input.keys !== null,
     fakeMode: input.mode === 'fake',
   };
@@ -166,6 +190,7 @@ export async function updateChatDefaults(
   input: { vendor: string; model: string },
 ): Promise<ChatDefaultsView> {
   const vendor = requireVendor(input.vendor);
+  assertVendorActive(ctx, vendor);
   if (!isKnownModel(vendor.id, input.model)) {
     throw new AppError('VALIDATION', '선택할 수 없는 모델입니다');
   }

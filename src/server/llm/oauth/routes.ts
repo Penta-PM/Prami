@@ -20,6 +20,7 @@ import {
   sealOAuthCookie,
   verifyCallback,
 } from './openrouter';
+import { consumeOAuthState } from './state-store';
 
 /**
  * OpenRouter OAuth 라우트 본문 (PRAMI-002 §4.6.2 ①②, AC-244). 라우트 파일은 권한 가드·플래그만, 흐름은 여기.
@@ -89,7 +90,7 @@ async function connect(user: SessionUser, apiKey: string): Promise<void> {
   );
 }
 
-/** ② 콜백: 쿠키·state·세션 사용자 검증 → 코드 교환 → 봉투 암호화 저장 → 쿠키 삭제 */
+/** ② 콜백: 쿠키·state·세션 사용자 검증 → state 1회 소비(교환 전) → 코드 교환 → 봉투 암호화 저장 → 쿠키 삭제 */
 export async function finishFlow(
   request: Request,
   user: SessionUser,
@@ -101,10 +102,14 @@ export async function finishFlow(
     new URL(`/settings${query}#llm`, env.NEXT_PUBLIC_APP_URL).toString();
   try {
     const cookie = openOAuthCookie(readCookie(request), env.AUTH_SECRET);
-    verifyCallback(cookie, {
-      state: url.searchParams.get('state'),
+    const state = url.searchParams.get('state');
+    verifyCallback(cookie, { state, userId: user.id, now: Date.now() });
+    // 교환 전에 소비 — 재사용(같은 쿠키·state 재호출)은 여기서 거부되고, 교환이 실패해도 다시 쓸 수 없다 (QA L-2)
+    await consumeOAuthState(await getDbHandle(), {
       userId: user.id,
-      now: Date.now(),
+      vendor: 'openrouter',
+      state: state!,
+      expiresAt: cookie.exp,
     });
     const code = url.searchParams.get('code');
     if (!code) throw new OAuthFlowError('exchange');
