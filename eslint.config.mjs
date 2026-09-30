@@ -54,6 +54,55 @@ const CREDENTIAL_SCHEMA_PATTERNS = [
   },
 ];
 
+/** 원가 우회(동적 import·require·관계형 쿼리·raw SQL) 금지 선택자 (PR-5 QA LOW-2, §4.8 AC-42) */
+const COST_SYNTAX = [
+  {
+    selector: 'ImportExpression > Literal[value=/(^|[\/])server[\/]cost([\/]|$)/]',
+    message:
+      '원가 모듈(server/cost)은 동적 import 로도 허용 목록 밖에서 불러올 수 없습니다 (§4.8 AC-42).',
+  },
+  {
+    selector:
+      "CallExpression[callee.name='require'] > Literal[value=/(^|[\/])server[\/]cost([\/]|$)/]",
+    message: '원가 모듈(server/cost)은 require 로도 불러올 수 없습니다 (§4.8 AC-42).',
+  },
+  {
+    // r5 AC-42 ③: 템플릿 리터럴·변수 경로 동적 import 는 경로를 정적으로 검사할 수 없으므로 통째로 막는다
+    selector: 'ImportExpression > :not(Literal)',
+    message:
+      '동적 import 경로는 문자열 리터럴만 허용합니다 — 원가 모듈(server/cost) 우회를 막기 위한 규칙입니다 (§4.8 AC-42).',
+  },
+  {
+    selector: "MemberExpression[property.name='materialCosts']",
+    message:
+      '원가 테이블 관계형 쿼리(db.query.materialCosts)는 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+  },
+  {
+    // raw SQL 로 원가 테이블을 직접 읽는 것도 막는다 (stg_material_costs 는 스테이징이라 제외)
+    selector: 'Literal[value=/(^|[^_a-zA-Z])material_costs/]',
+    message:
+      '원가 테이블(material_costs) raw SQL 은 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+  },
+  {
+    selector: 'TemplateElement[value.raw=/(^|[^_a-zA-Z])material_costs/]',
+    message:
+      '원가 테이블(material_costs) raw SQL 은 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+  },
+];
+
+/**
+ * PRAMI-002 §4.5.2·AC-231: 모델 ID 는 `src/server/llm/models.ts` 한 곳에서만 — 밖의 `claude-|gpt-|gemini-` 리터럴 금지 (tests 제외).
+ * flat config 는 같은 규칙을 뒤 블록이 덮어쓰므로 원가 선택자와 **합쳐서** 건다.
+ */
+const MODEL_ID_MESSAGE =
+  '모델 ID 리터럴(claude-|gpt-|gemini-)은 src/server/llm/models.ts 에서만 씁니다 (PRAMI-002 §4.5.2).';
+const MODEL_ID_SYNTAX = [
+  { selector: 'Literal[value=/^(claude-|gpt-|gemini-)/]', message: MODEL_ID_MESSAGE },
+  { selector: 'TemplateElement[value.raw=/^(claude-|gpt-|gemini-)/]', message: MODEL_ID_MESSAGE },
+];
+
+const MODEL_CONSTANTS_FILE = 'src/server/llm/models.ts';
+
 /**
  * PR-5 QA LOW-2 보강: 정적 import 외에 동적 `import('@/server/cost/…')`와 원가 테이블 스키마(materialCosts) 직접 사용도
  * 허용 목록 밖에서는 막는다. 스키마 정의·관계(src/db)와 임포트 스테이징(server/imports)은 예외.
@@ -62,41 +111,7 @@ const restrictCostSyntax = {
   files: ['src/**/*.{ts,tsx}'],
   ignores: [...COST_IMPORT_ALLOWLIST, 'src/db/**', ...CREDENTIALS_ALLOWLIST],
   rules: {
-    'no-restricted-syntax': [
-      'error',
-      {
-        selector: 'ImportExpression > Literal[value=/(^|[\/])server[\/]cost([\/]|$)/]',
-        message:
-          '원가 모듈(server/cost)은 동적 import 로도 허용 목록 밖에서 불러올 수 없습니다 (§4.8 AC-42).',
-      },
-      {
-        selector:
-          "CallExpression[callee.name='require'] > Literal[value=/(^|[\/])server[\/]cost([\/]|$)/]",
-        message: '원가 모듈(server/cost)은 require 로도 불러올 수 없습니다 (§4.8 AC-42).',
-      },
-      {
-        // r5 AC-42 ③: 템플릿 리터럴·변수 경로 동적 import 는 경로를 정적으로 검사할 수 없으므로 통째로 막는다
-        selector: 'ImportExpression > :not(Literal)',
-        message:
-          '동적 import 경로는 문자열 리터럴만 허용합니다 — 원가 모듈(server/cost) 우회를 막기 위한 규칙입니다 (§4.8 AC-42).',
-      },
-      {
-        selector: "MemberExpression[property.name='materialCosts']",
-        message:
-          '원가 테이블 관계형 쿼리(db.query.materialCosts)는 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
-      },
-      {
-        // raw SQL 로 원가 테이블을 직접 읽는 것도 막는다 (stg_material_costs 는 스테이징이라 제외)
-        selector: 'Literal[value=/(^|[^_a-zA-Z])material_costs/]',
-        message:
-          '원가 테이블(material_costs) raw SQL 은 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
-      },
-      {
-        selector: 'TemplateElement[value.raw=/(^|[^_a-zA-Z])material_costs/]',
-        message:
-          '원가 테이블(material_costs) raw SQL 은 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
-      },
-    ],
+    'no-restricted-syntax': ['error', ...COST_SYNTAX, ...MODEL_ID_SYNTAX],
     'no-restricted-imports': [
       'error',
       {
@@ -148,6 +163,20 @@ const credentialsModule = {
   },
 };
 
+/** 모델 상수 파일: 원가 선택자만 (모델 ID 리터럴 허용) */
+const modelConstants = {
+  files: [MODEL_CONSTANTS_FILE],
+  rules: { 'no-restricted-syntax': ['error', ...COST_SYNTAX] },
+};
+
+/** 원가 선택자가 빠지는 경로(원가 허용 목록·src/db)에도 모델 ID 리터럴 제한은 건다 */
+const restrictModelIdsElsewhere = {
+  files: [...COST_IMPORT_ALLOWLIST, 'src/db/**'].map((glob) =>
+    glob.replace('/**', '/**/*.{ts,tsx}'),
+  ),
+  rules: { 'no-restricted-syntax': ['error', ...MODEL_ID_SYNTAX] },
+};
+
 /** 원가 허용 목록 파일에도 자격 증명 스키마 제한은 건다 */
 const restrictCredentialsInCost = {
   files: COST_IMPORT_ALLOWLIST.map((glob) => glob.replace('/**', '/**/*.{ts,tsx}')),
@@ -166,6 +195,8 @@ export default defineConfig([
   restrictCostSyntax,
   credentialsModule,
   restrictCredentialsInCost,
+  modelConstants,
+  restrictModelIdsElsewhere,
   globalIgnores([
     '.next/**',
     '.next-e2e/**',

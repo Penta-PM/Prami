@@ -1,32 +1,40 @@
 import { z } from 'zod';
 
 import { getDb } from '@/db';
+import { env } from '@/env';
 import { AppError } from '@/lib/result';
 import { runRoute } from '@/server/auth/rbac';
+import { HistorySchema } from '@/server/chat/graph/history';
+import { TRUNCATED_NOTICE } from '@/server/chat/graph/messages';
+import { runChat } from '@/server/chat/graph/run';
+import { chatGraph, createChatRuntime } from '@/server/chat/graph/runtime';
 import { CHAT_MAX_LENGTH, normalizeMessage } from '@/server/chat/intent';
 import { rateLimiters, retryAfterSeconds } from '@/server/rate-limit';
-import { respondToChat, type ChatReply } from '@/server/chat/respond';
 
 /**
- * POST /api/chat (§4.5.9, §4.7, chat.use = 로그인 사용자 모두): 규칙 기반 챗봇. 대화는 저장하지 않고 감사도 남기지 않는다
- * (권한 거부만 runRoute 가 기록). 사용자당 분당 RATE_LIMIT_PER_MIN 회(§4.8 r6) 초과 → 429. 입력은 길이·제어 문자 정리(검색과 같은 규칙).
- * 응답에는 원가 키가 없다 — server/chat 은 sales_prices 만 읽는다 (AC-43·81).
+ * POST /api/chat (PRAMI-001 §4.5.9 → PRAMI-002 §4.3.11, chat.use): LangGraph 그래프로 답한다 — 키가 없거나 LLM 이 실패하면
+ * 기존 규칙 엔진(ruleAnswer 노드)으로 폴백한다. 대화는 저장하지 않고 감사도 남기지 않는다(권한 거부만 runRoute 가 기록).
+ * 사용자당 분당 RATE_LIMIT_PER_MIN 회 — LLM·규칙 경로가 기존 chat 버킷을 공유(AC-95). 응답에 원가 키·API 키가 없다.
+ * LLM 경로 오류는 HTTP 200 + data.setup/notice 로 대화 안에서 안내한다(§4.8.3).
  */
 export const AUDIT_CHAT_ASK = 'chat.ask';
+export { TRUNCATED_NOTICE };
 
-/** 규칙 기반 — DB 조회 몇 번이면 끝난다 */
-export const maxDuration = 10;
+/** LLM 경로(도구 루프 포함) 상한 (§4.8.1) */
+export const maxDuration = 60;
+/** LangGraph 가 AsyncLocalStorage 를 쓴다 */
+export const runtime = 'nodejs';
 
-const bodySchema = z.object({
-  message: z.string().max(CHAT_MAX_LENGTH * 4, '메시지가 너무 깁니다'),
-});
+const bodySchema = z
+  .object({
+    message: z.string().max(CHAT_MAX_LENGTH * 4, '메시지가 너무 깁니다'),
+    history: HistorySchema.optional(),
+  })
+  .strict();
 
-type ParsedMessage = { message: string; truncated: boolean };
+type ParsedBody = { message: string; truncated: boolean; history: z.infer<typeof HistorySchema> };
 
-/** 200자 넘게 보내면 앞 200자만 쓰고 응답에 안내를 붙인다 (PR-10 QA I-3) */
-export const TRUNCATED_NOTICE = `질문이 ${CHAT_MAX_LENGTH}자를 넘어 앞 ${CHAT_MAX_LENGTH}자만 사용했습니다.`;
-
-async function parseBody(request: Request): Promise<ParsedMessage> {
+async function parseBody(request: Request): Promise<ParsedBody> {
   let raw: unknown;
   try {
     raw = await request.json();
@@ -38,7 +46,19 @@ async function parseBody(request: Request): Promise<ParsedMessage> {
   const message = normalizeMessage(parsed.data.message);
   if (!message) throw new AppError('VALIDATION', '메시지를 입력하세요');
   const full = parsed.data.message.replace(/\s+/g, ' ').trim();
-  return { message, truncated: full.length > CHAT_MAX_LENGTH };
+  return { message, truncated: full.length > CHAT_MAX_LENGTH, history: parsed.data.history ?? [] };
+}
+
+function rateLimit(userId: string) {
+  const decision = rateLimiters.chat.hit(userId);
+  if (decision.allowed) return decision;
+  const retryAfter = retryAfterSeconds(decision);
+  throw new AppError(
+    'RATE_LIMITED',
+    `요청이 너무 잦습니다. ${retryAfter}초 후 다시 시도하세요`,
+    undefined,
+    { retryAfterSeconds: retryAfter },
+  );
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -48,21 +68,14 @@ export async function POST(request: Request): Promise<Response> {
     target: '/api/chat',
   } as const;
   return runRoute(guard, async (user) => {
-    const { message, truncated } = await parseBody(request);
-    const decision = rateLimiters.chat.hit(user.id);
-    if (!decision.allowed) {
-      const retryAfter = retryAfterSeconds(decision);
-      throw new AppError(
-        'RATE_LIMITED',
-        `요청이 너무 잦습니다. ${retryAfter}초 후 다시 시도하세요`,
-        undefined,
-        {
-          retryAfterSeconds: retryAfter,
-        },
-      );
-    }
-    const answer = await respondToChat(await getDb(), { role: user.role }, message);
-    const data: ChatReply = truncated ? { ...answer, notice: TRUNCATED_NOTICE } : answer;
+    const { message, truncated, history } = await parseBody(request);
+    const decision = rateLimit(user.id);
+    const db = await getDb();
+    const data = await runChat(
+      chatGraph,
+      { text: message, truncated, history, actor: { userId: user.id, role: user.role } },
+      createChatRuntime({ db, userId: user.id, env }),
+    );
     return Response.json(
       { ok: true, data },
       {

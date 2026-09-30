@@ -22,13 +22,13 @@ export type SimulatedResponse = { status: number; body: unknown } | { throw: Err
 /** 벤더 목록 API 가 돌려줄 ID 형태: Anthropic Haiku 4.5 는 날짜 스냅샷, Gemini 는 `models/` 접두 */
 function listedIdsFor(vendorId: string, ids: readonly string[]): string[] {
   const extra = {
-    anthropic: 'claude-3-legacy-x',
+    anthropic: 'legacy-model-x',
     openai: 'text-embedding-x',
     google: 'embedding-x',
   };
   const all = [...ids, extra[vendorId as keyof typeof extra] ?? 'other-model'];
   if (vendorId === 'anthropic') {
-    return all.map((id) => (id === 'claude-haiku-4-5' ? `${id}-20251001` : id));
+    return all.map((id) => (id.endsWith('haiku-4-5') ? `${id}-20251001` : id));
   }
   return vendorId === 'google' ? all.map((id) => `models/${id}`) : all;
 }
@@ -54,7 +54,10 @@ function listResponse(secret: string, vendorId: string, url: string): SimulatedR
     vendorId,
     modelsFor(vendorId).map((model) => model.id),
   );
-  if (secret.startsWith('fake-valid-')) return { status: 200, body: listBody(vendorId, all, null) };
+  // 채팅 시점 오류만 흉내 내는 키(fake-404-·fake-refusal-)는 검증에서는 정상 (PR-B §9.1)
+  if (['fake-valid-', 'fake-404-', 'fake-refusal-'].some((prefix) => secret.startsWith(prefix))) {
+    return { status: 200, body: listBody(vendorId, all, null) };
+  }
   if (secret.startsWith('fake-partial-')) {
     const only = listedIdsFor(vendorId, [defaultModelFor(vendorId) ?? '']);
     return { status: 200, body: listBody(vendorId, only, null) };

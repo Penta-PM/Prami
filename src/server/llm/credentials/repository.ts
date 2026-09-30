@@ -120,9 +120,28 @@ export type StatusPatch = {
   status?: CredentialRow['status'];
   lastVerifiedAt?: Date;
   lastErrorCode: string | null;
-  /** 검증 시 목록 ∩ 상수, null = 미확인 (r2 §4.5.2) */
-  availableModels: string[] | null;
+  /** 검증 시 목록 ∩ 상수, null = 미확인 (r2 §4.5.2). 생략하면 그대로 둔다(챗봇 인증 오류 갱신) */
+  availableModels?: string[] | null;
 };
+
+/** 챗봇 사용 기록 (§4.8.1): 성공 시 last_used_at 만, 1분 이내 재갱신은 생략 (요청당 최대 1 UPDATE) */
+export async function touchLastUsed(
+  db: Executor,
+  userId: string,
+  vendor: string,
+  credentialId: string,
+): Promise<void> {
+  await db
+    .update(userLlmCredentials)
+    .set({ lastUsedAt: new Date() })
+    .where(
+      and(
+        ownRow(userId, vendor),
+        eq(userLlmCredentials.id, credentialId),
+        sql`(${userLlmCredentials.lastUsedAt} is null or ${userLlmCredentials.lastUsedAt} < now() - interval '1 minute')`,
+      ),
+    );
+}
 
 /**
  * 검증 결과 기록 — **검증한 그 행(id)** 에만 (QA L-3). 검증 도중 키가 교체되면 새 행 id 가 달라 0건이 되고 null 을 돌려준다.

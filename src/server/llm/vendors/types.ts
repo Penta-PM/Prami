@@ -1,3 +1,5 @@
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+
 import type { LlmModelOption } from '../models';
 
 /** 벤더 레지스트리 타입 (PRAMI-002 §4.5.1) */
@@ -22,6 +24,21 @@ export type LlmVendor = {
   parseModelList: (body: unknown) => ModelListPage | null;
   /** 벤더 고유 응답 판정(예: Gemini 400 API_KEY_INVALID). 없으면 공통 규칙만 */
   isInvalidKeyResponse?: (status: number, body: unknown) => boolean;
+  /**
+   * 채팅 모델 팩토리 (§4.5.1, PR-B 는 Anthropic 만 — OpenAI·Gemini 는 PR-C). 없으면 챗봇 LLM 경로에서 쓸 수 없는 벤더다.
+   * 요청마다 새 인스턴스. 키는 반환된 인스턴스 안에만 있다(I-3).
+   */
+  createChatModel?: (
+    secret: string,
+    model: string,
+    options: ChatModelFactoryOptions,
+  ) => BaseChatModel;
+};
+
+export type ChatModelFactoryOptions = {
+  maxTokens: number;
+  timeoutMs: number;
+  fetch?: typeof fetch;
 };
 
 /** API 키 허용 문자 (§4.12: `[A-Za-z0-9_\-.]`) */

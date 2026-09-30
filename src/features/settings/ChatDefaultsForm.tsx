@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Button, Pill, Select } from '@/components/ui';
 import type { ChatDefaultsView, VendorView } from '@/server/llm/credentials/settings';
 
-import { CHAT_LLM_COMING_SOON, MODEL_REPLACED_NOTICE, MODEL_UNAVAILABLE_LABEL } from './labels';
+import { CHAT_DEFAULTS_CAPTION, MODEL_REPLACED_NOTICE, MODEL_UNAVAILABLE_LABEL } from './labels';
 
 type ModelOption = VendorView['models'][number];
 /** 정상 키가 있는 벤더 → 이 키로 쓸 수 있는 모델 (null = 미확인, 상수 전체 허용) */
@@ -35,7 +35,7 @@ export function ChatDefaultsForm(props: PickerProps) {
         <h2 id="defaults-title" className="m-0 text-[15px] font-semibold">
           챗봇 기본값
         </h2>
-        <span className="text-[12px] text-text-tertiary">{CHAT_LLM_COMING_SOON}</span>
+        <span className="text-[12px] text-text-tertiary">{CHAT_DEFAULTS_CAPTION}</span>
       </div>
       {props.defaults.modelReplaced ? (
         <p role="status" className="m-0 rounded-lg bg-amber-500/15 px-3.5 py-2.5 text-[13px]">

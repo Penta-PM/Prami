@@ -21,7 +21,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const roleLabel = [ROLE_LABELS[user.role], user.department].filter(Boolean).join(' · ');
 
   return (
-    <ChatProvider>
+    <ChatProvider statusEndpoint="/api/chat/status">
       <div className="flex h-screen overflow-hidden bg-surface-page">
         <Sidebar showAdminNav={hasPermission(user.role, 'users.manage')} />
         <div className="flex min-w-0 flex-1 flex-col">

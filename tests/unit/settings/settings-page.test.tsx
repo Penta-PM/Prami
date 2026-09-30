@@ -77,7 +77,8 @@ describe('SettingsPage', () => {
       expect(screen.getByRole('article', { name: label })).toBeInTheDocument();
     }
     expect(screen.getByText(/아직 등록한 LLM API 키가 없습니다/)).toBeInTheDocument();
-    expect(screen.getByText('챗봇 LLM 연결은 곧 제공됩니다')).toBeInTheDocument();
+    expect(screen.getByText('챗봇이 자연어 질문에 이 벤더·모델을 씁니다')).toBeInTheDocument();
+    expect(screen.queryByText('챗봇 LLM 연결은 곧 제공됩니다')).not.toBeInTheDocument();
     expect(container.innerHTML).not.toContain(GOOGLE_SUB);
     expect(container.innerHTML).not.toMatch(/google_sub|googleSub/);
   });

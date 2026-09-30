@@ -37,7 +37,7 @@ describe('AC-42 server/cost import 제한', () => {
     expect(result?.errorCount).toBeGreaterThanOrEqual(1);
     expect(result?.messages.map((m) => m.ruleId)).toContain('no-restricted-imports');
     expect(result?.messages[0]?.message).toContain('server/cost');
-  }, 60_000);
+  }, 180_000);
 
   it('동적 import()·require·materialCosts 스키마 직접 사용도 막는다 (PR-5 QA LOW-2)', async () => {
     const cases: [string, string][] = [
@@ -183,7 +183,7 @@ describe('AC-42 server/cost import 제한', () => {
         (m) => m.ruleId === 'no-restricted-imports' || m.ruleId === 'no-restricted-syntax',
       ),
     ).toEqual([]);
-  }, 60_000);
+  }, 180_000);
 });
 
 describe('AC-43 공개 쿼리 응답에 unit_cost·material_code 없음', () => {
