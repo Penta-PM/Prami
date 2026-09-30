@@ -20,9 +20,17 @@ export function findVendor(id: string): LlmVendor | undefined {
   return LLM_VENDORS.find((vendor) => vendor.id === id);
 }
 
-/** 설정 화면·연결 라우트에 노출할 벤더 (플래그 off 벤더는 카드 미표시 — OpenRouter §4.6.2) */
+/** 플래그로 켜진 벤더인지 (플래그 없는 벤더는 항상 켜짐) */
+export function isVendorActive(vendor: LlmVendor, flags: VendorFlags): boolean {
+  return vendor.enabled?.(flags) ?? true;
+}
+
+/** 모든 플래그 off — 플래그를 모르는 호출자의 안전한 기본값 (OpenRouter 는 꺼짐) */
+export const VENDOR_FLAGS_OFF: VendorFlags = { oauthOpenRouter: false };
+
+/** 설정 화면·연결 라우트·챗봇에서 쓸 벤더 (플래그 off 벤더는 연결·사용 불가 — OpenRouter §4.6.2) */
 export function activeVendors(flags: VendorFlags): LlmVendor[] {
-  return LLM_VENDORS.filter((vendor) => vendor.enabled?.(flags) ?? true);
+  return LLM_VENDORS.filter((vendor) => isVendorActive(vendor, flags));
 }
 
 /** 키 직접 입력을 받는 벤더인지 (OAuth 전용 벤더는 카드에 연결 버튼) */

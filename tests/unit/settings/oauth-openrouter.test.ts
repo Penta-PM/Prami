@@ -240,3 +240,106 @@ describe('callback (AC-244)', () => {
     expect(row).toEqual({ before: { vendor: 'openrouter' }, after: null });
   });
 });
+
+describe('state 1회 소비 (PR-C QA L-2 재현 → 회귀)', () => {
+  const connectAudits = (userId: string) =>
+    queryRows<{ n: number }>(
+      state.handle!.db,
+      sql`select count(*)::int as n from audit_logs where action = 'settings.oauth.connect' and actor_user_id = ${userId}`,
+    );
+  const credentialIds = (userId: string) =>
+    queryRows<{ id: string }>(
+      state.handle!.db,
+      sql`select id from user_llm_credentials where user_id = ${userId} and vendor = 'openrouter'`,
+    );
+
+  async function flowFor(userId: string) {
+    state.sessionUserId = userId;
+    invalidateSessionUser();
+    const { location, value } = await begin();
+    const s = new URL(location.searchParams.get('callback_url')!).searchParams.get('state')!;
+    return { value, s };
+  }
+
+  it('QA 재현: 같은 쿠키·state·code 로 콜백 재호출 → 거부, 교환 1회, 행 교체 없음, 감사 connect 1회', async () => {
+    const { value, s } = await flowFor(userB);
+    const exchange = vi.fn(async () => Response.json({ key: EXCHANGED_KEY }));
+    vi.stubGlobal('fetch', exchange);
+    const first = await callback.GET(callbackRequest(`state=${s}&code=QACODE`, value));
+    expect(first.headers.get('location')).toBe('https://prami.example.com/settings#llm');
+    const before = await credentialIds(userB);
+    const replay = await callback.GET(callbackRequest(`state=${s}&code=QACODE`, value));
+    expect(replay.headers.get('location')).toBe(
+      'https://prami.example.com/settings?error=oauth#llm',
+    );
+    expect(exchange).toHaveBeenCalledTimes(1);
+    expect(await credentialIds(userB)).toEqual(before);
+    expect(await connectAudits(userB)).toEqual([{ n: 1 }]);
+    expect(state.logs.join('\n')).toContain('reused');
+  });
+
+  it('교환 실패 후 같은 state 로 재시도해도 거부 (교환 전에 소비)', async () => {
+    const { value, s } = await flowFor(userB);
+    const failing = vi.fn(async () => new Response('{}', { status: 500 }));
+    vi.stubGlobal('fetch', failing);
+    await callback.GET(callbackRequest(`state=${s}&code=C1`, value));
+    const retry = vi.fn(async () => Response.json({ key: EXCHANGED_KEY }));
+    vi.stubGlobal('fetch', retry);
+    const again = await callback.GET(callbackRequest(`state=${s}&code=C1`, value));
+    expect(again.headers.get('location')).toContain('error=oauth');
+    expect(retry).not.toHaveBeenCalled();
+  });
+
+  it('동시 콜백 2개 → 원자적 소비로 하나만 교환', async () => {
+    const { value, s } = await flowFor(userB);
+    const exchange = vi.fn(async () => Response.json({ key: EXCHANGED_KEY }));
+    vi.stubGlobal('fetch', exchange);
+    const results = await Promise.all([
+      callback.GET(callbackRequest(`state=${s}&code=P1`, value)),
+      callback.GET(callbackRequest(`state=${s}&code=P1`, value)),
+    ]);
+    const locations = results.map((response) => response.headers.get('location'));
+    expect(locations.filter((location) => location?.endsWith('/settings#llm'))).toHaveLength(1);
+    expect(exchange).toHaveBeenCalledTimes(1);
+  });
+
+  it('저장은 SHA-256 해시만(원문 없음), 만료 행은 다음 소비 때 정리, 다른 사용자 키 공간은 분리', async () => {
+    const { consumeOAuthState, stateHash } = await import('@/server/llm/oauth/state-store');
+    const now = Date.now();
+    await consumeOAuthState(state.handle!, {
+      userId: userA,
+      vendor: 'openrouter',
+      state: 'EXPIRING-STATE-0000000000',
+      expiresAt: now + 1_000,
+      now,
+    });
+    const stored = await queryRows<{ state_hash: string }>(
+      state.handle!.db,
+      sql`select state_hash from oauth_flow_states where user_id = ${userA}`,
+    );
+    expect(stored.map((row) => row.state_hash)).toContain(stateHash('EXPIRING-STATE-0000000000'));
+    expect(JSON.stringify(stored)).not.toContain('EXPIRING-STATE');
+    // 같은 state 라도 다른 사용자 행과 충돌하지 않는다 (기본 키 user_id + state_hash)
+    await expect(
+      consumeOAuthState(state.handle!, {
+        userId: userB,
+        vendor: 'openrouter',
+        state: 'EXPIRING-STATE-0000000000',
+        expiresAt: now + 1_000,
+        now,
+      }),
+    ).resolves.toBeUndefined();
+    await consumeOAuthState(state.handle!, {
+      userId: userA,
+      vendor: 'openrouter',
+      state: 'LATER-STATE-00000000000000',
+      expiresAt: now + 600_000,
+      now: now + 5_000,
+    });
+    const left = await queryRows<{ state_hash: string }>(
+      state.handle!.db,
+      sql`select state_hash from oauth_flow_states where expires_at < ${new Date(now + 5_000).toISOString()}`,
+    );
+    expect(left).toEqual([]);
+  });
+});

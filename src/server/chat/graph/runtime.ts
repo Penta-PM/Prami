@@ -32,6 +32,7 @@ type LlmEnv = Pick<
   | 'LLM_CREDENTIALS_KEKS'
   | 'LLM_CREDENTIALS_ACTIVE_KEK'
   | 'LLM_VENDOR_MODE'
+  | 'LLM_OAUTH_OPENROUTER'
 >;
 
 export function chatSettingsFromEnv(env: LlmEnv): ChatSettings {
@@ -51,7 +52,13 @@ export function createChatRuntime(input: { db: Db; userId: string; env: LlmEnv }
     db,
     settings: chatSettingsFromEnv(env),
     resolveCredential: () =>
-      resolveChatCredential({ db, userId, keys: keyringFromEnv(env), mode: env.LLM_VENDOR_MODE }),
+      resolveChatCredential({
+        db,
+        userId,
+        keys: keyringFromEnv(env),
+        mode: env.LLM_VENDOR_MODE,
+        flags: { oauthOpenRouter: env.LLM_OAUTH_OPENROUTER },
+      }),
     markRejected: (credential, status) =>
       markChatCredentialRejected(db, userId, credential, status),
     markUsed: (credential) => markChatCredentialUsed(db, userId, credential),
@@ -76,6 +83,7 @@ export async function chatStatus(input: { db: Db; userId: string; env: LlmEnv })
     userId: input.userId,
     keys: keyringFromEnv(input.env),
     mode: input.env.LLM_VENDOR_MODE,
+    flags: { oauthOpenRouter: input.env.LLM_OAUTH_OPENROUTER },
   });
   const needsSetup = SETUP_STATUSES.has(credential.status);
   const model =

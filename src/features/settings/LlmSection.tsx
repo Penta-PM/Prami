@@ -144,7 +144,7 @@ export function LlmSection({
       </section>
       <ChatDefaultsForm
         key={JSON.stringify(available)}
-        vendors={vendors}
+        vendors={vendors.filter((vendor) => !vendor.disabled)}
         available={available}
         defaults={defaults}
         busy={busy}

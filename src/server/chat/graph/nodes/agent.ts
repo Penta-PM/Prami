@@ -8,6 +8,7 @@ import { toolsFor } from '../../features/registry';
 import { toLangChainTool } from '../../features/tool-factory';
 import type { ChatFeature } from '../../features/types';
 import { LLM_ERROR_NOTICE, TOOL_LIMIT_NOTICE } from '../messages';
+import { isRefusal } from '../refusal';
 import type { ChatGraphState, ChatGraphUpdate } from '../state';
 import type { ChatRuntime } from '../types';
 import { errorSetup } from './basic';
@@ -29,12 +30,6 @@ const BIND_OPTIONS: Record<string, unknown> = { strict: true };
 function callSignal(config: LangGraphRunnableConfig, timeoutMs: number): AbortSignal {
   const timeout = AbortSignal.timeout(timeoutMs);
   return config.signal ? AbortSignal.any([config.signal, timeout]) : timeout;
-}
-
-function isRefusal(message: AIMessage): boolean {
-  return (
-    (message.response_metadata as { stop_reason?: unknown } | undefined)?.stop_reason === 'refusal'
-  );
 }
 
 async function onError(

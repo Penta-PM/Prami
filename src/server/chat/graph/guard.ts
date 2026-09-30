@@ -48,10 +48,33 @@ export function assertNoCostKeys(value: unknown, path = '$'): void {
  * (마진·이익률·이익금·순이익, 영문 cost·margin)를 더한 상위 집합 (PR-B 자체 보안 리뷰 반영)
  */
 const COST_WORD =
-  /원가|매입가|구매\s?단가|매입\s?단가|마진|이익률|이익금|순이익|\bcosts?\b|\bmargins?\b|\bpurchase\s+prices?\b/i;
-/** 금액: 아라비아 숫자(+만·천·억 단위) 또는 한글 수사 + 통화 (PR-B QA L-1 — "오천만 원", "1.2억원", "$ 120") */
+  /원가|매입가|구매\s?단가|매입\s?단가|마진|이익률|이익금|순이익|\bcost\b|\bmargins?\b|\bpurchase\s+prices?\b/i;
+/**
+ * 영문 `costs` 는 원가 단어로 본다. 예외는 하나 — 가격 동사(`costs <금액>`)이면서 **판매가 신호**(list price·selling price·
+ * retail·MSRP·판매가·정가 등)가 같은 문장에 있을 때만 (PR-C QA L-5 G29 "X costs 12,000,000원 as list price").
+ * 신호가 없으면("It costs 12,000,000원.") 원가 진술일 수 있어 막는다 — 모르면 원가 쪽(누설 방지 우선, 보안 리뷰 반영).
+ */
+const COSTS_WORD = /\bcosts\b/i;
+const COSTS_AS_PRICE_VERB =
+  /\bcosts\s+(?:about\s+|around\s+|approximately\s+|roughly\s+|only\s+|just\s+)?[$₩\d]/i;
+const SALE_PRICE_SIGNAL =
+  /\b(?:list|selling|sale|retail|sales)\s+price\b|\bretail\b|\bMSRP\b|판매\s?가|판매\s?단가|정가|소비자\s?가/i;
+const COST_CONTEXT =
+  /\b(?:the|our|its|their|your|unit|total|material|production|purchase|internal)\s+costs\b|\bcosts\s*[:=]|\bcosts\s+us\b|\bto\s+(?:make|produce|manufacture|build|procure)\b|\bmaterials?\b/i;
+
+function hasCostWord(sentence: string): boolean {
+  if (COST_WORD.test(sentence)) return true;
+  if (!COSTS_WORD.test(sentence)) return false;
+  const saleSentence = COSTS_AS_PRICE_VERB.test(sentence) && SALE_PRICE_SIGNAL.test(sentence);
+  return !saleSentence || COST_CONTEXT.test(sentence);
+}
+
+/**
+ * 금액: 아라비아 숫자(+만·천·억 단위) + 통화, `$`·`₩` 기호 + 숫자(￦ 는 NFKC 로 ₩), 한글 수사 + 통화.
+ * 한글 수사는 자릿수 단위(십·백·천·만·억·조)를 하나 이상 포함해야 한다 — "사원"·"이원화" 같은 일반어 오탐 방지 (QA L-5).
+ */
 const AMOUNT =
-  /\d[\d,.]*\s*(만|천|억|백만|천만)?\s*(원|KRW|USD|JPY|\$|엔|달러|dollars?)|\$\s*\d|[일이삼사오육칠팔구십백천만억]+\s*(원|달러)/i;
+  /\d[\d,.]*\s*(만|천|억|백만|천만)?\s*(원|KRW|USD|JPY|\$|₩|엔|달러|dollars?)|[$₩￦]\s*\d|(?:[일이삼사오육칠팔구]?[십백천만억조])+\s*(원|달러)/i;
 /** 비율: 마진·이익률 같은 단어와 함께면 금액과 같게 본다 ("margin 35%") */
 const PERCENT = /\d[\d.]*\s*(%|퍼센트|percent)/i;
 /** 텍스트 속 원가 키 JSON (모델이 {"unit_cost":…} 를 글로 쓰는 경우) */
@@ -130,7 +153,7 @@ export function mentionsCostAmount(raw: string, terms: readonly string[] = []): 
       // 문장 끝 부호 뒤 공백 또는 줄바꿈에서만 나눈다 ("1.2억원" 같은 소수점에서 나누지 않음)
       .split(/(?<=[.!?。])\s+|\n/)
       .some(
-        (sentence) => COST_WORD.test(sentence) && (AMOUNT.test(sentence) || PERCENT.test(sentence)),
+        (sentence) => hasCostWord(sentence) && (AMOUNT.test(sentence) || PERCENT.test(sentence)),
       )
   );
 }
@@ -183,6 +206,11 @@ export function createTokenGuard() {
         out += sentence;
       }
       return out;
+    },
+    /** 벤더 거부(refusal) — 보류분을 버리고 이 요청의 토큰을 더 내보내지 않는다 (final 이 거부 안내로 교체) */
+    discard() {
+      blocked = true;
+      pending = '';
     },
     /** agent 턴이 끝나면 남은 조각을 같은 판정으로 내보낸다 (끝 부호 뒤 공백이 없는 마지막 문장) */
     flush(): string {

@@ -19,6 +19,10 @@ export type CardHandlers = {
   onDelete: (vendor: string) => Promise<void>;
 };
 
+/** 플래그 off 벤더 카드 안내 (서버 VENDOR_DISABLED_MESSAGE 와 같은 뜻) */
+export const VENDOR_DISABLED_NOTICE =
+  '관리자 설정으로 이 연결이 꺼져 있어 챗봇에서 쓰지 않습니다. 연결 해제(삭제)만 할 수 있습니다.';
+
 export function LlmCredentialCard({
   vendor,
   credential,
@@ -27,7 +31,7 @@ export function LlmCredentialCard({
   handlers,
 }: {
   vendor: Pick<VendorView, 'id' | 'label' | 'consoleUrl'> &
-    Partial<Pick<VendorView, 'connectHref'>>;
+    Partial<Pick<VendorView, 'connectHref' | 'disabled'>>;
   credential: CredentialView | null;
   keyringReady: boolean;
   busy: boolean;
@@ -36,7 +40,8 @@ export function LlmCredentialCard({
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const status = STATUS_LABELS[credential?.status ?? 'missing'];
-  const supported = credential?.status !== 'unsupported';
+  // 플래그 off 벤더(QA L-3): 안내 + 삭제만 — 연결·교체·검증 버튼은 없다
+  const supported = credential?.status !== 'unsupported' && !vendor.disabled;
 
   return (
     <article
@@ -52,6 +57,11 @@ export function LlmCredentialCard({
       {credential?.status === 'unreadable' ? (
         <p role="alert" className="m-0 rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-500">
           {UNREADABLE_NOTICE}
+        </p>
+      ) : null}
+      {vendor.disabled ? (
+        <p role="note" className="m-0 rounded-lg bg-amber-500/15 px-3 py-2 text-[12px]">
+          {VENDOR_DISABLED_NOTICE}
         </p>
       ) : null}
       {credential ? (

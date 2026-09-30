@@ -14,7 +14,14 @@ import {
 } from '@/server/llm/credentials/service';
 
 import { createTestDb, insertUser } from '../../helpers/pglite';
-import { makeFakeKey } from '../../helpers/secret';
+
+/**
+ * 고정 키 (PR-C QA L-4): 예전엔 base64url 난수 키 끝 4자를 `slice(-4)` 로 기대해, 난수가 `-`·`_` 로 끝나면(약 12%) 실패했다.
+ * 제품 힌트는 "끝 영숫자 4자"(mask.ts) — 교체 키는 일부러 `-_` 로 끝내 그 경우를 매번 검사하고, 기대값은 독립적으로 적는다.
+ */
+const ORIGINAL_KEY = 'fake-valid-Q7w8E9r0T1y2U3i4O5p6A7s8D9f0G1h2';
+const REPLACEMENT_KEY = 'fake-invalid-Z9x8C7v6B5n4M3l2K1j0H9g8F7d6-_';
+const REPLACEMENT_HINT = 'fake-…F7d6';
 
 /**
  * QA L-3: 검증이 도는 동안 같은 사용자가 키를 교체하면, 이전 키의 검증 결과가 새 행에 기록되면 안 된다.
@@ -63,16 +70,16 @@ const rows = () =>
 
 describe('검증 중 교체 (QA L-3)', () => {
   it('이전 키(정상)의 검증 결과가 교체된 새 키(무효) 행을 덮어쓰지 않는다', async () => {
-    await saveCredential(ctx, { vendor: 'openai', apiKey: makeFakeKey('fake-valid-') });
-    const replacement = makeFakeKey('fake-invalid-');
+    await saveCredential(ctx, { vendor: 'openai', apiKey: ORIGINAL_KEY });
+    const replacement = REPLACEMENT_KEY;
     hook.during = async () => {
       await saveCredential(ctx, { vendor: 'openai', apiKey: replacement });
     };
     const view = await verifyOwnCredential(ctx, { vendor: 'openai' });
     const [row] = await rows();
-    expect(row).toMatchObject({ status: 'invalid', key_hint: `fake-…${replacement.slice(-4)}` });
+    expect(row).toMatchObject({ status: 'invalid', key_hint: REPLACEMENT_HINT });
     // 응답도 현재(새) 행 기준
-    expect(view).toMatchObject({ status: 'invalid', keyHint: `fake-…${replacement.slice(-4)}` });
+    expect(view).toMatchObject({ status: 'invalid', keyHint: REPLACEMENT_HINT });
     expect(await rows()).toHaveLength(1);
   });
 });

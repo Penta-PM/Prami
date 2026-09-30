@@ -7,6 +7,7 @@ import { assertNoCostKeys } from '@/server/chat/graph/guard';
 import { runChat } from '@/server/chat/graph/run';
 import { streamChat } from '@/server/chat/graph/stream';
 import type { ChatReplyOut, ChatRuntime } from '@/server/chat/graph/types';
+import { REFUSED_REPLY } from '@/server/chat/graph/messages';
 import { COST_REPLY_USER } from '@/server/chat/respond';
 import { defaultModelFor } from '@/server/llm/models';
 import { createAnthropicChatModel } from '@/server/llm/vendors/anthropic-chat';
@@ -188,6 +189,62 @@ function vendorStub(vendor: keyof typeof KEYS) {
   ];
   return vendor === 'openai' ? createOpenAIStub(turns) : createGeminiStub(turns);
 }
+
+describe('refusal 스트림 (PR-C QA L-1, §4.5.3·§4.3.9)', () => {
+  const REFUSAL_TEXT = 'FAKE-REFUSAL-CONTENT 거부 사유 원문입니다. 두 번째 문장.';
+
+  it('완성 메시지로 온 refusal: content 가 token 으로 나가지 않고 final 은 거부 안내', async () => {
+    const model = new ScriptedChatModel([{ refusal: REFUSAL_TEXT }]);
+    const { events, raw } = await stream(scriptedRuntime(ctx.handle, { model }), '가격');
+    expect(events.map((event) => event.event)).toEqual(['final', 'done']);
+    expect(raw).not.toContain('FAKE-REFUSAL-CONTENT');
+    expect(events[0]!.data).toMatchObject({ mode: 'refusal', reply: REFUSED_REPLY });
+  });
+
+  /** 실제 Anthropic 어댑터(스트리밍 요청) + 전송 스텁 — refusal 은 텍스트 뒤 별도 message_delta 로 온다 */
+  async function anthropicRefusal(text: string) {
+    const stub = createAnthropicStub([
+      { content: [{ type: 'text', text }], stop_reason: 'refusal' },
+    ]);
+    const modelId = defaultModelFor('anthropic')!;
+    const runtime = scriptedRuntime(ctx.handle, { status: 'ready', vendor: 'anthropic', modelId });
+    const credential = await runtime.resolveCredential();
+    runtime.resolveCredential = async () => ({
+      ...credential,
+      createModel: (options) =>
+        createAnthropicChatModel(KEYS.anthropic, modelId, { ...options, fetch: stub.fetch }),
+    });
+    const result = await stream(runtime, '가격');
+    expect(stub.requests[0]!.body.stream).toBe(true);
+    return result;
+  }
+
+  it('스트리밍 경로 refusal 감지 (추가 발견 버그 회귀): 거부 원문이 mode=llm 답으로 나가지 않고 final 은 거부 안내', async () => {
+    const { events } = await anthropicRefusal(REFUSAL_TEXT);
+    const final = events.find((event) => event.event === 'final')!.data as ChatReplyOut;
+    expect(final).toMatchObject({ mode: 'refusal', reply: REFUSED_REPLY });
+    expect(JSON.stringify(final)).not.toContain('FAKE-REFUSAL-CONTENT');
+  });
+
+  it('discard 계약 (Main 결정 A): 거부 전 토큰이 나갔으면 token → discard(1회) → final 순, 보류분은 전송 안 됨', async () => {
+    const { events, raw } = await anthropicRefusal(REFUSAL_TEXT);
+    const names = events.map((event) => event.event);
+    expect(names.filter((name) => name === 'discard')).toHaveLength(1);
+    expect(names.indexOf('token')).toBeLessThan(names.indexOf('discard'));
+    expect(names.indexOf('discard')).toBeLessThan(names.indexOf('final'));
+    expect(events.find((event) => event.event === 'discard')!.data).toEqual({ reason: 'refusal' });
+    expect(raw).not.toContain('두 번째 문장.');
+  });
+
+  it.each([
+    ['원가 금액', '원가는 1,000원입니다. 나머지 설명입니다.'],
+    ['원가 키 JSON', '참고 {"unit_cost": 1000} 입니다. 나머지 설명입니다.'],
+  ])('거부 전 문장도 출력 가드를 거친다 (%s → 토큰 0, discard 없음)', async (_label, text) => {
+    const { events, raw } = await anthropicRefusal(text);
+    expect(events.map((event) => event.event)).toEqual(['final', 'done']);
+    expect(raw).not.toMatch(/원가는|unit_cost/);
+  });
+});
 
 describe('3벤더 스트림 불변식 (AC-243·AC-225~228 확장)', () => {
   it.each(['anthropic', 'openai', 'google'] as const)(

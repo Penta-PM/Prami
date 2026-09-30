@@ -57,6 +57,7 @@ function context(
     meta,
     keys: keyringFromEnv(env),
     mode: env.LLM_VENDOR_MODE,
+    flags: { oauthOpenRouter: env.LLM_OAUTH_OPENROUTER },
   };
 }
 

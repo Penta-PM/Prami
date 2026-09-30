@@ -6,7 +6,14 @@ import type { Db } from '@/db';
 
 import { defaultModelFor, isKnownModel } from '../models';
 import { createFakeChatModel } from '../vendors/fake-chat';
-import { findVendor, LLM_VENDORS, type LlmVendor } from '../vendors/registry';
+import {
+  findVendor,
+  isVendorActive,
+  LLM_VENDORS,
+  VENDOR_FLAGS_OFF,
+  type LlmVendor,
+  type VendorFlags,
+} from '../vendors/registry';
 import type { ChatModelFactoryOptions } from '../vendors/types';
 import { CredentialUnreadableError } from './crypto';
 import type { KeyProvider } from './keyring';
@@ -34,11 +41,21 @@ export type ResolvedChatCredential = {
   credentialId: string | null;
   /** ready 일 때만. 호출할 때마다 새 모델 인스턴스 (요청 스코프) */
   createModel: ((options: ChatModelFactoryOptions) => BaseChatModel) | null;
-  /** 채팅 어댑터가 아직 없는 벤더(OpenAI·Gemini — PR-C)의 정상 키 — 안내 문구용 라벨 */
+  /**
+   * 지금 챗봇에서 쓸 수 없는 벤더의 키 — 채팅 어댑터 없음 또는 플래그 off(OpenRouter, QA L-3) — 안내 문구용 라벨.
+   * 이 벤더 키는 복호화·호출하지 않는다.
+   */
   unsupportedVendorLabels: string[];
 };
 
-type ResolveInput = { db: Db; userId: string; keys: KeyProvider | null; mode: 'live' | 'fake' };
+type ResolveInput = {
+  db: Db;
+  userId: string;
+  keys: KeyProvider | null;
+  mode: 'live' | 'fake';
+  /** 벤더 노출 플래그 (env LLM_OAUTH_OPENROUTER) — 없으면 모두 off */
+  flags?: VendorFlags;
+};
 
 const NONE: Omit<ResolvedChatCredential, 'status' | 'unsupportedVendorLabels'> = {
   vendor: null,
@@ -48,8 +65,8 @@ const NONE: Omit<ResolvedChatCredential, 'status' | 'unsupportedVendorLabels'> =
   createModel: null,
 };
 
-const chatCapable = (vendor: LlmVendor | undefined): vendor is LlmVendor =>
-  Boolean(vendor?.createChatModel);
+const chatCapable = (vendor: LlmVendor | undefined, flags: VendorFlags): vendor is LlmVendor =>
+  vendor !== undefined && Boolean(vendor.createChatModel) && isVendorActive(vendor, flags);
 
 /** 기본 벤더 → 없으면 레지스트리 순서상 첫 valid → 없으면 첫 행 (상태를 보여 주기 위해) */
 function pickRow(rows: CredentialRow[], defaultVendor: string | null): CredentialRow | null {
@@ -83,9 +100,11 @@ export async function resolveChatCredential(input: ResolveInput): Promise<Resolv
     listCredentialRows(input.db, input.userId),
     getOwnSettings(input.db, input.userId),
   ]);
-  const usable = rows.filter((row) => chatCapable(findVendor(row.vendor)));
+  const flags = input.flags ?? VENDOR_FLAGS_OFF;
+  const usable = rows.filter((row) => chatCapable(findVendor(row.vendor), flags));
+  // 확정적으로 나쁜 키(invalid·forbidden)가 아닌데 쓸 수 없는 벤더 — OAuth 연결은 unverified 로 저장된다
   const unsupportedVendorLabels = rows
-    .filter((row) => row.status === 'valid' && !usable.includes(row))
+    .filter((row) => statusOf(row) === null && findVendor(row.vendor) && !usable.includes(row))
     .map((row) => findVendor(row.vendor)?.label ?? row.vendor);
   const row = pickRow(usable, settings?.chatDefaultVendor ?? null);
   if (!row) return { status: 'missing', ...NONE, unsupportedVendorLabels };

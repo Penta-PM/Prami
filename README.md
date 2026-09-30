@@ -395,9 +395,15 @@ prepare → precheck ─(원가 의도)→ costRefusal ────────�
 - **SSE 스트리밍**(옵트인): `POST /api/chat` 에 `Accept: text/event-stream` → `event: token`(agent 텍스트) · `status`(도구 진행) ·
   `final`(가드·금지 키 검사를 거친 정본 ChatReply) · `done`. `Accept` 가 없으면 기존 JSON. 패널은 LLM 연결 상태에서 SSE 로 받아 점진 표시하고
   `final` 로 교체, 패널을 닫으면 요청을 중단(서버 → 그래프·모델 호출 signal). CSP 변경 없음(같은 출처 fetch).
+  - `event: discard` `data: {"reason":"refusal"}` — 벤더 거부(stop_reason `refusal`)를 알았을 때 **이미 token 을 보냈으면** 1회.
+    클라이언트는 즉시 말풍선 텍스트를 비우고 대화 히스토리에도 남기지 않는다(다음 턴에 재전송 없음). 이어서 `final` 이 거부 안내다.
+    실 Anthropic 스트리밍은 stop_reason 이 텍스트 뒤 별도 청크로 오므로 거부 전에 끝난 문장은 전송될 수 있다(벤더 권고 = 부분 출력 폐기).
+    그 문장도 문장 단위 출력 가드를 거친다. 완성 메시지로 온 거부는 token 0 · discard 없음.
 - **OpenRouter OAuth PKCE**(플래그 `LLM_OAUTH_OPENROUTER=true`, 기본 off): 설정 카드 [OpenRouter로 연결] → `/api/settings/oauth/openrouter/start`
   (code_verifier·state 를 AUTH_SECRET 파생 키로 암호화한 HttpOnly 쿠키 10분) → OpenRouter 인증 → `callback`(state·쿠키·세션 사용자 검증 →
+  state 1회 소비(`oauth_flow_states`, SHA-256 해시만, 교환 전 원자적 소비 — 재사용·동시 콜백 거부, 마이그레이션 0004) →
   코드 교환 → 키를 봉투 암호화 `auth_type='oauth_pkce'`, 감사 `settings.oauth.connect`). 삭제 = 연결 해제(`settings.oauth.disconnect`).
+  플래그를 끄면 남은 OpenRouter 자격 증명은 챗봇에서 쓰지 않고(안내 문구) 검증·기본값 지정도 막지만, 카드에서 삭제(파기)는 할 수 있다.
   플래그 off 면 두 라우트 404·카드 미표시. 로컬 `callback_url` 은 `NEXT_PUBLIC_APP_URL` 출처.
 - **Anthropic 서버측 폴백**은 공식 지원 모델(Opus 5.5·Sonnet 5.5·Opus 5)에만 — 레거시 Sonnet 5·Haiku 4.5 에는 `fallbacks`·베타 헤더를 보내지 않는다.
 - **출력 가드**: NFKC·제로폭 문자 제거 후 판정, 한글 수사·단위 금액·비율·텍스트 속 원가 키 JSON 도 교체. LLM 텍스트에만 적용(규칙 답은 결정적 템플릿). 판정용 사본에서 이번 요청 도구 결과의 품명·품번을 가려 품명 속 "cost"·"원가" 오탐을 막는다(원문 불변). SSE 토큰도 같은 판정을 문장 단위로 거친다. 가드는 2차 방어이고 1차 방어는 모델 컨텍스트에 원가 데이터가 없다는 것이다.
