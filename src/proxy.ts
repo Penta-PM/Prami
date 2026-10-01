@@ -4,7 +4,7 @@ import { canAccessAdminArea } from '@/lib/constants/permissions';
 import { env, proxyTrustMode } from '@/env';
 import { auth } from '@/server/auth/auth';
 import { logger } from '@/server/log';
-import { ipScopeFor, rateLimitedResponse, rateLimiters, rateLimitIp } from '@/server/rate-limit';
+import { ipScopeFor, rateLimitedResponse, rateLimiters, rateLimitIpKey } from '@/server/rate-limit';
 import {
   buildCsp,
   createNonce,
@@ -21,11 +21,46 @@ import {
  * 권한의 최종 판단은 각 페이지·Action·Route 의 requirePermission (2차 방어)이 한다.
  * 정적 헤더(HSTS·X-Frame-Options 등)는 정적 자원까지 덮도록 next.config.ts headers() 가 붙인다.
  */
-const PUBLIC_PREFIXES = ['/login', '/share/', '/api/auth/'] as const;
+const PUBLIC_PREFIXES = ['/login', '/share/', '/api/auth/', '/api/health'] as const;
 
-export function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PREFIXES.some((prefix) =>
+const matchesPrefix = (pathname: string, prefixes: readonly string[]) =>
+  prefixes.some((prefix) =>
     prefix.endsWith('/') ? pathname.startsWith(prefix) : pathname === prefix,
+  );
+
+/** `/api/health` 는 정확히 그 경로만 공개 — `/api/health/deep` 은 ADMIN 세션 필요 (PRAMI-003 §4.3.10) */
+export function isPublicPath(pathname: string): boolean {
+  return matchesPrefix(pathname, PUBLIC_PREFIXES);
+}
+
+/** 점검 모드에서도 열어 두는 경로: ADMIN 로그인과 헬스 (런북 R-3, Q-13) */
+const MAINTENANCE_OPEN_PREFIXES = ['/login', '/api/auth/', '/api/health'] as const;
+
+export function isOpenDuringMaintenance(pathname: string): boolean {
+  return matchesPrefix(pathname, MAINTENANCE_OPEN_PREFIXES);
+}
+
+export const MAINTENANCE_MESSAGE = '시스템 점검 중입니다. 잠시 후 다시 이용해 주세요.';
+
+/** 점검 모드 503 — API 는 봉투, 페이지는 짧은 안내 문서 */
+function maintenanceResponse(pathname: string, context: SecurityContext): NextResponse {
+  const headers = { 'Retry-After': '300', 'cache-control': 'no-store' };
+  if (pathname.startsWith('/api/')) {
+    return decorate(
+      NextResponse.json(
+        { ok: false, error: { code: 'MAINTENANCE', message: MAINTENANCE_MESSAGE } },
+        { status: 503, headers },
+      ),
+      context,
+    );
+  }
+  const html = `<!doctype html><html lang="ko"><meta charset="utf-8"><title>점검 중 — Prami</title><p>${MAINTENANCE_MESSAGE}</p></html>`;
+  return decorate(
+    new NextResponse(html, {
+      status: 503,
+      headers: { ...headers, 'content-type': 'text/html; charset=utf-8' },
+    }),
+    context,
   );
 }
 
@@ -57,10 +92,16 @@ function decorate(response: NextResponse, context: SecurityContext): NextRespons
 }
 
 /** 공유 페이지·PDF·auth 콜백은 IP 기준 분당 상한 (§4.8 r6, AC-95). 초과면 429 응답, 아니면 null */
-function limitByIp(request: NextRequest, context: SecurityContext): NextResponse | null {
+async function limitByIp(
+  request: NextRequest,
+  context: SecurityContext,
+): Promise<NextResponse | null> {
   const scope = ipScopeFor(request.nextUrl.pathname, request.method);
   if (!scope) return null;
-  const decision = rateLimiters[scope].hit(rateLimitIp(request.headers, proxyTrustMode(env)));
+  // 저장소에는 원문 IP 대신 HMAC 키 (PRAMI-003 §4.3.7)
+  const decision = await rateLimiters[scope].hit(
+    rateLimitIpKey(request.headers, proxyTrustMode(env)),
+  );
   if (decision.allowed) return null;
   logger.warn('rate_limited', { scope, requestId: context.requestId });
   const limited = rateLimitedResponse(decision);
@@ -70,11 +111,15 @@ function limitByIp(request: NextRequest, context: SecurityContext): NextResponse
 export default auth(async (request) => {
   const context = securityContext(request);
   const { pathname, search } = request.nextUrl;
-  const limited = limitByIp(request, context);
+  const limited = await limitByIp(request, context);
   if (limited) return limited;
+  const user = request.auth?.user;
+  // 점검 모드 (런북 R-3): 비 ADMIN 의 쓰기·조회를 막고 ADMIN 은 복구 작업을 위해 통과
+  if (env.MAINTENANCE_MODE && !isOpenDuringMaintenance(pathname) && user?.role !== 'ADMIN') {
+    return maintenanceResponse(pathname, context);
+  }
   if (isPublicPath(pathname)) return passThrough(request, context);
 
-  const user = request.auth?.user;
   if (!user?.id) {
     if (pathname.startsWith('/api/')) {
       return decorate(

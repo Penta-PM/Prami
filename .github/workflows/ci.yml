@@ -67,14 +67,20 @@ jobs:
       - name: Unit tests (coverage ≥ 80%)
         run: pnpm test:coverage
 
-      - name: Build
+      - name: Build (DB_DRIVER=neon — 운영과 같은 드라이버 경로)
         run: pnpm build
         env:
           # PRAMI-002 §4.13: production 빌드는 KEK 가 없으면 LLM 킬스위치를 꺼야 env 검증을 통과한다 (CI 는 KEK 를 두지 않음)
           CHAT_LLM_ENABLED: 'false'
+          # PRAMI-003 AC-330 ③: 운영 드라이버로 빌드해 함수 트레이스를 검사한다. 빌드는 DB 에 연결하지 않는다(더미 호스트)
+          DB_DRIVER: neon
+          DATABASE_URL: postgresql://ci:pw@ep-ci-build.example.neon.tech/prami
 
       - name: 정적 프리렌더 페이지 없음 (CSP nonce, PR-11a QA M-1)
         run: pnpm check:prerender
+
+      - name: 함수 번들에 PGlite 없음 (PRAMI-003 AC-330 ③)
+        run: pnpm check:trace
 
       - name: Upload coverage
         if: always()
@@ -106,6 +112,8 @@ jobs:
     env:
       DB_DRIVER: pg
       DATABASE_URL: postgres://prami:prami@localhost:5432/prami
+      # PRAMI-003 §4.9.3 L2: seed 는 CI·격리 DB 에서만 이 표식으로 허용된다
+      PRAMI_ALLOW_SEED: '1'
     steps:
       - uses: actions/checkout@v4
 

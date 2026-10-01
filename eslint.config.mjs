@@ -142,6 +142,35 @@ const restrictCostSyntax = {
   },
 };
 
+/**
+ * PRAMI-003 §4.3.10·§4.9.2 운영 점검(server/ops: 헬스 deep·data:verify)은 원가 **행 수**가 필요하다.
+ * 원가 값이 없는 개수 전용 모듈 `server/cost/row-count` 하나만 예외로 허용한다 — 나머지 원가 모듈·스키마·raw SQL 제한은 그대로.
+ */
+const COST_ROW_COUNT_MODULE = '@/server/cost/row-count';
+const opsRowCountException = {
+  files: ['src/server/ops/**/*.{ts,tsx}'],
+  rules: {
+    'no-restricted-imports': [
+      'error',
+      {
+        paths: restrictCostSyntax.rules['no-restricted-imports'][1].paths,
+        // gitignore 문법상 디렉터리 패턴('@/server/cost')이 있으면 하위 예외를 되살릴 수 없어, 모듈 루트는 정규식으로 분리한다
+        patterns: restrictCostSyntax.rules['no-restricted-imports'][1].patterns.flatMap((entry) =>
+          entry.group?.includes('@/server/cost/*')
+            ? [
+                {
+                  ...entry,
+                  group: ['@/server/cost/*', '**/server/cost/*', `!${COST_ROW_COUNT_MODULE}`],
+                },
+                { regex: '^(@/|.*/)?server/cost$', message: entry.message },
+              ]
+            : [entry],
+        ),
+      },
+    ],
+  },
+};
+
 /** 자격 증명 모듈 자신: 원가 제한은 그대로, 자격 증명 스키마는 허용 */
 const credentialsModule = {
   ...restrictCostSyntax,
@@ -193,6 +222,7 @@ export default defineConfig([
   ...nextTs,
   restrictCostImports,
   restrictCostSyntax,
+  opsRowCountException,
   credentialsModule,
   restrictCredentialsInCost,
   modelConstants,

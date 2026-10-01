@@ -43,16 +43,20 @@ cp .env.example .env.local
 #    .env.local:  DB_DRIVER=pg
 #                 DATABASE_URL=postgres://prami:prami@localhost:5432/prami
 #                 AUTH_SECRET=<openssl rand -base64 32 결과>
-#                 AUTH_TEST_MODE=true              # Google OAuth 클라이언트 없이 로컬 로그인
+#                 AUTH_TEST_MODE=true              # Google OAuth 클라이언트 없이 로컬 로그인 (T-0, docs/deploy/local.md)
 #                 AUTH_TEST_PASSWORD=<임의 문자열>
-#                 ADMIN_EMAILS=fixture-admin@pentasecurity.com
+#                 ADMIN_EMAILS=<실제 관리자 회사 이메일>   # fixture 이메일을 쓰지 않는다 (PRAMI-003 U-7)
 
 # 3) 로컬 PostgreSQL 16 기동 (Neon 프로젝트 준비 전 개발·QA용)
 docker compose up -d
 
-# 4) 마이그레이션 (drizzle/*.sql) · 시드 (픽스처 ADMIN·USER, 공지 샘플, 감사 로그 user.seed)
+# 4) 마이그레이션 (drizzle/*.sql) → 실데이터 적재 (원본 엑셀 3종, 정식 임포트 경로 — 순서 고정) → 검증
 pnpm db:migrate
-pnpm seed
+pnpm import:source "<_inputs>/PRAMI-001/병합_가격_raw.xlsx" --kind sales
+pnpm import:source "<_inputs>/PRAMI-003/WAPPLES 품목.xlsx" … "<_inputs>/PRAMI-003/cloudbric 품목.xlsx" --kind items
+pnpm import:source "<_inputs>/PRAMI-001/원자재코드 정보_260825.xlsx" --kind costs
+pnpm data:verify --fresh --target local
+#    seed(픽스처 계정·공지 샘플)는 로컬 :3000 DB 에 쓰지 않는다 — PRAMI_ALLOW_SEED=1 인 CI·E2E·격리 DB 에서만 실행된다
 
 # 5) 개발 서버
 pnpm dev            # http://localhost:3000 (127.0.0.1 에만 바인드)
@@ -83,6 +87,8 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 `DB_DRIVER` 를 비우면 PGlite(인프로세스, `memory://`)로 동작하므로 Docker 없이도 단위 테스트가 가능합니다.
 앱을 PGlite 로 띄우면 첫 연결 때 마이그레이션이 자동 적용됩니다(인메모리는 재시작 시 초기화).
 `pnpm db:migrate` 와 `pnpm seed` 는 `.env.local` → `.env` 순서로 환경을 읽습니다(Next 와 동일 규칙).
+로컬 :3000 을 실데이터·실 Google 로그인으로 전환하는 절차(테스트 모드 제거 T-0~T-2, DB 재구성·복원)는 [`docs/deploy/local.md`](docs/deploy/local.md),
+운영·preview 환경변수와 기동 검사는 [`docs/deploy/vercel.md`](docs/deploy/vercel.md) 에 있습니다.
 
 ### 스크립트
 
@@ -100,11 +106,14 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 | `pnpm test:integration`   | 실제 Postgres 통합 테스트 — `DB_DRIVER=pg` + `DATABASE_URL` 필요, 없으면 스킵                                                                                                                                                    |
 | `pnpm db:generate`        | 스키마(`src/db/schema`) 변경을 `drizzle/*.sql` 마이그레이션으로 생성                                                                                                                                                             |
 | `pnpm db:migrate`         | `DB_DRIVER` 에 맞는 드라이버로 마이그레이션 적용                                                                                                                                                                                 |
-| `pnpm seed`               | 픽스처 ADMIN·USER, 공지 샘플, 감사 로그 `user.seed` 기록 (재실행 안전)                                                                                                                                                           |
+| `pnpm seed`               | 픽스처 ADMIN·USER, 공지 샘플, 감사 로그 `user.seed` 기록 (재실행 안전). **CI·E2E·격리 DB 전용** — 로컬 호스트 + `PRAMI_ALLOW_SEED=1` 일 때만, 원격 DB 는 거부                                                                    |
 | `pnpm test:e2e`           | Playwright E2E — `next dev`(포트 3100, `.next-e2e`) + Postgres `prami_e2e` DB(`E2E_DATABASE_URL`)에 자동 migrate·seed. 최초 1회 `pnpm exec playwright install chromium`                                                          |
 | `pnpm fixtures`           | 임포트 테스트 픽스처 생성 — 원본 `병합_가격_raw.xlsx`(`SOURCE_XLSX`)에서 200행 + 오류·품목조회 합성 파일 → `tests/fixtures/imports/`, 품목조회 5파일(`PRAMI_INPUTS_DIR`) 축소본 → `tests/fixtures/items/`(개인정보 컬럼 가짜 값) |
-| `pnpm import:source`      | 엑셀을 업로드·적용 경로 그대로 반영(로컬·QA 데이터 준비용). **파일 경로 필수**. `--kind sales`(기본) · `costs` · `items`(품목조회 1~5개 → 현재 판매단가 재사용 적용, `--merge merge\|replace`)                                   |
-| `pnpm credentials:rewrap` | LLM 키 DEK 를 활성 KEK 로 다시 감싼다 (KEK 회전, PRAMI-002)                                                                                                                                                                      |
+| `pnpm import:source`      | 엑셀을 업로드·적용 경로 그대로 반영(정식 임포트 경로). **파일 경로 필수**. `--kind sales`(기본) · `costs` · `items`(품목조회 1~5개 → 현재 판매단가 재사용 적용, `--merge merge\|replace`). 원격 DB 는 `--target-host` 필수       |
+| `pnpm data:verify`        | 데이터 자동 검증(읽기 전용) — `--fresh`(클린 설치 직후), `--stage schema`, `--target local\|preview\|production`(+`--target-host`). docs/deploy/local.md                                                                         |
+| `pnpm parts:draft`        | 파츠 매핑 초안 xlsx(`--out <저장소 밖>`, DB 변경 0) — 관리자 검수 후 `/admin/parts` 엑셀 등록                                                                                                                                    |
+| `pnpm check:trace`        | `DB_DRIVER=neon pnpm build` 뒤 `/api` 함수 트레이스에 PGlite 가 없는지 검사                                                                                                                                                      |
+| `pnpm credentials:rewrap` | LLM 키 DEK 를 활성 KEK 로 다시 감싼다 (KEK 회전, PRAMI-002). `--yes` 없으면 대상·건수만 출력                                                                                                                                     |
 | `pnpm check`              | lint + typecheck + format:check + test 일괄                                                                                                                                                                                      |
 
 CI(`.github/workflows/ci.yml`)는 PR 마다 lint → typecheck → format → 단위(커버리지, PGlite) → build,

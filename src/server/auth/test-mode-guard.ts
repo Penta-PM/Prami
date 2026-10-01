@@ -54,6 +54,6 @@ export async function guardTestLogin(input: TestLoginGuardInput): Promise<TestLo
     return 'test_mode_host';
   }
   const key = input.email.trim().toLowerCase() || '(empty)';
-  if (!input.limiter.hit(`login:${key}`).allowed) return 'rate_limited';
+  if (!(await input.limiter.hit(`login:${key}`)).allowed) return 'rate_limited';
   return 'ok';
 }

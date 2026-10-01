@@ -1,5 +1,7 @@
 import { sql } from 'drizzle-orm';
 
+import { dbHostOf, isLocalDbHost } from '@/lib/db-host';
+
 import type { DbHandle } from './index';
 import { auditLogs, notices, users, type User } from './schema';
 import { withTransaction, type Tx } from './tx';
@@ -118,11 +120,64 @@ async function upsertNotices(tx: Tx, author: User): Promise<number> {
   return rows.length;
 }
 
+/** seed 를 허용하는 표식 (PRAMI-003 §4.9.3 L2) — CI·E2E·격리 DB 만 설정한다 */
+export const ALLOW_SEED_ENV = 'PRAMI_ALLOW_SEED';
+
+export class SeedTargetError extends Error {
+  constructor(readonly reason: SeedTargetViolation) {
+    super(SEED_TARGET_MESSAGES[reason]);
+    this.name = 'SeedTargetError';
+  }
+}
+
+export type SeedTargetViolation = 'production' | 'vercel' | 'neon' | 'remote_host' | 'not_allowed';
+
+const SEED_TARGET_MESSAGES: Record<SeedTargetViolation, string> = {
+  production: 'NODE_ENV=production 에서는 seed 를 실행할 수 없습니다',
+  vercel: 'VERCEL_ENV 가 있는 환경에서는 seed 를 실행할 수 없습니다',
+  neon: 'DB_DRIVER=neon 대상에는 seed 를 실행할 수 없습니다',
+  remote_host:
+    'DATABASE_URL 호스트가 로컬 목록(localhost·127.0.0.1·::1·postgres·db) 밖입니다 — seed 는 원격 DB 에 실행할 수 없습니다',
+  not_allowed: `로컬 DB 라도 ${ALLOW_SEED_ENV}=1 일 때만 seed 를 실행합니다 (CI·E2E·격리 DB 전용 — 로컬 :3000 DB 금지)`,
+};
+
+/**
+ * seed 대상 판정 (PRAMI-003 §4.3.4·§4.9.3 L2). 원격 조건이면 우회 플래그 없이 거부, 로컬이어도 PRAMI_ALLOW_SEED=1 이 필요하다.
+ * 핸들이 있으면 실제 연결(드라이버·URL)을 기준으로, 없으면 환경변수로 판정한다.
+ */
+export function seedTargetViolation(
+  source: Record<string, string | undefined>,
+  target?: Pick<DbHandle, 'driver' | 'databaseUrl'>,
+): SeedTargetViolation | null {
+  if (source.NODE_ENV === 'production') return 'production';
+  if ((source.VERCEL_ENV ?? '').trim() !== '') return 'vercel';
+  const driver = target?.driver ?? source.DB_DRIVER ?? 'pglite';
+  if (driver === 'neon') return 'neon';
+  const url = target ? target.databaseUrl : source.DATABASE_URL;
+  if (driver !== 'pglite' && !isLocalDbHost(dbHostOf(url))) return 'remote_host';
+  if ((source[ALLOW_SEED_ENV] ?? '').trim() !== '1') return 'not_allowed';
+  return null;
+}
+
+/** 위반이면 DB 에 접근하기 전에 throw 한다 (스크립트·함수 양쪽 진입점) */
+export function assertSeedTargetIsLocal(
+  source: Record<string, string | undefined> = process.env,
+  target?: Pick<DbHandle, 'driver' | 'databaseUrl'>,
+): void {
+  const violation = seedTargetViolation(source, target);
+  if (violation) throw new SeedTargetError(violation);
+}
+
 /**
  * 시드 전체를 한 트랜잭션으로 실행한다 (감사 로그는 변경과 같은 배치 — §4.2 원칙 4).
  * 재실행해도 안전하다: 사용자·공지는 upsert, 감사 로그는 실행마다 append.
+ * 원격·미허용 대상이면 DB 접근 없이 SeedTargetError (PRAMI-003 §4.3.4, AC-323·333).
  */
-export async function seedDatabase(handle: DbHandle): Promise<SeedResult> {
+export async function seedDatabase(
+  handle: DbHandle,
+  source: Record<string, string | undefined> = process.env,
+): Promise<SeedResult> {
+  assertSeedTargetIsLocal(source, handle);
   return withTransaction(async (tx) => {
     const seededUsers = await upsertUsers(tx);
     const admin = seededUsers.find((user) => user.role === 'ADMIN');

@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import type { DbHandle } from '@/db';
 import { firstRow } from '@/db/rows';
 import { users, type User } from '@/db/schema';
+import { isFixtureEmail } from '@/lib/constants/fixture';
 import { withTransaction, type Tx } from '@/db/tx';
 import { AUDIT_ACTIONS, writeAudit, type RequestMeta } from '@/server/audit/log';
 
@@ -16,6 +17,11 @@ export type SignInPolicy = {
   allowedDomains: readonly string[];
   adminEmails: readonly string[];
   autoProvision: boolean;
+  /**
+   * 시연(fixture) 계정 거부 (PRAMI-003 §4.9.3 L3) — 운영·preview(`VERCEL_ENV` 있음)에서 true.
+   * 같은 이메일이 Google 에 실존해도 계정이 생기지 않는다. 로컬은 기존 동작(false).
+   */
+  rejectFixtureAccounts?: boolean;
 };
 
 export type SignInInput = {
@@ -28,7 +34,7 @@ export type SignInInput = {
   meta: RequestMeta;
 };
 
-export type SignInDenyReason = 'domain' | 'inactive' | 'unregistered';
+export type SignInDenyReason = 'domain' | 'inactive' | 'unregistered' | 'fixture_account';
 
 export type SignInOutcome =
   { ok: true; user: User; created: boolean } | { ok: false; reason: SignInDenyReason };
@@ -62,14 +68,22 @@ type Ctx = { tx: Tx; input: SignInInput; email: string; policy: SignInPolicy };
 async function deny(ctx: Ctx, reason: SignInDenyReason, user?: User): Promise<SignInOutcome> {
   const action = {
     domain: AUDIT_ACTIONS.deniedDomain,
+    // 감사 이벤트는 도메인 거부와 같고 사유로 구분한다 (§4.9.3 L3)
+    fixture_account: AUDIT_ACTIONS.deniedDomain,
     inactive: AUDIT_ACTIONS.deniedInactive,
     unregistered: AUDIT_ACTIONS.deniedUnregistered,
   }[reason];
+  const after =
+    reason === 'domain'
+      ? { emailVerified: ctx.input.emailVerified }
+      : reason === 'fixture_account'
+        ? { reason: 'fixture_account' }
+        : null;
   await writeAudit(ctx.tx, {
     actor: { id: user?.id ?? null, label: ctx.email },
     action,
     target: { type: 'user', id: user?.id ?? null, label: ctx.email },
-    after: reason === 'domain' ? { emailVerified: ctx.input.emailVerified } : null,
+    after,
     result: 'denied',
     meta: ctx.input.meta,
   });
@@ -142,6 +156,9 @@ async function updateOnLogin(ctx: Ctx, user: User): Promise<User> {
 }
 
 async function decide(ctx: Ctx): Promise<SignInOutcome> {
+  if (ctx.policy.rejectFixtureAccounts && isFixtureEmail(ctx.email)) {
+    return deny(ctx, 'fixture_account');
+  }
   if (!ctx.input.emailVerified || !isAllowedDomain(ctx.email, ctx.policy.allowedDomains)) {
     return deny(ctx, 'domain');
   }

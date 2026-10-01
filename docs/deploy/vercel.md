@@ -1,144 +1,178 @@
-# Vercel 배포 체크리스트 (PRAMI-001)
+# Vercel 배포 설정 (PRAMI-003 PR-2)
 
-이 문서는 PR-11a(로컬 하드닝)에서 만들었다. 실제 Vercel 배포·Neon 실연결·Google 실로그인·품목조회 매핑은 **PR-11b** 에서 한다.
-PR-11b 는 아래 "착수 조건" 4종이 사용자에게서 도착해야 시작한다. §11.1 D-1~D-5 중 하나라도 미완이면 production 배포를 하지 않는다(R-18, AC-97).
+PRAMI-001 PR-11a 문서를 PRAMI-003 스펙 §4.3(운영 하드닝)·§4.9(실데이터 운영 전환) 기준으로 전면 갱신했다.
+실제 배포 수행(Vercel·Neon·Upstash·Google 클라이언트 연결, 체크리스트 C-1~C-18)은 **PR-5**, 워크플로·런북·체크리스트 문서는 **PR-4** 다.
+로컬 실 Google 로그인 전환과 로컬 DB 재구성은 [`local.md`](local.md) 를 본다.
 
-> **비밀값은 이 저장소에 두지 않는다.** 모든 값은 Vercel 프로젝트 설정(Environment Variables)에만 둔다.
-> `pnpm check:secrets`(CI `secret scan` 잡)가 원격 DB 자격 증명·`AUTH_SECRET=` 값·Google OAuth 시크릿/ID·Neon 비밀번호 패턴을
-> 추적 파일에서 찾으면 실패한다(AC-96).
+> **비밀값은 이 저장소에 두지 않는다.** 값은 Vercel 환경변수(Secret/Sensitive)와 GitHub Environment 시크릿에만 둔다.
+> 이 문서는 자리표시자(`<…>`)만 쓴다. `pnpm check:secrets`(CI `secret scan`)가 원격 DB 자격 증명·`AUTH_SECRET`·Google OAuth·
+> Neon 비밀번호·LLM 키·KEK·`UPSTASH_REDIS_REST_TOKEN` 값 대입을 추적 파일에서 찾으면 실패한다.
 
-## 1. PR-11b 착수 조건 (사용자 제공)
+## 1. 대상 구성 (§4.3.1)
 
-| 제공 항목 | 용도 | 대응 |
-| --- | --- | --- |
-| Vercel 프로젝트 연결(저장소 연동 권한 또는 프로젝트 생성) | preview/prod 배포, env 설정 | AC-90, D-4, D-5 |
-| Neon `DATABASE_URL` (preview/prod 브랜치) | `DB_DRIVER=neon` 실연결 | D-2 |
-| Google OAuth 클라이언트 ID/Secret | 실로그인 | D-3 |
-| ERP 품목조회 파일 | 헤더 상수·`ITEM_STATUS_MAP` 확정 | D-1 |
+```
+GitHub (main) ──CI(lint·typecheck·unit·integration·e2e·secret scan)
+    ├─ PR → Vercel Preview (Git 연동, 자동) — DB: Neon `preview` 브랜치(고정 1개)
+    └─ main 머지 → Actions `deploy-production`(승인 필요, PR-4): 마이그레이션 → vercel deploy --prebuilt --prod → 스모크
+Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
+```
 
-## 2. 환경변수 (§4.9.2 전 항목)
+- Vercel Git 연동은 **preview 전용**이다. 프로덕션 자동 배포는 끈다(마이그레이션보다 앱이 먼저 배포되는 것 방지, P-4). 설정은 PR-4 워크플로와 함께 확정한다.
+- 함수 본문 한도 **4.5MB**(Vercel 플랫폼): 원본 엑셀 합계 약 0.9MB(최대 `병합_가격_raw.xlsx` 0.43MB)라 관리 화면 업로드가 가능하다.
+  4.5MB 를 넘으면 플랫폼이 413 을 먼저 낸다 — 그때는 `pnpm import:source --target-host <호스트>` 대안을 쓴다(§4.9.1, PR #19 I-4).
 
-| 변수 | Preview | Production | 비고 |
-| --- | --- | --- | --- |
-| `NEXT_PUBLIC_APP_URL` | preview URL (`https://…vercel.app`) | 운영 도메인 | https 이면 CSP 에 `upgrade-insecure-requests` 추가 |
-| `DB_DRIVER` | `neon` | `neon` | |
-| `DATABASE_URL` | Neon **preview 브랜치** 연결 문자열 | Neon **main 브랜치** 연결 문자열 | 시크릿. 저장소·문서에 적지 않는다 |
-| `PGLITE_DATA_DIR` | — | — | Vercel 에서는 쓰지 않는다 |
-| `AUTH_SECRET` | 32바이트 임의값 (`openssl rand -base64 32`) | preview 와 **다른** 값 | 시크릿 |
-| `AUTH_URL` | preview URL | 운영 도메인 | Auth.js 콜백 기준 |
-| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | 운영 OAuth 클라이언트 | 동일 | 시크릿(Secret) |
-| `AUTH_TEST_MODE` / `AUTH_TEST_PASSWORD` | **설정하지 않는다** | **설정하지 않는다** | `VERCEL_ENV` 가 있으면 `env.ts` 가 기동 거부 |
-| `AUTH_TEST_ALLOWED_HOSTS` | — | — | 테스트 모드 자체가 거부됨 |
-| `AUTH_TEST_MODE_ALLOW_REMOTE` | **설정하지 않는다** | **설정하지 않는다** | 비공개 배포 예외 전용. 운영에서 금지 |
-| `ALLOWED_EMAIL_DOMAINS` | `pentasecurity.com` | 동일 | |
-| `ADMIN_EMAILS` | 운영 관리자 이메일 | 동일 | 최초 로그인 시 ADMIN 부트스트랩 |
-| `AUTH_AUTO_PROVISION` | `true` | `true`(가정) | |
-| `TRUST_PROXY_HEADERS` | `vercel` | `vercel` | 11b 에서 D-5 로 확정. 기본 `none` 이면 감사 IP 가 NULL |
-| `RATE_LIMIT_PER_MIN` | `30` | `30` | 아래 §5 |
-| `IMPORT_FAULT_INJECTION` | — | — | QA 전용. production 에서 기동 거부 |
-| `VERCEL`, `VERCEL_ENV` | Vercel 이 주입 | Vercel 이 주입 | 직접 설정하지 않는다 |
+## 2. 환경변수 (§4.3.2 전 항목)
 
-### 테스트 모드 금지 조항
+구분: **S** = Secret/Sensitive, **C** = Config, **I** = Vercel 주입(직접 설정 금지). "금지" 는 설정 자체가 기동 거부 대상이다.
+이 표의 변수 집합은 `src/env.ts` 스키마·`.env.example` 과 단위 테스트(`tests/unit/env-keys.test.ts`, AC-322)로 일치를 검사한다.
 
-- Preview·Production 어디에도 `AUTH_TEST_MODE=true` 를 두지 않는다. 켜져 있으면 공용 비밀번호로 누구나 ADMIN 픽스처 계정에 로그인한다(R-17).
-- `env.ts` 가 `NODE_ENV=production` 과 `VERCEL_ENV` 정의 환경에서 기동을 거부한다(AC-07, AC-94 ②). 예외 변수 `AUTH_TEST_MODE_ALLOW_REMOTE` 는 운영 배포에 넣지 않는다.
-- 배포 후 `/login` 에 테스트 계정 폼·TEST MODE 배너가 **없어야** 한다(AC-94 ④, D-4).
-- 로컬 dev 서버는 기본 `127.0.0.1` 바인드. LAN 노출(`pnpm dev -H 0.0.0.0`) 전에는 테스트 모드를 끈다.
+<!-- env-table:start -->
+| 변수 | Production | Preview | Local | 필수 | 구분 | 비고 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `APP_ENV` | — (Vercel 은 `VERCEL_ENV`) | — | — | | C | 자체 호스팅 운영에서 `NODE_ENV=production` 과 함께 `production` → 운영 기동 검사 |
+| `NEXT_PUBLIC_APP_URL` | `https://<운영 도메인>` | `https://<preview 고정 호스트>` | `http://localhost:3000` | ✓ | C | production 은 https 필수(ⓕ) |
+| `DB_DRIVER` | `neon` | `neon` | `pg` | ✓ | C | 운영·preview 에서 `neon` 외 거부(ⓔ) |
+| `DATABASE_URL` | Neon main **pooled** | Neon preview pooled | docker | ✓ | S | 호스트에 `-pooler`. 로컬·사설 호스트 거부(ⓔ) |
+| `DATABASE_URL_UNPOOLED` | — (GitHub Environment 시크릿) | — (GitHub 시크릿) | — | 마이그레이션 시 | S | `pnpm db:migrate`·`pg_dump` 전용. **Vercel 런타임에 두지 않는다** |
+| `PGLITE_DATA_DIR` | — | — | 테스트만 | | C | |
+| `PRAMI_ALLOW_SEED` | **금지** | **금지** | CI·격리 DB 만 `1` | | C | 로컬 :3000 금지(§4.9.3 L2) |
+| `AUTH_SECRET` | 운영 전용 | preview 전용 | 임의 | ✓ | S | production ≠ preview |
+| `AUTH_URL` | 운영 도메인 | 고정 preview 호스트 | — | ✓ | C | https(ⓕ) |
+| `AUTH_REDIRECT_PROXY_URL` | — | `https://<preview 고정 호스트>/api/auth` | — | preview | C | PR-3 |
+| `AUTH_REQUIRE_HD` | `true` | `true` | `false` | | C | Google `hd` 서버 검증(PR-3) |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | 운영 OAuth 클라이언트 | preview 클라이언트 | 개발 클라이언트(선택) | ✓ | S | 환경별 분리. 없으면 거부(ⓗ) |
+| `AUTH_TEST_MODE` / `AUTH_TEST_PASSWORD` | **금지** | **금지** | 선택 | | | 값이 false 여도 설정 자체 거부(ⓐ) |
+| `AUTH_TEST_ALLOWED_HOSTS` | — | — | 선택 | | C | 테스트 모드 자체가 금지 |
+| `AUTH_TEST_MODE_ALLOW_REMOTE` | **금지** | **금지** | — | | | ⓐ |
+| `ALLOWED_EMAIL_DOMAINS` | `pentasecurity.com` | 동일 | 동일 | ✓ | C | |
+| `ADMIN_EMAILS` | 운영 관리자 | QA 관리자 | 개발자 | ✓ | C | production 에서 비면 거부, preview 경고(ⓖ) |
+| `AUTH_AUTO_PROVISION` | `true` | `true` | `true` | | C | |
+| `TRUST_PROXY_HEADERS` | `vercel` | `vercel` | `none` | ✓ | C | `vercel` 외 거부(ⓓ) |
+| `VERCEL` / `VERCEL_ENV` / `VERCEL_GIT_COMMIT_SHA` | Vercel 주입 | Vercel 주입 | — | | I | 직접 설정 금지 |
+| `APP_RELEASE` | Actions 가 커밋 SHA 주입 | (`VERCEL_GIT_COMMIT_SHA` 사용) | `dev` | | C | 헬스·로그 `release` |
+| `MAINTENANCE_MODE` | 평소 미설정 | 미설정 | — | | C | `true` 면 비 ADMIN 503(런북 R-3) |
+| `RATE_LIMIT_PER_MIN` | `30` | `30` | `30` | | C | |
+| `RATE_LIMIT_BACKEND` | `upstash` | `upstash` 권장 | `memory` | ✓ | C | §5 |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Marketplace 주입 | 동일(별 DB 권장) | — | backend=upstash | S | |
+| `RATE_LIMIT_ALLOW_MEMORY_IN_PRODUCTION` | 기본 미설정 | — | — | | C | memory 운영 위험 수용 예외(ⓘ) — 체크리스트 C-12 기록 필수 |
+| `IMPORT_FAULT_INJECTION` | **금지** | **금지** | QA 선택 | | | ⓑ |
+| `CHAT_LLM_ENABLED` | `true`(게이트 통과 후) | `true` | `true` | | C | `true` 면 KEK 필수(ⓙ) |
+| `CHAT_RULE_FALLBACK` | `true` | `true` | `true` | | C | |
+| `LLM_CREDENTIALS_KEKS` / `LLM_CREDENTIALS_ACTIVE_KEK` | 운영 KEK | preview KEK | 개발 KEK | 챗봇 사용 시 | S | §9 |
+| `CHAT_LLM_MAX_OUTPUT_TOKENS` / `CHAT_LLM_TIMEOUT_MS` / `CHAT_LLM_MAX_TOOL_CALLS` / `CHAT_HISTORY_MAX_TURNS` | 기본 | 기본 | 기본 | | C | PRAMI-002 §4.13 |
+| `LLM_VERIFY_PER_MIN` | `5` | `5` | `5` | | C | |
+| `LLM_VENDOR_MODE` | **미설정(live)** | 미설정 | `live`/`fake` | | C | `fake` 거부(ⓒ) |
+| `LLM_OAUTH_OPENROUTER` | `false` | 선택 | 선택 | | C | PR-3 |
+| `LANGSMITH_TRACING` / `LANGCHAIN_TRACING_V2` | **금지** | **금지** | 미설정 | | | 켜면 거부(ⓒ) |
+<!-- env-table:end -->
+
+- 오류 추적(Sentry `SENTRY_DSN` 등)은 사용자 제공(UP-11) 시 PR-4 에서 추가한다(§4.3.8). 지금은 스키마에 없다.
+- GitHub Environment `production`·`preview` 시크릿: `DATABASE_URL_UNPOOLED`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`(PR-4·PR-5).
+
+### 운영 기동 검사 (§4.3.3, `src/env-deploy.ts`)
+
+`VERCEL_ENV=production` 또는 (`NODE_ENV=production` ∧ `APP_ENV=production`)이면 아래 위반이 하나라도 있을 때 **기동·빌드를 거부**한다
+(`next.config.ts` 가 `src/env` 를 import 하므로 Vercel 빌드도 같은 규칙으로 실패). 메시지에는 변수 이름만 나온다.
+`VERCEL_ENV=preview` 는 ⓕ·ⓖ 만 경고, 나머지는 거부다. 로컬·CI(`VERCEL_ENV` 없음, `APP_ENV` 없음)는 검사하지 않는다.
+
+| # | 규칙 |
+| --- | --- |
+| ⓐ | `AUTH_TEST_MODE`·`AUTH_TEST_PASSWORD`·`AUTH_TEST_MODE_ALLOW_REMOTE` 설정 자체 |
+| ⓑ | `IMPORT_FAULT_INJECTION` 설정 |
+| ⓒ | `LLM_VENDOR_MODE=fake`, `LANGSMITH_TRACING`/`LANGCHAIN_TRACING_V2` 켜짐 |
+| ⓓ | `TRUST_PROXY_HEADERS ≠ vercel` |
+| ⓔ | `DB_DRIVER ≠ neon`, `DATABASE_URL` 없음, 호스트가 로컬·사설 주소 |
+| ⓕ | `NEXT_PUBLIC_APP_URL`·`AUTH_URL` 이 `https://` 아님(미설정 포함) |
+| ⓖ | `ADMIN_EMAILS` 비어 있음 |
+| ⓗ | `AUTH_GOOGLE_ID`·`AUTH_GOOGLE_SECRET` 없음 |
+| ⓘ | `RATE_LIMIT_BACKEND=memory` 인데 `RATE_LIMIT_ALLOW_MEMORY_IN_PRODUCTION≠true` (upstash 인데 URL·토큰 없음은 모든 환경에서 거부) |
+| ⓙ | `CHAT_LLM_ENABLED=true` 인데 KEK 없음 |
+| seed | `PRAMI_ALLOW_SEED` 설정(§4.9.3 L2) |
 
 ## 3. Vercel 프로젝트 설정
 
-1. Framework preset: Next.js. Build command `pnpm build`, Install `pnpm install --frozen-lockfile`, Node 24.
-2. 위 §2 환경변수를 Preview / Production 스코프별로 넣는다.
-3. 함수 리전을 Neon 리전과 맞춘다(§4.8 성능 목표 p95 < 300ms).
-4. `maxDuration` 은 코드에 있다: 임포트 적용 페이지·업로드 Route 60s, PDF 30s, 챗봇 10s. 플랜 상한이 60s 미만이면 11b 에서 조정한다.
-5. PDF 폰트·로고는 `next.config.ts` `outputFileTracingIncludes` 로 함수 번들에 포함된다. 배포 후 PDF 한글 렌더를 1회 확인한다.
-6. Google Cloud 콘솔 OAuth 클라이언트에 승인된 리다이렉트 URI 를 등록한다:
-   - `https://<preview 도메인>/api/auth/callback/google`
-   - `https://<운영 도메인>/api/auth/callback/google`
-   - preview URL 이 배포마다 바뀌면 고정 preview 도메인(브랜치 별칭)을 쓰거나 11b 에서 방식을 정한다.
+1. Framework preset: Next.js. Build `pnpm build`, Install `pnpm install --frozen-lockfile`, Node 24.
+2. §2 환경변수를 Preview / Production 스코프별로 넣는다.
+3. 함수 리전을 Neon 리전과 맞춘다(조회 p95 < 300ms).
+4. `maxDuration`: 임포트 60s, PDF 30s, 챗봇 60s(코드). Fluid compute 기본 최대(Pro 800s) 안이다.
+5. PDF 폰트·로고는 `outputFileTracingIncludes` 로 함수 번들에 포함된다. preview 에서 한글 PDF 1회 확인(C-15).
+6. Google OAuth 리다이렉트 URI: `https://<운영 도메인>/api/auth/callback/google`, `https://<preview 고정 호스트>/api/auth/callback/google`(PR-3).
+7. `DB_DRIVER=neon` 빌드의 `/api/*` 함수 트레이스에 `@electric-sql/pglite` 가 들어가지 않는지 `pnpm check:trace` 로 확인한다(AC-330 ③).
 
-## 4. Neon 전환 절차 (D-2)
+## 4. Neon 구성과 마이그레이션 (§4.3.5·§4.3.6)
 
-1. Neon 프로젝트에서 `main`(production)·`preview` 브랜치를 만든다(Main).
-2. Vercel env `DB_DRIVER=neon`, `DATABASE_URL`(브랜치별) 설정.
-3. 마이그레이션: 로컬에서 대상 연결 문자열을 **셸 환경변수로만** 주고 실행한다. 파일에 저장하지 않는다.
-   `DB_DRIVER=neon DATABASE_URL=<브랜치 연결 문자열> pnpm db:migrate`
-   - `db:migrate` 는 `drizzle/` 의 미적용 마이그레이션을 순서대로 모두 적용한다. PRAMI-002 이후 추가분:
-     `0003_llm_credentials`(사용자 LLM 자격 증명·설정), `0004_oauth_flow_states`(OpenRouter OAuth 콜백 state 1회 소비 기록 —
-     state 원문 없이 SHA-256 해시만, 만료 행은 콜백 때 정리), `0005_items_master`(품목 마스터 39컬럼 반영 — 품목 컬럼·`source` 추가와 stub 백필,
-     master CHECK, `import_batches.source_files`, `policy_apply_runs.item_merge`; 추가형이라 직전 앱의 조회와 호환).
-     **앱 배포 전에** 브랜치별로 실행한다(0004 미적용이면 OAuth 콜백이, 0005 미적용이면 품목 적용이 실패).
-4. 시드·데이터: `pnpm seed` → 판매단가 원본 5,885행·원가 487행 적용(화면 또는 `pnpm import:source`). 로컬 측정 적용 시간 0.5s 내외.
-5. 트랜잭션 실패 주입(R-3): preview 전용으로 `IMPORT_FAULT_INJECTION` 을 잠깐 켜 QA-03e 를 재실행하고 곧바로 지운다.
-6. AC-01·AC-20·AC-21·AC-40·QA-03a/03e 를 `DB_DRIVER=neon` 으로 재실행해 결과를 §7 표에 기록한다.
+| 항목 | 결정 |
+| --- | --- |
+| 브랜치 | `main`(production), `preview`(모든 preview 공용, 고정 1개) |
+| 런타임 연결 | `DATABASE_URL` = **pooled**(PgBouncer transaction mode). `neon-http` + 트랜잭션은 `neon-serverless` WebSocket(`src/db/tx.ts`) |
+| 트랜잭션·락 | `pg_advisory_xact_lock`(트랜잭션 범위)만 쓴다. 세션 advisory lock·런타임 `SET`·`LISTEN`·`CREATE TEMP`·SQL `PREPARE` 금지 — `tests/unit/db/neon-compat.test.ts`(AC-325) |
+| 마이그레이션 연결 | `DATABASE_URL_UNPOOLED`(직접). `scripts/migrate.ts` 가 있으면 우선 사용, 없으면 `DATABASE_URL` + 경고. 로그에는 호스트만 |
+| 백업 | Neon PITR(플랜), 배포 직전 스냅샷 브랜치 `pre-deploy-<날짜>-<sha7>` |
+| 롤백 | 앱: Vercel instant rollback. DB: forward-only(expand/contract) — 손상 시만 PITR(런북 R-3) |
 
-## 5. rate limit (§4.8 r6, AC-95)
+- 마이그레이션은 **앱 배포 전에** 적용한다: `DB_DRIVER=neon DATABASE_URL_UNPOOLED=<직접 연결> pnpm db:migrate` (값은 셸 환경변수로만).
+  현재 `0000`~`0006`(PR-3 이 `0007` 추가 예정).
+- **기동 시 스키마 버전 검사**(`src/instrumentation.ts` → `src/server/ops/schema-version.ts`): 번들의 `drizzle/meta/_journal.json`
+  마지막 항목과 DB `drizzle.__drizzle_migrations` 최신 항목을 비교한다. DB 가 뒤처지면 `db.schema_behind` 오류 로그 + `/api/health` 503,
+  앞서면(롤백한 구버전 앱) `db.schema_ahead` 경고 + 200.
 
-구현: `src/server/rate-limit.ts` 단일 모듈. 키당 분당 `RATE_LIMIT_PER_MIN`(기본 30). 초과 시 HTTP 429 + `Retry-After`(초) +
-`{ok:false, error:{code:'RATE_LIMITED'}}`. 감사 로그는 남기지 않고 구조화 로그 `rate_limited` 만 남긴다.
+## 5. rate limit (§4.3.7, `src/server/rate-limit.ts`)
+
+키(사용자 id·IP)당 분당 `RATE_LIMIT_PER_MIN`(기본 30), 슬라이딩 윈도우. 초과 시 429 + `Retry-After` + `{ok:false, error:{code:'RATE_LIMITED'}}`.
 
 | 엔드포인트 | 키 | 한도 | 적용 위치 |
 | --- | --- | --- | --- |
 | `POST /api/chat` | 사용자 | 30/분 | Route |
 | `POST /api/imports/*` | 사용자 | 30/분 | Route |
+| 키 검증 | 사용자 | `LLM_VERIFY_PER_MIN` | 서비스 |
 | `GET /api/quotes/[id]/pdf` | IP | 30/분 | proxy |
-| `/share/quotes/[token]` | IP | 30/분 | proxy (비로그인 페이지라 IP 만 가능) |
+| `/share/quotes/[token]` | IP | 30/분 | proxy |
 | `/api/auth/callback/*` | IP | 30/분 | proxy |
+| `GET /api/health` | IP | 30/분 | proxy |
 | 테스트 Credentials 로그인 | 이메일 | 30/분 | authorize (로컬 전용) |
 
-**인메모리 한계**: 슬라이딩 윈도우가 프로세스 메모리에 있다. Vercel 서버리스는 인스턴스마다 메모리가 따로라 상한은 **인스턴스당 근사치**다.
-동시 인스턴스가 N개면 실제 허용량은 최대 N배가 될 수 있다. 콜드 스타트·재배포 때 카운트가 초기화된다.
-IP 키는 감사 IP 와 같은 신뢰 헤더 정책을 쓴다. `TRUST_PROXY_HEADERS=vercel` 이면 `x-vercel-forwarded-for`(→ `x-real-ip`)이고,
-기본 `none` 이면 클라이언트 `x-forwarded-for` 를 무시하고 **경로 단위 공용 버킷**이 된다(우회 불가·대신 경로 전체가 한도를 공유).
-**운영에서는 반드시 `TRUST_PROXY_HEADERS=vercel`** 로 두어야 공유·PDF·auth 콜백 한도가 사용자(IP)별로 동작한다.
-공유 저장소(Upstash Redis / Vercel KV) 전환은 후속 과제다(스펙 위험 R-19 후보로 Plan 에 기록 요청).
+- **백엔드**: `RATE_LIMIT_BACKEND=memory`(인스턴스 메모리 — 인스턴스당 근사치) | `upstash`(Upstash Redis REST, 인스턴스 간 합산).
+  Upstash 는 REST `multi-exec` 한 번(ZREMRANGEBYSCORE·ZADD·ZCARD·PEXPIRE)으로 판정한다. 키: `prami:<env>:rl:<scope>:<key>`
+  (`<env>` = `VERCEL_ENV` 또는 `local`). IP 키는 원문 IP 대신 `AUTH_SECRET` 파생 HMAC-SHA256 값이다.
+- **장애 시**: Upstash 호출 실패·타임아웃(200ms)이면 그 요청만 인메모리로 판정하고 `rate_limit.backend_error`(scope·code, 키 없음) 경고.
+  1분에 50회 이상 실패하면 `error` 수준으로 올린다. 가용성 우선(5xx 없음).
+- IP 키는 감사 IP 와 같은 신뢰 헤더 정책을 쓴다. 운영은 반드시 `TRUST_PROXY_HEADERS=vercel`(ⓓ).
+- Upstash 미제공 시: `RATE_LIMIT_BACKEND=memory` + `RATE_LIMIT_ALLOW_MEMORY_IN_PRODUCTION=true` 로만 운영 가능 — 체크리스트 C-12 에 위험 수용과 승인자 기록.
 
-## 6. 보안 헤더 (AC-91)
+## 6. 헬스체크·점검 모드 (§4.3.10·§4.3.11)
 
-- `src/proxy.ts`: 요청별 CSP nonce (`default-src 'self'; script-src 'self' 'nonce-…' 'strict-dynamic'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
-  frame-ancestors 'none'; form-action 'self' https://accounts.google.com; object-src 'none'; base-uri 'self'` …), `x-request-id`.
-- `next.config.ts` `headers()`: `Strict-Transport-Security`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
-  `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`.
-- 확인: `curl -sI https://<preview>/login` 와 `curl -sI https://<preview>/share/quotes/<token>` 에 위 헤더가 있어야 한다. PR-11a 에서 로컬
-  `pnpm build && pnpm start` 로 같은 검사를 했다(PR 본문).
+- `GET /api/health`(비인증, IP 30/분, `no-store`): `{ ok, release, db, schema, data }` 만. 실패 시 503.
+  `db`: `select 1`, `schema`: `ok|behind|ahead`, `data`: production·preview 에서 fixture 계정(`fixture-` 접두)이 있으면 `fixture`(503, §4.9.3 L4).
+  로컬·CI(`VERCEL_ENV` 없음)는 fixture 를 조회하지 않고 항상 `ok`.
+- `GET /api/health/deep`(ADMIN): fixture 계정 수, `items.source='stub'` 수, 품목·판매단가·원가 행 수, 활성 KEK 존재, rate limit 백엔드 왕복.
+  USER 는 권한 거부(403 + 감사 `access.denied`). 원가 값·이메일 목록은 없다.
+- `MAINTENANCE_MODE=true`: 비 ADMIN 의 페이지·API 요청에 503 점검 안내. `/login`·`/api/auth/*`·`/api/health` 는 열어 둔다(ADMIN 복구 작업, Q-13).
+- 구조화 로그는 모든 줄에 `release`(`APP_RELEASE` → `VERCEL_GIT_COMMIT_SHA` → `dev`)와 `env`(`VERCEL_ENV` 또는 `local`)를 싣는다.
 
-## 7. §11.1 배포 전 필수 확인 (D-1~D-5) 수행 절차
+## 7. 시연 데이터·로컬 스크립트 차단 (§4.3.4·§4.9.3)
 
-결과 열은 PR-11b 에서 채운다(수행 일시·수행자·재실행 AC 판정). 하나라도 미완이면 production 배포 금지.
+| 대상 | 규칙 |
+| --- | --- |
+| `pnpm seed` / `seedDatabase()` | 원격 거부(`NODE_ENV=production` ∨ `VERCEL_ENV` ∨ `DB_DRIVER=neon` ∨ 호스트가 `localhost`·`127.0.0.1`·`::1`·`postgres`·`db` 밖) + 로컬도 `PRAMI_ALLOW_SEED=1` 일 때만. 우회 플래그 없음 |
+| `pnpm fixtures` | seed 와 같은 조건 |
+| `pnpm import:source` | 파일 경로 필수(기본 경로 없음). 원격 대상이면 `--target-host <호스트>` 가 실제 연결 호스트와 같아야 실행. 감사 actor `script:<OS 사용자>` |
+| `pnpm credentials:rewrap` | 원격 허용. `--yes` 없으면 대상 호스트·대상 건수만 출력(변경 0) |
+| `pnpm db:migrate` | 원격 허용. `DATABASE_URL_UNPOOLED` 우선 |
+| `pnpm data:verify` | 읽기 전용(`READ ONLY` 트랜잭션). 원격 대상(`--target preview|production`)은 `--target-host` 일치 필요 |
+| 로그인 정책 | `VERCEL_ENV` 가 있으면 로컬 부분이 `fixture-` 로 시작하는 이메일 거부(감사 `auth.denied_domain`, 사유 `fixture_account`) |
+| 기동 데이터 검사 | `VERCEL_ENV` 가 있으면 기동 시 fixture 계정 수 1회 조회 → 있으면 `db.fixture_accounts_present` error 로그 + 헬스 503 |
 
-| # | 항목 | 수행 절차 | 재실행 AC | 결과 |
-| --- | --- | --- | --- | --- |
-| D-1 | ERP 품목조회 실파일 | 파일 수령 → 헤더 상수·`ITEM_STATUS_MAP` 확정(소PR 가능) → 임포트 적용 → 분류 3단·품목상태·폐기=미사용 확인 | AC-11, AC-22, AC-23, QA-03b | 미수행 |
-| D-2 | Neon 실연결 | §4 절차 | AC-01, AC-20, AC-21, AC-40, QA-03a/03e | 미수행 |
-| D-3 | Google OAuth 실로그인 | preview 에서 ADMIN 부트스트랩·USER 자동 생성·타 도메인 거부·비활성 거부를 실계정으로 각 1회 | AC-03, AC-06, AC-90 | 미수행 |
-| D-4 | 테스트 모드 비활성 | preview/production `/login` 에 테스트 폼·TEST MODE 배너 없음. `VERCEL_ENV=preview AUTH_TEST_MODE=true` 거부는 단위 테스트(`tests/unit/env.test.ts`)로 확인됨 | AC-07, AC-94 ④ | 로컬 부분 완료 |
-| D-5 | 감사 IP 신뢰 헤더 | `TRUST_PROXY_HEADERS=vercel` 로 배포 → 요청에 `X-Forwarded-For: 1.2.3.4` 를 넣고 감사 대상 행위 → `audit_logs.ip` 가 실제 클라이언트 IP 이고 `1.2.3.4` 가 아님을 확인 → §4.8·§4.9.2 에 확정값 반영 | AC-05, AC-93 | 로컬 구조 완료(모드별 단위·통합 테스트) |
+## 8. 운영 데이터 적재 (§4.9.1 클린 설치)
 
-## 8. 배포 직후 스모크 (AC-90)
-
-1. `/login` → Google 로그인(ADMIN) → `/` 셸.
-2. `/pricing` 조회·필터.
-3. `/admin/policies` 임포트 업로드 → 미리보기 → 적용(5,885행).
-4. `/calculator` 견적 저장 → PDF(한글) → 공유 링크 비로그인 열람 → 폐기 404.
-5. 챗봇 "Wapples-500 가격".
-6. `curl -sI` 헤더 검사(§6), rate limit 31회(§5) 1회 확인.
+빈 DB → `pnpm db:migrate` → `pnpm data:verify --stage schema --target <env> --target-host <호스트>` → 첫 ADMIN 로그인(`ADMIN_EMAILS`) →
+관리 화면에서 판매단가(`병합_가격_raw.xlsx`) → 품목조회 5파일(한 배치) → 원가(`원자재코드 정보_260825.xlsx`) 순서로 적용 →
+`pnpm data:verify --fresh --target <env> --target-host <호스트>` exit 0. **seed 실행 금지.** 부분 재시도 금지(실패하면 S-1 부터).
+파츠 매핑은 `pnpm parts:draft --out <저장소 밖 폴더>` 초안을 관리자가 검수한 뒤 `/admin/parts` 엑셀 등록으로 넣거나 빈 상태로 둔다(§4.9.5).
 
 ## 9. LLM 자격 증명 (PRAMI-002)
 
-PRAMI-002 PR-A 가 추가한 사용자 LLM 키 저장(봉투 암호화)과 관련 환경변수다. 위 절(D-1~D-5·신뢰 헤더)은 PRAMI-001 PR-11b 소관이라 건드리지 않는다.
-
-| 변수 | Preview | Production | 비고 |
-| --- | --- | --- | --- |
-| `LLM_CREDENTIALS_KEKS` | preview 전용 KEK | production 전용 KEK | **시크릿(Sensitive)**. `버전:base64(32바이트)` 쉼표 나열. 저장소·문서·로그에 실제 값 금지(secret-scan 이 대입값을 검사) |
-| `LLM_CREDENTIALS_ACTIVE_KEK` | `1` | 운영 값 | KEKS 에 있는 버전 |
-| `CHAT_LLM_ENABLED` | `true` | `true` | production 에서 `true` 이면 KEK 필수(없으면 기동 거부). 배포 게이트 미완이면 `false` |
-| `LLM_VENDOR_MODE` | **설정하지 않음**(`live`) | **설정하지 않음** | `fake` 는 production·`VERCEL_ENV` 에서 기동 거부 |
-| `LLM_VERIFY_PER_MIN` | `5` | `5` | 키 검증 사용자당 분당 |
-| `LANGSMITH_TRACING`, `LANGCHAIN_TRACING_V2` | **설정하지 않음** | **설정하지 않음** | 켜면 기동 거부 (외부 트레이싱 금지) |
-
-- **KEK 생성**: `openssl rand -base64 32` 로 만들고 Vercel 환경변수(Sensitive)에만 넣는다. preview 와 production 은 반드시 다른 KEK 를 쓴다(T-11).
-- **KEK 회전** (§4.7.2): 새 버전을 `LLM_CREDENTIALS_KEKS` 에 추가 → `LLM_CREDENTIALS_ACTIVE_KEK` 를 새 버전으로 → 재배포 →
-  대상 DB 연결로 `pnpm credentials:rewrap` 실행(DEK 만 다시 감쌈, 감사 `system.kek_rewrap`) → 구버전 행이 0 이면 옛 KEK 제거.
-  rewrap 전에 옛 KEK 를 지우면 해당 자격 증명은 "재등록 필요" 로 표시되고 앱은 계속 동작한다. KEK 노출이 의심되면 즉시 회전하고 "모든 사용자 키 재등록 권고" 를 공지한다.
-- **백업 잔존(T-2)**: 삭제한 키도 DB 백업·PITR 보존 기간 동안 암호문으로 남는다(KEK 없이는 복호화 불가). Neon 보존 기간은 PR-11b(D-2)에서 이 절에 기록한다(배포 게이트 D2-4).
-- 키 평문은 DB·로그·감사·응답 어디에도 남지 않는다. 사용자 목록·감사 CSV 에 LLM 연결 여부도 나오지 않는다.
+- **KEK 생성**: `openssl rand -base64 32` → Vercel 환경변수(Sensitive)에만. preview 와 production 은 반드시 다른 KEK(T-11).
+- **KEK 회전**(§4.7.2): 새 버전 추가 → `LLM_CREDENTIALS_ACTIVE_KEK` 변경 → 재배포 → `pnpm credentials:rewrap`(대상·건수 확인) →
+  `pnpm credentials:rewrap --yes` → 구버전 행 0 이면 옛 KEK 제거.
+- **백업 잔존(T-2)**: 삭제한 키도 PITR 보존 기간 동안 암호문으로 남는다(KEK 없이 복호화 불가). 보존 기간은 PR-5 에서 기록.
+- 키 평문은 DB·로그·감사·응답 어디에도 남지 않는다.

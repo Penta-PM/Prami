@@ -3,6 +3,9 @@ import { defineConfig, devices } from '@playwright/test';
 // 개발 서버(3000)와 충돌하지 않도록 E2E 는 별도 포트·별도 산출물 폴더(.next-e2e)를 쓴다
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const BASE_URL = `http://localhost:${PORT}`;
+/** 테스트 모드 없는 로컬 실로그인 설정 서버 (PRAMI-003 §4.9.4 T-1, AC-335) — /login 렌더만 본다(실 Google 호출 없음) */
+const REAL_LOGIN_PORT = Number(process.env.E2E_REAL_LOGIN_PORT ?? PORT + 1);
+export const REAL_LOGIN_BASE_URL = `http://localhost:${REAL_LOGIN_PORT}`;
 const isCI = Boolean(process.env.CI);
 
 /**
@@ -19,6 +22,8 @@ export const E2E_ENV = {
   ALLOWED_EMAIL_DOMAINS: 'pentasecurity.com',
   ADMIN_EMAILS: 'fixture-admin@pentasecurity.com',
   AUTH_AUTO_PROVISION: 'true',
+  // PRAMI-003 §4.9.3 L2: globalSetup 의 pnpm seed 는 이 표식이 있는 격리 DB 에서만 실행된다
+  PRAMI_ALLOW_SEED: '1',
   AUTH_GOOGLE_ID: '',
   AUTH_GOOGLE_SECRET: '',
   NEXT_DIST_DIR: '.next-e2e',
@@ -29,6 +34,23 @@ export const E2E_ENV = {
   LLM_VENDOR_MODE: 'fake',
   E2E_SERVER_LOG: '.e2e-logs/next-dev.log',
 } as const;
+
+/**
+ * T-1 설정: AUTH_TEST_MODE·AUTH_TEST_PASSWORD 없음, AUTH_GOOGLE_ID/SECRET 만 더미 값.
+ * 같은 격리 DB 를 쓰지만 로그인하지 않는다(렌더만). 산출물 폴더를 따로 써서 테스트 모드 서버와 캐시가 겹치지 않게 한다.
+ */
+const E2E_BASE_ENV: Record<string, string> = Object.fromEntries(
+  Object.entries(E2E_ENV).filter(
+    ([key]) => key !== 'AUTH_TEST_MODE' && key !== 'AUTH_TEST_PASSWORD',
+  ),
+);
+export const REAL_LOGIN_ENV = {
+  ...E2E_BASE_ENV,
+  AUTH_GOOGLE_ID: 'e2e-dummy-google-client-id',
+  AUTH_GOOGLE_SECRET: 'e2e-dummy-google-client-secret',
+  NEXT_DIST_DIR: '.next-e2e-real-login',
+  E2E_SERVER_LOG: '.e2e-logs/next-dev-real-login.log',
+};
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -47,12 +69,21 @@ export default defineConfig({
     locale: 'ko-KR',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    // 래퍼가 서버 출력을 E2E_SERVER_LOG 에도 남긴다 — settings-llm.spec 이 dev 로그에 키 평문 0건을 검사 (QA H-1)
-    command: `pnpm exec tsx scripts/e2e-dev-server.ts ${PORT}`,
-    url: `${BASE_URL}/login`,
-    reuseExistingServer: !isCI,
-    timeout: 180_000,
-    env: { ...E2E_ENV },
-  },
+  webServer: [
+    {
+      // 래퍼가 서버 출력을 E2E_SERVER_LOG 에도 남긴다 — settings-llm.spec 이 dev 로그에 키 평문 0건을 검사 (QA H-1)
+      command: `pnpm exec tsx scripts/e2e-dev-server.ts ${PORT}`,
+      url: `${BASE_URL}/login`,
+      reuseExistingServer: !isCI,
+      timeout: 180_000,
+      env: { ...E2E_ENV },
+    },
+    {
+      command: `pnpm exec tsx scripts/e2e-dev-server.ts ${REAL_LOGIN_PORT}`,
+      url: `${REAL_LOGIN_BASE_URL}/login`,
+      reuseExistingServer: !isCI,
+      timeout: 180_000,
+      env: { ...REAL_LOGIN_ENV },
+    },
+  ],
 });

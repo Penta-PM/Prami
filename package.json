@@ -26,9 +26,12 @@
     "seed": "tsx scripts/seed.ts",
     "fixtures": "tsx scripts/make-fixtures.ts",
     "import:source": "tsx --conditions=react-server scripts/import-source.ts",
+    "data:verify": "tsx --conditions=react-server scripts/data-verify.ts",
+    "parts:draft": "tsx --conditions=react-server scripts/parts-draft.ts",
     "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm test",
     "check:secrets": "tsx scripts/secret-scan.ts",
     "check:prerender": "tsx scripts/check-prerender.ts",
+    "check:trace": "tsx scripts/check-trace.ts",
     "smoke:llm": "tsx --conditions=react-server scripts/smoke-llm.ts",
     "credentials:rewrap": "tsx --conditions=react-server scripts/credentials-rewrap.ts"
   },

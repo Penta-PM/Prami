@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, eq, lt, sql } from 'drizzle-orm';
+import { and, asc, count, eq, lt, sql } from 'drizzle-orm';
 
 import type { Db } from '@/db';
 import { userLlmCredentials, userSettings } from '@/db/schema';
@@ -169,6 +169,21 @@ export async function listBelowVersion(db: Executor, version: number, limit: num
     .where(lt(userLlmCredentials.kekVersion, version))
     .orderBy(asc(userLlmCredentials.id))
     .limit(limit);
+}
+
+/** 전체 자격 증명 행 수 — data:verify --fresh(클린 설치 직후 0, PRAMI-003 §4.9.2). 개수만 */
+export async function countAllCredentials(db: Executor): Promise<number> {
+  const [row] = await db.select({ total: count() }).from(userLlmCredentials);
+  return row?.total ?? 0;
+}
+
+/** rewrap 대상 건수 (활성 버전보다 낮은 KEK 로 감싼 행) — `credentials:rewrap` 확인 출력용 (PRAMI-003 §4.3.4) */
+export async function countBelowVersion(db: Executor, version: number): Promise<number> {
+  const [row] = await db
+    .select({ total: count() })
+    .from(userLlmCredentials)
+    .where(lt(userLlmCredentials.kekVersion, version));
+  return row?.total ?? 0;
 }
 
 export async function updateWrap(

@@ -89,6 +89,8 @@ export const RULES: readonly Rule[] = [
   },
   assignment('AUTH_SECRET'),
   assignment('AUTH_GOOGLE_SECRET'),
+  // PRAMI-003 §4.3.7 — Upstash REST 토큰 (Marketplace 주입값을 저장소에 두지 않는다)
+  assignment('UPSTASH_REDIS_REST_TOKEN'),
   {
     name: 'Google OAuth 클라이언트 시크릿',
     test: (line) => /GOCSPX-[A-Za-z0-9_-]{10,}/.test(line),
