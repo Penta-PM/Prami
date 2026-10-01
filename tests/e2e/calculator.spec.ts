@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { FIXTURE_ADMIN, FIXTURE_USER, loginAs } from './helpers';
+import { FIXTURE_ADMIN, FIXTURE_USER, loginAs, signOutLocally } from './helpers';
 
 /**
  * QA-07 (PR-7) — 계산기. globalSetup 이 판매단가 200행 픽스처(WAPPLES 정상판매/ASP/Cloud, N_ 파츠, 전부 KRW)를 적용해 둔다.
@@ -76,7 +76,7 @@ test('AC-63: 다른 사용자(ADMIN 아님)의 목록에는 남의 견적이 없
   expect(count).toBeGreaterThanOrEqual(1);
 
   // 이미 USER 세션이 있으면 /login 이 즉시 되돌려보내므로 쿠키를 지우고 ADMIN 으로 재로그인
-  await page.context().clearCookies();
+  await signOutLocally(page);
   await loginAs(page, FIXTURE_ADMIN, '/calculator');
   await expect(page.getByLabel('내 견적 목록')).toContainText(`Q-${YEAR}-`);
   await page.goto('/admin/audit?action=quote.save');
@@ -94,7 +94,7 @@ test('AC-64: 순매출 계산기 — USER 원가 잠금·비공개, ADMIN 계산
   await expect(page.getByTestId('margin-net')).toContainText('2,000원');
   await expect(page.getByLabel('순매출 결과')).toContainText('비공개');
 
-  await page.context().clearCookies();
+  await signOutLocally(page);
   await loginAs(page, FIXTURE_ADMIN, '/calculator?tab=margin');
   await page.getByLabel('정상 판매가 (단가)').fill('1000');
   await page.getByLabel('판매 수량').fill('2');
