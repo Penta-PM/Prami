@@ -29,6 +29,7 @@
     "check": "pnpm lint && pnpm typecheck && pnpm format:check && pnpm test",
     "check:secrets": "tsx scripts/secret-scan.ts",
     "check:prerender": "tsx scripts/check-prerender.ts",
+    "check:trace": "tsx scripts/check-trace.ts",
     "smoke:llm": "tsx --conditions=react-server scripts/smoke-llm.ts",
     "credentials:rewrap": "tsx --conditions=react-server scripts/credentials-rewrap.ts"
   },

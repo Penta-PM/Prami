@@ -5,6 +5,13 @@ import './src/env';
 import { PROXY_BODY_LIMIT_BYTES } from './src/lib/constants/upload-limits';
 import { STATIC_SECURITY_HEADERS } from './src/server/security/headers';
 
+const PGLITE_TRACE_EXCLUDES = [
+  'node_modules/@electric-sql/pglite/**',
+  'node_modules/.pnpm/@electric-sql+pglite*/**',
+  // Turbopack 이 외부 패키지마다 <distDir>/node_modules 에 만드는 링크 (pglite-<hash>)
+  '**/node_modules/@electric-sql/pglite-*',
+] as const;
+
 const nextConfig: NextConfig = {
   // E2E 는 같은 워크트리에서 도는 개발 서버(.next)와 잠금·캐시가 겹치지 않도록 별도 폴더를 쓴다
   distDir: process.env.NEXT_DIST_DIR || '.next',
@@ -15,6 +22,11 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/api/quotes/[id]/pdf': ['./src/assets/fonts/*.ttf', './public/logo-prami-mark.png'],
   },
+  // 운영(neon) 빌드는 테스트용 인프로세스 DB(PGlite wasm·확장 tar 수 MB)를 함수 번들에 싣지 않는다 (PRAMI-003 §4.3.9, AC-330 ③).
+  // src/db/index.ts 의 동적 import('@electric-sql/pglite') 는 DB_DRIVER=pglite 일 때만 실행된다. 검사: pnpm check:trace
+  ...(process.env.DB_DRIVER === 'neon'
+    ? { outputFileTracingExcludes: { '/**': [...PGLITE_TRACE_EXCLUDES] } }
+    : {}),
   poweredByHeader: false,
   logging: {
     // 개발 모드에서 Next 는 Server Function 호출을 인자째 터미널에 찍는다(기본 true) — LLM API 키 평문이 dev 로그에 남으므로 끈다
