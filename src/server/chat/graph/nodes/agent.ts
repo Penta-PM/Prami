@@ -8,6 +8,7 @@ import {
   type LlmErrorDiagnostics,
 } from '@/server/llm/error-diagnostics';
 import { isAuthError, normalizeLlmError, type LlmErrorCode } from '@/server/llm/errors';
+import { requestGuardOf } from '@/server/llm/request-guard';
 import { XAI_REQUEST_GUARD_FRAME } from '@/server/llm/vendors/xai-chat';
 import { logger } from '@/server/log';
 
@@ -71,6 +72,16 @@ function callersOf(host: CallerHost | undefined, depth = 0): FailureHook[] {
   ];
 }
 
+/** 응답 상태(`status` 또는 `response.status`)가 408·429 를 뺀 4xx 인지 — 429·5xx·네트워크 오류만 재시도한다 */
+export function isNonRetryableStatus(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const shape = error as { status?: unknown; response?: { status?: unknown } };
+  const status = typeof shape.status === 'number' ? shape.status : shape.response?.status;
+  return (
+    typeof status === 'number' && status >= 400 && status < 500 && status !== 408 && status !== 429
+  );
+}
+
 /**
  * 재시도 포함 시도 수: LangChain AsyncCaller 의 실패 콜백을 요청별 인스턴스에서 감싸 센다(벤더 공통, 재시도 판단은 원래 콜백).
  * **바인딩된(호출할) 실행체**에 건다 — 설치 버전(@langchain/core 1.2.13·@langchain/openai 1.6.0) 확인: `onFailedAttempt` 는
@@ -83,6 +94,9 @@ function attemptCounter(runnable: unknown): (succeeded: boolean) => number {
     const original = caller.onFailedAttempt;
     caller.onFailedAttempt = (error: unknown) => {
       failures += 1;
+      // AC-373 ②: 4xx(408·429 제외)는 다시 보내도 같은 결과 — 재시도하지 않는다. LangChain 기본 목록에 없는 410·415·422 포함
+      // 전송 전 요청 가드(§4.7.7 ①)도 같은 요청을 다시 평가할 뿐이다 — 시도 수가 전송 수와 같게 (PR #22 I-17)
+      if (isNonRetryableStatus(error) || requestGuardOf(error)) throw error;
       return original?.(error);
     };
   }

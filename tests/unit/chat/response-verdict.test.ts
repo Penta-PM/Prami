@@ -272,6 +272,16 @@ describe('classifyResponse 표 (메타데이터만)', () => {
       'truncated',
     ],
     [
+      'Chat Completions(OpenRouter) finish_reason length + 텍스트 (AC-372 선택)',
+      { content: 'abc', response_metadata: { finish_reason: 'length' } },
+      'truncated',
+    ],
+    [
+      'Chat Completions finish_reason stop 은 정상',
+      { content: 'abc', response_metadata: { finish_reason: 'stop' } },
+      'answer',
+    ],
+    [
       'incomplete + 도구 호출(텍스트 없음) → 실행 안 함',
       {
         content: '',

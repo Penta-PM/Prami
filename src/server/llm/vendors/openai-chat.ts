@@ -1,4 +1,7 @@
+import type { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { AIMessageChunk, type BaseMessage } from '@langchain/core/messages';
+import { ChatGenerationChunk } from '@langchain/core/outputs';
 import { ChatOpenAI } from '@langchain/openai';
 
 import { findModel } from '../models';
@@ -72,6 +75,49 @@ export function createResponsesChatModel(
 }
 
 /**
+ * 스트리밍 종료 사유 보존 (PRAMI-003 AC-372 선택, PR #20 I-2) — Gemini 어댑터와 같은 이유(`google-chat.ts`):
+ * Chat Completions 청크의 `finish_reason` 은 `generationInfo` 에만 있고 SSE 집계 메시지의 `response_metadata` 로 합쳐지지 않는다.
+ * 마지막 값만 담은 빈 청크를 끝에 내보내 `classifyResponse` 가 `finish_reason:'length'` 를 보게 한다. JSON 경로는 원래 합쳐진다.
+ */
+class ChatCompletionsModel extends ChatOpenAI {
+  override async *_streamResponseChunks(
+    messages: BaseMessage[],
+    options: this['ParsedCallOptions'],
+    runManager?: CallbackManagerForLLMRun,
+  ): AsyncGenerator<ChatGenerationChunk> {
+    let finishReason: unknown;
+    for await (const chunk of super._streamResponseChunks(messages, options, runManager)) {
+      finishReason = chunk.generationInfo?.finish_reason ?? finishReason;
+      yield chunk;
+    }
+    if (finishReason !== 'length') return;
+    yield new ChatGenerationChunk({
+      text: '',
+      message: new AIMessageChunk({
+        content: '',
+        response_metadata: { finish_reason: finishReason },
+      }),
+    });
+  }
+
+  /** 설치 버전의 `withConfig`(bindTools 경유)는 `new ChatOpenAI(...)` 로 하위 클래스를 잃는다 — 같은 클래스로 복제 */
+  override withConfig(
+    config: Parameters<ChatOpenAI['withConfig']>[0],
+  ): ReturnType<ChatOpenAI['withConfig']> {
+    const self = this as unknown as {
+      fields: ConstructorParameters<typeof ChatOpenAI>[0];
+      defaultOptions: object;
+    };
+    const copy = new ChatCompletionsModel(self.fields);
+    (copy as unknown as { defaultOptions: object }).defaultOptions = {
+      ...self.defaultOptions,
+      ...config,
+    };
+    return copy as unknown as ReturnType<ChatOpenAI['withConfig']>;
+  }
+}
+
+/**
  * OpenAI 호환 Chat Completions (OpenRouter §4.6.2 — baseURL 만 다름). OpenRouter 는 기본 off 플래그 뒤에 있고
  * 실호출 확인을 하지 않았다(PRAMI-003 미실행 목록). 직접 OpenAI 경로와 달리 Chat Completions 를 유지한다.
  */
@@ -81,7 +127,7 @@ export function createOpenAICompatibleChatModel(
   options: ChatModelFactoryOptions,
   baseURL: string,
 ): BaseChatModel {
-  return new ChatOpenAI({
+  return new ChatCompletionsModel({
     apiKey: secret,
     model: modelId,
     maxTokens: options.maxTokens,
