@@ -15,8 +15,8 @@ import { toLangChainTool } from '../../features/tool-factory';
 import type { ChatFeature } from '../../features/types';
 import { recentHistory } from '../history';
 import { checkModelInput, withModelMessageId } from '../message-id';
-import { LLM_ERROR_NOTICE, TOOL_LIMIT_NOTICE } from '../messages';
-import { isRefusal } from '../refusal';
+import { LLM_ERROR_NOTICE, TOOL_LIMIT_NOTICE, TRUNCATED_OUTPUT_NOTICE } from '../messages';
+import { classifyResponse, type ResponseVerdict } from '../refusal';
 import type { ChatGraphState, ChatGraphUpdate } from '../state';
 import type { ChatRuntime } from '../types';
 import { errorSetup } from './basic';
@@ -25,7 +25,7 @@ import { runtimeOf } from './util';
 /**
  * agent 노드 (PRAMI-002 §4.3.2): 요청마다 새 모델 인스턴스에 이 사용자에게 허용된 도구만 바인딩해 호출한다.
  * - 강제 tool_choice 없음 + 모든 도구 strict (§4.5.3). 호출 직전 마지막 메시지는 항상 Human/Tool (프리필 금지)
- * - refusal(stop_reason) 은 content 를 읽기 전에 확인하고 content 를 버린다 (§4.5.3)
+ * - refusal(stop_reason·refusal 콘텐츠)·미완료·빈 출력은 메타데이터로 판정한다 — 거부면 content 를 버린다 (§4.5.3, PRAMI-003 L-1)
  * - 벤더 오류는 코드로만 정규화 (§4.8.3). 인증 계열이면 자격 증명 상태를 갱신한다
  */
 /**
@@ -142,6 +142,26 @@ async function onError(
 }
 
 /**
+ * 2xx 인데 거부·미완료·빈 출력 (PRAMI-003 §4.5.5 L-1) — `chat.llm_error` warn 1행(source response, httpStatus 200,
+ * vendorErrorType = 판정 토큰). code 는 거부면 `refused`, 그 밖은 `llm_error`(미분류 응답). 응답 본문은 남기지 않는다.
+ */
+function logResponseIssue(
+  state: ChatGraphState,
+  runtime: ChatRuntime,
+  verdict: ResponseVerdict,
+  stats: CallStats,
+) {
+  if (!verdict.issue) return;
+  const code: LlmErrorCode = verdict.outcome === 'refused' ? 'refused' : 'llm_error';
+  const diagnostics: LlmErrorDiagnostics = {
+    source: 'response',
+    httpStatus: 200,
+    vendorErrorType: verdict.issue,
+  };
+  logger.warn('chat.llm_error', llmErrorFields(state, runtime, code, diagnostics, stats));
+}
+
+/**
  * 모델 입력 불변식 (PRAMI-003 H1-3, 모든 환경 — 비용 0): 위반이면 모델을 부르지 않는다(시스템 프롬프트 없는 호출 원천 차단,
  * fail-closed). 로그는 메시지 수·타입 순서만 — 본문 없음.
  */
@@ -187,11 +207,22 @@ export function makeAgent(features: readonly ChatFeature[]) {
         debugMessage: debugMessageOf(error),
       });
     }
-    if (isRefusal(message)) return { llmError: 'refused' };
+    const verdict = classifyResponse(message);
+    logResponseIssue(state, runtime, verdict, {
+      attempts: attempts(),
+      latencyMs: Date.now() - started,
+    });
+    // 거부(refusal 콘텐츠·stop_reason·content_filter 미완료)는 content 를 버린다 (§4.5.3)
+    if (verdict.outcome === 'refused') return { llmError: 'refused' };
     const limitReached = (message.tool_calls?.length ?? 0) > 0 && state.toolCalls >= maxToolCalls;
     return {
       messages: [withModelMessageId(message)],
-      notices: limitReached ? [{ code: 'tool_limit', text: TOOL_LIMIT_NOTICE }] : [],
+      notices: [
+        ...(limitReached ? [{ code: 'tool_limit', text: TOOL_LIMIT_NOTICE }] : []),
+        ...(verdict.outcome === 'truncated'
+          ? [{ code: 'truncated_output', text: TRUNCATED_OUTPUT_NOTICE }]
+          : []),
+      ],
     };
   };
 }

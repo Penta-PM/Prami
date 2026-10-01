@@ -45,5 +45,7 @@ export const TOO_LONG_REPLY = '대화가 너무 길어졌습니다. 대화를 �
 export const TOOL_LIMIT_NOTICE = '질문 범위가 넓어 일부만 확인했습니다.';
 export const RECURSION_REPLY = '질문을 더 구체적으로 해주시면 정확히 찾아드릴게요.';
 export const LLM_ERROR_NOTICE = 'LLM 응답을 받지 못해 기본 응답으로 답했습니다.';
+/** 출력 상한에 걸려 답이 잘렸을 때 (PRAMI-003 §4.5.5 L-1, notice `truncated_output`) */
+export const TRUNCATED_OUTPUT_NOTICE = '답변이 길어 일부만 표시합니다.';
 export const EMPTY_LLM_REPLY =
   '요청하신 내용을 모두 확인하지 못했습니다. 질문을 더 구체적으로 해주세요.';
