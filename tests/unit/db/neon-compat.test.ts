@@ -70,11 +70,22 @@ function lastTopLevelArgument(rest: string): string | null {
   return null;
 }
 
-/** 매치 직전의 같은 SQL 문 — 마지막 `;`·백틱(sql 템플릿 시작)·작은따옴표(문자열 SQL 시작) 이후, 주석(`--`·`//`·블록) 제외 */
+const COMMENTS_RE = /--[^\n]*|\/\/[^\n]*|\/\*[\s\S]*?\*\//g;
+
+/**
+ * 매치 직전의 같은 SQL 문 — 주석(`--`·`//`·블록)을 **먼저** 지운 뒤 마지막 `;`·백틱(sql 템플릿 시작)·작은따옴표(문자열 SQL 시작) 이후.
+ * 순서가 반대면 주석 속 아포스트로피(`-- don't`)를 문장 시작으로 잡아 UPDATE 문맥을 잃는다 (PR #24 QA L-R1 FP7).
+ */
 function statementPrefix(text: string, index: number): string {
-  const before = text.slice(0, index);
+  const before = text.slice(0, index).replace(COMMENTS_RE, '');
   const start = Math.max(before.lastIndexOf(';'), before.lastIndexOf('`'), before.lastIndexOf("'"));
-  return before.slice(start + 1).replace(/--[^\n]*|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '');
+  return before.slice(start + 1);
+}
+
+/** 매치가 한 줄 주석(`// …`·`-- …`) 안인지 — 주석 속 문장은 실행되지 않는다 (PR #24 QA I-7 FP12) */
+function inLineComment(text: string, index: number): boolean {
+  const lineStart = text.lastIndexOf('\n', index - 1) + 1;
+  return /(?:^|\s)(?:\/\/|--)(?:\s|$)/.test(text.slice(lineStart, index));
 }
 
 function scanNeonCompat(file: string, text: string, runtime: boolean): string[] {
@@ -82,6 +93,7 @@ function scanNeonCompat(file: string, text: string, runtime: boolean): string[] 
   return RULES.filter((rule) => rule.scope === 'all' || runtime)
     .flatMap((rule) =>
       [...text.matchAll(rule.pattern)]
+        .filter((match) => !inLineComment(text, match.index))
         .filter((match) => !rule.skip?.(statementPrefix(text, match.index)))
         .filter((match) => !rule.confirm || rule.confirm(text.slice(match.index + match[0].length)))
         .map((match) => ({ line: lineOf(match.index), name: rule.name })),
@@ -199,5 +211,23 @@ describe('Neon transaction pooling 호환 (AC-325)', () => {
       'bad.ts:4 런타임 세션 SET',
     ]);
     expect(scanNeonCompat('0001.sql', "SET search_path = 'public';", false)).toEqual([]);
+  });
+
+  it('PR #24 QA L-R1·I-7: 주석 속 아포스트로피가 UPDATE 문맥을 끊지 않고, 줄 주석 속 문장은 보고하지 않는다', () => {
+    // FP7: 여러 줄 UPDATE 와 SET 사이 SQL 주석의 아포스트로피
+    expect(scanNeonCompat('ok.ts', "sql`update t\n  -- don't touch b\n  set a = 1`", true)).toEqual(
+      [],
+    );
+    expect(scanNeonCompat('ok.ts', "sql`update t /* it's fine */ set a = 1`", true)).toEqual([]);
+    // FP12: 주석 문장 속 set
+    expect(scanNeonCompat('ok.ts', '// we set x = 1 here', true)).toEqual([]);
+    expect(scanNeonCompat('ok.ts', 'sql`select 1 -- then set x = 1`', true)).toEqual([]);
+    // 주석 뒤 실제 SET 은 계속 잡는다 (감지 유지)
+    expect(scanNeonCompat('bad.ts', "// don't\nsql`set work_mem = 1`", true)).toEqual([
+      'bad.ts:2 런타임 세션 SET',
+    ]);
+    expect(scanNeonCompat('bad.ts', 'i--; sql`SET work_mem = 1`', true)).toEqual([
+      'bad.ts:1 런타임 세션 SET',
+    ]);
   });
 });
