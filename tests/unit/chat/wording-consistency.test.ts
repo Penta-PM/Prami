@@ -116,7 +116,7 @@ describe('AC-367 ① 챗봇 안내 문구 = PRAMI-002 §4.9 표', () => {
       LLM_OAUTH_OPENROUTER: false,
     } as unknown as Parameters<typeof chatStatus>[0]['env'];
     const status = await chatStatus({ db: ctx.handle.db, userId: ctx.userId, env });
-    expect(status.setup?.message).toBe(MISSING_MESSAGE);
+    expect('setup' in status ? status.setup?.message : undefined).toBe(MISSING_MESSAGE);
     const reply = await ask(scriptedRuntime(ctx.handle, { status: 'missing' }), 'Wapples-500 가격');
     expect(reply.setup?.message).toBe(MISSING_MESSAGE);
     expect(MISSING_MESSAGE).toBe(CHAT_TABLE.missing);

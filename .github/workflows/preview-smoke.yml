@@ -1,0 +1,52 @@
+# PRAMI-003 §4.3.10 preview 스모크 (AC-361·AC-362)
+# Vercel Git 연동이 preview 배포를 마치면 deployment_status(success) 이벤트가 온다 → 그 배포 URL 에 비인증 스모크 8항목.
+# - 배포 보호(Vercel Authentication)가 켜져 있으면 저장소 시크릿 VERCEL_AUTOMATION_BYPASS_SECRET 을 헤더로 보낸다(선택).
+# - 수동 실행(workflow_dispatch)은 고정 preview 호스트 등 임의 URL 을 대상으로 한다.
+name: preview-smoke
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: '스모크 대상 URL (https://…)'
+        required: true
+
+concurrency:
+  group: preview-smoke-${{ github.event.deployment.id || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  smoke:
+    name: preview 스모크 (비인증 8항목)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment.environment == 'Preview')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Smoke
+        run: pnpm smoke
+        env:
+          SMOKE_URL: ${{ github.event.inputs.url || github.event.deployment_status.target_url }}
+          # 우회 시크릿은 Vercel 이 알려준 배포 URL 에만 보낸다 — 수동 입력 URL 로는 보내지 않는다(임의 호스트 유출 방지)
+          SMOKE_BYPASS_SECRET: ${{ github.event_name == 'deployment_status' && secrets.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}

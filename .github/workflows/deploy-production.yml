@@ -1,0 +1,154 @@
+# PRAMI-003 §4.3.1·§4.3.6 운영 배포 (AC-362)
+# 순서: 마이그레이션(Neon main, 직접 연결) → vercel build --prod → vercel deploy --prebuilt --prod → 프로덕션 스모크 → 실패 시 롤백.
+# - main 에서만 실행한다 (integration/prami-003 → main 머지 1회가 트리거, §6.0). 다른 브랜치의 수동 실행은 job if 가 막는다.
+# - environment: production 은 GitHub 에서 "Required reviewers" 1인 이상으로 설정한다(사용자 제공 항목) — 승인 전에는 어떤 잡도 시크릿을 받지 않는다.
+# - 시크릿은 secrets.* → 단계 env 로만 넘기고 run: 에서 값을 출력하지 않는다 (Actions 가 마스킹하지만 echo 자체를 금지).
+name: deploy-production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# 배포는 한 번에 하나만, 진행 중인 배포를 취소하지 않는다 (마이그레이션 중단 방지)
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+  VERCEL_CLI_VERSION: '62.1.0'
+
+jobs:
+  migrate:
+    name: 1) DB 마이그레이션 (Neon main, 직접 연결)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Migrate (DATABASE_URL_UNPOOLED)
+        run: pnpm db:migrate
+        env:
+          DB_DRIVER: neon
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          # env.ts 는 neon 드라이버에 DATABASE_URL 을 요구한다 — 마이그레이션은 UNPOOLED 를 우선 사용한다(scripts/migrate.ts)
+          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.PRODUCTION_URL }}
+          CHAT_LLM_ENABLED: 'false'
+
+  deploy:
+    name: 2) 빌드 · 3) 배포
+    needs: migrate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+      previous: ${{ steps.previous.outputs.url }}
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Vercel CLI
+        run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
+
+      # 롤백 기준점: 지금 production 인 배포 URL (Vercel REST API — 토큰은 헤더로만, 응답에서 url 만 꺼낸다)
+      - name: 직전 production 배포 기록
+        id: previous
+        run: |
+          team_query=""
+          case "$VERCEL_ORG_ID" in team_*) team_query="&teamId=${VERCEL_ORG_ID}" ;; esac
+          previous=$(curl -fsS -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&target=production&state=READY&limit=1${team_query}" \
+            | jq -r '.deployments[0].url // empty')
+          echo "url=${previous}" >> "$GITHUB_OUTPUT"
+
+      - name: Vercel env 가져오기 (production)
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build (vercel build --prod)
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+        env:
+          # §4.3.2 APP_RELEASE: 헬스·로그의 release 필드 = 커밋 SHA
+          APP_RELEASE: ${{ github.sha }}
+
+      - name: Deploy (vercel deploy --prebuilt --prod)
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    name: 4) 프로덕션 스모크 (비인증 + 헬스)
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Smoke (운영 도메인)
+        run: pnpm smoke
+        env:
+          SMOKE_URL: ${{ vars.PRODUCTION_URL }}
+          SMOKE_EXPECT_RELEASE: ${{ github.sha }}
+
+  rollback:
+    name: 5) 실패 시 롤백 (직전 배포 승격)
+    needs: [deploy, smoke]
+    if: ${{ failure() && needs.deploy.result == 'success' && needs.deploy.outputs.previous != '' }}
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      PREVIOUS_URL: ${{ needs.deploy.outputs.previous }}
+    steps:
+      - name: Vercel CLI
+        run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
+
+      # 스키마는 그대로 둔다 (forward-only · expand/contract, 런북 R-2)
+      - name: vercel rollback
+        run: vercel rollback "https://${PREVIOUS_URL}" --token="$VERCEL_TOKEN"

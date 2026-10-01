@@ -32,6 +32,9 @@
     "check:secrets": "tsx scripts/secret-scan.ts",
     "check:prerender": "tsx scripts/check-prerender.ts",
     "check:trace": "tsx scripts/check-trace.ts",
+    "smoke": "playwright test -c playwright.smoke.config.ts",
+    "smoke:local": "tsx scripts/smoke-local.ts",
+    "release:check": "tsx --conditions=react-server scripts/release-check.ts",
     "smoke:llm": "tsx --conditions=react-server scripts/smoke-llm.ts",
     "credentials:rewrap": "tsx --conditions=react-server scripts/credentials-rewrap.ts"
   },
