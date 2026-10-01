@@ -73,7 +73,7 @@ function callersOf(host: CallerHost | undefined, depth = 0): FailureHook[] {
  * protected 필드, ChatOpenAI 의 bindTools 는 새 인스턴스를 만들고 내부 `responses`/`completions` 모델의 caller 로 호출한다,
  * 다른 어댑터는 RunnableBinding(`bound`). 벤더 4종 테스트로 고정. 실패가 관측되지 않았으면(중단·로컬 예외) 진행 중이던 1회로 본다.
  */
-function attemptCounter(runnable: unknown): () => number {
+function attemptCounter(runnable: unknown): (succeeded: boolean) => number {
   let failures = 0;
   for (const caller of new Set(callersOf(runnable as CallerHost))) {
     const original = caller.onFailedAttempt;
@@ -82,7 +82,8 @@ function attemptCounter(runnable: unknown): () => number {
       return original?.(error);
     };
   }
-  return () => Math.max(1, failures);
+  // 성공: 실패한 시도 + 마지막 성공 1회, 실패: 관측된 실패 수(최소 1 — 중단 시 진행 중이던 시도)
+  return (succeeded) => (succeeded ? failures + 1 : Math.max(1, failures));
 }
 
 /**
@@ -142,6 +143,23 @@ async function onError(
 }
 
 /**
+ * 출력 상한에 잘린 응답의 도구 호출은 인자가 잘렸을 수 있어 실행하지 않는다 (리뷰 후속) — 보이는 텍스트만 남긴 새 메시지.
+ * id 는 유지한다(SSE 메시지 스트림이 같은 답을 다시 내보내지 않게, H1-2 참고).
+ */
+function withoutToolCalls(message: AIMessage): AIMessage {
+  if (!message.tool_calls?.length && typeof message.content === 'string') return message;
+  const content =
+    typeof message.content === 'string'
+      ? message.content
+      : message.content.filter((block) => block.type === 'text');
+  return new AIMessage({
+    content,
+    id: message.id,
+    response_metadata: message.response_metadata,
+  });
+}
+
+/**
  * 2xx 인데 거부·미완료·빈 출력 (PRAMI-003 §4.5.5 L-1) — `chat.llm_error` warn 1행(source response, httpStatus 200,
  * vendorErrorType = 판정 토큰). code 는 거부면 `refused`, 그 밖은 `llm_error`(미분류 응답). 응답 본문은 남기지 않는다.
  */
@@ -194,7 +212,7 @@ export function makeAgent(features: readonly ChatFeature[]) {
     const signals = callSignals(config, timeoutMs);
     runtime.llmCalls += 1;
     const started = Date.now();
-    let attempts = () => 1;
+    let attempts: (succeeded: boolean) => number = () => 1;
     let message: AIMessage;
     try {
       const bound = model.bindTools ? model.bindTools(tools, BIND_OPTIONS) : model;
@@ -203,20 +221,21 @@ export function makeAgent(features: readonly ChatFeature[]) {
     } catch (error) {
       const aborted = { timedOut: signals.timeout.aborted, aborted: !!signals.client?.aborted };
       return onError(state, runtime, normalizeLlmError(error), describeLlmError(error, aborted), {
-        stats: { attempts: attempts(), latencyMs: Date.now() - started },
+        stats: { attempts: attempts(false), latencyMs: Date.now() - started },
         debugMessage: debugMessageOf(error),
       });
     }
     const verdict = classifyResponse(message);
     logResponseIssue(state, runtime, verdict, {
-      attempts: attempts(),
+      attempts: attempts(true),
       latencyMs: Date.now() - started,
     });
     // 거부(refusal 콘텐츠·stop_reason·content_filter 미완료)는 content 를 버린다 (§4.5.3)
     if (verdict.outcome === 'refused') return { llmError: 'refused' };
-    const limitReached = (message.tool_calls?.length ?? 0) > 0 && state.toolCalls >= maxToolCalls;
+    const answer = verdict.outcome === 'answer' ? message : withoutToolCalls(message);
+    const limitReached = (answer.tool_calls?.length ?? 0) > 0 && state.toolCalls >= maxToolCalls;
     return {
-      messages: [withModelMessageId(message)],
+      messages: [withModelMessageId(answer)],
       notices: [
         ...(limitReached ? [{ code: 'tool_limit', text: TOOL_LIMIT_NOTICE }] : []),
         ...(verdict.outcome === 'truncated'

@@ -11,7 +11,13 @@ export type VendorTurn =
   /** Responses 전용 (PRAMI-003 L-1): refusal 콘텐츠 부분 */
   | { refusal: string }
   /** Responses 전용 (PRAMI-003 L-1): status incomplete + incomplete_details.reason, 부분 텍스트 선택 */
-  | { incomplete: { reason: 'max_output_tokens' | 'content_filter'; text?: string } }
+  | {
+      incomplete: {
+        reason: 'max_output_tokens' | 'content_filter';
+        text?: string;
+        toolCall?: { name: string; args: Record<string, unknown> };
+      };
+    }
   | { error: { status: number; body: unknown; headers?: Record<string, string> } }
   | { hang: true };
 
@@ -127,10 +133,20 @@ function responsesOutput(turn: VendorTurn): ResponsesItem[] {
     return [reasoning, message('completed', [{ type: 'refusal', refusal: turn.refusal }])];
   }
   if ('incomplete' in turn) {
-    const { text } = turn.incomplete;
-    return text
-      ? [reasoning, message('incomplete', [{ type: 'output_text', text, annotations: [] }])]
-      : [reasoning];
+    const { text, toolCall } = turn.incomplete;
+    const items: ResponsesItem[] = [reasoning];
+    if (text) items.push(message('incomplete', [{ type: 'output_text', text, annotations: [] }]));
+    if (toolCall) {
+      items.push({
+        type: 'function_call',
+        id: 'fc_1',
+        call_id: 'call_1',
+        name: toolCall.name,
+        arguments: JSON.stringify(toolCall.args),
+        status: 'incomplete',
+      });
+    }
+    return items;
   }
   const text = 'text' in turn ? turn.text : '';
   return [reasoning, message('completed', [{ type: 'output_text', text, annotations: [] }])];

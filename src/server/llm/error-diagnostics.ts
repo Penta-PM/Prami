@@ -1,14 +1,14 @@
 import { dependencies } from '../../../package.json';
 
 import { causeChain, classNameOf, isNetworkError } from './error-chain';
-import { sanitizeForLog } from '../log';
+import { maskString } from '../log';
 
 /**
  * 벤더 오류 진단 필드 (PRAMI-003 §4.5.1 r2 최종 계약): `chat.llm_error` 구조화 로그에 원인을 남긴다 — **비밀값 없이**.
  * 남기는 것: HTTP 상태, 벤더 오류 type·code(허용 목록, 밖이면 `other`)·param(소문자 식별자만), 벤더 요청 id, LangChain 오류 코드
  * (허용 목록), SDK 오류 클래스 이름(`cause` 체인), (로컬 예외면) 맨 위 스택 프레임 함수 이름. 어댑터·시도 수·지연은 호출자가 붙인다.
  * 남기지 않는 것: 오류 메시지(벤더 원문에 키·요청 일부가 반복될 수 있음, T-6/T-17), 헤더, 요청 본문, 사용자 메시지.
- * 예외: 개발 환경(`NODE_ENV=development`)에서만 `debugMessage`(sanitizeForLog 후 120자) — production·preview 빌드에는 없다.
+ * 예외: 개발 환경(`NODE_ENV=development`)에서만 `debugMessage`(maskString — 키 형식·Bearer·URL userinfo 마스킹 후 120자) — production·preview 빌드에는 없다.
  * `requestId` 는 로거 규약상 **앱 요청 id** 다 — 벤더 요청 id 는 `vendorRequestId` (r2, QA M-1 충돌 해소).
  */
 export const LLM_VENDOR_ERROR_TOKENS = [
@@ -156,9 +156,10 @@ function sourceOf(
   error: ErrorShape,
   signals: CallAbortState | undefined,
 ): LlmErrorSource {
+  // 실제 HTTP 응답이 있으면 신호보다 우선 — 응답 직후 끊김·타이머가 벤더 오류를 가리지 않게 (리뷰 후속)
+  if (typeof error.status === 'number') return 'http';
   if (signals?.timedOut) return 'timeout';
   if (signals?.aborted) return 'abort';
-  if (typeof error.status === 'number') return 'http';
   if (isNetworkError(raw)) return 'network';
   // 신호 정보가 없는 호출자(검증 등) — 이름으로만
   const name = classNameOf(error);
@@ -211,9 +212,7 @@ export function describeLlmError(raw: unknown, signals?: CallAbortState): LlmErr
 export function debugMessageOf(raw: unknown): string | undefined {
   if (process.env.NODE_ENV !== 'development') return undefined;
   const message = (raw as { message?: unknown } | null)?.message;
-  return typeof message === 'string'
-    ? sanitizeForLog(message).slice(0, DEBUG_MESSAGE_MAX)
-    : undefined;
+  return typeof message === 'string' ? maskString(message).slice(0, DEBUG_MESSAGE_MAX) : undefined;
 }
 
 /** 벤더별 LangChain 어댑터 패키지·버전 (package.json 고정 버전) */

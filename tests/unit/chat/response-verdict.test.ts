@@ -66,6 +66,22 @@ function captureLlmErrors() {
 
 type Run = { reply: ChatReplyOut; raw: string; events: string[] };
 
+async function sseReply(runtime: ChatRuntime): Promise<ChatReplyOut> {
+  const raw = await new Response(
+    streamChat(
+      buildChatGraph(),
+      {
+        text: 'Wapples-500 가격',
+        truncated: false,
+        history: [],
+        actor: { userId: ctx.userId, role: 'USER' },
+      },
+      runtime,
+    ),
+  ).text();
+  return JSON.parse(/event: final\ndata: (.*)/.exec(raw)![1]!) as ChatReplyOut;
+}
+
 async function run(path: 'json' | 'sse', turn: VendorTurn): Promise<Run> {
   const runtime = await runtimeWith(turn);
   if (path === 'json') {
@@ -161,6 +177,56 @@ describe('AC-353 응답 판정 — OpenAI Responses JSON·SSE (L-1)', () => {
     });
   }
 
+  it.each(['json', 'sse'] as const)(
+    '%s: 잘린 응답의 도구 호출은 실행하지 않는다 (incomplete + function_call → 도구 0·요청 1회·빈 답 안내)',
+    async (path) => {
+      const logs = captureLlmErrors();
+      const stub = createOpenAIStub([
+        {
+          incomplete: {
+            reason: 'max_output_tokens',
+            toolCall: { name: 'price_lookup', args: { query: 'Wapples-500', family: null } },
+          },
+        },
+        { text: 'SHOULD-NOT-BE-CALLED' },
+      ]);
+      const runtime = await runtimeWith({ text: 'unused' });
+      const credential = await runtime.resolveCredential();
+      runtime.resolveCredential = async () => ({
+        ...credential,
+        createModel: (options) =>
+          createOpenAIChatModel(KEY, 'gpt-6.1-sol', { ...options, fetch: stub.fetch }),
+      });
+      const reply =
+        path === 'json' ? await ask(runtime, 'Wapples-500 가격') : await sseReply(runtime);
+      expect(stub.requests).toHaveLength(1);
+      expect(reply).toMatchObject({ mode: 'llm', reply: EMPTY_LLM_REPLY, candidates: [] });
+      expect(logs()[0]).toMatchObject({ vendorErrorType: 'incomplete_max_output_tokens' });
+    },
+  );
+
+  it('재시도 후 성공한 응답의 attempts 는 실패 + 1 (500 → incomplete)', async () => {
+    const logs = captureLlmErrors();
+    const stub = createOpenAIStub([
+      { error: { status: 500, body: { error: { type: 'server_error' } } } },
+      { incomplete: { reason: 'max_output_tokens', text: PARTIAL } },
+    ]);
+    const runtime = await runtimeWith({ text: 'unused' });
+    const credential = await runtime.resolveCredential();
+    runtime.resolveCredential = async () => ({
+      ...credential,
+      createModel: (options) =>
+        createOpenAIChatModel(KEY, 'gpt-6.1-sol', { ...options, fetch: stub.fetch }),
+    });
+    const reply = await ask(runtime, 'Wapples-500 가격');
+    expect(reply.reply).toBe(PARTIAL);
+    expect(stub.requests).toHaveLength(2);
+    expect(logs()[0]).toMatchObject({
+      vendorErrorType: 'incomplete_max_output_tokens',
+      attempts: 2,
+    });
+  }, 20_000);
+
   it('정상 응답은 진단 로그 0', async () => {
     const logs = captureLlmErrors();
     const result = await run('sse', { text: 'Wapples-500 은 두 모델이 있습니다.' });
@@ -190,6 +256,33 @@ describe('classifyResponse 표 (메타데이터만)', () => {
       'truncated',
     ],
     ['공백뿐인 텍스트', { content: '   ' }, 'empty'],
+    [
+      'Anthropic stop_reason max_tokens + 텍스트',
+      { content: 'abc', response_metadata: { stop_reason: 'max_tokens' } },
+      'truncated',
+    ],
+    [
+      'Anthropic 스트리밍 kwargs max_tokens, 텍스트 없음',
+      { content: '', additional_kwargs: { stop_reason: 'max_tokens' } },
+      'empty',
+    ],
+    [
+      'Gemini finishReason MAX_TOKENS + 텍스트',
+      { content: 'abc', response_metadata: { finishReason: 'MAX_TOKENS' } },
+      'truncated',
+    ],
+    [
+      'incomplete + 도구 호출(텍스트 없음) → 실행 안 함',
+      {
+        content: '',
+        tool_calls: [{ id: 'c1', name: 'price_lookup', args: {} }],
+        response_metadata: {
+          status: 'incomplete',
+          incomplete_details: { reason: 'max_output_tokens' },
+        },
+      },
+      'empty',
+    ],
     ['사고 블록만', { content: [{ type: 'thinking', thinking: 't' }] }, 'empty'],
   ] as const)('%s', (_label, fields, outcome) => {
     expect(classifyResponse(new AIMessage(fields as never)).outcome).toBe(outcome);

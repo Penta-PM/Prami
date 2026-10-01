@@ -185,6 +185,9 @@ describe('AC-352 진단 필드 이름 (§4.5.1 r2)', () => {
     expect(message.length).toBeLessThanOrEqual(120);
     expect(message).not.toContain(KEY);
     expect(message).toContain('[REDACTED]');
+    expect(debugMessageOf(new Error('auth Bearer abcdefgh12345678 failed'))).not.toContain(
+      'abcdefgh12345678',
+    );
   });
 });
 
@@ -202,6 +205,15 @@ describe('L-4 sdkErrorName · source 정확도 (AC-354 ③④)', () => {
     });
     const plain = Object.assign(new Error('outer'), { cause: new RangeError('inner') });
     expect(describeLlmError(plain).sdkErrorName).toBe('RangeError');
+  });
+
+  it('실제 HTTP 응답이 있으면 끊김·타이머 신호보다 http 가 우선 (벤더 오류를 abort 로 가리지 않음)', () => {
+    expect(describeLlmError({ status: 500 }, { timedOut: true, aborted: true }).source).toBe(
+      'http',
+    );
+    expect(describeLlmError(new Error('x'), { timedOut: false, aborted: true }).source).toBe(
+      'abort',
+    );
   });
 
   it('앱 타임아웃 → source timeout (chat.llm_error warn)', async () => {

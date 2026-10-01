@@ -49,21 +49,41 @@ function incompleteIssue(reason: unknown): ResponseIssue {
   return 'incomplete_other';
 }
 
+type ResponseMetadata = {
+  status?: unknown;
+  incomplete_details?: { reason?: unknown } | null;
+  stop_reason?: unknown;
+  finishReason?: unknown;
+};
+
 /**
- * 어댑터 공통 응답 판정 (PRAMI-003 §4.5.5 L-1). 응답 메타데이터(`response_metadata`·`additional_kwargs`)만 읽는다 —
- * Responses 미완료는 `status:'incomplete'` + `incomplete_details.reason` (비스트리밍·스트리밍 `response.incomplete` 동일).
+ * 미완료 사유: OpenAI Responses·xAI `status:'incomplete'` + `incomplete_details.reason`,
+ * Anthropic `stop_reason:'max_tokens'`(메타데이터 또는 스트리밍 kwargs), Gemini `finishReason:'MAX_TOKENS'`. 미완료가 아니면 null.
+ */
+function incompleteReason(message: AIMessage): unknown {
+  const metadata = (message.response_metadata ?? {}) as ResponseMetadata;
+  if (metadata.status === 'incomplete') return metadata.incomplete_details?.reason;
+  const kwargs = (message.additional_kwargs ?? {}) as { stop_reason?: unknown };
+  if (metadata.stop_reason === 'max_tokens' || kwargs.stop_reason === 'max_tokens') {
+    return 'max_output_tokens';
+  }
+  if (metadata.finishReason === 'MAX_TOKENS') return 'max_output_tokens';
+  return null;
+}
+
+/**
+ * 어댑터 공통 응답 판정 (PRAMI-003 §4.5.5 L-1). 응답 메타데이터(`response_metadata`·`additional_kwargs`)만 읽는다.
+ * 미완료(`incompleteReason`)면 도구 호출이 있어도 truncated/empty — 잘린 도구 인자는 실행하지 않는다(agent 가 버림).
  */
 export function classifyResponse(message: AIMessage): ResponseVerdict {
   if (isRefusal(message)) return { outcome: 'refused', issue: 'refusal' };
-  const metadata = message.response_metadata as
-    { status?: unknown; incomplete_details?: { reason?: unknown } | null } | undefined;
   const text = hasVisibleText(message);
   const toolCalls = (message.tool_calls?.length ?? 0) > 0;
-  if (metadata?.status === 'incomplete') {
-    const issue = incompleteIssue(metadata.incomplete_details?.reason);
+  const reason = incompleteReason(message);
+  if (reason !== null) {
+    const issue = incompleteIssue(reason);
     if (issue === 'incomplete_content_filter') return { outcome: 'refused', issue };
-    if (text) return { outcome: 'truncated', issue };
-    return toolCalls ? { outcome: 'answer', issue } : { outcome: 'empty', issue };
+    return text ? { outcome: 'truncated', issue } : { outcome: 'empty', issue };
   }
   if (!text && !toolCalls) return { outcome: 'empty', issue: 'empty_output' };
   return { outcome: 'answer' };

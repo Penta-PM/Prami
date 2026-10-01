@@ -301,7 +301,14 @@ describe('AC-366 벤더별 진단 필드 (fake·전송 가로채기)', () => {
       'OpenRouter 네트워크 오류',
       'openrouter',
       networkFailure,
-      { code: 'unavailable', source: 'network', sdkErrorName: 'APIConnectionError' },
+      // 벤더 4종 모두 시도 수가 관측된다 (attemptCounter 가 caller 를 찾지 못하면 1 로 남아 실패)
+      { code: 'unavailable', source: 'network', sdkErrorName: 'APIConnectionError', attempts: 2 },
+    ],
+    [
+      'Gemini 500 (재시도 1회 → attempts 2)',
+      'google',
+      json(500, { error: { code: 500, message: VENDOR_MESSAGE, status: 'INTERNAL' } }),
+      { code: 'unavailable', httpStatus: 500, attempts: 2 },
     ],
     [
       'OpenAI 응답 파싱 실패(2xx 본문이 JSON 아님)',
