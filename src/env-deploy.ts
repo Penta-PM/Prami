@@ -44,6 +44,10 @@ const isSet = (source: Source, key: string) => (source[key] ?? '').trim() !== ''
 const isTruthyWord = (value: string | undefined) =>
   value !== undefined && ['true', '1', 'yes'].includes(value.trim().toLowerCase());
 
+/** Auth.js 가 "있다" 고 보는 원문 — 빈 문자열만 없음으로 친다(공백뿐인 값은 truthy 라 있음) */
+const isPresentRaw = (source: Source, key: string) =>
+  source[key] !== undefined && source[key] !== '';
+
 const normalized = (value: string | undefined) => value?.trim().toLowerCase() ?? '';
 
 /**
@@ -75,13 +79,16 @@ export const TEST_MODE_KEYS = [
   'AUTH_TEST_MODE_ALLOW_REMOTE',
 ] as const;
 
-/** `AUTH_REDIRECT_PROXY_URL` 형식: https://<고정 preview 호스트>/api/auth (Auth.js 가 /callback/<provider> 를 붙인다) */
-function isProxyUrlShape(value: string): boolean {
+/**
+ * `AUTH_REDIRECT_PROXY_URL` 형식: 정확히 `https://<고정 preview 호스트>/api/auth` (PR #25 QA L-1).
+ * Auth.js 는 원문 뒤에 `/callback/<provider>` 를 붙여 redirect_uri 를 만들고 Google 은 정확 일치로 비교한다 —
+ * 끝 슬래시·userinfo·프래그먼트·쿼리·`/api/./auth`·기본 포트 표기처럼 URL 파서가 정규화해 버리는 형태도
+ * 실제 redirect_uri 를 바꾸므로, 정규화한 `${origin}/api/auth` 와 원문이 같을 때만 허용한다.
+ */
+export function isProxyUrlShape(value: string): boolean {
   try {
     const url = new URL(value);
-    return (
-      url.protocol === 'https:' && url.pathname.replace(/\/$/, '') === '/api/auth' && !url.search
-    );
+    return url.protocol === 'https:' && value === `${url.origin}/api/auth`;
   } catch {
     return false;
   }
@@ -94,10 +101,17 @@ function isProxyUrlShape(value: string): boolean {
  * - preview 의 `AUTH_REDIRECT_PROXY_URL` 은 `https://<고정 호스트>/api/auth`, 함께 `AUTH_URL` 을 두면 거부
  *   (next-auth 가 모든 요청 origin 을 AUTH_URL 로 바꿔 배포별 preview 의 state·PKCE 쿠키와 콜백이 어긋난다)
  */
-function oauthIssue(env: DeployCheckEnv, target: DeployTarget): DeployIssue | null {
+function oauthIssue(source: Source, env: DeployCheckEnv, target: DeployTarget): DeployIssue | null {
   const problems: Array<[key: string, why: string]> = [];
   if (!env.AUTH_REQUIRE_HD) problems.push(['AUTH_REQUIRE_HD', 'true 여야 합니다']);
-  const proxy = env.AUTH_REDIRECT_PROXY_URL;
+  // 원문 기준 (PR #25 QA L-2): 공백뿐인 값은 앱 스키마에서 undefined 지만 Auth.js 는 process.env 원문을 truthy 로 읽는다
+  const proxy = isPresentRaw(source, 'AUTH_REDIRECT_PROXY_URL')
+    ? source.AUTH_REDIRECT_PROXY_URL
+    : undefined;
+  // NEXTAUTH_URL 은 next-auth 가 AUTH_URL 과 똑같이 요청 origin 을 덮어쓴다 — 배포 환경에서는 AUTH_URL 만 쓴다
+  if (isPresentRaw(source, 'NEXTAUTH_URL')) {
+    problems.push(['NEXTAUTH_URL', '를 설정하지 않습니다 (AUTH_URL 사용)']);
+  }
   if (target === 'production' && proxy !== undefined) {
     problems.push(['AUTH_REDIRECT_PROXY_URL', 'production 에는 설정하지 않습니다']);
   }
@@ -115,7 +129,7 @@ function oauthIssue(env: DeployCheckEnv, target: DeployTarget): DeployIssue | nu
         'NEXT_PUBLIC_APP_URL(고정 preview 호스트)과 같은 origin 이어야 합니다',
       ]);
     }
-    if (env.AUTH_URL !== undefined) {
+    if (isPresentRaw(source, 'AUTH_URL')) {
       problems.push([
         'AUTH_URL',
         'AUTH_REDIRECT_PROXY_URL 과 함께 두지 않습니다 (preview 는 AUTH_URL 미설정)',
@@ -233,7 +247,7 @@ const RULES: Rule[] = [
           'CHAT_LLM_ENABLED=true 이면 LLM_CREDENTIALS_KEKS 가 필요합니다',
         )
       : null,
-  (_source, env, target) => oauthIssue(env, target),
+  (source, env, target) => oauthIssue(source, env, target),
   (source) =>
     isSet(source, 'PRAMI_ALLOW_SEED')
       ? issue(
