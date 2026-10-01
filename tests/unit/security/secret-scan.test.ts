@@ -96,6 +96,17 @@ describe('scanText', () => {
   });
 });
 
+describe('PRAMI-003 Upstash 토큰 (§4.3.7)', () => {
+  it('UPSTASH_REDIS_REST_TOKEN 실제 값 대입을 잡고, 빈 값·자리표시자는 허용한다', () => {
+    const leak = join('UPSTASH_REDIS_', 'REST_TOKEN=', 'AX9bQ2zLm4Rt7Wv1Kp3s');
+    expect(scanText('leak.env', leak).map((finding) => finding.rule)).toEqual([
+      'UPSTASH_REDIS_REST_TOKEN 값 대입',
+    ]);
+    expect(scanText('.env.example', 'UPSTASH_REDIS_REST_TOKEN=')).toEqual([]);
+    expect(scanText('doc.md', 'UPSTASH_REDIS_REST_TOKEN=<Marketplace 주입>')).toEqual([]);
+  });
+});
+
 describe('PRAMI-002 LLM 키·KEK (AC-211)', () => {
   const tail = 'Qm7Rz2Kp9Lw4Xv8Nb3Hj6Tc1';
   const kekValue = Buffer.alloc(32, 7).toString('base64');

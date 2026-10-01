@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { checkDeployment, deployTarget, formatDeployIssues } from './env-deploy';
+
 /**
  * 환경변수 스키마 (스펙 §4.9.2 키 전부).
  * - 빈 문자열은 "미설정"으로 취급한다 (.env.example 을 복사한 직후에도 기동 가능).
@@ -68,19 +70,32 @@ const csvList = (item: z.ZodType<string>, defaultValue: string[]) =>
     z.array(item).default(defaultValue),
   );
 
+export const RATE_LIMIT_BACKENDS = ['memory', 'upstash'] as const;
+export type RateLimitBackend = (typeof RATE_LIMIT_BACKENDS)[number];
+
 const envShape = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  /** Vercel 밖 운영(자체 호스팅)에서 NODE_ENV=production 과 함께 production 으로 표시 — 운영 기동 검사 대상 (PRAMI-003 §4.3.3) */
+  APP_ENV: optionalString,
   NEXT_PUBLIC_APP_URL: z.preprocess(emptyToUndefined, z.url().default('http://localhost:3000')),
 
   // ── DB (§4.9) ──────────────────────────────────────────────────────────
   /** neon: Vercel / pg: 로컬 Docker Postgres·QA·CI e2e / pglite: 단위·통합 테스트(인프로세스). 미설정 시 pglite */
   DB_DRIVER: z.preprocess(emptyToUndefined, z.enum(DB_DRIVERS).default('pglite')),
   DATABASE_URL: optionalUrl,
+  /** 마이그레이션·pg_dump 전용 직접 연결 (Neon 비풀링). Vercel 런타임에 두지 않는다 — scripts/migrate.ts 가 우선 사용 (§4.3.4) */
+  DATABASE_URL_UNPOOLED: optionalUrl,
   PGLITE_DATA_DIR: optionalString,
+  /** seed·fixtures 를 이 환경에서 허용 ("1"). CI·E2E·격리 DB 만 설정, 운영·preview 에 있으면 기동 거부 (§4.9.3 L2) */
+  PRAMI_ALLOW_SEED: optionalString,
 
   // ── 인증 (§4.6.1, Auth.js v5 Google) ───────────────────────────────────
   AUTH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
   AUTH_URL: optionalUrl,
+  /** preview 전용: 고정 preview 호스트의 /api/auth (Auth.js 리다이렉트 프록시, §4.4.1 — PR-3) */
+  AUTH_REDIRECT_PROXY_URL: optionalUrl,
+  /** Google `hd` 클레임 서버 검증 (§4.4.1 — PR-3 에서 사용) */
+  AUTH_REQUIRE_HD: booleanFromString(false),
   AUTH_GOOGLE_ID: optionalString,
   AUTH_GOOGLE_SECRET: optionalString,
   /** true 이면 테스트 전용 Credentials provider 추가. production 에서는 거부한다 */
@@ -100,10 +115,22 @@ const envShape = z.object({
   VERCEL: optionalString,
   /** Vercel 이 주입하는 배포 환경 (development | preview | production). 정의돼 있으면 테스트 모드 기동 거부 */
   VERCEL_ENV: optionalString,
+  /** Vercel 이 주입하는 커밋 SHA — APP_RELEASE 가 없을 때 헬스·로그의 release 로 쓴다 */
+  VERCEL_GIT_COMMIT_SHA: optionalString,
+  /** 배포 식별자 (Actions 가 커밋 SHA 주입, 로컬 dev). 헬스·구조화 로그 `release` (§4.3.8) */
+  APP_RELEASE: optionalString,
+  /** 쓰기 중단: proxy 가 비 ADMIN 에 503 안내 (런북 R-3, §4.3.11) */
+  MAINTENANCE_MODE: booleanFromString(false),
 
   // ── rate limit (§4.8 r6, AC-95) ────────────────────────────────────────
   /** 엔드포인트별 키(사용자/IP)당 분당 상한. 기본 30, 테스트 1000 — 표는 src/server/rate-limit.ts · docs/deploy/vercel.md */
   RATE_LIMIT_PER_MIN: positiveIntFromString(30),
+  /** memory: 인스턴스 메모리(로컬 기본) / upstash: 분산 저장소(운영 기본, §4.3.7) */
+  RATE_LIMIT_BACKEND: z.preprocess(emptyToUndefined, z.enum(RATE_LIMIT_BACKENDS).default('memory')),
+  UPSTASH_REDIS_REST_URL: optionalUrl,
+  UPSTASH_REDIS_REST_TOKEN: optionalString,
+  /** 운영·preview 에서 memory 백엔드를 쓰는 위험 수용 예외 — 체크리스트 C-12 에 승인자 기록 필수 */
+  RATE_LIMIT_ALLOW_MEMORY_IN_PRODUCTION: booleanFromString(false),
 
   // ── 임포트 (§4.4) ──────────────────────────────────────────────────────
   /** QA-03e 실패 주입: 지정 단계 이후 예외 (items|manual|load|recompute|verify). production 에서는 거부 */
@@ -268,6 +295,17 @@ function checkCrossFieldRules(env: EnvShape, ctx: z.RefinementCtx): void {
       message: 'production 에서는 IMPORT_FAULT_INJECTION 을 허용하지 않습니다',
     });
   }
+  if (
+    env.RATE_LIMIT_BACKEND === 'upstash' &&
+    (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN)
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['RATE_LIMIT_BACKEND'],
+      message:
+        'RATE_LIMIT_BACKEND=upstash 이면 UPSTASH_REDIS_REST_URL 과 UPSTASH_REDIS_REST_TOKEN 이 필요합니다',
+    });
+  }
   if (env.DB_DRIVER !== 'pglite' && !env.DATABASE_URL) {
     ctx.addIssue({
       code: 'custom',
@@ -290,12 +328,29 @@ export function proxyTrustMode(env: Pick<EnvShape, 'TRUST_PROXY_HEADERS'>): Prox
 export type Env = z.infer<typeof envSchema>;
 
 /** 검증 실패 시 원인을 담아 throw 한다. 기동/빌드 단계에서 즉시 중단되도록 next.config.ts 가 import 한다. */
-export function parseEnv(source: Record<string, string | undefined>): Env {
+export function parseEnv(
+  source: Record<string, string | undefined>,
+  warn: (message: string) => void = console.warn,
+): Env {
   const result = envSchema.safeParse(source);
   if (!result.success) {
     throw new Error(`환경변수 검증 실패:\n${z.prettifyError(result.error)}`);
   }
+  // 운영 기동 검사 (PRAMI-003 §4.3.3) — production 은 위반 하나라도 거부, preview 는 ⓕ·ⓖ 경고
+  const target = deployTarget(source);
+  if (target) {
+    const { errors, warnings } = checkDeployment(source, result.data);
+    if (errors.length > 0) {
+      throw new Error(`운영 기동 검사 실패 (${target}):\n${formatDeployIssues(target, errors)}`);
+    }
+    if (warnings.length > 0) {
+      warn(`[env] 운영 기동 검사 경고 (${target}):\n${formatDeployIssues(target, warnings)}`);
+    }
+  }
   return result.data;
 }
+
+/** 스키마가 아는 키 전부 — §4.3.2 표·.env.example·docs/deploy/vercel.md 정합 테스트(AC-322)가 쓴다 */
+export const ENV_SCHEMA_KEYS: readonly string[] = Object.keys(fullEnvShape.shape);
 
 export const env: Env = parseEnv(process.env);

@@ -166,11 +166,16 @@ describe('parseEnv — PR-3 추가 키', () => {
         new RegExp(`VERCEL_ENV=${vercelEnv} 환경에서는 AUTH_TEST_MODE=true 를 허용하지 않습니다`),
       );
     }
+    // PRAMI-003 §4.3.3 ⓐ: preview·production 은 예외 플래그가 있어도 테스트 모드 키 설정 자체를 거부한다
+    expect(() =>
+      parseEnv({ ...testMode, VERCEL_ENV: 'preview', AUTH_TEST_MODE_ALLOW_REMOTE: 'true' }),
+    ).toThrowError(/AUTH_TEST_MODE_ALLOW_REMOTE/);
+    // vercel dev(VERCEL_ENV=development)는 운영 기동 검사 대상이 아니라 예외 플래그가 그대로 동작한다
     expect(
-      parseEnv({ ...testMode, VERCEL_ENV: 'preview', AUTH_TEST_MODE_ALLOW_REMOTE: 'true' })
+      parseEnv({ ...testMode, VERCEL_ENV: 'development', AUTH_TEST_MODE_ALLOW_REMOTE: 'true' })
         .AUTH_TEST_MODE,
     ).toBe(true);
-    expect(parseEnv({ VERCEL_ENV: 'preview' }).AUTH_TEST_MODE).toBe(false);
+    expect(parseEnv({ VERCEL_ENV: 'development' }).AUTH_TEST_MODE).toBe(false);
     expect(parseEnv(testMode).AUTH_TEST_MODE).toBe(true);
   });
 
