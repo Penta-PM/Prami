@@ -1,4 +1,7 @@
 // @vitest-environment node
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -173,4 +176,25 @@ describe('createQuoteShare / findSharedQuote', () => {
       revokeQuoteShare(owner, { shareId: '00000000-0000-4000-8000-000000000000' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
+});
+
+describe('AC-371 시계 통일 — 폐기·조회 경로는 DB 시계(now())만', () => {
+  const source = readFileSync(join(process.cwd(), 'src/server/quotes/shares.ts'), 'utf8');
+  /** `export async function <name>(` 부터 다음 최상위 선언 전까지 */
+  const bodyOf = (name: string) => {
+    const start = source.indexOf(`export async function ${name}(`);
+    expect(start, name).toBeGreaterThanOrEqual(0);
+    const rest = source.slice(start + 1);
+    const next = rest.search(/\n(export |function |const |type )/);
+    return next < 0 ? rest : rest.slice(0, next);
+  };
+
+  it.each(['revokeQuoteShare', 'listQuoteShares', 'findSharedQuote'])(
+    '%s 에 앱 시계(new Date()·Date.now()) 비교가 없다',
+    (name) => {
+      const body = bodyOf(name);
+      expect(body).not.toMatch(/new Date\(|Date\.now\(/);
+      expect(body).toMatch(/now\(\)|isActiveSql/);
+    },
+  );
 });
