@@ -127,7 +127,7 @@ describe('적용 — 판매단가만 (품목조회 없음)', () => {
 
   it('품목 마스터가 없으면 모든 품번이 stub(미확인) 으로 집계된다', async () => {
     const current = await getCurrentApply(handle.db);
-    const stubs = await handle.db.$count(items, sql`${items.raw}->>'stub' = 'true'`);
+    const stubs = await handle.db.$count(items, sql`${items.source} = 'stub'`);
     expect(current?.stats?.missingItems).toBe(stubs);
     expect(current).toMatchObject({ sales: { id: salesId }, item: null });
   });
@@ -149,10 +149,12 @@ describe('적용 — 품목조회 반영 (3·4단계, AC-22/23)', () => {
     });
     expect(result.stats.itemsApplied).toBeGreaterThan(0);
     expect(result.stats.missingItems).toBe(3);
-    expect(result.stats.unmappedItemStatus).toBe(1);
+    // 상태 매핑 불가는 업로드 행 오류가 됐으므로(PRAMI-003 §4.2.6) 적용된 배치에서는 0
+    expect(result.stats.unmappedItemStatus).toBe(0);
+    expect(result.stats.itemMerge).toMatchObject({ mode: 'merge', keptMajors: [] });
   });
 
-  it('AC-22: 품목상태 라벨 매핑(사용/임시/폐기), 매핑 불가 라벨은 NULL + 원문 보존', async () => {
+  it('AC-22: 품목상태 라벨 매핑(사용/임시/폐기), 원문 보존 (매핑 불가는 업로드 행 오류 — PRAMI-003)', async () => {
     const byStatus = await handle.db
       .select({
         status: items.itemStatus,
@@ -165,7 +167,6 @@ describe('적용 — 품목조회 반영 (3·4단계, AC-22/23)', () => {
       expect.arrayContaining([
         expect.objectContaining({ status: '폐기', raw: '폐기', count: 2 }),
         expect.objectContaining({ status: '임시', raw: '임시', count: 1 }),
-        expect.objectContaining({ status: null, raw: '보류', count: 1 }),
       ]),
     );
     const parts = await handle.db.$count(items, eq(items.itemKind, '파츠'));

@@ -3,6 +3,8 @@
  * 우선순위: 원가 → 연도 비교 → 견적 시작 → 가격 조회 → 도움말 (디자인 chatReply 의 분기 순서).
  * 검색어 추출: 의도 키워드·조사·서술어를 걷어낸 나머지가 품명/품번 후보. 디자인의 "SA-500" 표기는 Wapples-500 / H500 별칭으로 넓힌다.
  */
+import { ERP_MAJOR_TO_FAMILY } from '@/lib/constants/product-family';
+
 export type ChatIntentKind = 'cost' | 'compare' | 'quote' | 'price' | 'help';
 
 export type ChatIntent = {
@@ -121,7 +123,22 @@ const KOREAN_FAMILY: readonly [RegExp, string][] = [
   [/클라우드브릭/, 'Cloudbric'],
 ];
 
+/**
+ * ERP 품목대분류 표기 별칭 (PRAMI-003 §4.2.4) — "D'Amo 가격", "iSIGN+ PKI 견적" 도 정규화 제품군으로 인식한다.
+ * 챗봇은 카드 단위라 `iSIGN+ PKI` 도 iSIGN. 긴 표기부터 비교하고, 뒤에 한글 조사가 붙어도 인식한다.
+ */
+const ERP_FAMILY_ALIASES: readonly [RegExp, string][] = Object.entries(ERP_MAJOR_TO_FAMILY)
+  .filter(([erp, family]) => erp !== family)
+  .sort(([a], [b]) => b.length - a.length)
+  .map(([erp, family]) => [
+    new RegExp(`(^|[\\s,])${escapeRegExp(erp).replace("'", "['’]")}(?=$|[\\s,?!.]|[가-힣])`, 'i'),
+    family === 'iSIGN PKI' ? 'iSIGN' : family,
+  ]);
+
 function detectFamily(text: string): string | null {
+  for (const [pattern, family] of ERP_FAMILY_ALIASES) {
+    if (pattern.test(text)) return family;
+  }
   for (const family of PRODUCT_FAMILIES) {
     if (familyPattern(family).test(text)) return family;
   }
@@ -165,6 +182,7 @@ function extractQuery(text: string, family: string | null): string | null {
   if (family) {
     candidate = candidate.replace(familyPattern(family), ' ');
     for (const [pattern] of KOREAN_FAMILY) candidate = candidate.replace(pattern, ' ');
+    for (const [pattern] of ERP_FAMILY_ALIASES) candidate = candidate.replace(pattern, ' ');
     candidate = candidate.replace(/\s+/g, ' ').trim();
   }
   return candidate.length >= 2 ? candidate : null;

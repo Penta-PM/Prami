@@ -64,7 +64,8 @@ export async function ensureItemStubs(tx: Tx, codes: readonly string[]): Promise
         itemCode: row.itemCode,
         itemName: row.itemName,
         importBatchId: row.importBatchId,
-        raw: { stub: true },
+        // 마스터에 없는 판매단가 품번 = stub (PRAMI-003 §4.2.8 — 종류는 '기타'로 표시)
+        source: 'stub' as const,
       })),
     );
   }

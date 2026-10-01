@@ -8,7 +8,9 @@ import {
   importBatches,
   policyApplyRuns,
   stgSalesPrices,
+  items,
   type ImportBatch,
+  type ItemMerge,
   type PolicyApplyStats,
 } from '@/db/schema';
 import { withTransaction, type Tx } from '@/db/tx';
@@ -18,13 +20,16 @@ import { writeAudit, type AuditActor, type RequestMeta } from '@/server/audit/lo
 import {
   applyItemBatch,
   collectCounts,
+  collectItemChecks,
   type ApplyCounts,
+  type ItemApplyChecks,
   createMissingItemStubs,
   loadSalesBatch,
   recomputeAll,
   supersedeManualRows,
 } from './apply-steps';
 import { ApplyInvariantError, assertInvariants, checkInvariants } from './invariants';
+import { batchMajors } from './item-upload';
 import { logger } from '@/server/log';
 
 /**
@@ -39,6 +44,11 @@ export type ApplyInput = {
   /** UI 토글값 — 기존 파일 재사용 여부 (R-11) */
   salesReused: boolean;
   itemReused: boolean;
+  /**
+   * 품목 배치에 직전 적용 품목의 대분류가 빠졌을 때 병합 방식 (PRAMI-003 §4.2.3, Q-10).
+   * merge = 누락 제품군은 직전 값 유지(기본), replace = 전량 교체(누락 제품군 품번은 stub). 누락이 있는데 없으면 VALIDATION.
+   */
+  itemMerge?: 'merge' | 'replace';
 };
 
 export const APPLY_STEPS = ['items', 'manual', 'load', 'recompute', 'verify'] as const;
@@ -119,8 +129,10 @@ function buildStats(
   counts: ApplyCounts,
   itemStats: { itemsApplied: number; unmappedItemStatus: number },
   manualConflicts: number,
+  item: { merge: ItemMerge; checks: ItemApplyChecks } | null,
 ): PolicyApplyStats {
   return {
+    ...(item ? { itemMerge: item.merge, ...item.checks } : {}),
     inserted,
     seriesCount: counts.seriesCount,
     latestCount: counts.latestCount,
@@ -150,7 +162,12 @@ async function finalizeRun(
   );
   await tx
     .update(policyApplyRuns)
-    .set({ status: 'succeeded', stats, finishedAt: new Date() })
+    .set({
+      status: 'succeeded',
+      stats,
+      finishedAt: new Date(),
+      ...(stats.itemMerge ? { itemMerge: stats.itemMerge } : {}),
+    })
     .where(eq(policyApplyRuns.id, runId));
   await writeAudit(tx, {
     actor: ctx.actor,
@@ -168,11 +185,13 @@ async function runSteps(
   input: ApplyInput,
   runId: string,
   expectedRows: number,
+  merge: ItemMerge | null,
 ) {
   await tx.execute(sql`select pg_advisory_xact_lock(${APPLY_LOCK_KEY})`);
-  const itemStats = input.itemBatchId
-    ? await applyItemBatch(tx, input.itemBatchId, input.salesBatchId)
-    : { itemsApplied: 0, unmappedItemStatus: 0 };
+  const itemStats =
+    input.itemBatchId && merge
+      ? await applyItemBatch(tx, input.itemBatchId, input.salesBatchId, merge)
+      : { itemsApplied: 0, unmappedItemStatus: 0 };
   injectFault(ctx, 'items');
   const superseded = await supersedeManualRows(tx, input.salesBatchId);
   await auditSuperseded(tx, ctx, superseded);
@@ -190,7 +209,8 @@ async function runSteps(
   }
   injectFault(ctx, 'verify');
 
-  const stats = buildStats(inserted, counts, itemStats, superseded.length);
+  const item = merge ? { merge, checks: await collectItemChecks(tx) } : null;
+  const stats = buildStats(inserted, counts, itemStats, superseded.length, item);
   await finalizeRun(tx, ctx, input, runId, stats);
   return stats;
 }
@@ -221,9 +241,74 @@ async function recordFailure(ctx: ApplyContext, runId: string, input: ApplyInput
   return reason;
 }
 
+/** 직전 적용 품목(master)의 대분류 · 직전 적용 품목 배치 */
+async function previousItemState(handle: DbHandle) {
+  const majors = await handle.db
+    .selectDistinct({ major: items.categoryMajor })
+    .from(items)
+    .where(eq(items.source, 'master'));
+  const [batch] = await handle.db
+    .select({ id: importBatches.id })
+    .from(importBatches)
+    .where(and(eq(importBatches.kind, 'item_master'), eq(importBatches.status, 'applied')))
+    .orderBy(sql`${importBatches.updatedAt} desc`)
+    .limit(1);
+  return {
+    majors: majors.map((row) => row.major).filter((major): major is string => major !== null),
+    batchId: batch?.id ?? null,
+  };
+}
+
+export type ItemMergePreview = {
+  /** 직전 적용 품목에 있었지만 이 배치에 없는 대분류 */
+  missingFamilies: string[];
+  /** 전량 교체 시 사라질(stub 이 될) master 품번 수 */
+  vanishingItems: number;
+  previousBatchId: string | null;
+};
+
+/** 품목 배치를 적용하면 빠지는 제품군 미리보기 (적용 화면의 병합 방식 선택·확인 모달, §4.2.3) */
+export async function previewItemMerge(
+  handle: DbHandle,
+  itemBatchId: string,
+): Promise<ItemMergePreview> {
+  const previous = await previousItemState(handle);
+  const current = new Set(await batchMajors(handle.db, itemBatchId));
+  const missing = previous.majors.filter((major) => !current.has(major)).sort();
+  const vanishingItems =
+    missing.length === 0
+      ? 0
+      : await handle.db.$count(
+          items,
+          and(eq(items.source, 'master'), inArray(items.categoryMajor, missing)),
+        );
+  return { missingFamilies: missing, vanishingItems, previousBatchId: previous.batchId };
+}
+
+/** 병합 방식 결정: 이번 배치에 없는 직전 대분류가 있으면 선택 필수 (§4.2.3, AC-306) */
+async function resolveItemMerge(handle: DbHandle, input: ApplyInput): Promise<ItemMerge | null> {
+  if (!input.itemBatchId) return null;
+  const preview = await previewItemMerge(handle, input.itemBatchId);
+  const missing = preview.missingFamilies;
+  if (missing.length > 0 && !input.itemMerge) {
+    throw new AppError(
+      'VALIDATION',
+      `이번 품목 배치에 없는 제품군(${missing.join(', ')})이 있습니다. 병합 방식(유지·전량 교체)을 선택하세요`,
+      undefined,
+      { code: 'missing_families', ...preview },
+    );
+  }
+  return {
+    mode: input.itemMerge ?? 'merge',
+    keptMajors: missing,
+    fromBatchId: preview.previousBatchId,
+  };
+}
+
 export async function applyPolicy(ctx: ApplyContext, input: ApplyInput): Promise<ApplyResult> {
   const salesBatch = await loadBatch(ctx.handle, input.salesBatchId, 'sales_price', '판매단가');
   if (input.itemBatchId) await loadBatch(ctx.handle, input.itemBatchId, 'item_master', '품목조회');
+  const merge = await resolveItemMerge(ctx.handle, input);
   const expectedRows = await ctx.handle.db.$count(
     stgSalesPrices,
     eq(stgSalesPrices.batchId, salesBatch.id),
@@ -246,7 +331,7 @@ export async function applyPolicy(ctx: ApplyContext, input: ApplyInput): Promise
 
   try {
     const stats = await withTransaction(
-      (tx) => runSteps(tx, ctx, input, run.id, expectedRows),
+      (tx) => runSteps(tx, ctx, input, run.id, expectedRows, merge),
       ctx.handle,
     );
     return { runId: run.id, stats };

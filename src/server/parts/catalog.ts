@@ -2,13 +2,12 @@ import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 
 import type { Db } from '@/db';
 import { items, salesPrices } from '@/db/schema';
-import { PART_NAME_PATTERN, SERVICE_NAME_PATTERN } from '@/lib/constants/item-kind-rules';
+import { STUB_ITEM_KIND } from '@/lib/constants/item-kind-rules';
 import { PRODUCT_CARDS } from '@/lib/constants/product-cards';
 
 /**
  * 파츠 관리 후보 목록 (§4.5.6). 좌측 모델 = 본품, 우측 체크리스트 = 파츠.
- * 품목 마스터가 `item_kind` 를 주면 그대로 쓰고, 마스터 확정 전(stub)에는 `category_mid='Parts'` 또는
- * 품명 규칙(`lib/constants/item-kind-rules.ts` — 마스터 도착 시 제거)으로 파츠/서비스를 가른다. 나머지는 본품.
+ * 종류는 품목 마스터 적용 시 저장된 `items.item_kind`(규칙표 K0~K7, PRAMI-003 §4.2.7)만 읽는다 — 품명으로 판정하지 않는다.
  */
 export type ItemKind = '본품' | '파츠' | '결합형' | '서비스' | '기타';
 
@@ -22,15 +21,10 @@ export type CatalogItem = {
 export type PartsCatalog = { models: CatalogItem[]; parts: CatalogItem[] };
 
 /**
- * 품목 종류 판정 SQL. 마스터 우선 → category_mid='Parts' → 품명 규칙(파츠 → 서비스) → 본품.
- * 견적 계산기(STEP3~5)도 같은 판정을 쓴다.
+ * 품목 종류 SQL = 저장된 `items.item_kind`. 마스터에 없는(stub) 품번은 `기타`(STEP3 품목) — 파츠·결합형으로 오인하지 않는다
+ * (PRAMI-003 §4.2.7, AC-313). 견적 계산기(STEP3~5)도 같은 값을 쓴다.
  */
-export const ITEM_KIND_SQL = sql<string>`case
-  when ${items.itemKind} is not null then ${items.itemKind}::text
-  when ${items.categoryMid} = 'Parts' then '파츠'
-  when ${salesPrices.itemName} ~* ${PART_NAME_PATTERN} then '파츠'
-  when ${salesPrices.itemName} ~* ${SERVICE_NAME_PATTERN} then '서비스'
-  else '본품' end`;
+export const ITEM_KIND_SQL = sql<string>`coalesce(${items.itemKind}::text, ${STUB_ITEM_KIND})`;
 
 const KINDS: readonly ItemKind[] = ['본품', '파츠', '결합형', '서비스', '기타'];
 

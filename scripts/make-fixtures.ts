@@ -1,6 +1,7 @@
 /**
  * `pnpm fixtures` — 임포트 테스트 픽스처 생성 (§5 scripts/make-fixtures.ts, §6 PR-3).
  * 원본 `병합_가격_raw.xlsx`(SOURCE_XLSX, 읽기 전용)에서 계열 단위로 200행을 뽑고, 오류·품목조회 픽스처를 만든다.
+ * 품목조회는 39컬럼(PRAMI-003) — scripts/fixtures-items.ts.
  * 출력: tests/fixtures/imports/*.xlsx (커밋 대상). 원본이 바뀌지 않는 한 결과는 결정적이다.
  */
 import { mkdirSync, readFileSync } from 'node:fs';
@@ -9,10 +10,17 @@ import path from 'node:path';
 import readXlsxFile from 'read-excel-file/node';
 import writeXlsxFile, { type Cell, type SheetData } from 'write-excel-file/node';
 
+import { writeReducedRealItems, writeSyntheticItems } from './fixtures-items';
+
 const SOURCE =
   process.env.SOURCE_XLSX ??
   'C:/Users/USER/orca/workspaces/Prami/_inputs/PRAMI-001/병합_가격_raw.xlsx';
 const OUT_DIR = path.resolve(process.cwd(), 'tests/fixtures/imports');
+/** 품목조회 원본 5파일 (PRAMI-003). PRAMI_INPUTS_DIR 아래 PRAMI-003/ */
+const ITEM_SOURCE_DIR = path.join(
+  process.env.PRAMI_INPUTS_DIR ?? 'C:/Users/USER/orca/workspaces/Prami/_inputs',
+  'PRAMI-003',
+);
 const TARGET_ROWS = 200;
 
 type Row = (string | number | boolean | null)[];
@@ -45,24 +53,6 @@ async function write(name: string, data: SheetData, sheet: string) {
 
 const cells = (rows: Row[]): SheetData => rows.map((row) => row.map((value) => value as Cell));
 
-function itemRows(sales: Row[]): Row[] {
-  const codes = [...new Map(sales.map((row) => [row[2] as string, row])).values()];
-  // 앞 3개 품번은 마스터에서 빼 stub(미확인)으로, 4·5번째는 폐기, 6번째는 임시, 7번째는 매핑 불가 라벨
-  return codes.slice(3).map((row, index) => {
-    const status = index < 2 ? '폐기' : index === 2 ? '임시' : index === 3 ? '보류' : '사용';
-    const mid = index % 9 === 0 ? 'Parts' : `${row[1]} 라인업`;
-    return [
-      row[2] ?? null,
-      row[3] ?? null,
-      row[1] ?? null,
-      mid,
-      `${row[1]}-${index % 4}`,
-      status,
-      `비고 ${index}`,
-    ];
-  });
-}
-
 async function main() {
   mkdirSync(OUT_DIR, { recursive: true });
   const [sheet] = await readXlsxFile(readFileSync(SOURCE));
@@ -85,14 +75,8 @@ async function main() {
   broken.push([...sample[0]!]); // 같은 계열·적용시작일 중복
   await write('sales-row-errors.xlsx', cells([header, ...broken]), 'RAW');
 
-  const itemHeader: Row = ['품번', '품명', '대분류', '중분류', '소분류', '품목상태', '비고'];
-  const items = itemRows(sample);
-  // ERP 원본처럼 1행 제목 + 2행 헤더
-  await write('items-v1.xlsx', cells([['품목조회'], itemHeader, ...items]), '품목조회');
-  const itemsV2 = items.map((row, index) =>
-    index === 5 ? [...row.slice(0, 5), '폐기', row[6]!] : row,
-  );
-  await write('items-v2.xlsx', cells([itemHeader, ...itemsV2]), 'Sheet1');
+  await writeSyntheticItems(OUT_DIR, sample, ITEM_SOURCE_DIR);
+  await writeReducedRealItems(ITEM_SOURCE_DIR, path.resolve(process.cwd(), 'tests/fixtures/items'));
 
   const costHeader: Row = [
     '자재번호',

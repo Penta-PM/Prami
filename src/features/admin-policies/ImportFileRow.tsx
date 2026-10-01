@@ -27,12 +27,21 @@ type ImportFileRowProps = {
   onChange: (next: FileSelection) => void;
   /** 품목조회처럼 선택 사항이면 "없음"을 허용한다 */
   optional?: boolean;
+  /** 여러 파일을 한 배치로 (품목조회 1~5개, PRAMI-003 §4.2.3) */
+  multiple?: boolean;
   note?: ReactNode;
 };
 
 type UploadResponse =
   | { ok: true; data: UploadSummaryData }
-  | { ok: false; error: { code: string; message: string; details?: { existingBatchId?: string } } };
+  | {
+      ok: false;
+      error: {
+        code: string;
+        message: string;
+        details?: { existingBatchId?: string; errors?: UploadSummaryData['errors'] };
+      };
+    };
 
 const STATUS_LABELS: Record<BatchOption['status'], string> = {
   parsed: '미적용',
@@ -48,24 +57,29 @@ function optionLabel(option: BatchOption): string {
 
 /** 파일 1행 (디자인 "판매단가 파일" / "품목상태 파일"): 신규 업로드 ↔ 기존 파일 재사용 토글 (R-11) */
 export function ImportFileRow(props: ImportFileRowProps) {
-  const { kind, label, uploadLabel, options, selection, onChange, optional = false, note } = props;
+  const { kind, label, uploadLabel, options, selection, onChange, optional = false } = props;
+  const { multiple = false, note } = props;
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [fileErrors, setFileErrors] = useState<UploadSummaryData['errors']>([]);
   const [existingId, setExistingId] = useState<string | null>(null);
 
-  const upload = async (file: File) => {
+  const upload = async (files: File[]) => {
     setBusy(true);
     setMessage(null);
+    setFileErrors([]);
     setExistingId(null);
     try {
       const body = new FormData();
-      body.set('file', file);
+      if (multiple) for (const file of files) body.append('files', file);
+      else body.set('file', files[0]!);
       const response = await fetch(`/api/imports/${kind}`, { method: 'POST', body });
       const json = (await response.json()) as UploadResponse;
       if (json.ok) onChange({ ...selection, upload: json.data });
       else {
         setMessage(json.error.message);
+        setFileErrors(json.error.details?.errors ?? []);
         setExistingId(json.error.details?.existingBatchId ?? null);
       }
     } catch {
@@ -94,9 +108,10 @@ export function ImportFileRow(props: ImportFileRowProps) {
               accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               aria-label={uploadLabel}
               className="sr-only"
+              multiple={multiple}
               onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void upload(file);
+                const files = [...(event.target.files ?? [])];
+                if (files.length > 0) void upload(files);
               }}
             />
             <Button size="sm" disabled={busy} onClick={() => inputRef.current?.click()}>
@@ -133,6 +148,16 @@ export function ImportFileRow(props: ImportFileRowProps) {
             >
               기존 파일 선택
             </button>
+          ) : null}
+          {fileErrors.length > 0 ? (
+            <span className="mt-1 block">
+              {fileErrors.slice(0, 10).map((error, index) => (
+                <span key={index} className="block">
+                  {error.file ? `${error.file} · ` : ''}
+                  {error.message}
+                </span>
+              ))}
+            </span>
           ) : null}
         </p>
       ) : null}

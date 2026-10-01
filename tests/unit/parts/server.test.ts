@@ -7,7 +7,6 @@ import { importBatches, items, partMappings, salesPrices, stgPartMappings } from
 import { AppError } from '@/lib/result';
 import { applyPolicy } from '@/server/imports/apply-policy';
 import { applyPartImport } from '@/server/parts/apply-parts';
-import { classifyItemName } from '@/lib/constants/item-kind-rules';
 import { listPartsCatalog, listProductFamilies, sortFamilies } from '@/server/parts/catalog';
 import {
   deletePartMapping,
@@ -34,9 +33,16 @@ beforeAll(async () => {
   const admin = await insertUser(handle, { email: 'admin@pentasecurity.com', role: 'ADMIN' });
   ctx = { handle, actor: { id: admin.id, label: admin.email }, meta: TEST_META };
   const sales = await uploadFixture(handle, 'sales', 'sales-200.xlsx');
+  // 종류는 품목 마스터 적용 시 저장된 값만 쓴다 (PRAMI-003 §4.2.7) — 합성 품목 마스터(실데이터 분류)를 함께 적용
+  const itemsBatch = await uploadFixture(handle, 'items', 'items-v1.xlsx');
   await applyPolicy(
     { handle, actor: TEST_ACTOR, meta: TEST_META },
-    { salesBatchId: sales.batchId, itemBatchId: null, salesReused: false, itemReused: false },
+    {
+      salesBatchId: sales.batchId,
+      itemBatchId: itemsBatch.batchId,
+      salesReused: false,
+      itemReused: false,
+    },
   );
 });
 
@@ -50,50 +56,40 @@ async function firstModel() {
 }
 
 describe('listPartsCatalog / listProductFamilies', () => {
-  it('제품군 탭 = 판매단가 product_family, 파츠 = 품명 N_ 규칙(마스터 확정 전), 나머지는 본품', async () => {
+  it('제품군 탭 = 판매단가 product_family, 모델 = 저장된 종류 본품, 파츠 = 저장된 종류 파츠', async () => {
     const families = await listProductFamilies(handle.db);
     expect(families).toContain('WAPPLES');
     const catalog = await listPartsCatalog(handle.db, 'WAPPLES');
     expect(catalog.parts.map((item) => item.itemCode)).toContain(N_51080);
-    expect(catalog.parts.every((item) => classifyItemName(item.itemName) === '파츠')).toBe(true);
+    expect(catalog.parts.every((item) => item.kind === '파츠')).toBe(true);
     expect(catalog.models.some((item) => item.itemCode === N_51080)).toBe(false);
     expect(catalog.models.length).toBeGreaterThan(0);
     expect(catalog.models.every((item) => item.kind === '본품')).toBe(true);
   });
 
-  it('PR-6 QA LOW-1: SSD/Memory/HDD/GBIC/가속카드는 파츠, 기술지원비·유지보수·M/D 는 서비스(모델 목록 제외)', async () => {
-    expect(classifyItemName('SSD 512GB')).toBe('파츠');
-    expect(classifyItemName('Memory DDR5 16GB')).toBe('파츠');
-    expect(classifyItemName('Memory(8G)')).toBe('파츠');
-    expect(classifyItemName('HDD 2TB')).toBe('파츠');
-    expect(classifyItemName('eoptolink Multi 10G GBIC')).toBe('파츠');
-    expect(classifyItemName('SSL가속카드 N_70002')).toBe('파츠');
-    expect(classifyItemName('N_51080 - 1G UTP 8포트(바이패스X)')).toBe('파츠');
-    expect(classifyItemName('기술지원비(M/D)')).toBe('서비스');
-    expect(classifyItemName('SA 유지보수')).toBe('서비스');
-    expect(classifyItemName('SA 긴급 장애지원 서비스')).toBe('서비스');
-    expect(classifyItemName('Delivery Fee')).toBe('서비스');
-    expect(classifyItemName('Wapples-2700 (H2700)')).toBe('본품');
-    expect(classifyItemName('Wapples SA-500')).toBe('본품');
-    // SQL 판정도 같은 규칙: 판매단가 품명을 바꿔 확인
+  it('AC-313: 품명으로 판정하지 않는다 — 판매단가 품명을 SSD·기술지원비로 바꿔도 종류 불변, stub 품번은 기타(목록 제외)', async () => {
     const model = await firstModel();
-    await handle.db
-      .update(salesPrices)
-      .set({ itemName: 'SSD 2TB' })
-      .where(eq(salesPrices.itemCode, model.itemCode));
-    const catalog = await listPartsCatalog(handle.db, 'WAPPLES');
-    expect(catalog.parts.some((item) => item.itemCode === model.itemCode)).toBe(true);
-    await handle.db
-      .update(salesPrices)
-      .set({ itemName: '기술지원비(M/D)' })
-      .where(eq(salesPrices.itemCode, model.itemCode));
-    const service = await listPartsCatalog(handle.db, 'WAPPLES');
-    expect(service.models.some((item) => item.itemCode === model.itemCode)).toBe(false);
-    expect(service.parts.some((item) => item.itemCode === model.itemCode)).toBe(false);
+    for (const itemName of ['SSD 2TB', '기술지원비(M/D)', 'NIC N_51080']) {
+      await handle.db
+        .update(salesPrices)
+        .set({ itemName })
+        .where(eq(salesPrices.itemCode, model.itemCode));
+      const catalog = await listPartsCatalog(handle.db, 'WAPPLES');
+      expect(catalog.models.some((item) => item.itemCode === model.itemCode)).toBe(true);
+      expect(catalog.parts.some((item) => item.itemCode === model.itemCode)).toBe(false);
+    }
     await handle.db
       .update(salesPrices)
       .set({ itemName: model.itemName })
       .where(eq(salesPrices.itemCode, model.itemCode));
+    const stubs = await handle.db
+      .select({ code: items.itemCode })
+      .from(items)
+      .where(eq(items.source, 'stub'));
+    expect(stubs.length).toBeGreaterThan(0);
+    const all = await listPartsCatalog(handle.db, 'WAPPLES');
+    const listed = new Set([...all.models, ...all.parts].map((item) => item.itemCode));
+    expect(stubs.some(({ code }) => listed.has(code))).toBe(false);
   });
 
   it('PR-6 QA INFO-2: 제품군 탭 순서 = 홈 카드 순서, iSIGN PKI 는 iSIGN 다음', () => {
@@ -107,7 +103,7 @@ describe('listPartsCatalog / listProductFamilies', () => {
     ]);
   });
 
-  it('품목 마스터가 item_kind 를 주면 그것을 우선한다', async () => {
+  it('저장된 item_kind 를 그대로 쓴다 (본품 → 파츠로 바꾸면 파츠 목록)', async () => {
     const model = await firstModel();
     await handle.db
       .update(items)
@@ -115,7 +111,10 @@ describe('listPartsCatalog / listProductFamilies', () => {
       .where(eq(items.itemCode, model.itemCode));
     const catalog = await listPartsCatalog(handle.db, 'WAPPLES');
     expect(catalog.parts.some((item) => item.itemCode === model.itemCode)).toBe(true);
-    await handle.db.update(items).set({ itemKind: null }).where(eq(items.itemCode, model.itemCode));
+    await handle.db
+      .update(items)
+      .set({ itemKind: '본품' })
+      .where(eq(items.itemCode, model.itemCode));
   });
 });
 
@@ -180,7 +179,8 @@ describe('savePartMapping / listPartMappings (AC-30, AC-31)', () => {
     const [stub] = await handle.db.select().from(items).where(eq(items.itemCode, N_51080));
     expect(stub).toMatchObject({
       itemName: expect.stringMatching(/^N_51080/),
-      raw: { stub: true },
+      source: 'stub',
+      itemKind: null,
     });
   });
 

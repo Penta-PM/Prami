@@ -1,92 +1,150 @@
 /**
- * `pnpm import:source [파일경로] [--kind sales|costs]` — 판매단가/원가 엑셀을 업로드·적용 경로 그대로 반영한다
- * (로컬·QA 데이터 준비용). 원가는 `--kind costs` (기본 원본: `원자재코드 정보_260825.xlsx`).
- * 화면의 "가격정책 적용"과 같은 코드(uploadImport → applyPolicy)를 쓰고 감사 로그 actor 는 `script` 로 남는다.
- * 같은 파일이 이미 업로드돼 있으면 그 배치를 재사용한다.
+ * `pnpm import:source <파일…> [--kind sales|costs|items] [--merge merge|replace]` — 엑셀을 화면과 같은 업로드·적용 경로로
+ * 반영한다(로컬·QA 데이터 준비용). 감사 로그 actor 는 `script`. 같은 파일(묶음)이 이미 업로드돼 있으면 그 배치를 재사용한다.
+ * - sales(기본): 판매단가 파일 1개 → 적용(품목조회 없음)
+ * - costs: 원가 파일 1개 → 원가 적용
+ * - items: 품목조회 파일 1~5개 → 배치 1개 → **현재 적용 중인 판매단가 배치 재사용** + 품목 새 업로드로 적용 (PRAMI-003 §4.2.8).
+ *   직전 품목에 있던 제품군이 빠지면 `--merge`(기본 merge = 누락 제품군 유지, replace = 전량 교체)
+ * 파일 경로는 필수다 — 로컬 하드코딩 기본 경로는 없다 (PRAMI-003 §4.3.4 ①).
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { loadEnvConfig } from '@next/env';
 
-const INPUT_DIR = 'C:/Users/USER/orca/workspaces/Prami/_inputs/PRAMI-001';
-const DEFAULT_SOURCE: Record<'sales' | 'costs', string> = {
-  sales: `${INPUT_DIR}/병합_가격_raw.xlsx`,
-  costs: `${INPUT_DIR}/원자재코드 정보_260825.xlsx`,
-};
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const KINDS = ['sales', 'costs', 'items'] as const;
+type Kind = (typeof KINDS)[number];
+
+type Ctx = {
+  handle: Awaited<ReturnType<typeof import('../src/db').createDb>>;
+  actor: { id: null; label: string };
+  meta: { ip: null; userAgent: string };
+};
+
+function parseArgs(args: string[]) {
+  const option = (name: string) => {
+    const index = args.indexOf(name);
+    return index >= 0 ? args[index + 1] : undefined;
+  };
+  const kindArg = option('--kind') ?? 'sales';
+  if (!(KINDS as readonly string[]).includes(kindArg)) {
+    throw new Error(`--kind 는 ${KINDS.join('|')} 중 하나입니다`);
+  }
+  const merge = option('--merge');
+  if (merge !== undefined && merge !== 'merge' && merge !== 'replace') {
+    throw new Error('--merge 는 merge|replace 중 하나입니다');
+  }
+  // 옵션 값 위치(--kind 다음, --merge 다음)는 파일 경로가 아니다 (CI E2E globalSetup 회귀 방지)
+  const valueIndexes = new Set(
+    ['--kind', '--merge']
+      .map((name) => args.indexOf(name))
+      .filter((i) => i >= 0)
+      .map((i) => i + 1),
+  );
+  const files = args.filter((arg, index) => !arg.startsWith('--') && !valueIndexes.has(index));
+  if (files.length === 0)
+    throw new Error('파일 경로를 지정하세요 (예: pnpm import:source <파일.xlsx>)');
+  return { kind: kindArg as Kind, files, merge: merge as 'merge' | 'replace' | undefined };
+}
+
+function existingBatchId(error: unknown): string | null {
+  return (error as { details?: { existingBatchId?: string } }).details?.existingBatchId ?? null;
+}
+
+function assertParsed(upload: {
+  status: string;
+  errorCount: number;
+  errors: { row: number; column: string; message: string; file?: string }[];
+}) {
+  if (upload.status === 'parsed' && upload.errorCount === 0) return;
+  const head = upload.errors
+    .slice(0, 5)
+    .map((e) => `${e.file ? `${e.file} ` : ''}${e.row}행 ${e.column} ${e.message}`)
+    .join('; ');
+  throw new Error(`검증 실패: ${head}`);
+}
+
+async function uploadOrReuse(ctx: Ctx, kind: Kind, files: string[]) {
+  const inputs = files.map((file) => ({
+    fileName: path.basename(file),
+    mimeType: XLSX_MIME,
+    bytes: readFileSync(file),
+  }));
+  try {
+    if (kind === 'items') {
+      const { uploadItemFiles } = await import('../src/server/imports/item-upload');
+      const upload = await uploadItemFiles(ctx, inputs);
+      assertParsed(upload);
+      return { batchId: upload.batchId, reused: false };
+    }
+    const { uploadImport } = await import('../src/server/imports/upload');
+    const upload = await uploadImport(ctx, { kind, ...inputs[0]! });
+    assertParsed(upload);
+    return { batchId: upload.batchId, reused: false };
+  } catch (error) {
+    const existing = existingBatchId(error);
+    if (!existing) throw error;
+    return { batchId: existing, reused: true };
+  }
+}
+
+async function applyCosts(ctx: Ctx, batchId: string, reused: boolean) {
+  const [{ applyCostImport }, { costAccessForTests }] = await Promise.all([
+    import('../src/server/cost/apply-costs'),
+    import('../src/server/cost/access-token'),
+  ]);
+  const access = costAccessForTests({ id: null, email: 'script' });
+  const { stats, warnings } = await applyCostImport(
+    { handle: ctx.handle, access, meta: ctx.meta },
+    { batchId, reused },
+  );
+  console.log(
+    `[import:source] 같은 날짜 중복 ${warnings.sameDateDuplicates.length}그룹 (값 다름 ${warnings.conflictingDuplicates.length})`,
+  );
+  return stats;
+}
+
+async function currentSalesBatchId(ctx: Ctx): Promise<string> {
+  const { getCurrentApply } = await import('../src/server/imports/queries');
+  const current = await getCurrentApply(ctx.handle.db);
+  if (!current?.sales)
+    throw new Error('적용 중인 판매단가 배치가 없습니다 — 판매단가를 먼저 적용하세요');
+  return current.sales.id;
+}
 
 async function main(): Promise<void> {
   loadEnvConfig(process.cwd());
-  const args = process.argv.slice(2);
-  const kindIndex = args.indexOf('--kind');
-  const kind = kindIndex >= 0 && args[kindIndex + 1] === 'costs' ? 'costs' : 'sales';
-  // --kind 가 없으면 kindIndex = -1 이라 index 0(파일 경로)을 지우면 안 된다 (CI E2E globalSetup 회귀)
-  const positional = args.filter(
-    (arg, index) => arg !== '--kind' && !(kindIndex >= 0 && index === kindIndex + 1),
-  );
-  const file = positional[0] ?? process.env.SOURCE_XLSX ?? DEFAULT_SOURCE[kind];
-  const [{ createDb }, { uploadImport }] = await Promise.all([
-    import('../src/db'),
-    import('../src/server/imports/upload'),
-  ]);
+  const { kind, files, merge } = parseArgs(process.argv.slice(2));
+  const { createDb } = await import('../src/db');
   const handle = await createDb();
-  const ctx = {
+  const ctx: Ctx = {
     handle,
     actor: { id: null, label: 'script' },
     meta: { ip: null, userAgent: 'import-source' },
   };
   try {
-    let batchId: string;
-    let reused = false;
-    try {
-      const upload = await uploadImport(ctx, {
-        kind,
-        fileName: path.basename(file),
-        mimeType: XLSX_MIME,
-        bytes: readFileSync(file),
-      });
-      if (upload.status !== 'parsed' || upload.errorCount > 0) {
-        throw new Error(
-          `검증 실패: ${upload.errors
-            .slice(0, 5)
-            .map((e) => `${e.row}행 ${e.column} ${e.message}`)
-            .join('; ')}`,
-        );
-      }
-      batchId = upload.batchId;
-    } catch (error) {
-      const existing = (error as { details?: { existingBatchId?: string } }).details
-        ?.existingBatchId;
-      if (!existing) throw error;
-      batchId = existing;
-      reused = true;
-    }
+    const { batchId, reused } = await uploadOrReuse(ctx, kind, files);
     if (kind === 'costs') {
-      const [{ applyCostImport }, { costAccessForTests }] = await Promise.all([
-        import('../src/server/cost/apply-costs'),
-        import('../src/server/cost/access-token'),
-      ]);
-      const access = costAccessForTests({ id: null, email: 'script' });
-      const { stats, warnings } = await applyCostImport(
-        { handle, access, meta: ctx.meta },
-        { batchId, reused },
-      );
-      console.log(
-        `[import:source] 같은 날짜 중복 ${warnings.sameDateDuplicates.length}그룹 (값 다름 ${warnings.conflictingDuplicates.length})`,
-      );
-      console.log(`[import:source] costs ${path.basename(file)} batch=${batchId}`);
-      console.log(`[import:source] stats ${JSON.stringify(stats)}`);
+      const stats = await applyCosts(ctx, batchId, reused);
+      console.log(`[import:source] costs batch=${batchId} stats ${JSON.stringify(stats)}`);
       return;
     }
     const { applyPolicy } = await import('../src/server/imports/apply-policy');
-    const { runId, stats } = await applyPolicy(ctx, {
-      salesBatchId: batchId,
-      itemBatchId: null,
-      salesReused: reused,
-      itemReused: false,
-    });
-    console.log(`[import:source] ${path.basename(file)} batch=${batchId} run=${runId}`);
+    const input =
+      kind === 'items'
+        ? {
+            salesBatchId: await currentSalesBatchId(ctx),
+            itemBatchId: batchId,
+            salesReused: true,
+            itemReused: reused,
+            ...(merge ? { itemMerge: merge } : {}),
+          }
+        : { salesBatchId: batchId, itemBatchId: null, salesReused: reused, itemReused: false };
+    const { runId, stats } = await applyPolicy(ctx, input);
+    console.log(
+      `[import:source] ${kind} ${files.map((f) => path.basename(f)).join(', ')} batch=${batchId} run=${runId}`,
+    );
     console.log(`[import:source] stats ${JSON.stringify(stats)}`);
   } finally {
     await handle.close();

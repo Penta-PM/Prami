@@ -65,7 +65,9 @@ PR-11b 는 아래 "착수 조건" 4종이 사용자에게서 도착해야 시작
    `DB_DRIVER=neon DATABASE_URL=<브랜치 연결 문자열> pnpm db:migrate`
    - `db:migrate` 는 `drizzle/` 의 미적용 마이그레이션을 순서대로 모두 적용한다. PRAMI-002 이후 추가분:
      `0003_llm_credentials`(사용자 LLM 자격 증명·설정), `0004_oauth_flow_states`(OpenRouter OAuth 콜백 state 1회 소비 기록 —
-     state 원문 없이 SHA-256 해시만, 만료 행은 콜백 때 정리). **앱 배포 전에** 브랜치별로 실행한다(0004 미적용이면 OAuth 콜백이 실패).
+     state 원문 없이 SHA-256 해시만, 만료 행은 콜백 때 정리), `0005_items_master`(품목 마스터 39컬럼 반영 — 품목 컬럼·`source` 추가와 stub 백필,
+     master CHECK, `import_batches.source_files`, `policy_apply_runs.item_merge`; 추가형이라 직전 앱의 조회와 호환).
+     **앱 배포 전에** 브랜치별로 실행한다(0004 미적용이면 OAuth 콜백이, 0005 미적용이면 품목 적용이 실패).
 4. 시드·데이터: `pnpm seed` → 판매단가 원본 5,885행·원가 487행 적용(화면 또는 `pnpm import:source`). 로컬 측정 적용 시간 0.5s 내외.
 5. 트랜잭션 실패 주입(R-3): preview 전용으로 `IMPORT_FAULT_INJECTION` 을 잠깐 켜 QA-03e 를 재실행하고 곧바로 지운다.
 6. AC-01·AC-20·AC-21·AC-40·QA-03a/03e 를 `DB_DRIVER=neon` 으로 재실행해 결과를 §7 표에 기록한다.

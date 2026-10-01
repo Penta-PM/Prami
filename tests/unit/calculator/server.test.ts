@@ -32,6 +32,7 @@ let handle: DbHandle;
 let userCtx: QuotesContext;
 let otherCtx: QuotesContext;
 let adminCtx: QuotesContext;
+let salesBatchId: string;
 const N_51080 = 'P10800011';
 const YEAR = new Date().getFullYear();
 
@@ -47,9 +48,10 @@ beforeAll(async () => {
   otherCtx = ctxFor(await insertUser(handle, { email: 'other@pentasecurity.com', role: 'USER' }));
   adminCtx = ctxFor(await insertUser(handle, { email: 'admin@pentasecurity.com', role: 'ADMIN' }));
   const sales = await uploadFixture(handle, 'sales', 'sales-200.xlsx');
+  salesBatchId = sales.batchId;
   await applyPolicy(
     { handle, actor: TEST_ACTOR, meta: TEST_META },
-    { salesBatchId: sales.batchId, itemBatchId: null, salesReused: false, itemReused: false },
+    { salesBatchId, itemBatchId: null, salesReused: false, itemReused: false },
   );
 });
 
@@ -65,7 +67,40 @@ async function sqlPriceTypes(family: string) {
   return new Set(rows.map((row) => row.price_type));
 }
 
-describe('STEP1~5 후보', () => {
+describe('품목 마스터 없음 (stub = 기타, PRAMI-003 AC-313)', () => {
+  it('STEP2: 마스터 없으면 대분류 = 제품군, 중/소 없음', async () => {
+    expect(await listQuoteCategories(handle.db, 'WAPPLES')).toEqual({
+      majors: ['WAPPLES'],
+      mids: [],
+      minors: [],
+      hasMaster: false,
+    });
+  });
+
+  it('품명으로 판정하지 않으므로 파츠·결합형 후보가 없다', async () => {
+    const [model] = await listQuoteItems(handle.db, { family: 'WAPPLES', priceType: '정상판매' });
+    const parts = await listQuoteParts(handle.db, {
+      family: 'WAPPLES',
+      priceType: '정상판매',
+      modelItemCode: model!.itemCode,
+    });
+    expect(parts.parts).toEqual([]);
+    expect(await listQuoteBundles(handle.db, { family: 'WAPPLES', priceType: '정상판매' })).toEqual(
+      [],
+    );
+  });
+});
+
+describe('STEP1~5 후보 (품목 마스터 적용 후)', () => {
+  beforeAll(async () => {
+    // 종류는 품목 마스터 적용 시 저장된 값만 쓴다 (PRAMI-003 §4.2.7) — 합성 품목 마스터(실데이터 분류)를 적용
+    const itemsBatch = await uploadFixture(handle, 'items', 'items-v1.xlsx');
+    await applyPolicy(
+      { handle, actor: TEST_ACTOR, meta: TEST_META },
+      { salesBatchId, itemBatchId: itemsBatch.batchId, salesReused: true, itemReused: false },
+    );
+  });
+
   it('AC-61: 단가유형 = 운영중 행의 DISTINCT price_type (SQL 대조), 품목 가격 = 그 단가유형 최신 행', async () => {
     const options = await listQuotePriceTypes(handle.db, 'WAPPLES');
     expect(new Set(options.map((option) => option.priceType))).toEqual(
@@ -91,16 +126,7 @@ describe('STEP1~5 후보', () => {
     );
   });
 
-  it('STEP2: 마스터 없으면 대분류 = 제품군, 중/소 없음', async () => {
-    expect(await listQuoteCategories(handle.db, 'WAPPLES')).toEqual({
-      majors: ['WAPPLES'],
-      mids: [],
-      minors: [],
-      hasMaster: false,
-    });
-  });
-
-  it('AC-62: part_mappings 가 있으면 그 파츠만, 없으면 제품군 파츠 전체(fallback); 결합형은 마스터 없으면 빈 목록', async () => {
+  it('AC-62: part_mappings 가 있으면 그 파츠만, 없으면 제품군 파츠 전체(fallback)', async () => {
     const [model] = await listQuoteItems(handle.db, { family: 'WAPPLES', priceType: '정상판매' });
     const before = await listQuoteParts(handle.db, {
       family: 'WAPPLES',
@@ -129,9 +155,6 @@ describe('STEP1~5 후보', () => {
       modelItemCode: model!.itemCode,
     });
     expect(asp.parts.map((part) => part.itemCode)).toEqual([N_51080]);
-    expect(await listQuoteBundles(handle.db, { family: 'WAPPLES', priceType: '정상판매' })).toEqual(
-      [],
-    );
     expect(
       (await listGroupHardware(handle.db, 'WAPPLES')).every((row) => row.kind === '본품'),
     ).toBe(true);

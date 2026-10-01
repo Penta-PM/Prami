@@ -4,6 +4,11 @@ import { currentRequestMeta } from '@/server/audit/request-meta';
 import { runRoute } from '@/server/auth/rbac';
 import { isImportKind, KIND_DEFINITIONS } from '@/server/imports/kinds';
 import { MAX_IMPORT_FILE_BYTES } from '@/server/imports/parse-xlsx';
+import {
+  MAX_ITEM_FILES,
+  MAX_ITEM_TOTAL_BYTES,
+  uploadItemFiles,
+} from '@/server/imports/item-upload';
 import { AUDIT_IMPORT_UPLOAD, uploadImport } from '@/server/imports/upload';
 import { rateLimiters, retryAfterSeconds } from '@/server/rate-limit';
 
@@ -12,6 +17,7 @@ export const maxDuration = 60;
 
 /**
  * POST /api/imports/{sales|items|costs|parts} — multipart `file` (§4.4.1, §4.7).
+ * 품목조회(items)는 `files[]` 1~5개(또는 `file` 1개) → 배치 1개 (PRAMI-003 §4.2.3, 파일당 10MB·합계 25MB).
  * → { ok, data: { batchId, status, rowCount, errorCount, preview[], errors[], warnings[] } }
  * 같은 파일 재업로드는 409 + details.existingBatchId (AC-24).
  */
@@ -44,20 +50,29 @@ export async function POST(
         },
       );
     }
+    const ctx = {
+      handle: await getDbHandle(),
+      actor: { id: user.id, label: user.email },
+      meta: await currentRequestMeta(),
+    };
+    if (kind === 'items') {
+      const files = await readUploadedFiles(request);
+      const inputs = await Promise.all(
+        files.map(async (file) => ({
+          fileName: file.name,
+          mimeType: file.type,
+          bytes: Buffer.from(await file.arrayBuffer()),
+        })),
+      );
+      return Response.json({ ok: true, data: await uploadItemFiles(ctx, inputs) }, { status: 201 });
+    }
     const file = await readUploadedFile(request);
-    const result = await uploadImport(
-      {
-        handle: await getDbHandle(),
-        actor: { id: user.id, label: user.email },
-        meta: await currentRequestMeta(),
-      },
-      {
-        kind,
-        fileName: file.name,
-        mimeType: file.type,
-        bytes: Buffer.from(await file.arrayBuffer()),
-      },
-    );
+    const result = await uploadImport(ctx, {
+      kind,
+      fileName: file.name,
+      mimeType: file.type,
+      bytes: Buffer.from(await file.arrayBuffer()),
+    });
     return Response.json({ ok: true, data: result }, { status: 201 });
   });
 }
@@ -70,6 +85,29 @@ const MULTIPART_OVERHEAD = 64 * 1024;
  * 요청 본문에서 file 을 꺼낸다. 본문을 읽기 전에 Content-Length 로 크기를 확인하고(413),
  * 본문이 잘려 multipart 파싱이 실패해도 500 이 아니라 규정된 오류 봉투로 응답한다 (PR-3 QA LOW).
  */
+async function readForm(request: Request, limit: number): Promise<FormData> {
+  const declared = Number(request.headers.get('content-length') ?? 0);
+  if (declared > limit + MULTIPART_OVERHEAD) throw new AppError('PAYLOAD_TOO_LARGE', TOO_LARGE);
+  try {
+    return await request.formData();
+  } catch {
+    throw new AppError('VALIDATION', '업로드 본문을 읽을 수 없습니다. 파일을 다시 선택해 주세요');
+  }
+}
+
+/** 품목조회: `files` 여러 개(또는 `file` 1개). 개수·크기 상세 검증은 uploadItemFiles 가 한다 */
+async function readUploadedFiles(request: Request): Promise<File[]> {
+  const form = await readForm(request, MAX_ITEM_TOTAL_BYTES);
+  const files = [...form.getAll('files'), ...form.getAll('file')].filter(
+    (entry): entry is File => entry instanceof File,
+  );
+  if (files.length === 0) throw new AppError('VALIDATION', 'files 필드에 엑셀 파일을 첨부하세요');
+  if (files.length > MAX_ITEM_FILES) {
+    throw new AppError('VALIDATION', `품목조회 파일은 한 번에 ${MAX_ITEM_FILES}개까지입니다`);
+  }
+  return files;
+}
+
 async function readUploadedFile(request: Request): Promise<File> {
   const declared = Number(request.headers.get('content-length') ?? 0);
   if (declared > MAX_IMPORT_FILE_BYTES + MULTIPART_OVERHEAD) {

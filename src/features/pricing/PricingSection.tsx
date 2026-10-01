@@ -28,7 +28,7 @@ export async function PricingSection({
   const { filter, errors } = parsePriceFilter(searchParams);
   const db = await getDb();
   const [options, years, page] = await Promise.all([
-    getCategoryOptions(db, { major: filter.major, mid: filter.mid }),
+    getCategoryOptions(db, { major: filter.major, mid: filter.mid, family: filter.family }),
     listEffectiveYears(db),
     getPriceRows(db, filter),
   ]);

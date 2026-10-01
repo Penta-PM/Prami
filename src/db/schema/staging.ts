@@ -11,6 +11,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
+import { itemKindEnum, itemStatusEnum } from './enums';
 import { importBatches } from './imports';
 import { salesPriceSourceColumns } from './sales-prices';
 
@@ -41,10 +42,21 @@ export const stgItems = pgTable(
     rowIndex: integer('row_index').notNull(),
     itemCode: text('item_code').notNull(),
     itemName: text('item_name').notNull(),
+    /** 정규화 제품군 (PRAMI-003 §4.2.4) */
     categoryMajor: text('category_major'),
+    categoryMajorRaw: text('category_major_raw'),
     categoryMid: text('category_mid'),
     categoryMinor: text('category_minor'),
     itemStatusRaw: text('item_status_raw'),
+    itemStatus: itemStatusEnum('item_status'),
+    itemKind: itemKindEnum('item_kind'),
+    itemKindRule: text('item_kind_rule'),
+    baseUnit: text('base_unit'),
+    erpRegisteredOn: date('erp_registered_on'),
+    erpModifiedOn: date('erp_modified_on'),
+    /** 다중 파일 배치의 원본 파일명·엑셀 행 (row_index 는 배치 내 순번) */
+    sourceFile: text('source_file'),
+    fileRow: integer('file_row'),
     raw: jsonb('raw').$type<Record<string, unknown>>(),
   },
   (t) => [primaryKey({ columns: [t.batchId, t.rowIndex] })],

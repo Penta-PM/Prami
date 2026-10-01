@@ -6,7 +6,13 @@ import { and, eq, inArray } from 'drizzle-orm';
 
 import type { Db, DbHandle } from '@/db';
 import { firstRow } from '@/db/rows';
-import { importBatches, items, salesPrices, type ImportRowError } from '@/db/schema';
+import {
+  importBatches,
+  items,
+  salesPrices,
+  type ImportRowError,
+  type ImportSourceFile,
+} from '@/db/schema';
 import { withTransaction } from '@/db/tx';
 import {
   EMPTY_DUPLICATE_WARNINGS,
@@ -52,11 +58,15 @@ export type UploadResult = {
   warnings: ImportRowError[];
   /** r4 §4.4.7: 원가 파일의 같은 날짜 중복 그룹(전부 / 값이 다른 그룹). 다른 종류는 비어 있다 */
   duplicateWarnings: DuplicateWarnings;
+  /** 품목조회 다중 파일 배치의 파일 목록 (PRAMI-003 §4.2.3) */
+  sourceFiles?: ImportSourceFile[];
+  /** 품목조회: 직전 적용 대비 빠진 대분류와 전량 교체 시 사라질 품번 수 (병합 방식 선택 UI) */
+  itemMerge?: { missingFamilies: string[]; vanishingItems: number };
 };
 
 export const AUDIT_IMPORT_UPLOAD = 'import.upload';
 
-function validateFile(input: UploadInput): void {
+export function validateFile(input: Omit<UploadInput, 'kind'>): void {
   if (!input.fileName.toLowerCase().endsWith('.xlsx')) {
     throw new AppError('VALIDATION', '엑셀(.xlsx) 파일만 업로드할 수 있습니다');
   }
@@ -74,7 +84,15 @@ function validateFile(input: UploadInput): void {
  * 실패한 배치는 재업로드를 막지 않도록 지우고 다시 받는다.
  */
 async function guardDuplicate(db: Db, input: UploadInput, sha256: string): Promise<void> {
-  const dbKind = KIND_DEFINITIONS[input.kind].dbKind;
+  await guardDuplicateBatch(db, KIND_DEFINITIONS[input.kind].dbKind, sha256);
+}
+
+/** 같은 종류·같은 해시 배치가 있으면 409 (실패·오류 배치는 지우고 통과) */
+export async function guardDuplicateBatch(
+  db: Db,
+  dbKind: (typeof KIND_DEFINITIONS)[ImportKind]['dbKind'],
+  sha256: string,
+): Promise<void> {
   const [existing] = await db
     .select()
     .from(importBatches)
@@ -156,6 +174,11 @@ async function parseUpload(db: Db, input: UploadInput): Promise<ParseOutcome<unk
 
 /** 업로드 → 파싱·검증 → 배치 + 스테이징 + 감사 로그 (한 트랜잭션). 반영(적용)은 하지 않는다 */
 export async function uploadImport(ctx: UploadContext, input: UploadInput): Promise<UploadResult> {
+  // 품목조회는 단일 파일도 다중 파일 경로로 (검증 코드·병합 정보 일원화, PRAMI-003 §4.2.3)
+  if (input.kind === 'items') {
+    const { uploadItemFiles } = await import('./item-upload');
+    return uploadItemFiles(ctx, [input]);
+  }
   validateFile(input);
   const sha256 = createHash('sha256').update(input.bytes).digest('hex');
   await guardDuplicate(ctx.handle.db, input, sha256);
