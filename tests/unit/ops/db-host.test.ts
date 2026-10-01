@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { createRequire } from 'node:module';
 
-import { describe, expect, it } from 'vitest';
+import { Client as NeonClient, neon, neonConfig } from '@neondatabase/serverless';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { seedTargetViolation } from '@/db/seed';
 import { dbHostOf, isPrivateDbHost, isRemoteDbTarget, targetHostViolation } from '@/lib/db-host';
@@ -43,6 +44,11 @@ const AMBIGUOUS = [
   'postgres://prami@127.1/x',
   'postgres://prami@0x7f.0.0.1/x',
   'postgres://prami@2130706433/x',
+  // Neon 드라이버(`http:` 로 다시 파싱)는 `\` 를 authority 끝으로 본다 — pg 와 호스트가 갈린다 (PR-2b QA L-N1)
+  'postgresql://u:pw@localhost\\@ep-x.example.neon.tech/db',
+  'postgresql://u:pw@10.0.0.5\\@ep-x.example.neon.tech/db',
+  'postgresql://u:pw@ep-x.example.neon.tech\\@localhost/db',
+  'postgresql://u:pw@ep-x.example.neon.tech\\/db',
   '',
   undefined,
 ];
@@ -73,23 +79,87 @@ describe('dbHostOf — 판정 불가는 null (QA M-1)', () => {
   });
 
   it('pg-connection-string 과 대조: 호스트를 돌려주면 드라이버가 연결할 호스트와 같다', () => {
-    const corpus = [
-      'postgres://u:p@localhost:5432/x',
-      'postgresql://u:p@Example-Remote-Host/x?sslmode=require',
-      'postgres://u@[::1]/x',
-      'postgres://u@db/x?application_name=a&options=-c%20x%3D1',
-      'postgres://u@postgres:5432/x?ssl=true',
-      'postgres://localhost@example-remote-host/x',
-      'postgres://u:p%40ss@localhost/x',
-      ...AMBIGUOUS.filter((url): url is string => Boolean(url)),
-    ];
-    for (const url of corpus) {
+    expect(DIFF_CORPUS.filter((url) => dbHostOf(url) !== null).length).toBeGreaterThanOrEqual(10);
+    for (const url of DIFF_CORPUS) {
       const ours = dbHostOf(url);
       if (ours === null) continue;
-      const theirs = String(pgParse(url).host ?? '')
-        .toLowerCase()
-        .replace(/^\[(.*)\]$/, '$1');
-      expect({ url, host: theirs }).toEqual({ url, host: ours });
+      expect({ url, host: driverHost(pgParse(url).host) }).toEqual({ url, host: ours });
+    }
+  });
+});
+
+/** 드라이버의 호스트 표기를 dbHostOf 와 같은 형식으로 (소문자·IPv6 괄호 제거·끝의 점 하나 = 같은 주소) */
+function driverHost(host: string | null | undefined): string {
+  return String(host ?? '')
+    .toLowerCase()
+    .replace(/^\[(.*)\]$/, '$1')
+    .replace(/\.$/, '');
+}
+
+const DIFF_CORPUS = [
+  'postgres://u:p@localhost:5432/x',
+  'postgresql://u:pw@Example-Remote-Host/x?sslmode=require',
+  'postgresql://app:pw@ep-x-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
+  'postgresql://app:pw@EP-X.example.neon.tech./neondb',
+  'postgres://u:pw@[::1]/x',
+  'postgres://u:pw@[0:0:0:0:0:0:0:1]:5432/x',
+  'postgres://u:pw@[2001:db8::5]/x',
+  'postgres://u:pw@db/x?application_name=a&options=-c%20x%3D1',
+  'postgres://u:pw@postgres:5432/x?ssl=true',
+  'postgres://localhost:pw@example-remote-host/x',
+  'postgres://u:p%40ss@localhost/x',
+  'postgres://u:pw@10.0.0.5./x',
+  'postgres://u:pw@127.0.0.1/x',
+  ...AMBIGUOUS.filter((url): url is string => Boolean(url)),
+];
+
+describe('@neondatabase/serverless 와 대조 (PR-2b QA L-N1)', () => {
+  const original = {
+    fetchEndpoint: neonConfig.fetchEndpoint,
+    fetchFunction: neonConfig.fetchFunction,
+  };
+  afterEach(() => {
+    neonConfig.fetchEndpoint = original.fetchEndpoint;
+    neonConfig.fetchFunction = original.fetchFunction;
+  });
+
+  /** neon() HTTP 경로가 요청할 호스트 — fetch 를 가로채 네트워크 없이 확인한다 */
+  async function neonHttpHost(url: string): Promise<string | null> {
+    let host: string | null = null;
+    neonConfig.fetchEndpoint = (h) => {
+      host = h;
+      return 'https://captured.invalid/sql';
+    };
+    neonConfig.fetchFunction = () => Promise.reject(new Error('captured'));
+    try {
+      await neon(url)`select 1`;
+    } catch {
+      // 의도한 중단 (또는 드라이버가 URL 을 거부 → host null)
+    }
+    return host;
+  }
+
+  function neonPoolHost(url: string): string | null {
+    try {
+      return new NeonClient(url).host;
+    } catch {
+      return null;
+    }
+  }
+
+  it('역슬래시 우회 URL 은 Neon 이 실제로 다른 호스트로 연결한다 (재현) → dbHostOf null', async () => {
+    const url = 'postgresql://u:pw@localhost\\@ep-x.example.neon.tech/db';
+    expect(await neonHttpHost(url)).toBe('localhost');
+    expect(neonPoolHost(url)).toBe('localhost');
+    expect(dbHostOf(url)).toBeNull();
+  });
+
+  it('dbHostOf 가 호스트를 돌려주면 Neon HTTP·Pool 이 연결할 호스트와 같다', async () => {
+    for (const url of DIFF_CORPUS) {
+      const ours = dbHostOf(url);
+      if (ours === null) continue;
+      expect({ url, http: driverHost(await neonHttpHost(url)) }).toEqual({ url, http: ours });
+      expect({ url, pool: driverHost(neonPoolHost(url)) }).toEqual({ url, pool: ours });
     }
   });
 });

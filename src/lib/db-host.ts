@@ -20,13 +20,14 @@ const CANONICAL_IPV4 =
  * 연결 문자열 → 실제 연결 호스트(소문자, IPv6 괄호 제거). **판정할 수 없으면 null** — 호출부는 null 을 원격으로 다룬다(fail-closed).
  * null 인 경우: URL 이 아님(key=value 형식·`/소켓` 경로 포함), postgres(ql) 스킴이 아님, URL 호스트 없음(드라이버가 PGHOST·소켓으로 대체),
  * 호스트 재정의 쿼리(`?host=`·`?hostaddr=`·`?service=` …, 대소문자 무시), 퍼센트 인코딩 호스트(`%2Fvar%2Frun` 소켓 경로 등),
- * 다중 호스트(`h1,h2`), 정규 표기가 아닌 숫자형 IPv4.
+ * 다중 호스트(`h1,h2`), 정규 표기가 아닌 숫자형 IPv4, Neon 드라이버 해석과 다른 호스트(역슬래시 등 — neonHostOf).
  */
 export function dbHostOf(databaseUrl: string | undefined): string | null {
   if (!databaseUrl) return null;
+  const trimmed = databaseUrl.trim();
   let url: URL;
   try {
-    url = new URL(databaseUrl.trim());
+    url = new URL(trimmed);
   } catch {
     return null;
   }
@@ -34,14 +35,32 @@ export function dbHostOf(databaseUrl: string | undefined): string | null {
   for (const key of url.searchParams.keys()) {
     if (HOST_OVERRIDE_PARAMS.has(key.trim().toLowerCase())) return null;
   }
-  // 끝의 점 하나는 DNS 루트(FQDN) 표기 — `localhost.`·`10.0.0.5.` 도 같은 주소로 연결되므로 떼고 판정한다
-  const host = url.hostname
+  const host = normalizeHost(url.hostname);
+  if (!host || /[%,/\\\s]/.test(host) || host.endsWith('.')) return null;
+  if (NUMERIC_HOST.test(host) && !CANONICAL_IPV4.test(host)) return null;
+  if (neonHostOf(trimmed, url.protocol) !== host) return null;
+  return host;
+}
+
+/** 소문자·IPv6 괄호 제거. 끝의 점 하나는 DNS 루트(FQDN) 표기 — `localhost.`·`10.0.0.5.` 도 같은 주소로 연결되므로 떼고 판정한다 */
+function normalizeHost(hostname: string): string {
+  return hostname
     .toLowerCase()
     .replace(/^\[(.*)\]$/, '$1')
     .replace(/\.$/, '');
-  if (!host || /[%,/\\\s]/.test(host) || host.endsWith('.')) return null;
-  if (NUMERIC_HOST.test(host) && !CANONICAL_IPV4.test(host)) return null;
-  return host;
+}
+
+/**
+ * `@neondatabase/serverless` 가 보는 호스트 — neon() HTTP·Pool 모두 드라이버의 url 파서가 스킴을 `http:` 로 바꿔 다시 파싱한다.
+ * 특수 스킴 파싱은 `\` 를 `/` 처럼 authority 끝으로 보고 퍼센트 인코딩·IDN 을 풀어, `postgres:` 비특수 파싱과 호스트가 갈릴 수 있다
+ * (`localhost\@ep-….neon.tech` → Neon 은 localhost 로 연결, PR-2b QA L-N1). 파싱 실패는 null(호출부에서 불일치 → 판정 불가).
+ */
+function neonHostOf(databaseUrl: string, protocol: string): string | null {
+  try {
+    return normalizeHost(new URL('http:' + databaseUrl.slice(protocol.length)).hostname);
+  } catch {
+    return null;
+  }
 }
 
 export function isLocalDbHost(host: string | null): boolean {

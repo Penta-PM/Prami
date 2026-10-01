@@ -56,6 +56,17 @@ const VIOLATIONS: Case[] = [
   ['e', { DATABASE_URL: 'postgresql://app:pw@[::ffff:127.0.0.1]/prami' }, /DATABASE_URL/],
   ['e', { DATABASE_URL: 'postgresql://app:pw@127.1/prami' }, /DATABASE_URL/],
   ['e', { DATABASE_URL: 'postgresql://app:pw@10.0.0.5./prami' }, /DATABASE_URL/],
+  // PR-2b QA L-N1: Neon 드라이버는 `\` 를 authority 끝으로 봐 localhost·10.0.0.5 로 연결한다
+  [
+    'e',
+    { DATABASE_URL: 'postgresql://app:pw@localhost\\@ep-x.example.neon.tech/prami' },
+    /DATABASE_URL/,
+  ],
+  [
+    'e',
+    { DATABASE_URL: 'postgresql://app:pw@10.0.0.5\\@ep-x.example.neon.tech/prami' },
+    /DATABASE_URL/,
+  ],
   ['f', { NEXT_PUBLIC_APP_URL: 'http://prami.example.com' }, /NEXT_PUBLIC_APP_URL/],
   ['f', { AUTH_URL: undefined }, /AUTH_URL/],
   ['g', { ADMIN_EMAILS: '' }, /ADMIN_EMAILS/],
