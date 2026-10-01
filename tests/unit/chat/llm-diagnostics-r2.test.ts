@@ -127,8 +127,8 @@ describe('AC-352 진단 필드 이름 (§4.5.1 r2)', () => {
   });
 
   it.each([
-    ['키 모양', 'sk-proj-abcdefghijklmnopqrstuvwxyz0123'],
-    ['Bearer 토큰', 'Bearer sk-proj-abcdefghijklmnop'],
+    ['키 모양', 'sk-proj-test-INJECTED-abcdefghijklmnopqrstu'],
+    ['Bearer 토큰', 'Bearer sk-proj-test-INJECTED-abcdefghij'],
     ['스크립트', '<script>alert(1)</script>'],
     ['공백 포함', 'invalid request error'],
   ])('허용 목록 밖 type·code (%s) → other, 식별자 아닌 param 은 생략', (_label, value) => {
