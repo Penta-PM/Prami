@@ -4,11 +4,12 @@ import { dbHostOf, isPrivateDbHost } from './lib/db-host';
  * 운영 기동 검사 (PRAMI-003 §4.3.3, fail-closed). env.ts 의 parseEnv 가 스키마 검증 뒤에 호출한다.
  * - production: `VERCEL_ENV=production` 또는 (`NODE_ENV=production` ∧ `APP_ENV=production`) — 위반 하나라도 있으면 기동·빌드 거부
  * - preview: `VERCEL_ENV=preview` — ⓕ·ⓖ 는 경고, 나머지는 거부
+ * - ⓚ(PRAMI-003 PR-3 OAuth 운영화: `AUTH_REQUIRE_HD`·리다이렉트 프록시 설정)는 두 환경 모두 거부
  * 메시지에는 변수 이름만 쓴다(값 없음). 원문(source)을 함께 받는 이유는 ⓐ 처럼 "설정 자체" 를 봐야 하는 규칙 때문이다.
  */
 export type DeployTarget = 'production' | 'preview';
 
-export type DeployRuleId = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'seed';
+export type DeployRuleId = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'h' | 'i' | 'j' | 'k' | 'seed';
 
 export type DeployIssue = { rule: DeployRuleId; keys: string[]; message: string };
 
@@ -21,6 +22,8 @@ export type DeployCheckEnv = {
   DB_DRIVER: string;
   DATABASE_URL?: string;
   AUTH_URL?: string;
+  AUTH_REDIRECT_PROXY_URL?: string;
+  AUTH_REQUIRE_HD: boolean;
   AUTH_SECRET?: string;
   AUTH_GOOGLE_ID?: string;
   AUTH_GOOGLE_SECRET?: string;
@@ -72,7 +75,62 @@ export const TEST_MODE_KEYS = [
   'AUTH_TEST_MODE_ALLOW_REMOTE',
 ] as const;
 
-type Rule = (source: Source, env: DeployCheckEnv) => DeployIssue | null;
+/** `AUTH_REDIRECT_PROXY_URL` 형식: https://<고정 preview 호스트>/api/auth (Auth.js 가 /callback/<provider> 를 붙인다) */
+function isProxyUrlShape(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' && url.pathname.replace(/\/$/, '') === '/api/auth' && !url.search
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * ⓚ OAuth 운영화 (PRAMI-003 PR-3, §4.4.1) — production·preview 모두 거부:
+ * - `AUTH_REQUIRE_HD=true` 필수 (Google `hd` 클레임 서버 검증)
+ * - production 에 `AUTH_REDIRECT_PROXY_URL` 금지 (운영 로그인이 preview 호스트를 거치면 안 됨)
+ * - preview 의 `AUTH_REDIRECT_PROXY_URL` 은 `https://<고정 호스트>/api/auth`, 함께 `AUTH_URL` 을 두면 거부
+ *   (next-auth 가 모든 요청 origin 을 AUTH_URL 로 바꿔 배포별 preview 의 state·PKCE 쿠키와 콜백이 어긋난다)
+ */
+function oauthIssue(env: DeployCheckEnv, target: DeployTarget): DeployIssue | null {
+  const problems: Array<[key: string, why: string]> = [];
+  if (!env.AUTH_REQUIRE_HD) problems.push(['AUTH_REQUIRE_HD', 'true 여야 합니다']);
+  const proxy = env.AUTH_REDIRECT_PROXY_URL;
+  if (target === 'production' && proxy !== undefined) {
+    problems.push(['AUTH_REDIRECT_PROXY_URL', 'production 에는 설정하지 않습니다']);
+  }
+  if (target === 'preview' && proxy !== undefined) {
+    if (!isProxyUrlShape(proxy)) {
+      problems.push([
+        'AUTH_REDIRECT_PROXY_URL',
+        'https://<고정 preview 호스트>/api/auth 형식이어야 합니다',
+      ]);
+    }
+    // 프록시는 고정 preview 호스트 자신이어야 한다 — 다른 호스트로 Google 콜백(code)이 새지 않게 (보안 리뷰 LOW)
+    else if (new URL(proxy).origin !== new URL(env.NEXT_PUBLIC_APP_URL).origin) {
+      problems.push([
+        'AUTH_REDIRECT_PROXY_URL',
+        'NEXT_PUBLIC_APP_URL(고정 preview 호스트)과 같은 origin 이어야 합니다',
+      ]);
+    }
+    if (env.AUTH_URL !== undefined) {
+      problems.push([
+        'AUTH_URL',
+        'AUTH_REDIRECT_PROXY_URL 과 함께 두지 않습니다 (preview 는 AUTH_URL 미설정)',
+      ]);
+    }
+  }
+  if (problems.length === 0) return null;
+  return issue(
+    'k',
+    problems.map(([key]) => key),
+    problems.map(([key, why]) => `${key} ${why}`).join(' · '),
+  );
+}
+
+type Rule = (source: Source, env: DeployCheckEnv, target: DeployTarget) => DeployIssue | null;
 
 const issue = (rule: DeployRuleId, keys: string[], message: string): DeployIssue => ({
   rule,
@@ -133,10 +191,14 @@ const RULES: Rule[] = [
       ? issue('e', ['DATABASE_URL'], 'DATABASE_URL 호스트가 로컬·사설 주소입니다')
       : null;
   },
-  (_source, env) => {
+  (_source, env, target) => {
+    // preview 가 리다이렉트 프록시를 쓰면 AUTH_URL 을 두지 않는다 (배포별 origin 유지 — 규칙 ⓚ, PRAMI-003 §4.4.1)
+    const authUrlOk =
+      env.AUTH_URL?.startsWith('https://') ||
+      (target === 'preview' && env.AUTH_REDIRECT_PROXY_URL !== undefined);
     const keys = [
       ...(env.NEXT_PUBLIC_APP_URL.startsWith('https://') ? [] : ['NEXT_PUBLIC_APP_URL']),
-      ...(env.AUTH_URL?.startsWith('https://') ? [] : ['AUTH_URL']),
+      ...(authUrlOk ? [] : ['AUTH_URL']),
     ];
     return keys.length > 0
       ? issue('f', keys, `${keys.join(', ')} 는 https:// 주소여야 합니다`)
@@ -171,6 +233,7 @@ const RULES: Rule[] = [
           'CHAT_LLM_ENABLED=true 이면 LLM_CREDENTIALS_KEKS 가 필요합니다',
         )
       : null,
+  (_source, env, target) => oauthIssue(env, target),
   (source) =>
     isSet(source, 'PRAMI_ALLOW_SEED')
       ? issue(
@@ -187,7 +250,9 @@ const PREVIEW_WARN_ONLY: ReadonlySet<DeployRuleId> = new Set(['f', 'g']);
 export function checkDeployment(source: Source, env: DeployCheckEnv): DeployCheckResult {
   const target = deployTarget(source);
   if (!target) return { errors: [], warnings: [] };
-  const found = RULES.map((rule) => rule(source, env)).filter((x): x is DeployIssue => x !== null);
+  const found = RULES.map((rule) => rule(source, env, target)).filter(
+    (x): x is DeployIssue => x !== null,
+  );
   if (target === 'production') return { errors: found, warnings: [] };
   return {
     errors: found.filter((entry) => !PREVIEW_WARN_ONLY.has(entry.rule)),

@@ -10,7 +10,8 @@ export type CredentialStatusView =
   | 'rate_limited'
   | 'error'
   | 'unreadable'
-  | 'unsupported';
+  | 'unsupported'
+  | 'expired';
 
 export const STATUS_LABELS: Record<
   CredentialStatusView | 'missing',
@@ -25,6 +26,8 @@ export const STATUS_LABELS: Record<
   error: { label: '확인 실패', tone: 'amber' },
   unreadable: { label: '재등록 필요', tone: 'red' },
   unsupported: { label: '지원 종료', tone: 'neutral' },
+  // PRAMI-003 §4.4.3 (AC-346): expires_at 경과
+  expired: { label: '재연결 필요', tone: 'red' },
 };
 
 /** 검증 실패 코드 → 사용자 문구 (벤더 원문 메시지는 쓰지 않는다, T-6) */
@@ -33,7 +36,27 @@ export const ERROR_CODE_LABELS: Record<string, string> = {
   forbidden: '키에 필요한 권한이 없습니다',
   rate_limited: '벤더 사용 한도를 초과했습니다',
   unavailable: '벤더 응답이 없어 확인하지 못했습니다 (잠시 후 다시 검증)',
+  expired: '연결이 만료되었습니다 — 다시 연결하세요',
 };
+
+/** 만료된 OAuth 연결 카드 안내 (PRAMI-003 §4.4.3 확정 문구) */
+export function expiredNotice(vendorLabel: string): string {
+  return `${vendorLabel} 연결이 만료되었습니다 — 다시 연결하세요`;
+}
+
+/**
+ * OAuth 연결 카드의 한도 안내 (PRAMI-003 §4.4.3) — PKCE 흐름은 한도를 지정할 수 없어 벤더 대시보드에서 키별로 설정하게 한다.
+ */
+export function oauthLimitNotice(vendorLabel: string, keyLabel: string): string {
+  return `사용 한도(크레딧)는 ${vendorLabel} 대시보드에서 키 "${keyLabel}"에 직접 설정하세요. 앱에서는 한도를 지정할 수 없습니다.`;
+}
+
+/**
+ * OAuth 연결 해제 후 안내 (PRAMI-003 §4.4.3, AC-347) — 앱 저장본은 즉시 파기됐지만 벤더 쪽 키는 앱이 폐기할 수 없다.
+ */
+export function oauthDisconnectNotice(vendorLabel: string, keyLabel: string): string {
+  return `${vendorLabel} 연결을 해제하고 앱에 저장된 키를 파기했습니다. 앱에서는 ${vendorLabel} 쪽 키를 폐기할 수 없으니 ${vendorLabel} 대시보드에서 키 "${keyLabel}"를 삭제하세요.`;
+}
 
 /** 변조·KEK 누락으로 복호화할 수 없는 키 (QA L-1) */
 export const UNREADABLE_NOTICE = '키를 읽을 수 없습니다 — 다시 등록하세요';

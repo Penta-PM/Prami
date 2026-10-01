@@ -20,6 +20,7 @@ import {
   sealOAuthCookie,
   verifyCallback,
 } from './openrouter';
+import { oauthKeyLabel } from './key-label';
 import { consumeOAuthState } from './state-store';
 
 /**
@@ -71,7 +72,7 @@ export function startFlow(user: SessionUser): Response {
     env.AUTH_SECRET,
   );
   return redirect(
-    authorizeUrl(env.NEXT_PUBLIC_APP_URL, session),
+    authorizeUrl(env.NEXT_PUBLIC_APP_URL, session, oauthKeyLabel()),
     cookieHeader(cookie, OAUTH_TTL_SECONDS),
   );
 }

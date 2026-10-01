@@ -11,7 +11,9 @@ import { VENDOR_HOSTS, type LlmVendor, type VerifyRequest } from './vendors/regi
  * availableModels: 정상 판정 + 목록 전 페이지를 읽었을 때만 배열, 그 밖(목록 형식 이상·다음 페이지 실패·페이지 상한 초과·비정상 판정)은 null(미확인).
  */
 export type VerifyOutcome = 'valid' | 'invalid' | 'forbidden' | 'rate_limited' | 'error';
-export type VerifyErrorCode = 'invalid_key' | 'forbidden' | 'rate_limited' | 'unavailable';
+/** expired: 자격 증명 만료 (PRAMI-003 §4.4.4 — 벤더 호출 없이 판정) */
+export type VerifyErrorCode =
+  'invalid_key' | 'forbidden' | 'rate_limited' | 'unavailable' | 'expired';
 export type VerifyResult = {
   outcome: VerifyOutcome;
   errorCode: VerifyErrorCode | null;

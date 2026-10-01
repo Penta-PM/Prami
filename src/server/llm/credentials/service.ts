@@ -32,6 +32,7 @@ import {
   updateOwnStatus,
   type CredentialRow,
 } from './repository';
+import { EXPIRED_ERROR_CODE, isCredentialExpired } from './expiry';
 import { toCredentialView, type CredentialView } from './view';
 
 /**
@@ -222,10 +223,21 @@ function statusPatch(result: VerifyResult, now: Date) {
   };
 }
 
+/** 만료된 자격 증명은 벤더를 호출하지 않고 invalid·code=expired 로 기록한다 (PRAMI-003 §4.4.4, AC-346) */
+const EXPIRED_RESULT: VerifyResult = {
+  outcome: 'invalid',
+  errorCode: EXPIRED_ERROR_CODE,
+  availableModels: null,
+};
+
 async function runVerify(ctx: CredentialsContext, vendor: LlmVendor): Promise<CredentialView> {
   const userId = ctx.actor.id;
   let result: VerifyResult | 'unreadable';
   let credentialId: string | null = null;
+  const current = await findCredentialRow(ctx.handle.db, userId, vendor.id);
+  if (current && isCredentialExpired(current)) {
+    return recordVerify(ctx, vendor, EXPIRED_RESULT, current.id);
+  }
   try {
     result = await withDecryptedSecret(ctx, userId, vendor.id, (secret, id) => {
       credentialId = id;
@@ -268,6 +280,8 @@ async function recordVerify(
       vendor: vendor.id,
       status: updated.status,
       outcome,
+      ...(result !== 'unreadable' &&
+        result.errorCode === EXPIRED_ERROR_CODE && { code: EXPIRED_ERROR_CODE }),
       ...(superseded && { superseded }),
     },
     result: outcome === 'valid' ? 'success' : 'error',

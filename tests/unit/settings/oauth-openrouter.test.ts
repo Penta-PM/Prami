@@ -141,6 +141,24 @@ describe('start (AC-244)', () => {
     expect(cookie).not.toContain(back.searchParams.get('state')!);
   });
 
+  it('PRAMI-003 AC-345: key_label=Prami (<env>) — 한도·만료 파라미터는 PKCE auth URL 미지원이라 보내지 않는다', async () => {
+    const { location } = await begin();
+    expect(location.searchParams.get('key_label')).toBe('Prami (local)');
+    for (const unsupported of ['limit', 'usage_limit_type', 'expires_at']) {
+      expect(location.searchParams.has(unsupported)).toBe(false);
+    }
+  });
+
+  it.each([
+    [{ VERCEL_ENV: 'production' }, 'Prami (production)'],
+    [{ VERCEL_ENV: 'preview' }, 'Prami (preview)'],
+    [{ NODE_ENV: 'production', APP_ENV: 'production' }, 'Prami (production)'],
+    [{}, 'Prami (local)'],
+  ])('PRAMI-003 AC-345: 환경 %o → 라벨 %s', async (source, label) => {
+    const { oauthEnvName, oauthKeyLabel } = await import('@/server/llm/oauth/key-label');
+    expect(oauthKeyLabel(oauthEnvName(source))).toBe(label);
+  });
+
   it('비로그인 → 401', async () => {
     state.sessionUserId = undefined;
     expect((await start.GET()).status).toBe(401);
@@ -219,6 +237,12 @@ describe('callback (AC-244)', () => {
     });
     expectNoSecret(JSON.stringify(audits), EXCHANGED_KEY, '감사');
     expectNoSecret(state.logs.join('\n'), EXCHANGED_KEY, '로그');
+    // PRAMI-003 AC-345: 콜백 응답(Location·Set-Cookie·본문)에도 교환 키 노출 0 (PRAMI-002 AC-204 기준)
+    expectNoSecret(
+      JSON.stringify([...response.headers.entries()]) + (await response.text()),
+      EXCHANGED_KEY,
+      '콜백 응답',
+    );
   });
 
   it('OAuth 전용 벤더는 키 직접 저장 거부, 삭제하면 감사 disconnect', async () => {

@@ -23,6 +23,8 @@ export const signInPolicy: SignInPolicy = {
   autoProvision: env.AUTH_AUTO_PROVISION,
   // PRAMI-003 §4.9.3 L3: 운영·preview 에서는 fixture 접두 이메일 로그인 거부
   rejectFixtureAccounts: isDeployedEnvironment(process.env),
+  // PRAMI-003 §4.4.1: Google ID 토큰 hd 클레임 서버 검증 (production·preview true, 로컬 false)
+  requireHostedDomain: env.AUTH_REQUIRE_HD,
 };
 
 /** 테스트 로그인 거부 사유를 /login?error=CredentialsSignin&code=<사유> 로 전달한다 */
@@ -68,22 +70,31 @@ const authorizeTest: TestAuthorize = async (credentials, request) => {
   if (!email || !env.AUTH_TEST_PASSWORD || !passwordMatches(password, env.AUTH_TEST_PASSWORD)) {
     throw new TestSignInError('credentials');
   }
-  const outcome = await signInWithPolicy({ email, emailVerified: true });
+  const outcome = await signInWithPolicy({ idp: 'test', email, emailVerified: true });
   if (!outcome.ok) throw new TestSignInError(outcome.reason);
   return { id: outcome.user.id, email: outcome.user.email, name: outcome.user.name };
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  /**
+   * preview 배포별 URL 은 Google 에 등록할 수 없어(정확 일치만) 고정 preview 호스트가 콜백을 받아 state 의 원래 배포로 되돌린다
+   * (Auth.js 리다이렉트 프록시, PRAMI-003 §4.4.1). preview 전 배포가 같은 AUTH_SECRET 을 써야 하고, preview 에는 AUTH_URL 을 두지 않는다
+   * (AUTH_URL 이 있으면 next-auth 가 모든 요청 origin 을 그 값으로 바꿔 배포별 쿠키·콜백이 어긋난다 — docs/deploy/oauth.md).
+   */
+  redirectProxyUrl: env.AUTH_REDIRECT_PROXY_URL,
   providers: buildProviders(env, authorizeTest),
   callbacks: {
     ...authConfig.callbacks,
     /** Google 로그인 판정 (도메인·부트스트랩·자동 생성·비활성). 테스트 로그인은 authorize 에서 이미 판정됨 */
     async signIn({ account, profile }) {
       if (account?.provider !== 'google') return true;
+      // profile = 검증된 ID 토큰 클레임 (Auth.js OIDC). hd 는 Workspace 계정에만 있다
       const outcome = await signInWithPolicy({
+        idp: 'google',
         email: profile?.email ?? '',
         emailVerified: profile?.email_verified === true,
+        hostedDomain: typeof profile?.hd === 'string' ? profile.hd : null,
         name: profile?.name,
         googleSub: account.providerAccountId,
         avatarUrl: typeof profile?.picture === 'string' ? profile.picture : null,

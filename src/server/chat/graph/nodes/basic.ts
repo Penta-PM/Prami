@@ -76,7 +76,7 @@ export function setupGuide(
 ): ChatGraphUpdate {
   const runtime = runtimeOf(config);
   const status = state.llm.status as SetupStatus;
-  const setup = setupFor(status, labelsOf(runtime));
+  const setup = setupFor(status, labelsOf(runtime), { expired: runtime.credential?.expired });
   const unsupported = runtime.credential?.unsupportedVendorLabels ?? [];
   if (status === 'missing' && unsupported.length > 0) {
     return {

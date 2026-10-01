@@ -36,10 +36,10 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 | `DATABASE_URL_UNPOOLED` | — (GitHub Environment 시크릿) | — (GitHub 시크릿) | — | 마이그레이션 시 | S | `pnpm db:migrate`·`pg_dump` 전용. **Vercel 런타임에 두지 않는다** |
 | `PGLITE_DATA_DIR` | — | — | 테스트만 | | C | |
 | `PRAMI_ALLOW_SEED` | **금지** | **금지** | CI·격리 DB 만 `1` | | C | 로컬 :3000 금지(§4.9.3 L2) |
-| `AUTH_SECRET` | 운영 전용 | preview 전용 | 임의 | ✓ | S | production ≠ preview. 없으면 거부(ⓗ) |
-| `AUTH_URL` | 운영 도메인 | 고정 preview 호스트 | — | ✓ | C | https(ⓕ) |
-| `AUTH_REDIRECT_PROXY_URL` | — | `https://<preview 고정 호스트>/api/auth` | — | preview | C | PR-3 |
-| `AUTH_REQUIRE_HD` | `true` | `true` | `false` | | C | Google `hd` 서버 검증(PR-3) |
+| `AUTH_SECRET` | 운영 전용 | preview 전용(고정 호스트·모든 preview 배포 공유) | 임의 | ✓ | S | production ≠ preview. 없으면 거부(ⓗ). preview 는 하나를 공유해야 리다이렉트 프록시가 state 를 푼다 |
+| `AUTH_URL` | 운영 도메인 | **미설정**(리다이렉트 프록시 사용 — [`oauth.md`](oauth.md) §3) | — | production | C | https(ⓕ). preview 에 프록시와 함께 두면 거부(ⓚ) |
+| `AUTH_REDIRECT_PROXY_URL` | **금지** | `https://<preview 고정 호스트>/api/auth` | — | preview | C | 형식 `https://…/api/auth`, production 에 있으면 거부(ⓚ) |
+| `AUTH_REQUIRE_HD` | `true` | `true` | `false` | ✓ | C | Google ID 토큰 `hd` 클레임 서버 검증. production·preview 에서 `true` 아니면 거부(ⓚ) |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | 운영 OAuth 클라이언트 | preview 클라이언트 | 개발 클라이언트(선택) | ✓ | S | 환경별 분리. 없으면 거부(ⓗ) |
 | `AUTH_TEST_MODE` / `AUTH_TEST_PASSWORD` | **금지** | **금지** | 선택 | | | 값이 false 여도 설정 자체 거부(ⓐ) |
 | `AUTH_TEST_ALLOWED_HOSTS` | — | — | 선택 | | C | 테스트 모드 자체가 금지 |
@@ -62,7 +62,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 | `CHAT_LLM_MAX_OUTPUT_TOKENS` / `CHAT_LLM_TIMEOUT_MS` / `CHAT_LLM_MAX_TOOL_CALLS` / `CHAT_HISTORY_MAX_TURNS` | 기본 | 기본 | 기본 | | C | PRAMI-002 §4.13 |
 | `LLM_VERIFY_PER_MIN` | `5` | `5` | `5` | | C | |
 | `LLM_VENDOR_MODE` | **미설정(live)** | 미설정 | `live`/`fake` | | C | `fake` 거부(ⓒ) |
-| `LLM_OAUTH_OPENROUTER` | `false` | 선택 | 선택 | | C | PR-3 |
+| `LLM_OAUTH_OPENROUTER` | `false`(켜는 기준 [`oauth.md`](oauth.md) §5) | 선택 | 선택 | | C | |
 | `LANGSMITH_TRACING` / `LANGCHAIN_TRACING_V2` | **금지** | **금지** | 미설정 | | | 켜면 거부(ⓒ) |
 <!-- env-table:end -->
 
@@ -73,7 +73,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 
 `VERCEL_ENV=production` 또는 (`NODE_ENV=production` ∧ `APP_ENV=production`)이면 아래 위반이 하나라도 있을 때 **기동·빌드를 거부**한다
 (`next.config.ts` 가 `src/env` 를 import 하므로 Vercel 빌드도 같은 규칙으로 실패). 메시지에는 변수 이름만 나온다.
-`VERCEL_ENV=preview` 는 ⓕ·ⓖ 만 경고, 나머지는 거부다. 로컬·CI(`VERCEL_ENV` 없음, `APP_ENV` 없음)는 검사하지 않는다.
+`VERCEL_ENV=preview` 는 ⓕ·ⓖ 만 경고, 나머지(ⓚ 포함)는 거부다. 로컬·CI(`VERCEL_ENV` 없음, `APP_ENV` 없음)는 검사하지 않는다.
 값은 대소문자·공백을 무시하고, `production`·`development` 가 아닌 `VERCEL_ENV`(오타 포함)는 preview 로 검사한다.
 
 | # | 규칙 |
@@ -83,11 +83,12 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 | ⓒ | `LLM_VENDOR_MODE=fake`, `LANGSMITH_TRACING`/`LANGCHAIN_TRACING_V2` 켜짐 |
 | ⓓ | `TRUST_PROXY_HEADERS ≠ vercel` |
 | ⓔ | `DB_DRIVER ≠ neon`, `DATABASE_URL` 없음, 호스트가 로컬·사설 주소, 연결 호스트를 판정할 수 없음(`?host=`·`?hostaddr=`·소켓 경로·비정규 숫자 IP 등) |
-| ⓕ | `NEXT_PUBLIC_APP_URL`·`AUTH_URL` 이 `https://` 아님(미설정 포함) |
+| ⓕ | `NEXT_PUBLIC_APP_URL`·`AUTH_URL` 이 `https://` 아님(미설정 포함). preview 가 `AUTH_REDIRECT_PROXY_URL` 을 쓰면 `AUTH_URL` 미설정이 정상 |
 | ⓖ | `ADMIN_EMAILS` 비어 있음 |
 | ⓗ | `AUTH_SECRET`·`AUTH_GOOGLE_ID`·`AUTH_GOOGLE_SECRET` 없음 |
 | ⓘ | `RATE_LIMIT_BACKEND=memory` 인데 `RATE_LIMIT_ALLOW_MEMORY_IN_PRODUCTION≠true` (upstash 인데 URL·토큰 없음은 모든 환경에서 거부) |
 | ⓙ | `CHAT_LLM_ENABLED=true` 인데 KEK 없음 |
+| ⓚ | (PR-3) `AUTH_REQUIRE_HD≠true` · production 에 `AUTH_REDIRECT_PROXY_URL` 설정 · preview 의 `AUTH_REDIRECT_PROXY_URL` 이 `https://…/api/auth` 형식 아님 · preview 에 프록시와 `AUTH_URL` 동시 설정 |
 | seed | `PRAMI_ALLOW_SEED` 설정(§4.9.3 L2) |
 
 ## 3. Vercel 프로젝트 설정
@@ -97,7 +98,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 3. 함수 리전을 Neon 리전과 맞춘다(조회 p95 < 300ms).
 4. `maxDuration`: 임포트 60s, PDF 30s, 챗봇 60s(코드). Fluid compute 기본 최대(Pro 800s) 안이다.
 5. PDF 폰트·로고는 `outputFileTracingIncludes` 로 함수 번들에 포함된다. preview 에서 한글 PDF 1회 확인(C-15).
-6. Google OAuth 리다이렉트 URI: `https://<운영 도메인>/api/auth/callback/google`, `https://<preview 고정 호스트>/api/auth/callback/google`(PR-3).
+6. Google OAuth 클라이언트·동의 화면·리다이렉트 URI·preview 리다이렉트 프록시: [`oauth.md`](oauth.md) (PR-3).
 7. `DB_DRIVER=neon` 빌드의 함수 트레이스 전체(`/api/*`·페이지·proxy·instrumentation)에 `@electric-sql/pglite` 가 들어가지 않는지 `pnpm check:trace` 로 확인한다(AC-330 ③).
 
 ## 4. Neon 구성과 마이그레이션 (§4.3.5·§4.3.6)
@@ -112,7 +113,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 | 롤백 | 앱: Vercel instant rollback. DB: forward-only(expand/contract) — 손상 시만 PITR(런북 R-3) |
 
 - 마이그레이션은 **앱 배포 전에** 적용한다: `DB_DRIVER=neon DATABASE_URL_UNPOOLED=<직접 연결> pnpm db:migrate` (값은 셸 환경변수로만).
-  현재 `0000`~`0006`(PR-3 이 `0007` 추가 예정).
+  현재 `0000`~`0007`(PR-3 `0007_llm_credential_expiry`).
 - **기동 시 스키마 버전 검사**(`src/instrumentation.ts` → `src/server/ops/schema-version.ts`): 번들의 `drizzle/meta/_journal.json`
   마지막 항목과 DB `drizzle.__drizzle_migrations` 최신 항목을 비교한다. DB 가 뒤처지면 `db.schema_behind` 오류 로그 + `/api/health` 503,
   앞서면(롤백한 구버전 앱) `db.schema_ahead` 경고 + 200.

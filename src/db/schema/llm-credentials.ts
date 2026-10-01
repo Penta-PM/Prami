@@ -54,6 +54,11 @@ export const userLlmCredentials = pgTable(
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
     /** 검증 시 벤더 목록 API ∩ models.ts 상수 (r2 §4.5.2). NULL = 미확인(검증 전·목록 호출 실패) — 상수 전체 허용 */
     availableModels: text('available_models').array(),
+    /**
+     * 자격 증명 만료 (PRAMI-003 §4.4.3, 0007). NULL = 비만료(기본 — OpenRouter PKCE 흐름은 만료를 지정할 수 없다).
+     * 지나면 챗봇은 invalid(재연결 안내), 설정 카드는 "재연결 필요", 검증은 벤더 호출 없이 code=expired.
+     */
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
     ...timestamps,
   },
   (t) => [

@@ -36,24 +36,39 @@ describe.skipIf(!enabled)('PostgreSQL (DB_DRIVER=pg) 인증·감사', () => {
   it('부트스트랩 ADMIN·자동 생성 USER·도메인 거부', async () => {
     const admin = await resolveSignIn(
       handle,
-      { email: `boot-${stamp}@pentasecurity.com`, emailVerified: true, meta },
+      { idp: 'google', email: `boot-${stamp}@pentasecurity.com`, emailVerified: true, meta },
       policy,
     );
     expect(admin).toMatchObject({ ok: true, user: { role: 'ADMIN', createdVia: 'bootstrap' } });
 
     const auto = await resolveSignIn(
       handle,
-      { email: `auto-${stamp}@pentasecurity.com`, emailVerified: true, meta },
+      { idp: 'google', email: `auto-${stamp}@pentasecurity.com`, emailVerified: true, meta },
       policy,
     );
     expect(auto).toMatchObject({ ok: true, user: { role: 'USER', createdVia: 'auto' } });
 
     const denied = await resolveSignIn(
       handle,
-      { email: `x-${stamp}@gmail.com`, emailVerified: true, meta },
+      { idp: 'google', email: `x-${stamp}@gmail.com`, emailVerified: true, meta },
       policy,
     );
     expect(denied).toEqual({ ok: false, reason: 'domain' });
+
+    // PRAMI-003 AC-341 ③: hd 가 다른 도메인이면 이메일이 허용 도메인이어도 거부, users 무변경
+    const spoofEmail = `hd-${stamp}@pentasecurity.com`;
+    const spoof = await resolveSignIn(
+      handle,
+      { idp: 'google', email: spoofEmail, emailVerified: true, hostedDomain: 'evil.example', meta },
+      { ...policy, requireHostedDomain: true },
+    );
+    expect(spoof).toEqual({ ok: false, reason: 'domain' });
+    expect(await handle.db.select().from(users).where(eq(users.email, spoofEmail))).toHaveLength(0);
+    const [audit] = await handle.db
+      .select({ after: auditLogs.after })
+      .from(auditLogs)
+      .where(eq(auditLogs.actorLabel, spoofEmail));
+    expect(audit?.after).toMatchObject({ reason: 'hd_mismatch' });
   });
 
   it('역할 변경 감사(before/after·actor·ip)와 audit_logs UPDATE 거부', async () => {

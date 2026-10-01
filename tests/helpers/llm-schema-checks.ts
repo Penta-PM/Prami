@@ -32,6 +32,8 @@ export const CREDENTIAL_COLUMNS = [
   'available_models',
   'created_at',
   'updated_at',
+  // PRAMI-003 PR-3 0007 (ALTER TABLE ADD COLUMN 이라 끝에 붙는다)
+  'expires_at',
 ] as const;
 
 type RowOverrides = Partial<{

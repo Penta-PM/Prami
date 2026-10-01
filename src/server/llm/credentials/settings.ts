@@ -8,6 +8,8 @@ import { withTransaction } from '@/db/tx';
 import { AppError } from '@/lib/result';
 import { AUDIT_ACTIONS, writeAudit } from '@/server/audit/log';
 
+import { oauthKeyLabel } from '../oauth/key-label';
+
 import {
   defaultModelFor,
   isKnownModel,
@@ -59,6 +61,11 @@ export type VendorView = {
   manualKeyEntry: boolean;
   /** OAuth 전용 벤더의 연결 시작 경로 (§4.6.2 OpenRouter) */
   connectHref: string | null;
+  /**
+   * OAuth 로 발급되는 벤더 키 라벨 `Prami (<환경>)` (PRAMI-003 §4.4.3) — 한도 설정·연결 해제 후 대시보드 폐기 안내에 쓴다.
+   * API 키 벤더는 null
+   */
+  oauthKeyLabel: string | null;
   /** 플래그 off 벤더인데 본인 자격 증명이 남아 있음 — 카드는 안내 + 삭제만 (QA L-3) */
   disabled: boolean;
   models: (LlmModelOption & { tierLabel: string; lifecycleLabel: string | null })[];
@@ -115,6 +122,7 @@ function toVendorView(vendor: LlmVendor, disabled = false): VendorView {
     consoleUrl: vendor.consoleUrl,
     manualKeyEntry: apiKey,
     connectHref: apiKey || disabled ? null : oauthStartHref(vendor.id),
+    oauthKeyLabel: vendor.authTypes.includes('oauth_pkce') ? oauthKeyLabel() : null,
     disabled,
     models: vendor.models.map((model) => ({
       ...model,

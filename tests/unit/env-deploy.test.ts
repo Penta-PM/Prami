@@ -15,6 +15,7 @@ const VALID_PRODUCTION: Record<string, string> = {
   VERCEL_ENV: 'production',
   NEXT_PUBLIC_APP_URL: 'https://prami.example.com',
   AUTH_URL: 'https://prami.example.com',
+  AUTH_REQUIRE_HD: 'true',
   DB_DRIVER: 'neon',
   DATABASE_URL: ['postgresql://app:', SECRET_MARK, '@ep-x-pooler.example.neon.tech/prami'].join(''),
   AUTH_SECRET: 'x'.repeat(40),
@@ -29,7 +30,16 @@ const VALID_PRODUCTION: Record<string, string> = {
   LLM_CREDENTIALS_ACTIVE_KEK: '1',
 };
 
-const VALID_PREVIEW = { ...VALID_PRODUCTION, VERCEL_ENV: 'preview' };
+const PROXY = 'https://prami-preview.example.com/api/auth';
+
+/** preview 권장 설정 (docs/deploy/oauth.md): 리다이렉트 프록시 + AUTH_URL 미설정 */
+const VALID_PREVIEW: Record<string, string | undefined> = {
+  ...VALID_PRODUCTION,
+  VERCEL_ENV: 'preview',
+  NEXT_PUBLIC_APP_URL: 'https://prami-preview.example.com',
+  AUTH_URL: undefined,
+  AUTH_REDIRECT_PROXY_URL: PROXY,
+};
 
 type Case = [rule: string, patch: Record<string, string | undefined>, key: RegExp];
 
@@ -80,9 +90,15 @@ const VIOLATIONS: Case[] = [
     /LLM_CREDENTIALS_KEKS/,
   ],
   ['seed', { PRAMI_ALLOW_SEED: '1' }, /PRAMI_ALLOW_SEED/],
+  // ⓚ PRAMI-003 PR-3 OAuth 운영화 (두 환경 공통)
+  ['k', { AUTH_REQUIRE_HD: 'false' }, /AUTH_REQUIRE_HD/],
+  ['k', { AUTH_REQUIRE_HD: undefined }, /AUTH_REQUIRE_HD/],
 ];
 
-const patch = (base: Record<string, string>, change: Record<string, string | undefined>) => {
+const patch = (
+  base: Record<string, string | undefined>,
+  change: Record<string, string | undefined>,
+) => {
   const next: Record<string, string | undefined> = { ...base, ...change };
   for (const [key, value] of Object.entries(change)) if (value === undefined) delete next[key];
   return next;
@@ -153,7 +169,7 @@ describe('운영 기동 검사 — preview (§4.3.3: ⓕ·ⓖ 경고, 나머지 
   });
 
   it.each(VIOLATIONS.filter(([rule]) => rule !== 'f' && rule !== 'g'))(
-    '규칙 %s 위반 → 거부',
+    '규칙 %s 위반 → 거부 (preview)',
     (_rule, change, key) => {
       expect(() => parseEnv(patch(VALID_PREVIEW, change))).toThrowError(key);
     },
@@ -163,12 +179,70 @@ describe('운영 기동 검사 — preview (§4.3.3: ⓕ·ⓖ 경고, 나머지 
     '규칙 %s 위반 → 경고만 (변수 이름만)',
     (_rule, change, key) => {
       const warn = vi.fn();
-      expect(() => parseEnv(patch(VALID_PREVIEW, change), warn)).not.toThrow();
+      // ⓕ 는 프록시를 쓰지 않는 preview(고정 호스트만, AUTH_URL 있음)에서 본다 — 프록시가 있으면 ⓚ 가 먼저 거부한다
+      const base =
+        _rule === 'f'
+          ? patch(VALID_PREVIEW, {
+              AUTH_REDIRECT_PROXY_URL: undefined,
+              AUTH_URL: 'https://prami-preview.example.com',
+            })
+          : VALID_PREVIEW;
+      expect(() => parseEnv(patch(base, change), warn)).not.toThrow();
       expect(warn).toHaveBeenCalledOnce();
       expect(String(warn.mock.calls[0]![0])).toMatch(key);
       expect(String(warn.mock.calls[0]![0])).not.toContain(SECRET_MARK);
     },
   );
+});
+
+describe('ⓚ OAuth 운영화 — 리다이렉트 프록시 (PRAMI-003 §4.4.1)', () => {
+  it('preview: 프록시를 쓰면 AUTH_URL 은 없어야 하고 경고도 없다', () => {
+    const warn = vi.fn();
+    expect(() => parseEnv(VALID_PREVIEW, warn)).not.toThrow();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('preview: 프록시 + AUTH_URL 동시 설정 → 거부 (배포별 origin 이 사라져 로그인 실패)', () => {
+    expect(() =>
+      parseEnv({ ...VALID_PREVIEW, AUTH_URL: 'https://prami-preview.example.com' }),
+    ).toThrowError(/preview k\].*AUTH_URL/);
+  });
+
+  it.each([
+    'http://prami-preview.example.com/api/auth',
+    'https://prami-preview.example.com/auth',
+    'https://prami-preview.example.com/api/auth/callback/google',
+    'https://prami-preview.example.com/api/auth?x=1',
+  ])('preview: 프록시 형식 위반 %s → 거부', (value) => {
+    expect(() => parseEnv({ ...VALID_PREVIEW, AUTH_REDIRECT_PROXY_URL: value })).toThrowError(
+      /AUTH_REDIRECT_PROXY_URL/,
+    );
+  });
+
+  it('preview: 프록시 origin 이 NEXT_PUBLIC_APP_URL(고정 호스트)과 다르면 거부 (콜백 code 유출 방지)', () => {
+    expect(() =>
+      parseEnv({
+        ...VALID_PREVIEW,
+        AUTH_REDIRECT_PROXY_URL: 'https://attacker.example.com/api/auth',
+      }),
+    ).toThrowError(/AUTH_REDIRECT_PROXY_URL NEXT_PUBLIC_APP_URL/);
+  });
+
+  it('preview: 끝 슬래시는 허용한다', () => {
+    expect(() =>
+      parseEnv({ ...VALID_PREVIEW, AUTH_REDIRECT_PROXY_URL: `${PROXY}/` }, vi.fn()),
+    ).not.toThrow();
+  });
+
+  it('production: AUTH_REDIRECT_PROXY_URL 이 있으면 거부 (운영 로그인이 preview 를 거치면 안 됨)', () => {
+    expect(() => parseEnv({ ...VALID_PRODUCTION, AUTH_REDIRECT_PROXY_URL: PROXY })).toThrowError(
+      /production k\].*AUTH_REDIRECT_PROXY_URL/,
+    );
+  });
+
+  it('로컬(대상 없음)은 AUTH_REQUIRE_HD=false 가 기본이고 검사하지 않는다', () => {
+    expect(parseEnv({}).AUTH_REQUIRE_HD).toBe(false);
+  });
 });
 
 describe('deployTarget · checkDeployment', () => {

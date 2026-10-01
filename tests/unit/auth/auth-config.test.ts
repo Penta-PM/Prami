@@ -218,6 +218,26 @@ describe('callbacks', () => {
     });
   });
 
+  it('PRAMI-003 AC-341: AUTH_REQUIRE_HD=true 면 ID 토큰 hd 클레임을 판정에 넘긴다 (없음·불일치 거부, 일치 허용)', async () => {
+    const config = await loadConfig({ ...TEST_ENV, AUTH_REQUIRE_HD: 'true' });
+    const signIn = config.callbacks!.signIn! as (params: unknown) => Promise<boolean | string>;
+    const google = (email: string, hd?: unknown) =>
+      signIn({
+        account: { provider: 'google', providerAccountId: `g-${email}` },
+        profile: { email, email_verified: true, ...(hd === undefined ? {} : { hd }) },
+      });
+
+    expect(await google('no-hd@pentasecurity.com')).toBe('/login?error=domain');
+    expect(await google('bad-hd@pentasecurity.com', 'evil.example')).toBe('/login?error=domain');
+    expect(await google('num-hd@pentasecurity.com', 42)).toBe('/login?error=domain');
+    expect(await findUserByEmail(state.handle!, 'no-hd@pentasecurity.com')).toBeUndefined();
+    expect(await google('hd.ok@pentasecurity.com', 'pentasecurity.com')).toBe(true);
+    const [denied] = (await auditByAction(state.handle!, 'auth.denied_domain')).filter(
+      (log) => log.actorLabel === 'bad-hd@pentasecurity.com',
+    );
+    expect(denied).toMatchObject({ after: { reason: 'hd_mismatch' } });
+  });
+
   it('jwt: 최초 발급 시 userId·role 을 싣고, 비활성·미존재면 null 로 세션을 끊는다', async () => {
     const config = await loadConfig(TEST_ENV);
     const jwt = config.callbacks!.jwt! as (
