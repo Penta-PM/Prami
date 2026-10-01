@@ -215,19 +215,15 @@ describe('xAI Responses 요청 형태 (§4.7.3, AC-356) — 전송 가로채기,
     },
   );
 
-  // 결함 H-1(§4.5.4): 통합 브랜치에서는 SSE 가 System·이력을 잃어 다르다 → it.fails 로 고정한다.
-  // PR-1b(#20) 머지 후 rebase 하면 이 테스트가 "예상 실패가 통과" 로 깨진다 — 그때 it 로 바꾼다(AC-350 xAI 포함).
-  it.fails(
-    'JSON·SSE 모델 입력(벤더 요청 input) 동일 — 1회차·2회차 [H-1 수정 전 it.fails]',
-    async () => {
-      const json = await xaiRuntime(SCENARIO, 'grok-4.7');
-      await ask(json.runtime, QUESTION);
-      const sse = await xaiRuntime(SCENARIO, 'grok-4.7');
-      await runStream(sse.runtime);
-      const inputs = (stub: typeof json.stub) => stub.requests.map((request) => request.body.input);
-      expect(inputs(sse.stub)).toEqual(inputs(json.stub));
-    },
-  );
+  // H-1(§4.5.4, PR-1b #20): SSE 도 System·이력을 그대로 보낸다 — JSON 과 벤더 요청 input 이 같다(AC-350 xAI 포함).
+  it('JSON·SSE 모델 입력(벤더 요청 input) 동일 — 1회차·2회차', async () => {
+    const json = await xaiRuntime(SCENARIO, 'grok-4.7');
+    await ask(json.runtime, QUESTION);
+    const sse = await xaiRuntime(SCENARIO, 'grok-4.7');
+    await runStream(sse.runtime);
+    const inputs = (stub: typeof json.stub) => stub.requests.map((request) => request.body.input);
+    expect(inputs(sse.stub)).toEqual(inputs(json.stub));
+  });
 
   it('OpenAI 일반화 회귀 없음 — 같은 시나리오의 OpenAI 본문에 search_parameters 없음, 호스트 api.openai.com, 기존 형태 그대로', async () => {
     const stub = createOpenAIStub([
@@ -368,9 +364,11 @@ describe('xAI 오류 분류·진단 (§4.7.5, AC-358)', () => {
           expect(entry.source).toBe('http');
           expect(httpStatus).toBe(turn.error.status);
           const bodyCode = (turn.error.body as { code?: string }).code;
-          // 관측된 xAI 코드(invalid-argument·unauthenticated:no-credentials)는 남고, 그 밖은 버리거나 other
+          // 관측된 xAI 코드(invalid-argument·unauthenticated:no-credentials)는 허용 목록 값 그대로, 그 밖은 other
           if (bodyCode === 'invalid-argument' || bodyCode === 'unauthenticated:no-credentials') {
             expect(vendorErrorCode).toBe(bodyCode);
+          } else if (bodyCode !== undefined) {
+            expect(vendorErrorCode).toBe('other');
           }
         }
         const everything = [JSON.stringify(reply), result.raw, ...lines].join('\n');
@@ -396,19 +394,14 @@ describe('xAI 오류 분류·진단 (§4.7.5, AC-358)', () => {
     expectNoSecret([JSON.stringify(reply), ...lines].join(' '), KEY, '네트워크 응답·로그');
   }, 20_000);
 
-  // 네트워크 → unavailable 은 §4.5.5 L-2(PR-1b #20, cause 체인 판정). 통합 브랜치에서는 llm_error 라 it.fails 로 고정 —
-  // rebase 후 "예상 실패가 통과" 로 깨지면 it 로 바꾼다.
-  it.fails(
-    '네트워크 오류 → unavailable [L-2 수정 전 it.fails]',
-    async () => {
-      const lines = captureLlmErrors();
-      const { runtime } = await xaiRuntime([{ networkError: true }], 'grok-4.7');
-      const reply = await ask(runtime, QUESTION);
-      expect(reply.setup?.status).toBe('unavailable');
-      expect(diagnosticOf(lines).entry.code).toBe('unavailable');
-    },
-    20_000,
-  );
+  // 네트워크 → unavailable 은 §4.5.5 L-2(PR-1b #20, cause 체인 판정)
+  it('네트워크 오류 → unavailable', async () => {
+    const lines = captureLlmErrors();
+    const { runtime } = await xaiRuntime([{ networkError: true }], 'grok-4.7');
+    const reply = await ask(runtime, QUESTION);
+    expect(reply.setup?.status).toBe('unavailable');
+    expect(diagnosticOf(lines).entry.code).toBe('unavailable');
+  }, 20_000);
 
   it('타임아웃: 응답이 없으면 호출 타임아웃으로 끊고 unavailable + 규칙 답', async () => {
     const lines = captureLlmErrors();

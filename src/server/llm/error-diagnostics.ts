@@ -28,6 +28,9 @@ export const LLM_VENDOR_ERROR_TOKENS = [
   'unsupported_value',
   'invalid_value',
   'content_filter',
+  // xAI 본문 code (더미 키 관측값, PRAMI-003 §4.7.5 — 하이픈·콜론 형식이라 OpenAI 와 겹치지 않는다)
+  'invalid-argument',
+  'unauthenticated:no-credentials',
   // Anthropic
   'overloaded_error',
   'request_too_large',
