@@ -97,8 +97,10 @@ export async function upstashSlidingWindow(
     ]),
     5,
   );
-  const count = toNumber(countRaw);
-  if (!Number.isFinite(count)) throw new UpstashError('bad_response');
+  // ZCARD 는 정수 응답이다. null·boolean·문자열을 Number() 로 바꾸면 0/1 이 되어 허용(fail-open)되므로 거부한다 (PR-2 QA L-3)
+  if (typeof countRaw !== 'number' || !Number.isSafeInteger(countRaw) || countRaw < 0)
+    throw new UpstashError('bad_response');
+  const count = countRaw;
   if (count <= limit) return { allowed: true, remaining: limit - count, retryAfterMs: 0 };
   // 거부: 이번 항목은 세지 않는다. 실패해도 판정은 유지(다음 요청 때 창이 밀려 사라진다)
   await restCall(config, '', ['ZREM', redisKey, member]).catch(() => undefined);

@@ -127,6 +127,28 @@ describe('Upstash 장애 → 요청 단위 memory fallback (AC-329)', () => {
     expect(report.mock.calls[0]![1]).toMatchObject({ code: 'bad_response' });
   });
 
+  it.each([null, true, false, '3', 1.5, -1])(
+    'ZCARD 가 정수가 아니면(%j) Number() 변환으로 허용하지 않고 bad_response (QA L-3)',
+    async (zcard) => {
+      const report = vi.fn();
+      const payload = JSON.stringify([
+        { result: 0 },
+        { result: 1 },
+        { result: zcard },
+        { result: ['m', '0'] },
+        { result: 1 },
+      ]);
+      const oddFetch: typeof fetch = async () => new Response(payload, { status: 200 });
+      const limiter = createUpstashRateLimiter('chat', 5, {
+        config: { url: 'https://x.example.com', token: TOKEN, envName: 'local', fetch: oddFetch },
+        report,
+      });
+      await limiter.hit('k');
+      expect(report).toHaveBeenCalledOnce();
+      expect(report.mock.calls[0]![1]).toMatchObject({ code: 'bad_response' });
+    },
+  );
+
   it('1분 안에 50회 이상 실패하면 error 수준으로 올린다', () => {
     let now = 0;
     const reporter = createBackendErrorReporter(() => now);

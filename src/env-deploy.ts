@@ -21,6 +21,7 @@ export type DeployCheckEnv = {
   DB_DRIVER: string;
   DATABASE_URL?: string;
   AUTH_URL?: string;
+  AUTH_SECRET?: string;
   AUTH_GOOGLE_ID?: string;
   AUTH_GOOGLE_SECRET?: string;
   ADMIN_EMAILS: readonly string[];
@@ -40,11 +41,17 @@ const isSet = (source: Source, key: string) => (source[key] ?? '').trim() !== ''
 const isTruthyWord = (value: string | undefined) =>
   value !== undefined && ['true', '1', 'yes'].includes(value.trim().toLowerCase());
 
+const normalized = (value: string | undefined) => value?.trim().toLowerCase() ?? '';
+
+/**
+ * 대소문자·공백을 무시한다(`Preview`·`PRODUCTION` 으로 검사를 건너뛰지 않게, PR-2 QA L-1).
+ * Vercel 이 주입하지 않는 `VERCEL_ENV` 값(오타·수동 설정)은 preview 로 다룬다 — `development`(`vercel dev`)만 제외.
+ */
 export function deployTarget(source: Source): DeployTarget | null {
-  const vercelEnv = source.VERCEL_ENV?.trim();
+  const vercelEnv = normalized(source.VERCEL_ENV);
   if (vercelEnv === 'production') return 'production';
-  if (vercelEnv === 'preview') return 'preview';
-  if (source.NODE_ENV === 'production' && source.APP_ENV?.trim() === 'production') {
+  if (vercelEnv && vercelEnv !== 'development') return 'preview';
+  if (normalized(source.NODE_ENV) === 'production' && normalized(source.APP_ENV) === 'production') {
     return 'production';
   }
   return null;
@@ -113,7 +120,16 @@ const RULES: Rule[] = [
         'DB_DRIVER=neon 과 DATABASE_URL 이 필요합니다',
       );
     }
-    return isPrivateDbHost(dbHostOf(env.DATABASE_URL))
+    const host = dbHostOf(env.DATABASE_URL);
+    if (host === null) {
+      // ?host=·?hostaddr=·소켓 경로 등 — 실제 연결 호스트를 알 수 없으면 거부 (PR-2 QA M-1, fail-closed)
+      return issue(
+        'e',
+        ['DATABASE_URL'],
+        'DATABASE_URL 의 연결 호스트를 판정할 수 없습니다 (host·hostaddr 쿼리·소켓 경로 없이 postgresql://<호스트>/… 형식)',
+      );
+    }
+    return isPrivateDbHost(host)
       ? issue('e', ['DATABASE_URL'], 'DATABASE_URL 호스트가 로컬·사설 주소입니다')
       : null;
   },
@@ -131,7 +147,10 @@ const RULES: Rule[] = [
       ? issue('g', ['ADMIN_EMAILS'], 'ADMIN_EMAILS 가 비어 있습니다 (첫 관리자 부트스트랩 불가)')
       : null,
   (_source, env) => {
-    const keys = (['AUTH_GOOGLE_ID', 'AUTH_GOOGLE_SECRET'] as const).filter((key) => !env[key]);
+    // AUTH_SECRET: 세션 서명 + rate limit IP 키 HMAC 의 근거 — 없으면 HMAC 키가 고정 상수로 떨어진다 (PR-2 QA L-4)
+    const keys = (['AUTH_SECRET', 'AUTH_GOOGLE_ID', 'AUTH_GOOGLE_SECRET'] as const).filter(
+      (key) => !env[key],
+    );
     return keys.length > 0 ? issue('h', [...keys], `${keys.join(', ')} 가 필요합니다`) : null;
   },
   (_source, env) => {

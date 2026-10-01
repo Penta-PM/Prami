@@ -8,6 +8,8 @@ import { describe, expect, it } from 'vitest';
 import { resolveMigrationConnection } from '@/db/migrate';
 import { isRemoteDbTarget, targetHostViolation } from '@/lib/db-host';
 
+import { parseDataVerifyArgs, resolveDataVerifyGuard } from '../../../scripts/data-verify';
+
 /**
  * PRAMI-003 §4.3.4 스크립트 가드 (AC-323·AC-324·AC-327). CLI 는 실제로 띄워 exit code·출력을 본다.
  * 거부 경로는 DB 연결 전에 끝나므로 DB 가 없어도 된다(원격 호스트는 존재하지 않는 이름).
@@ -56,6 +58,51 @@ describe('원격 대상 판정 · --target-host (§4.3.4 ②)', () => {
     expect(targetHostViolation(remote, 'other-host')).toBe('mismatch');
     expect(targetHostViolation(remote, 'Example-Remote-Host')).toBeNull();
     expect(targetHostViolation({ DB_DRIVER: 'pglite' }, undefined)).toBeNull();
+  });
+});
+
+describe('data:verify 대상 확인 (AC-332 ④, QA L-5)', () => {
+  const LOCAL = { DB_DRIVER: 'pg', DATABASE_URL: 'postgres://u:pw@localhost:5432/prami' };
+  const REMOTE_PG = { DB_DRIVER: 'pg', DATABASE_URL: REMOTE };
+  const guard = (args: string[], source: Record<string, string>) =>
+    resolveDataVerifyGuard(parseDataVerifyArgs(args), source);
+
+  it('로컬 DB 의 local 대상만 ADMIN 검사 SKIP·--baseline 허용', () => {
+    expect(guard([], LOCAL)).toEqual({ requireAdmin: false });
+    expect(guard(['--baseline', 'b.json'], LOCAL)).toEqual({ requireAdmin: false });
+    expect(guard([], { DB_DRIVER: 'pglite' })).toEqual({ requireAdmin: false });
+  });
+
+  it('원격 DB 를 --target local 로 돌려도 ADMIN 검사를 강제하고 --baseline 을 거부한다', () => {
+    const args = ['--target-host', 'example-remote-host'];
+    expect(guard(args, REMOTE_PG)).toEqual({ requireAdmin: true });
+    expect(() => guard([...args, '--baseline', 'b.json'], REMOTE_PG)).toThrowError(/--baseline/);
+    expect(
+      guard(['--target-host', 'ep-x.example.neon.tech'], {
+        DB_DRIVER: 'neon',
+        DATABASE_URL: 'postgresql://u:pw@ep-x.example.neon.tech/db',
+      }),
+    ).toEqual({ requireAdmin: true });
+  });
+
+  it('preview·production 대상은 --baseline 을 거부하고, ?host= 판정 불가 URL 은 어떤 --target-host 로도 실행하지 않는다', () => {
+    const production = ['--target', 'production', '--target-host', 'example-remote-host'];
+    expect(guard(production, REMOTE_PG)).toEqual({ requireAdmin: true });
+    expect(() => guard([...production, '--baseline', 'b.json'], REMOTE_PG)).toThrowError(
+      /--baseline/,
+    );
+    const bypass = {
+      DB_DRIVER: 'pg',
+      DATABASE_URL: 'postgres://u:pw@localhost:5432/prami?host=example-remote-host',
+    };
+    for (const host of ['localhost', 'example-remote-host']) {
+      expect(() => guard(['--target', 'production', '--target-host', host], bypass)).toThrowError(
+        /실제 연결 호스트와 다릅니다/,
+      );
+      expect(() => guard(['--target-host', host], bypass)).toThrowError(
+        /실제 연결 호스트와 다릅니다/,
+      );
+    }
   });
 });
 
@@ -125,6 +172,15 @@ describe('CLI 가드 (AC-323·AC-324)', { timeout: 120_000 }, () => {
     });
     expect(remote.status).toBe(1);
     expect(remote.output).toMatch(/원격 DB/);
+    // QA M-1: URL 호스트는 localhost 지만 ?host= 가 실제 연결 호스트를 바꾼다 → 원격으로 거부(연결 시도 전)
+    const hostParam = runScript('seed.ts', [], {
+      DB_DRIVER: 'pg',
+      DATABASE_URL: 'postgres://u:pw@localhost:5432/prami?host=example-remote-host',
+      PRAMI_ALLOW_SEED: '1',
+    });
+    expect(hostParam.status).toBe(1);
+    expect(hostParam.output).toMatch(/원격 DB/);
+    expect(hostParam.output).not.toMatch(/ENOTFOUND|getaddrinfo/);
     const local = runScript('seed.ts', [], { DB_DRIVER: 'pglite' });
     expect(local.status).toBe(1);
     expect(local.output).toMatch(/PRAMI_ALLOW_SEED=1/);

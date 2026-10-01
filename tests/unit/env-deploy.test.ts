@@ -47,9 +47,30 @@ const VIOLATIONS: Case[] = [
   ['e', { DATABASE_URL: 'postgresql://app:pw@localhost:5432/prami' }, /DATABASE_URL/],
   ['e', { DATABASE_URL: 'postgresql://app:pw@10.1.2.3:5432/prami' }, /DATABASE_URL/],
   ['e', { DATABASE_URL: 'postgresql://app:pw@192.168.0.9:5432/prami' }, /DATABASE_URL/],
+  // QA M-1: 실제 연결 호스트를 바꾸는 쿼리·판정 불가 형식은 거부 (fail-closed)
+  [
+    'e',
+    { DATABASE_URL: 'postgresql://app:pw@ep-x.example.neon.tech/prami?host=localhost' },
+    /DATABASE_URL/,
+  ],
+  ['e', { DATABASE_URL: 'postgresql://app:pw@[::ffff:127.0.0.1]/prami' }, /DATABASE_URL/],
+  ['e', { DATABASE_URL: 'postgresql://app:pw@127.1/prami' }, /DATABASE_URL/],
+  ['e', { DATABASE_URL: 'postgresql://app:pw@10.0.0.5./prami' }, /DATABASE_URL/],
+  // PR-2b QA L-N1: Neon 드라이버는 `\` 를 authority 끝으로 봐 localhost·10.0.0.5 로 연결한다
+  [
+    'e',
+    { DATABASE_URL: 'postgresql://app:pw@localhost\\@ep-x.example.neon.tech/prami' },
+    /DATABASE_URL/,
+  ],
+  [
+    'e',
+    { DATABASE_URL: 'postgresql://app:pw@10.0.0.5\\@ep-x.example.neon.tech/prami' },
+    /DATABASE_URL/,
+  ],
   ['f', { NEXT_PUBLIC_APP_URL: 'http://prami.example.com' }, /NEXT_PUBLIC_APP_URL/],
   ['f', { AUTH_URL: undefined }, /AUTH_URL/],
   ['g', { ADMIN_EMAILS: '' }, /ADMIN_EMAILS/],
+  ['h', { AUTH_SECRET: undefined }, /AUTH_SECRET/],
   ['h', { AUTH_GOOGLE_ID: '' }, /AUTH_GOOGLE_ID/],
   ['h', { AUTH_GOOGLE_SECRET: undefined }, /AUTH_GOOGLE_SECRET/],
   ['i', { RATE_LIMIT_BACKEND: 'memory' }, /RATE_LIMIT_BACKEND/],
@@ -155,6 +176,13 @@ describe('deployTarget · checkDeployment', () => {
     expect(deployTarget({ VERCEL_ENV: 'production' })).toBe('production');
     expect(deployTarget({ VERCEL_ENV: 'preview' })).toBe('preview');
     expect(deployTarget({ VERCEL_ENV: 'development' })).toBeNull();
+    // QA L-1: 대소문자·공백 무시, 알 수 없는 VERCEL_ENV 는 preview 로 (검사 생략 방지)
+    expect(deployTarget({ VERCEL_ENV: ' PRODUCTION ' })).toBe('production');
+    expect(deployTarget({ VERCEL_ENV: 'Preview' })).toBe('preview');
+    expect(deployTarget({ VERCEL_ENV: 'staging' })).toBe('preview');
+    expect(deployTarget({ VERCEL_ENV: 'Development' })).toBeNull();
+    expect(deployTarget({ VERCEL_ENV: '  ' })).toBeNull();
+    expect(deployTarget({ NODE_ENV: 'production', APP_ENV: 'Production' })).toBe('production');
     expect(deployTarget({ NODE_ENV: 'production' })).toBeNull();
     expect(deployTarget({ NODE_ENV: 'production', APP_ENV: 'production' })).toBe('production');
     expect(deployTarget({})).toBeNull();

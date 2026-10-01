@@ -36,7 +36,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 | `DATABASE_URL_UNPOOLED` | — (GitHub Environment 시크릿) | — (GitHub 시크릿) | — | 마이그레이션 시 | S | `pnpm db:migrate`·`pg_dump` 전용. **Vercel 런타임에 두지 않는다** |
 | `PGLITE_DATA_DIR` | — | — | 테스트만 | | C | |
 | `PRAMI_ALLOW_SEED` | **금지** | **금지** | CI·격리 DB 만 `1` | | C | 로컬 :3000 금지(§4.9.3 L2) |
-| `AUTH_SECRET` | 운영 전용 | preview 전용 | 임의 | ✓ | S | production ≠ preview |
+| `AUTH_SECRET` | 운영 전용 | preview 전용 | 임의 | ✓ | S | production ≠ preview. 없으면 거부(ⓗ) |
 | `AUTH_URL` | 운영 도메인 | 고정 preview 호스트 | — | ✓ | C | https(ⓕ) |
 | `AUTH_REDIRECT_PROXY_URL` | — | `https://<preview 고정 호스트>/api/auth` | — | preview | C | PR-3 |
 | `AUTH_REQUIRE_HD` | `true` | `true` | `false` | | C | Google `hd` 서버 검증(PR-3) |
@@ -74,6 +74,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 `VERCEL_ENV=production` 또는 (`NODE_ENV=production` ∧ `APP_ENV=production`)이면 아래 위반이 하나라도 있을 때 **기동·빌드를 거부**한다
 (`next.config.ts` 가 `src/env` 를 import 하므로 Vercel 빌드도 같은 규칙으로 실패). 메시지에는 변수 이름만 나온다.
 `VERCEL_ENV=preview` 는 ⓕ·ⓖ 만 경고, 나머지는 거부다. 로컬·CI(`VERCEL_ENV` 없음, `APP_ENV` 없음)는 검사하지 않는다.
+값은 대소문자·공백을 무시하고, `production`·`development` 가 아닌 `VERCEL_ENV`(오타 포함)는 preview 로 검사한다.
 
 | # | 규칙 |
 | --- | --- |
@@ -81,10 +82,10 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 | ⓑ | `IMPORT_FAULT_INJECTION` 설정 |
 | ⓒ | `LLM_VENDOR_MODE=fake`, `LANGSMITH_TRACING`/`LANGCHAIN_TRACING_V2` 켜짐 |
 | ⓓ | `TRUST_PROXY_HEADERS ≠ vercel` |
-| ⓔ | `DB_DRIVER ≠ neon`, `DATABASE_URL` 없음, 호스트가 로컬·사설 주소 |
+| ⓔ | `DB_DRIVER ≠ neon`, `DATABASE_URL` 없음, 호스트가 로컬·사설 주소, 연결 호스트를 판정할 수 없음(`?host=`·`?hostaddr=`·소켓 경로·비정규 숫자 IP 등) |
 | ⓕ | `NEXT_PUBLIC_APP_URL`·`AUTH_URL` 이 `https://` 아님(미설정 포함) |
 | ⓖ | `ADMIN_EMAILS` 비어 있음 |
-| ⓗ | `AUTH_GOOGLE_ID`·`AUTH_GOOGLE_SECRET` 없음 |
+| ⓗ | `AUTH_SECRET`·`AUTH_GOOGLE_ID`·`AUTH_GOOGLE_SECRET` 없음 |
 | ⓘ | `RATE_LIMIT_BACKEND=memory` 인데 `RATE_LIMIT_ALLOW_MEMORY_IN_PRODUCTION≠true` (upstash 인데 URL·토큰 없음은 모든 환경에서 거부) |
 | ⓙ | `CHAT_LLM_ENABLED=true` 인데 KEK 없음 |
 | seed | `PRAMI_ALLOW_SEED` 설정(§4.9.3 L2) |
@@ -97,7 +98,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 4. `maxDuration`: 임포트 60s, PDF 30s, 챗봇 60s(코드). Fluid compute 기본 최대(Pro 800s) 안이다.
 5. PDF 폰트·로고는 `outputFileTracingIncludes` 로 함수 번들에 포함된다. preview 에서 한글 PDF 1회 확인(C-15).
 6. Google OAuth 리다이렉트 URI: `https://<운영 도메인>/api/auth/callback/google`, `https://<preview 고정 호스트>/api/auth/callback/google`(PR-3).
-7. `DB_DRIVER=neon` 빌드의 `/api/*` 함수 트레이스에 `@electric-sql/pglite` 가 들어가지 않는지 `pnpm check:trace` 로 확인한다(AC-330 ③).
+7. `DB_DRIVER=neon` 빌드의 함수 트레이스 전체(`/api/*`·페이지·proxy·instrumentation)에 `@electric-sql/pglite` 가 들어가지 않는지 `pnpm check:trace` 로 확인한다(AC-330 ③).
 
 ## 4. Neon 구성과 마이그레이션 (§4.3.5·§4.3.6)
 
