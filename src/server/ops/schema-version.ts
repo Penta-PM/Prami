@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 
 import type { Db } from '@/db';
-import { queryRows } from '@/server/imports/sql-rows';
+import { queryRows, type Executor } from '@/server/imports/sql-rows';
 
 import bundledJournal from '../../../drizzle/meta/_journal.json';
 
@@ -33,7 +33,7 @@ export function compareSchema(journalLatest: number | null, dbLatest: number | n
 }
 
 /** DB 최신 마이그레이션 시각. 마이그레이션 테이블이 없으면(빈 DB) null */
-export async function latestAppliedMigration(db: Db): Promise<number | null> {
+export async function latestAppliedMigration(db: Executor): Promise<number | null> {
   const [exists] = await queryRows<{ present: boolean }>(
     db,
     sql`select to_regclass('drizzle.__drizzle_migrations') is not null as present`,

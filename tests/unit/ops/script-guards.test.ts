@@ -135,4 +135,26 @@ describe('CLI 가드 (AC-323·AC-324)', { timeout: 120_000 }, () => {
     expect(run.status).toBe(1);
     expect(run.output).toMatch(/VERCEL_ENV/);
   });
+
+  it('data:verify --target preview|production: --target-host 누락·불일치 → 실행 거부 (AC-332 ④)', () => {
+    const env = { DB_DRIVER: 'pg', DATABASE_URL: REMOTE };
+    const missing = runScript('data-verify.ts', ['--target', 'preview'], env);
+    expect(missing.status).toBe(1);
+    expect(missing.output).toMatch(/--target-host <연결 호스트> 를 지정해야/);
+    const mismatch = runScript(
+      'data-verify.ts',
+      ['--target', 'production', '--target-host', 'other-host'],
+      env,
+    );
+    expect(mismatch.status).toBe(1);
+    expect(mismatch.output).toMatch(/실제 연결 호스트와 다릅니다/);
+    // 로컬 호스트 DB 라도 원격 target 이면 --target-host 를 요구한다
+    const localAsPreview = runScript('data-verify.ts', ['--target', 'preview'], {
+      DB_DRIVER: 'pg',
+      DATABASE_URL: 'postgres://prami:prami@localhost:5432/prami',
+    });
+    expect(localAsPreview.status).toBe(1);
+    const badTarget = runScript('data-verify.ts', ['--target', 'staging'], { DB_DRIVER: 'pglite' });
+    expect(badTarget.output).toMatch(/--target 는 local\|preview\|production/);
+  });
 });
