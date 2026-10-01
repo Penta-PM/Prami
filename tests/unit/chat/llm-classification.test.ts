@@ -224,6 +224,50 @@ describe('L-2 연결 오류 → unavailable · source network (AC-354 ②)', () 
   );
 });
 
+/** 410 + 벤더 사람용 메시지(폐기 패턴 포함) — 벤더별 오류 본문 형태 (PRAMI-003 §4.7.7 ②, AC-368 ②) */
+const GONE_MESSAGE = `This endpoint is deprecated ${VENDOR_MESSAGE}`;
+const GONE_410: Record<Vendor, FetchImpl> = {
+  openai: json(410, { error: { message: GONE_MESSAGE, type: 'invalid_request_error' } }),
+  openrouter: json(410, { error: { message: GONE_MESSAGE, code: 410 } }),
+  anthropic: json(410, { type: 'error', error: { type: 'api_error', message: GONE_MESSAGE } }),
+  google: json(410, { error: { code: 410, message: GONE_MESSAGE, status: 'FAILED_PRECONDITION' } }),
+};
+
+describe('410 Gone → request_rejected · vendorErrorCode deprecated · error 로그 — 벤더 공통 (AC-368 ②)', () => {
+  it.each(['openai', 'openrouter', 'anthropic', 'google'] as const)(
+    '%s (JSON·SSE)',
+    async (vendor) => {
+      const logs = captureLlmErrors();
+      const errorLevel = vi.mocked(console.error);
+      const reply = await ask(await runtimeFor(vendor, GONE_410[vendor]), 'Wapples-500 가격');
+      const final = await sse(await runtimeFor(vendor, GONE_410[vendor]));
+      for (const answer of [reply, final]) {
+        expect(answer.mode).toBe('rule');
+        expect(JSON.stringify(answer)).not.toContain(VENDOR_MESSAGE);
+      }
+      const lines = logs();
+      expect(lines).toHaveLength(2);
+      for (const line of lines) {
+        expect(line).toMatchObject({
+          code: 'request_rejected',
+          httpStatus: 410,
+          vendorErrorCode: 'deprecated',
+          vendor,
+        });
+      }
+      expect(
+        errorLevel.mock.calls.filter(([text]) => String(text).includes('chat.llm_error')),
+      ).toHaveLength(2);
+    },
+    30_000,
+  );
+
+  it('분류 표: 410 은 본문과 관계없이 request_rejected', () => {
+    expect(normalizeLlmError({ status: 410 })).toBe('request_rejected');
+    expect(normalizeLlmError({ status: 410, code: 'invalid_api_key' })).toBe('request_rejected');
+  });
+});
+
 describe('AC-366 벤더별 진단 필드 (fake·전송 가로채기)', () => {
   const REQUIRED = ['code', 'source', 'sdkErrorName', 'attempts', 'latencyMs', 'stream', 'adapter'];
 

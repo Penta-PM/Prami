@@ -33,7 +33,7 @@ export function createOpenAIChatModel(
  * Responses API 벤더 프로필 (PRAMI-003 §4.7.2) — OpenAI 와 OpenAI 호환 Responses 벤더(xAI)의 차이만 담는다.
  * - vendor: 모델 상수(`reasoningReserveTokens`) 조회용 레지스트리 id
  * - baseURL: 없으면 기본 OpenAI. 코드 상수만(사용자·env 로 바꿀 수 없다, T-12)
- * - modelKwargs: 요청 본문에 그대로 더해지는 벤더 고유 필드(include·search_parameters)
+ * - modelKwargs: 요청 본문에 그대로 더해지는 벤더 고유 필드(include·reasoning 등)
  */
 export type ResponsesProfile = {
   vendor: string;

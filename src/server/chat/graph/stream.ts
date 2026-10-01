@@ -16,6 +16,8 @@ import type { ChatReplyOut, ChatRuntime } from './types';
  * - `event: discard`: 벤더 거부(refusal)를 알았을 때 이미 보낸 토큰이 있으면 1회 — 클라이언트는 즉시 말풍선 텍스트를 비우고
  *   대화 히스토리에도 남기지 않는다(QA L-1, Main 결정 A). 실 Anthropic 스트리밍은 stop_reason 이 텍스트 뒤 별도 청크로 와서
  *   거부 전에 끝난 문장은 이미 나갔을 수 있다 — 벤더 권고(부분 출력 폐기)대로 버리고, 그 문장도 출력 가드는 거쳤다.
+ *   agent 가 그 밖의 오류로 출력을 버린 경우(스트림 도중 오류, xAI 서버측 도구 사후 검사 — PRAMI-003 §4.7.7 ③)도 같다
+ *   (`reason: 'llm_error'`, final 은 규칙 답).
  * - `event: final` : compose 가 가드·금지 키 검사를 거친 최종 ChatReply — **정본**(클라이언트가 토큰 표시를 교체)
  * - `event: done`  / 오류는 `event: error`(코드만 — 예외 원문·벤더 메시지 없음)
  * 클라이언트 연결이 끊기면 request.signal → 그래프·모델 호출 signal 로 중단한다(벤더 과금 절감).
@@ -23,7 +25,7 @@ import type { ChatReplyOut, ChatRuntime } from './types';
 export type ChatStreamEvent =
   | { event: 'token'; data: { text: string } }
   | { event: 'status'; data: { label: string } }
-  | { event: 'discard'; data: { reason: 'refusal' } }
+  | { event: 'discard'; data: { reason: DiscardReason } }
   | { event: 'final'; data: ChatReplyOut }
   | { event: 'done'; data: Record<string, never> }
   | { event: 'error'; data: { code: string } };
@@ -42,6 +44,8 @@ function chunkText(chunk: BaseMessage): string {
 
 type Emit = (event: ChatStreamEvent) => void;
 
+type DiscardReason = 'refusal' | 'llm_error';
+
 type TokenGuard = ReturnType<typeof createTokenGuard>;
 
 /** 요청 하나의 스트림 상태 */
@@ -58,12 +62,12 @@ function sendToken(state: StreamState, emit: Emit, text: string) {
   emit({ event: 'token', data: { text } });
 }
 
-/** refusal: 보류분을 버리고, 이미 토큰을 보냈으면 discard 1회 (완성 메시지 refusal 은 토큰 0 이라 discard 도 없음) */
-function refuse(state: StreamState, emit: Emit) {
+/** refusal·오류: 보류분을 버리고, 이미 토큰을 보냈으면 discard 1회 (완성 메시지 refusal 은 토큰 0 이라 discard 도 없음) */
+function refuse(state: StreamState, emit: Emit, reason: DiscardReason = 'refusal') {
   if (state.refused) return;
   state.refused = true;
   state.guard.discard();
-  if (state.tokensSent) emit({ event: 'discard', data: { reason: 'refusal' } });
+  if (state.tokensSent) emit({ event: 'discard', data: { reason } });
 }
 
 function onMessage(payload: unknown, emit: Emit, state: StreamState) {
@@ -86,8 +90,9 @@ function onUpdate(payload: unknown, emit: Emit, state: StreamState) {
     (message): message is ToolMessage => message instanceof ToolMessage,
   );
   if (toolMessages.length) state.guard.addTerms(productTermsOf(toolMessages));
-  // agent 턴 끝 → refusal 이면 폐기, 아니면 보류 중인 마지막 조각을 판정 후 내보낸다
-  if (update.agent?.llmError === 'refused') refuse(state, emit);
+  // agent 턴 끝 → refusal·오류(출력 폐기)면 폐기, 아니면 보류 중인 마지막 조각을 판정 후 내보낸다
+  const llmError = update.agent?.llmError;
+  if (llmError) refuse(state, emit, llmError === 'refused' ? 'refusal' : 'llm_error');
   else if (update.agent) sendToken(state, emit, state.guard.flush());
   if (update.compose?.reply) state.reply = update.compose.reply;
 }

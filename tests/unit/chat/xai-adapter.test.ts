@@ -80,7 +80,6 @@ const ALLOWED_BODY_KEYS = new Set([
   'include',
   'max_output_tokens',
   'stream',
-  'search_parameters',
   'text',
 ]);
 const FORBIDDEN_BODY_KEYS = [
@@ -95,6 +94,9 @@ const FORBIDDEN_BODY_KEYS = [
   'safety_identifier',
   'prompt_cache_key',
   'service_tier',
+  // (r3, B-1) 키가 있으면 xAI 가 410 — 에이전트(서버측) 도구용 max_turns 도 금지
+  'search_parameters',
+  'max_turns',
 ];
 
 type Body = Record<string, unknown>;
@@ -119,7 +121,9 @@ function expectRequestShape(
   expect(body.store).toBe(false);
   expect(body.reasoning).toEqual({ effort: 'low' });
   expect(body.include).toEqual(['reasoning.encrypted_content']);
-  expect(body.search_parameters).toEqual({ mode: 'off' });
+  // (r3, B-1) search_parameters 는 값과 관계없이 410 — 키 자체가 없어야 한다
+  expect(body).not.toHaveProperty('search_parameters');
+  expect(body).not.toHaveProperty('max_turns');
   // 보이는 답 상한 1,024 + 추론 여유 8,192 (문서 기본 128,000 은 쓰지 않는다)
   expect(body.max_output_tokens).toBe(9216);
   expect(body.stream === true).toBe(streaming);
@@ -225,7 +229,7 @@ describe('xAI Responses 요청 형태 (§4.7.3, AC-356) — 전송 가로채기,
     expect(inputs(sse.stub)).toEqual(inputs(json.stub));
   });
 
-  it('OpenAI 일반화 회귀 없음 — 같은 시나리오의 OpenAI 본문에 search_parameters 없음, 호스트 api.openai.com, 기존 형태 그대로', async () => {
+  it('OpenAI 일반화 회귀 없음 — 호스트 api.openai.com, 기존 형태 그대로', async () => {
     const stub = createOpenAIStub([
       { toolCall: { name: 'price_lookup', args: { query: 'Wapples-500', family: null } } },
       { text: 'Wapples-500 은 두 모델이 있습니다.' },
@@ -249,8 +253,7 @@ describe('xAI Responses 요청 형태 (§4.7.3, AC-356) — 전송 가로채기,
     expect(stub.requests[0]!.url).toBe('https://api.openai.com/v1/responses');
     expect(body).not.toHaveProperty('search_parameters');
     // xAI 프로필의 본문 필드가 OpenAI 로 새지 않는다 — 기존 OpenAI 형태 키만
-    const openaiKeys = new Set([...ALLOWED_BODY_KEYS].filter((key) => key !== 'search_parameters'));
-    expect(Object.keys(body).filter((key) => !openaiKeys.has(key))).toEqual([]);
+    expect(Object.keys(body).filter((key) => !ALLOWED_BODY_KEYS.has(key))).toEqual([]);
     expect(body).toMatchObject({
       model: 'gpt-6.1-sol',
       store: false,
@@ -364,8 +367,12 @@ describe('xAI 오류 분류·진단 (§4.7.5, AC-358)', () => {
           expect(entry.source).toBe('http');
           expect(httpStatus).toBe(turn.error.status);
           const bodyCode = (turn.error.body as { code?: string }).code;
-          // 관측된 xAI 코드(invalid-argument·unauthenticated:no-credentials)는 허용 목록 값 그대로, 그 밖은 other
-          if (bodyCode === 'invalid-argument' || bodyCode === 'unauthenticated:no-credentials') {
+          // 관측된 xAI 코드(invalid-argument·unauthenticated:no-credentials·not-found)는 허용 목록 값 그대로, 그 밖은 other
+          if (
+            bodyCode === 'invalid-argument' ||
+            bodyCode === 'unauthenticated:no-credentials' ||
+            bodyCode === 'not-found'
+          ) {
             expect(vendorErrorCode).toBe(bodyCode);
           } else if (bodyCode !== undefined) {
             expect(vendorErrorCode).toBe('other');

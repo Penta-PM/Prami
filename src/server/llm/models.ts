@@ -18,6 +18,11 @@
  *   (https://docs.x.ai/developers/migration/may-15-retirement)·`-latest`·코딩·멀티 에이전트 모델은 넣지 않는다.
  *   추론 여유: https://docs.x.ai/developers/rest-api-reference/inference/responses — `max_output_tokens` "includes both
  *   output and reasoning tokens. Defaults to 128,000" → 명시 상한 = 보이는 답 상한 + 8,192.
+ *   (r3 정정, 2026-10-01 재확인) effort low 지원 근거: grok-4.7 = https://docs.x.ai/developers/model-capabilities/text/reasoning,
+ *   grok-4.3 = https://docs.x.ai/developers/migration/may-15-retirement. 잘못된 키 400 은 문서 문구가 아니라 더미 키 관측
+ *   (`{"code":"invalid-argument"}`) — 이전 인용 "An incorrect API key was supplied." 은 https://docs.x.ai/developers/debugging
+ *   현재 페이지에 없어 삭제. 실시간 검색: 레퍼런스는 `search_parameters` 를 아직 싣고 있지만 실제 API 는 이 키가 있으면
+ *   `mode:'off'` 여도 410 "Live search is deprecated" (PR #22 QA 더미 키 관측) → 어댑터는 이 키를 보내지 않는다(vendors/xai.ts).
  */
 export type ModelTier = 'low' | 'balanced' | 'top';
 export type ModelLifecycle = 'current' | 'legacy';
