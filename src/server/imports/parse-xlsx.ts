@@ -3,8 +3,8 @@ import readXlsxFile from 'read-excel-file/node';
 import type { Cell } from './cells';
 import { inspectZip, ZipGuardError } from './zip-guard';
 
-/** 업로드 파일 제한 (§4.4.1) */
-export const MAX_IMPORT_FILE_BYTES = 10 * 1024 * 1024;
+/** 업로드 파일 제한 (§4.4.1) — 값은 브라우저와 공유하는 상수 모듈에 있다 */
+export { MAX_IMPORT_FILE_BYTES } from '@/lib/constants/upload-limits';
 export const XLSX_MIME_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   // 일부 브라우저·OS 는 xlsx 를 일반 바이너리로 보낸다

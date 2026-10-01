@@ -65,8 +65,10 @@ export type ImportSourceFile = {
 /** 품목 배치 적용 시 제품군 병합 방식 (PRAMI-003 §4.2.3) */
 export type ItemMerge = {
   mode: 'merge' | 'replace';
-  /** merge: 이번 배치에 없어 직전 값을 유지한 대분류 / replace: 사라진 대분류 */
+  /** merge: 이번 배치에 없어 직전 값을 유지한 대분류 (replace 면 빈 배열) */
   keptMajors: string[];
+  /** replace: 이번 배치에 없어 stub 으로 되돌린 대분류 (merge 면 빈 배열, QA L-3). 이 필드 이전 기록에는 없다 */
+  droppedMajors?: string[];
   /** 직전 적용 품목 배치 */
   fromBatchId: string | null;
 };

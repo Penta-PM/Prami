@@ -298,9 +298,12 @@ async function resolveItemMerge(handle: DbHandle, input: ApplyInput): Promise<It
       { code: 'missing_families', ...preview },
     );
   }
+  const mode = input.itemMerge ?? 'merge';
+  // 이름대로 기록한다 — 전량 교체에서 빠진 대분류는 "유지"가 아니라 "사라짐" (QA L-3)
   return {
-    mode: input.itemMerge ?? 'merge',
-    keptMajors: missing,
+    mode,
+    keptMajors: mode === 'merge' ? missing : [],
+    droppedMajors: mode === 'replace' ? missing : [],
     fromBatchId: preview.previousBatchId,
   };
 }

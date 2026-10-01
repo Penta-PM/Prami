@@ -249,6 +249,112 @@ describe('ImportPanel', () => {
   });
 });
 
+function sizedFile(name: string, size: number): File {
+  const file = new File(['x'], name);
+  Object.defineProperty(file, 'size', { value: size });
+  return file;
+}
+
+describe('ImportPanel 업로드 상한·병합 미리보기 (PRAMI-003 QA M-2·L-4)', () => {
+  const MB = 1024 * 1024;
+
+  it('L-4: 품목 배치 병합 미리보기 응답 전에는 적용 버튼이 잠기고, 응답 후 열린다', async () => {
+    let resolvePreview: (value: unknown) => void = () => {};
+    mocks.previewItemMergeAction.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePreview = resolve;
+      }),
+    );
+    render(
+      <ImportPanel
+        salesOptions={[SALES_BATCH]}
+        itemOptions={[ITEM_BATCH]}
+        currentSalesId={SALES_BATCH.id}
+        currentItemId={ITEM_BATCH.id}
+      />,
+    );
+    const apply = screen.getByRole('button', { name: '가격정책 적용' });
+    expect(apply).toBeDisabled();
+    expect(screen.getByText('품목 제품군 병합 여부를 확인하는 중입니다…')).toBeInTheDocument();
+    resolvePreview({
+      ok: true,
+      data: { missingFamilies: [], vanishingItems: 0, previousBatchId: null },
+    });
+    await vi.waitFor(() => expect(apply).toBeEnabled());
+  });
+
+  it('L-4: 미리보기가 실패해도 영구히 잠기지 않는다 (서버가 적용 시 다시 판정)', async () => {
+    mocks.previewItemMergeAction.mockResolvedValue({
+      ok: false,
+      error: { code: 'INTERNAL', message: 'x' },
+    });
+    render(
+      <ImportPanel
+        salesOptions={[SALES_BATCH]}
+        itemOptions={[ITEM_BATCH]}
+        currentSalesId={SALES_BATCH.id}
+        currentItemId={ITEM_BATCH.id}
+      />,
+    );
+    await vi.waitFor(() =>
+      expect(screen.getByRole('button', { name: '가격정책 적용' })).toBeEnabled(),
+    );
+  });
+
+  it('M-2: 파일당 10MB·품목 합계 25MB·5개 초과는 보내기 전에 안내하고 요청하지 않는다', async () => {
+    const fetchMock = mockFetch({ ok: true, data: UPLOAD_OK });
+    render(
+      <ImportPanel salesOptions={[]} itemOptions={[]} currentSalesId={null} currentItemId={null} />,
+    );
+    await userEvent.upload(
+      screen.getByLabelText('판매단가 엑셀 업로드'),
+      sizedFile('big.xlsx', 10 * MB + 1),
+    );
+    expect(await screen.findByText('파일은 10MB 이하만 업로드할 수 있습니다')).toBeInTheDocument();
+
+    const itemInput = screen.getByLabelText('품목조회 파일 업로드 (1~5개, 제품군별)');
+    await userEvent.upload(itemInput, [
+      sizedFile('a.xlsx', 10 * MB),
+      sizedFile('b.xlsx', 10 * MB),
+      sizedFile('c.xlsx', 5 * MB + 1),
+    ]);
+    expect(
+      await screen.findByText('품목조회 파일 합계는 25MB 이하만 업로드할 수 있습니다'),
+    ).toBeInTheDocument();
+    await userEvent.upload(
+      itemInput,
+      ['1', '2', '3', '4', '5', '6'].map((n) => sizedFile(`${n}.xlsx`, 1)),
+    );
+    expect(await screen.findByText('품목조회 파일은 한 번에 5개까지입니다')).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('M-2: 합계 25MB 정확히는 보낸다 / 플랫폼 413(JSON 아님)은 크기 한도 안내', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        ({
+          status: 413,
+          json: async () => {
+            throw new SyntaxError('Unexpected token R');
+          },
+        }) as unknown as Response,
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <ImportPanel salesOptions={[]} itemOptions={[]} currentSalesId={null} currentItemId={null} />,
+    );
+    await userEvent.upload(screen.getByLabelText('품목조회 파일 업로드 (1~5개, 제품군별)'), [
+      sizedFile('a.xlsx', 10 * MB),
+      sizedFile('b.xlsx', 10 * MB),
+      sizedFile('c.xlsx', 5 * MB),
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByText(/업로드 크기가 서버 허용 한도를 넘었습니다\(413\)/),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('ApplyStatsView', () => {
   it('run.stats 를 라벨과 함께 표시한다', () => {
     render(<ApplyStatsView title="적용 완료" stats={STATS} />);

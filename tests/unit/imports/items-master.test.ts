@@ -244,8 +244,18 @@ describe('AC-301·AC-302 축소 픽스처 파싱', () => {
     expect(outcome.errors.map((error) => [error.code, error.column])).toEqual([
       ['unknown_major', '품목대분류'],
       ['unmapped_status', '품목 상태'],
-      [undefined, '품번'],
+      ['invalid_item_code', '품번'],
     ]);
     expect(outcome.rows).toHaveLength(sheet.rows.length - 3);
+  });
+
+  it('QA L-2: 파일 내 같은 품번 → duplicate_item_code 오류의 column 이 품번 (파일 간 중복과 같은 표시)', async () => {
+    const sheet = await readItemFixture('cloudbric');
+    const code = String(sheet.rows[0]![sheet.header.indexOf('품번')]);
+    const rows = [...sheet.rows, withCell(sheet, sheet.rows[1]!, '품번', code)];
+    const outcome = await parseBuffer(await itemXlsx({ header: sheet.header, rows }));
+    expect(outcome.errors).toEqual([
+      expect.objectContaining({ code: 'duplicate_item_code', column: '품번', value: code }),
+    ]);
   });
 });

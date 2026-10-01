@@ -22,7 +22,7 @@ export async function applyItemBatch(
   salesBatchId: string,
   merge: ItemMergeMode,
 ): Promise<{ itemsApplied: number; unmappedItemStatus: number }> {
-  const applied = await queryRows<{ item_code: string }>(
+  const applied = await queryRows<{ item_code: string; source: string }>(
     tx,
     sql`
     insert into items (item_code, item_name, category_major, category_major_raw, category_mid,
@@ -41,8 +41,16 @@ export async function applyItemBatch(
       base_unit = excluded.base_unit, erp_registered_on = excluded.erp_registered_on,
       erp_modified_on = excluded.erp_modified_on, source = 'master', raw = excluded.raw,
       import_batch_id = excluded.import_batch_id, updated_at = now()
-    returning item_code`,
+    returning item_code, source::text as source`,
   );
+  // 0006 트리거는 종류·상태·대분류가 빈 master 쓰기를 stub 으로 낮춘다(구 앱 호환). 신 앱 스테이징은 세 값이 항상 있으므로
+  // 여기서 stub 이 나오면 검증 누락 — 조용히 넘기지 않고 적용 트랜잭션을 실패시킨다 (PR-1d 리뷰)
+  const demoted = applied.filter((row) => row.source !== 'master').map((row) => row.item_code);
+  if (demoted.length > 0) {
+    throw new Error(
+      `품목 적용 불변식 위반: 종류·상태·대분류가 빈 품번 ${demoted.length}건 (${demoted.slice(0, 5).join(', ')})`,
+    );
+  }
   const kept =
     merge.mode === 'merge' && merge.keptMajors.length > 0
       ? sql`and (category_major is null or category_major not in (${sql.join(

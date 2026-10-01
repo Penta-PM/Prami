@@ -44,5 +44,7 @@ export type SheetSpec<Row> = {
     compareValue?: (row: Row) => string;
     /** error 정책의 행 오류 검증 코드 (예: duplicate_item_code) */
     errorCode?: string;
+    /** error 정책의 행 오류에 표시할 컬럼명 (예: 품번). 없으면 빈 값 — 복합 키는 한 컬럼으로 가리킬 수 없다 */
+    column?: string;
   };
 };

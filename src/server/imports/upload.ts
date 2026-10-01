@@ -19,6 +19,7 @@ import {
   splitDuplicateGroups,
   type DuplicateWarnings,
 } from '@/lib/imports/duplicates';
+import { TOO_LARGE_FILE_MESSAGE } from '@/lib/constants/upload-limits';
 import { AppError } from '@/lib/result';
 import { writeAudit, type AuditActor, type RequestMeta } from '@/server/audit/log';
 
@@ -75,7 +76,7 @@ export function validateFile(input: Omit<UploadInput, 'kind'>): void {
   }
   if (input.bytes.length === 0) throw new AppError('VALIDATION', '빈 파일입니다');
   if (input.bytes.length > MAX_IMPORT_FILE_BYTES) {
-    throw new AppError('VALIDATION', '파일은 10MB 이하만 업로드할 수 있습니다');
+    throw new AppError('VALIDATION', TOO_LARGE_FILE_MESSAGE);
   }
 }
 

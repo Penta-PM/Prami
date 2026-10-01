@@ -110,6 +110,28 @@ describe('POST /api/imports/{kind}', () => {
       expect.arrayContaining([expect.objectContaining({ value: 'NOPE-0000' })]),
     );
   });
+
+  it('QA L-1: Content-Length 초과 413 문구가 상한별로 다르다 — 품목 합계 25MB / 단일 파일 10MB', async () => {
+    const MB = 1024 * 1024;
+    const post = (kind: string, declared: number) =>
+      POST(
+        new Request(`http://localhost/api/imports/${kind}`, {
+          method: 'POST',
+          body: new FormData(),
+          headers: { 'content-length': String(declared) },
+        }),
+        { params: Promise.resolve({ kind }) },
+      );
+    const items = await post('items', 26 * MB);
+    expect(items.status).toBe(413);
+    expect((await items.json()).error).toMatchObject({
+      code: 'PAYLOAD_TOO_LARGE',
+      message: '품목조회 파일 합계는 25MB 이하만 업로드할 수 있습니다',
+    });
+    const sales = await post('sales', 11 * MB);
+    expect(sales.status).toBe(413);
+    expect((await sales.json()).error.message).toBe('파일은 10MB 이하만 업로드할 수 있습니다');
+  });
 });
 
 describe('applyPolicyAction', () => {
