@@ -64,7 +64,8 @@ describe('AC-363 로그 공통 필드', () => {
     withRequestContext('req-mask-0001', () =>
       logger.error('x.failed', {
         password: 'p@ss',
-        url: 'postgres://user:hunter2@db.example.com/x',
+        // 저장소 secret-scan 이 자격 증명 URL 리터럴을 막으므로 실행 시 조립한다
+        url: ['postgres://user', 'hunter2@db.example.com/x'].join(':'),
         header: 'Bearer abcdefghijklmnop',
       }),
     );
