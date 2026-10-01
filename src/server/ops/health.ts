@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 
 import type { Db } from '@/db';
+import { isDeployedEnvironment } from '@/env-deploy';
 import { FIXTURE_EMAIL_LIKE } from '@/lib/constants/fixture';
 import { queryCount } from '@/server/imports/sql-rows';
 
@@ -36,7 +37,7 @@ export async function countFixtureAccounts(db: Db): Promise<number> {
 export async function checkHealth(deps: HealthDeps): Promise<{ status: number; body: HealthBody }> {
   const source = deps.source ?? process.env;
   const { release } = releaseInfo(source);
-  const deployed = Boolean(source.VERCEL_ENV?.trim());
+  const deployed = isDeployedEnvironment(source);
   let db: Db;
   try {
     db = await deps.getDb();

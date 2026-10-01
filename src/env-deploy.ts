@@ -50,6 +50,14 @@ export function deployTarget(source: Source): DeployTarget | null {
   return null;
 }
 
+/**
+ * 운영·preview 처럼 다뤄야 하는 배포 환경인지 — 시연 데이터 차단(L3 로그인·L4 기동·헬스 data)의 기준.
+ * Vercel(`VERCEL_ENV` 아무 값)과 자체 호스팅 production(`NODE_ENV=production` ∧ `APP_ENV=production`) 모두 포함.
+ */
+export function isDeployedEnvironment(source: Source): boolean {
+  return Boolean(source.VERCEL_ENV?.trim()) || deployTarget(source) !== null;
+}
+
 /** 테스트 모드 관련 키 — 값이 false 여도 "설정 자체" 를 거부한다 (ⓐ) */
 export const TEST_MODE_KEYS = [
   'AUTH_TEST_MODE',

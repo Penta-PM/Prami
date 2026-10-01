@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { parseEnv } from '@/env';
-import { checkDeployment, deployTarget } from '@/env-deploy';
+import { checkDeployment, deployTarget, isDeployedEnvironment } from '@/env-deploy';
 import { dbHostOf, isLocalDbHost, isPrivateDbHost } from '@/lib/db-host';
 
 /**
@@ -158,6 +158,13 @@ describe('deployTarget · checkDeployment', () => {
     expect(deployTarget({ NODE_ENV: 'production' })).toBeNull();
     expect(deployTarget({ NODE_ENV: 'production', APP_ENV: 'production' })).toBe('production');
     expect(deployTarget({})).toBeNull();
+  });
+
+  it('isDeployedEnvironment: Vercel 전 환경 + 자체 호스팅 production', () => {
+    expect(isDeployedEnvironment({ VERCEL_ENV: 'development' })).toBe(true);
+    expect(isDeployedEnvironment({ NODE_ENV: 'production', APP_ENV: 'production' })).toBe(true);
+    expect(isDeployedEnvironment({ NODE_ENV: 'production' })).toBe(false);
+    expect(isDeployedEnvironment({})).toBe(false);
   });
 
   it('로컬(대상 없음)은 아무것도 검사하지 않는다', () => {

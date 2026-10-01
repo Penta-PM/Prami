@@ -1,4 +1,5 @@
 import type { Db } from '@/db';
+import { isDeployedEnvironment } from '@/env-deploy';
 import { logger } from '@/server/log';
 
 import { countFixtureAccounts } from './health';
@@ -29,7 +30,7 @@ export async function runStartupChecks(
   if (schema === 'behind') logger.error('db.schema_behind', { expected: latest?.tag ?? null });
   if (schema === 'ahead') logger.warn('db.schema_ahead', { bundled: latest?.tag ?? null });
 
-  if (!source.VERCEL_ENV?.trim()) return { schema, fixtureAccounts: null };
+  if (!isDeployedEnvironment(source)) return { schema, fixtureAccounts: null };
   const fixtureAccounts = await countFixtureAccounts(db);
   if (fixtureAccounts > 0) logger.error('db.fixture_accounts_present', { count: fixtureAccounts });
   return { schema, fixtureAccounts };

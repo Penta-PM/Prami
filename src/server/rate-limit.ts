@@ -196,7 +196,7 @@ export function ipScopeFor(pathname: string, method: string): RateLimitScope | n
   if (pathname.startsWith('/share/quotes/')) return 'share';
   if (method === 'GET' && /^\/api\/quotes\/[^/]+\/pdf$/.test(pathname)) return 'pdf';
   if (pathname.startsWith('/api/auth/callback/')) return 'authCallback';
-  if (method === 'GET' && pathname === '/api/health') return 'health';
+  if ((method === 'GET' || method === 'HEAD') && pathname === '/api/health') return 'health';
   return null;
 }
 

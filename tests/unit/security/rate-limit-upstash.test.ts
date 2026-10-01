@@ -170,6 +170,7 @@ describe('백엔드 상태·헬스 범위', () => {
   it('GET /api/health 는 IP 버킷, deep 은 제외', () => {
     expect(ipScopeFor('/api/health', 'GET')).toBe('health');
     expect(ipScopeFor('/api/health/deep', 'GET')).toBeNull();
+    expect(ipScopeFor('/api/health', 'HEAD')).toBe('health');
     expect(ipScopeFor('/api/health', 'POST')).toBeNull();
   });
 });

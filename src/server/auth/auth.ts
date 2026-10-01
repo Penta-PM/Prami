@@ -7,6 +7,7 @@ import { headers } from 'next/headers';
 import { getDb, getDbHandle } from '@/db';
 import { users } from '@/db/schema';
 import { env } from '@/env';
+import { isDeployedEnvironment } from '@/env-deploy';
 import { currentRequestMeta } from '@/server/audit/request-meta';
 import { rateLimiters } from '@/server/rate-limit';
 
@@ -21,7 +22,7 @@ export const signInPolicy: SignInPolicy = {
   adminEmails: env.ADMIN_EMAILS,
   autoProvision: env.AUTH_AUTO_PROVISION,
   // PRAMI-003 §4.9.3 L3: 운영·preview 에서는 fixture 접두 이메일 로그인 거부
-  rejectFixtureAccounts: Boolean(env.VERCEL_ENV),
+  rejectFixtureAccounts: isDeployedEnvironment(process.env),
 };
 
 /** 테스트 로그인 거부 사유를 /login?error=CredentialsSignin&code=<사유> 로 전달한다 */

@@ -3,6 +3,7 @@ import { sql, type SQL } from 'drizzle-orm';
 import { FIXTURE_EMAIL_LIKE } from '@/lib/constants/fixture';
 import { countMaterialCostRows } from '@/server/cost/row-count';
 import { queryCount, queryRows, type Executor } from '@/server/imports/sql-rows';
+import { countAllCredentials } from '@/server/llm/credentials/repository';
 
 import { DATA_BASELINE, type DataBaseline } from './data-baseline';
 import {
@@ -266,7 +267,6 @@ const ZERO_TABLES = [
   'quote_shares',
   'solution_groups',
   'solution_group_items',
-  'user_llm_credentials',
   'oauth_flow_states',
 ] as const;
 
@@ -301,6 +301,9 @@ async function freshChecks(db: Executor, checks: Checks, options: VerifyOptions)
     const rows = await count(db, sql`select count(*)::int as n from ${sql.identifier(table)}`);
     checks.rule(`fresh.${table}`, `${table} 행`, '0', fmt(rows), rows === 0);
   }
+  // 자격 증명 테이블은 credentials 모듈만 다룬다 (PRAMI-002 T-7) — 개수 함수만 빌려 쓴다
+  const credentials = await countAllCredentials(db);
+  checks.rule('fresh.credentials', 'LLM 자격 증명 행', '0', fmt(credentials), credentials === 0);
   const mappings = await count(db, sql`select count(*)::int as n from part_mappings`);
   if (options.allowPartMappings) {
     checks.rule(

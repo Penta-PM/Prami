@@ -3,6 +3,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createDb, type Db, type DbHandle } from '@/db';
@@ -144,6 +145,18 @@ describe('/api/health 판정 (AC-330 ①·AC-326·AC-334)', () => {
       status: 503,
       body: { ok: false, release: 'abc1234', db: 'error', schema: 'unknown', data: 'unknown' },
     });
+  });
+
+  it('자체 호스팅 production(NODE_ENV·APP_ENV=production)도 fixture 를 검사한다', async () => {
+    await insertUser(full, { email: 'fixture-selfhost@pentasecurity.com', role: 'USER' });
+    const result = await checkHealth({
+      getDb: async () => full.db,
+      source: { NODE_ENV: 'production', APP_ENV: 'production' },
+    });
+    expect(result).toMatchObject({ status: 503, body: { data: 'fixture' } });
+    await full.db.execute(
+      sql`delete from users where email = 'fixture-selfhost@pentasecurity.com'`,
+    );
   });
 
   it('VERCEL_ENV=preview + fixture 계정 1개 → 503 data:fixture · 0개 → 200 · VERCEL_ENV 없으면 조회 없이 ok', async () => {
