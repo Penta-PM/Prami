@@ -123,19 +123,35 @@ describe('같은 시나리오 → 같은 형태의 ChatReply (AC-241)', () => {
     expect(google!.headers['x-goog-api-key']).toBe(KEYS.google);
   });
 
-  it('강제 도구 선택 없음 — OpenAI tool_choice 없음·strict, Gemini toolConfig 강제 모드 없음, 도구 3개 바인딩', async () => {
+  it('강제 도구 선택 없음 — OpenAI(Responses) tool_choice 없음·strict, Gemini toolConfig 강제 모드 없음, 도구 3개 바인딩', async () => {
     const { requests: openai } = await runVendor('openai', SCENARIO);
     const body = openai[0]!.body;
+    // PRAMI-003: GPT-6 도구 호출은 Responses API (Chat Completions 는 reasoning_effort none 에서만 — 공식 문서 2026-10-01)
+    expect(openai[0]!.url).toBe('https://api.openai.com/v1/responses');
     expect(body).not.toHaveProperty('tool_choice');
+    expect(body).not.toHaveProperty('temperature');
+    expect(body).not.toHaveProperty('reasoning_effort');
+    expect(body).not.toHaveProperty('max_completion_tokens');
     expect(body.model).toBe('gpt-6.1-sol');
-    expect(body.max_completion_tokens).toBe(1024);
-    const tools = body.tools as { function: { name: string; strict?: boolean } }[];
-    expect(tools.map((tool) => tool.function.name)).toEqual([
+    expect(body.max_output_tokens).toBe(1024);
+    expect(body.reasoning).toEqual({ effort: 'low' });
+    expect(body.store).toBe(false);
+    expect(body.include).toEqual(['reasoning.encrypted_content']);
+    const tools = body.tools as { type: string; name: string; strict?: boolean }[];
+    expect(tools.map((tool) => tool.name)).toEqual([
       'price_lookup',
       'price_compare_previous',
       'quote_start',
     ]);
-    expect(tools.every((tool) => tool.function.strict === true)).toBe(true);
+    expect(tools.every((tool) => tool.type === 'function' && tool.strict === true)).toBe(true);
+    // 도구 루프 2회차: store:false 이므로 이전 추론은 암호화 항목으로, 도구 결과는 function_call_output 으로 돌려준다
+    const second = openai[1]!.body.input as { type?: string; encrypted_content?: string }[];
+    expect(
+      second.some(
+        (item) => item.type === 'reasoning' && item.encrypted_content === 'enc-reasoning-1',
+      ),
+    ).toBe(true);
+    expect(second.some((item) => item.type === 'function_call_output')).toBe(true);
     const { requests: google } = await runVendor('google', SCENARIO);
     const gBody = google[0]!.body as {
       toolConfig?: { functionCallingConfig?: { mode?: string } };
@@ -144,6 +160,10 @@ describe('같은 시나리오 → 같은 형태의 ChatReply (AC-241)', () => {
     expect(google[0]!.url).toContain('/v1beta/models/gemini-3.8-flash:');
     expect(gBody.toolConfig?.functionCallingConfig?.mode ?? 'AUTO').not.toBe('ANY');
     expect(gBody.tools[0]!.functionDeclarations).toHaveLength(3);
+    // PRAMI-003 같은 클래스 점검: Gemini 3 도구 루프 2회차에 1회차 thoughtSignature 를 그대로 돌려준다 (공식 문서 2026-10-01
+    // https://ai.google.dev/gemini-api/docs/generate-content/thought-signatures — 누락 시 400)
+    const secondContents = JSON.stringify(google[1]!.body.contents);
+    expect(secondContents).toContain('"thoughtSignature":"sig-gemini-fixture-1"');
   });
 });
 

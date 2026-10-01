@@ -1,5 +1,5 @@
 import { modelsFor } from '../models';
-import { createOpenAIChatModel } from './openai-chat';
+import { createOpenAICompatibleChatModel } from './openai-chat';
 import { KEY_CHARSET, type LlmVendor } from './types';
 
 /**
@@ -26,5 +26,5 @@ export const openrouter: LlmVendor = {
   // 키 정보 응답에는 모델 목록이 없다 → 사용 가능 모델 미확인
   parseModelList: () => null,
   createChatModel: (secret, model, options) =>
-    createOpenAIChatModel(secret, model, options, OPENROUTER_API_BASE),
+    createOpenAICompatibleChatModel(secret, model, options, OPENROUTER_API_BASE),
 };

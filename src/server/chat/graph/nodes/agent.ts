@@ -1,6 +1,11 @@
 import { AIMessage } from '@langchain/core/messages';
 import type { LangGraphRunnableConfig } from '@langchain/langgraph';
 
+import {
+  adapterOf,
+  describeLlmError,
+  type LlmErrorDiagnostics,
+} from '@/server/llm/error-diagnostics';
 import { isAuthError, normalizeLlmError, type LlmErrorCode } from '@/server/llm/errors';
 import { logger } from '@/server/log';
 
@@ -36,15 +41,25 @@ async function onError(
   state: ChatGraphState,
   runtime: ChatRuntime,
   code: LlmErrorCode,
+  diagnostics: LlmErrorDiagnostics = { source: 'local' },
 ): Promise<ChatGraphUpdate> {
-  logger.warn('chat.llm_error', { code, vendor: state.llm.vendor, model: state.llm.model });
+  // 원인 진단 필드(HTTP 상태·벤더 type/code/param 등)만 — 메시지·헤더·본문·키 없음 (PRAMI-003)
+  logger.warn('chat.llm_error', {
+    code,
+    vendor: state.llm.vendor,
+    model: state.llm.model,
+    adapter: adapterOf(state.llm.vendor),
+    streaming: runtime.streaming === true,
+    ...diagnostics,
+  });
   const next: ChatGraphState = { ...state, llmError: code };
   if (isAuthError(code)) {
     const status = code === 'invalid_key' ? 'invalid' : 'forbidden';
     if (runtime.credential) await runtime.markRejected(runtime.credential, status);
     return { llmError: code, llm: { ...state.llm, status } };
   }
-  const notices = code === 'llm_error' ? [{ code, text: LLM_ERROR_NOTICE }] : [];
+  const notices =
+    code === 'llm_error' || code === 'request_rejected' ? [{ code, text: LLM_ERROR_NOTICE }] : [];
   return { llmError: code, notices, ...errorSetup(next, runtime) };
 }
 
@@ -67,7 +82,7 @@ export function makeAgent(features: readonly ChatFeature[]) {
         signal: callSignal(config, timeoutMs),
       })) as AIMessage;
     } catch (error) {
-      return onError(state, runtime, normalizeLlmError(error));
+      return onError(state, runtime, normalizeLlmError(error), describeLlmError(error));
     }
     if (isRefusal(message)) return { llmError: 'refused' };
     const limitReached = (message.tool_calls?.length ?? 0) > 0 && state.toolCalls >= maxToolCalls;
