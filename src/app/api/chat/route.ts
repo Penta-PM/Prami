@@ -52,8 +52,8 @@ async function parseBody(request: Request): Promise<ParsedBody> {
   return { message, truncated: full.length > CHAT_MAX_LENGTH, history: parsed.data.history ?? [] };
 }
 
-function rateLimit(userId: string) {
-  const decision = rateLimiters.chat.hit(userId);
+async function rateLimit(userId: string) {
+  const decision = await rateLimiters.chat.hit(userId);
   if (decision.allowed) return decision;
   const retryAfter = retryAfterSeconds(decision);
   throw new AppError(
@@ -77,7 +77,7 @@ export async function POST(request: Request): Promise<Response> {
   } as const;
   return runRoute(guard, async (user) => {
     const { message, truncated, history } = await parseBody(request);
-    const decision = rateLimit(user.id);
+    const decision = await rateLimit(user.id);
     const db = await getDb();
     const input = {
       text: message,

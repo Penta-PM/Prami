@@ -41,7 +41,7 @@ export async function POST(
     target: `/api/imports/${kind}`,
   };
   return runRoute(guard, async (user) => {
-    const decision = rateLimiters.imports.hit(user.id);
+    const decision = await rateLimiters.imports.hit(user.id);
     if (!decision.allowed) {
       const seconds = retryAfterSeconds(decision);
       throw new AppError(

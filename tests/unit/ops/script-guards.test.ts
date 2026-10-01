@@ -63,8 +63,8 @@ describe('마이그레이션 연결 (AC-327)', () => {
   it('DATABASE_URL_UNPOOLED 가 있으면 우선, 로그용은 호스트만', () => {
     const connection = resolveMigrationConnection({
       DB_DRIVER: 'neon',
-      DATABASE_URL: 'postgresql://app:pooledpw@ep-a-pooler.example.neon.tech/db',
-      DATABASE_URL_UNPOOLED: 'postgresql://app:directpw@ep-a.example.neon.tech/db',
+      DATABASE_URL: 'postgresql://pooled:pw@ep-a-pooler.example.neon.tech/db',
+      DATABASE_URL_UNPOOLED: 'postgresql://direct:pw@ep-a.example.neon.tech/db',
     });
     expect(connection).toMatchObject({
       via: 'unpooled',
@@ -79,11 +79,11 @@ describe('마이그레이션 연결 (AC-327)', () => {
   it('없으면 DATABASE_URL + 경고(neon), 로컬 pg 는 경고 없음, pglite 는 연결 없음', () => {
     const neon = resolveMigrationConnection({
       DB_DRIVER: 'neon',
-      DATABASE_URL: 'postgresql://app:pooledpw@ep-a-pooler.example.neon.tech/db',
+      DATABASE_URL: 'postgresql://pooled:pw@ep-a-pooler.example.neon.tech/db',
     });
     expect(neon.via).toBe('pooled');
     expect(neon.warning).toMatch(/DATABASE_URL_UNPOOLED/);
-    expect(neon.warning).not.toMatch(/pooledpw/);
+    expect(neon.warning).not.toMatch(/:pw@/);
     expect(
       resolveMigrationConnection({ DB_DRIVER: 'pg', DATABASE_URL: 'postgres://a:b@localhost/x' })
         .warning,

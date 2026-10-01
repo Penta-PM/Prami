@@ -13,20 +13,20 @@ import {
 
 /** 속도 제한 단일 모듈 (§4.8 r6, AC-95): 슬라이딩 윈도우·버킷 분리·IP 키·429 봉투 */
 describe('createRateLimiter', () => {
-  it('상한까지 허용하고 그 다음은 거부, 창이 지나면 다시 허용, 키별 독립', () => {
+  it('상한까지 허용하고 그 다음은 거부, 창이 지나면 다시 허용, 키별 독립', async () => {
     const limiter = createRateLimiter('t', 3, 1000);
-    expect(limiter.hit('u1', 0)).toMatchObject({ allowed: true, remaining: 2 });
-    expect(limiter.hit('u1', 100)).toMatchObject({ allowed: true, remaining: 1 });
-    expect(limiter.hit('u1', 200)).toMatchObject({ allowed: true, remaining: 0 });
-    expect(limiter.hit('u1', 300)).toMatchObject({ allowed: false, retryAfterMs: 700 });
-    expect(limiter.hit('u2', 300)).toMatchObject({ allowed: true, remaining: 2 });
-    expect(limiter.hit('u1', 1001)).toMatchObject({ allowed: true, remaining: 0 });
-    expect(limiter.hit('u1', 1002)).toMatchObject({ allowed: false });
+    expect(await limiter.hit('u1', 0)).toMatchObject({ allowed: true, remaining: 2 });
+    expect(await limiter.hit('u1', 100)).toMatchObject({ allowed: true, remaining: 1 });
+    expect(await limiter.hit('u1', 200)).toMatchObject({ allowed: true, remaining: 0 });
+    expect(await limiter.hit('u1', 300)).toMatchObject({ allowed: false, retryAfterMs: 700 });
+    expect(await limiter.hit('u2', 300)).toMatchObject({ allowed: true, remaining: 2 });
+    expect(await limiter.hit('u1', 1001)).toMatchObject({ allowed: true, remaining: 0 });
+    expect(await limiter.hit('u1', 1002)).toMatchObject({ allowed: false });
     limiter.reset();
-    expect(limiter.hit('u1', 1003)).toMatchObject({ allowed: true, remaining: 2 });
+    expect(await limiter.hit('u1', 1003)).toMatchObject({ allowed: true, remaining: 2 });
     limiter.configure(1);
     expect(limiter.limit()).toBe(1);
-    expect(limiter.hit('u1', 1004).allowed).toBe(false);
+    expect((await limiter.hit('u1', 1004)).allowed).toBe(false);
   });
 
   it('기본 상한 30, 테스트 env 는 1000 (§4.9.2 r6), 엔드포인트별 버킷이 따로다', () => {

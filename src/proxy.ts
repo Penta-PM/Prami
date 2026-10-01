@@ -4,7 +4,7 @@ import { canAccessAdminArea } from '@/lib/constants/permissions';
 import { env, proxyTrustMode } from '@/env';
 import { auth } from '@/server/auth/auth';
 import { logger } from '@/server/log';
-import { ipScopeFor, rateLimitedResponse, rateLimiters, rateLimitIp } from '@/server/rate-limit';
+import { ipScopeFor, rateLimitedResponse, rateLimiters, rateLimitIpKey } from '@/server/rate-limit';
 import {
   buildCsp,
   createNonce,
@@ -57,10 +57,16 @@ function decorate(response: NextResponse, context: SecurityContext): NextRespons
 }
 
 /** 공유 페이지·PDF·auth 콜백은 IP 기준 분당 상한 (§4.8 r6, AC-95). 초과면 429 응답, 아니면 null */
-function limitByIp(request: NextRequest, context: SecurityContext): NextResponse | null {
+async function limitByIp(
+  request: NextRequest,
+  context: SecurityContext,
+): Promise<NextResponse | null> {
   const scope = ipScopeFor(request.nextUrl.pathname, request.method);
   if (!scope) return null;
-  const decision = rateLimiters[scope].hit(rateLimitIp(request.headers, proxyTrustMode(env)));
+  // 저장소에는 원문 IP 대신 HMAC 키 (PRAMI-003 §4.3.7)
+  const decision = await rateLimiters[scope].hit(
+    rateLimitIpKey(request.headers, proxyTrustMode(env)),
+  );
   if (decision.allowed) return null;
   logger.warn('rate_limited', { scope, requestId: context.requestId });
   const limited = rateLimitedResponse(decision);
@@ -70,7 +76,7 @@ function limitByIp(request: NextRequest, context: SecurityContext): NextResponse
 export default auth(async (request) => {
   const context = securityContext(request);
   const { pathname, search } = request.nextUrl;
-  const limited = limitByIp(request, context);
+  const limited = await limitByIp(request, context);
   if (limited) return limited;
   if (isPublicPath(pathname)) return passThrough(request, context);
 

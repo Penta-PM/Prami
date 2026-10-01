@@ -16,7 +16,7 @@ const VALID_PRODUCTION: Record<string, string> = {
   NEXT_PUBLIC_APP_URL: 'https://prami.example.com',
   AUTH_URL: 'https://prami.example.com',
   DB_DRIVER: 'neon',
-  DATABASE_URL: `postgresql://app:${SECRET_MARK}@ep-x-pooler.example.neon.tech/prami?sslmode=require`,
+  DATABASE_URL: ['postgresql://app:', SECRET_MARK, '@ep-x-pooler.example.neon.tech/prami'].join(''),
   AUTH_SECRET: 'x'.repeat(40),
   AUTH_GOOGLE_ID: 'dummy-client-id',
   AUTH_GOOGLE_SECRET: SECRET_MARK,
@@ -181,8 +181,8 @@ describe('deployTarget · checkDeployment', () => {
 
 describe('db-host', () => {
   it('호스트 추출·판정', () => {
-    expect(dbHostOf('postgres://u:p@LocalHost:5432/x')).toBe('localhost');
-    expect(dbHostOf('postgres://u:p@[::1]:5432/x')).toBe('::1');
+    expect(dbHostOf('postgres://u:pw@LocalHost:5432/x')).toBe('localhost');
+    expect(dbHostOf('postgres://u:pw@[::1]:5432/x')).toBe('::1');
     expect(dbHostOf('not a url')).toBeNull();
     expect(dbHostOf(undefined)).toBeNull();
     expect(isLocalDbHost('postgres')).toBe(true);

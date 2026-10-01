@@ -132,7 +132,7 @@ export async function saveCredential(
   }
   // 저장 직후 자동 검증도 벤더 호출이므로 같은 상한(llmVerify)에 센다 — 저장 경로로 "키 오라클" 상한을 우회하지 못하게.
   // 상한 초과면 저장하지 않는다(DB·벤더 호출 모두 없음)
-  assertVerifyAllowed(ctx.actor.id);
+  await assertVerifyAllowed(ctx.actor.id);
   await storeSealed(ctx, vendor, input.apiKey);
   // 저장 성공 시 자동 검증 1회 (§4.6.1)
   return runVerify(ctx, vendor);
@@ -162,8 +162,8 @@ export async function saveOAuthCredential(
 }
 
 /** 사용자당 분당 LLM_VERIFY_PER_MIN (§4.7.3 키 오라클 방지). 수동 검증·저장 후 자동 검증 모두 1회로 센다 */
-function assertVerifyAllowed(userId: string): void {
-  const decision = rateLimiters.llmVerify.hit(userId);
+async function assertVerifyAllowed(userId: string): Promise<void> {
+  const decision = await rateLimiters.llmVerify.hit(userId);
   if (decision.allowed) return;
   const seconds = retryAfterSeconds(decision);
   throw new AppError(
@@ -285,7 +285,7 @@ export async function verifyOwnCredential(
     throw new AppError('NOT_FOUND', '등록된 키가 없습니다');
   }
   assertVendorActive(ctx, vendor);
-  assertVerifyAllowed(ctx.actor.id);
+  await assertVerifyAllowed(ctx.actor.id);
   return runVerify(ctx, vendor);
 }
 
