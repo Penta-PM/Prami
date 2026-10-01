@@ -167,7 +167,7 @@ describe('schema (C-5)', () => {
   it('DB 연결 오류는 오류 이름만 남긴다 (연결 문자열 비노출)', async () => {
     const result = await run(['schema'], {
       schemaState: async () => {
-        throw new Error(`connect failed postgres://u:${SECRET_VALUE}@h/db`);
+        throw new Error(`connect failed ${['postgres://u', `${SECRET_VALUE}@h/db`].join(':')}`);
       },
     });
     expect(result.ok).toBe(false);

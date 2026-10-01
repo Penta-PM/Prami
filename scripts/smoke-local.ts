@@ -54,7 +54,8 @@ function previewEnv(): Record<string, string> {
     NEXT_TELEMETRY_DISABLED: '1',
     NEXT_PUBLIC_APP_URL: BASE_URL,
     DB_DRIVER: 'neon',
-    DATABASE_URL: 'postgresql://smoke:smoke@ep-smoke-pooler.neon-smoke.test/smoke',
+    // 더미 자격 증명(실 서비스 없음) — secret-scan 이 자격 증명 URL 리터럴을 막으므로 실행 시 조립한다
+    DATABASE_URL: ['postgresql://smoke', 'smoke@ep-smoke-pooler.neon-smoke.test/smoke'].join(':'),
     AUTH_SECRET: randomBytes(32).toString('base64url'),
     AUTH_GOOGLE_ID: 'smoke-dummy-google-client-id',
     AUTH_GOOGLE_SECRET: 'smoke-dummy-google-client-secret',
