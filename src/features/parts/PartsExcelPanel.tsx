@@ -91,7 +91,7 @@ export function PartsExcelPanel({ options, onApplied }: PartsExcelPanelProps) {
         <p
           role="status"
           aria-label="매핑 적용 완료"
-          className="m-0 text-[12px] font-semibold text-green-600"
+          className="m-0 text-[12px] font-semibold text-green-700"
         >
           적용 완료 — 모델 {stats.models}개 · 매핑 {stats.mappings}건 · 덮어쓴 모델{' '}
           {stats.replacedModels}개

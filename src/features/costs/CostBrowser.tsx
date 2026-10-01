@@ -56,7 +56,7 @@ export function CostBrowser({ rows }: { rows: readonly CostRowView[] }) {
             'm-0 rounded-lg px-3.5 py-2.5 text-[13px]',
             flash.tone === 'error'
               ? 'bg-red-500/10 text-red-500'
-              : 'bg-green-600/12 text-green-600',
+              : 'bg-green-600/12 text-green-700',
           )}
         >
           {flash.text}
@@ -149,7 +149,7 @@ function CostRow({ row, onEdit, onDelete }: CostRowProps) {
         <button
           type="button"
           aria-label={`${row.materialName} 수정`}
-          className={`${ACTION} text-purple-500`}
+          className={`${ACTION} text-purple-600`}
           onClick={() => onEdit(row)}
         >
           수정

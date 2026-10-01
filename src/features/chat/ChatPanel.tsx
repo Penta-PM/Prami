@@ -186,7 +186,7 @@ function Bubble({ message }: { message: ChatMessage }) {
         {message.action ? (
           <Link
             href={message.action.href}
-            className="mt-2 block text-[12px] font-semibold text-purple-500 underline"
+            className="mt-2 block text-[12px] font-semibold text-purple-600 underline"
           >
             {message.action.label} →
           </Link>

@@ -73,6 +73,34 @@ describe('Sidebar', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('가격 정책 조회')).toBeInTheDocument();
   });
+
+  it('PRAMI-003 AC-375 ②: 좁은 화면 메뉴 버튼이 오버레이를 열고, 바깥 누름·Esc·메뉴 선택으로 닫는다', async () => {
+    render(<Sidebar showAdminNav />);
+    const aside = screen.getByRole('complementary', { name: '주 메뉴' });
+    const open = screen.getByRole('button', { name: '메뉴 열기' });
+    expect(open).toHaveAttribute('aria-controls', 'app-sidebar');
+    expect(aside).toHaveAttribute('data-mobile-open', 'false');
+    expect(aside.className).toContain('max-md:-translate-x-full');
+
+    await userEvent.click(open);
+    expect(aside).toHaveAttribute('data-mobile-open', 'true');
+    expect(aside.className).not.toContain('max-md:-translate-x-full');
+    const backdrops = screen.getAllByRole('button', { name: '메뉴 닫기' });
+    await userEvent.click(backdrops.at(-1)!);
+    expect(aside).toHaveAttribute('data-mobile-open', 'false');
+
+    await userEvent.click(screen.getByRole('button', { name: '메뉴 열기' }));
+    await userEvent.keyboard('{Escape}');
+    expect(aside).toHaveAttribute('data-mobile-open', 'true');
+    aside.focus();
+    within(aside).getAllByRole('link')[0]!.focus();
+    await userEvent.keyboard('{Escape}');
+    expect(aside).toHaveAttribute('data-mobile-open', 'false');
+
+    await userEvent.click(screen.getByRole('button', { name: '메뉴 열기' }));
+    await userEvent.click(within(aside).getByRole('link', { name: '원가 관리' }));
+    expect(aside).toHaveAttribute('data-mobile-open', 'false');
+  });
 });
 
 describe('Header', () => {

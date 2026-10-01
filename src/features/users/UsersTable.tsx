@@ -124,7 +124,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
                     type="button"
                     onClick={() => setForm({ kind: 'edit', user })}
                     aria-label={`${user.email} 수정`}
-                    className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-purple-500 hover:underline"
+                    className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-purple-600 hover:underline"
                   >
                     수정
                   </button>

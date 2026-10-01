@@ -14,66 +14,101 @@ import { NAV_ADMIN, NAV_MAIN, isNavActive, type NavItem } from './nav';
  * 앱 셸 사이드바. 접기/펼치기 상태를 가진다.
  * 디자인의 "보기 권한" 역할 토글은 제거했고, 관리자 메뉴는 세션 역할로 노출한다.
  * 메뉴 숨김은 표시용일 뿐 보안 경계가 아니다 (proxy·requirePermission 이 막는다).
+ * 좁은 화면(md 미만, PRAMI-003 AC-375 ② — 320px 에서 본문 폭 확보)은 레이아웃 폭을 차지하지 않는 오버레이다:
+ * 기본은 화면 밖(보이지 않고 탭 이동에서도 빠짐), [메뉴] 버튼으로 열고 메뉴 선택·바깥 누름·Esc 로 닫는다.
  */
 export function Sidebar({ showAdminNav = false }: { showAdminNav?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const pathname = usePathname();
+  const closeMobile = () => setIsMobileOpen(false);
 
   return (
-    <aside
-      aria-label="주 메뉴"
-      data-expanded={isExpanded}
-      className={cn(
-        'sticky top-0 flex h-screen shrink-0 flex-col gap-7 border-r border-border-subtle bg-surface-sidebar py-6 transition-[width] duration-200',
-        isExpanded ? 'w-(--sidebar-width) px-4' : 'w-[72px] px-3',
-      )}
-    >
-      <SidebarLogo isExpanded={isExpanded} />
-
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
-        {NAV_MAIN.map((item) => (
-          <SidebarLink
-            key={item.key}
-            item={item}
-            isActive={isNavActive(pathname, item.href)}
-            isExpanded={isExpanded}
-          />
-        ))}
-
-        {showAdminNav ? (
-          <>
-            {isExpanded ? (
-              <div className="mx-2 mt-5 mb-2 text-[11px] font-semibold tracking-[0.04em] text-text-tertiary">
-                관리자
-              </div>
-            ) : (
-              <div aria-hidden="true" className="my-3 border-t border-border-subtle" />
-            )}
-            {NAV_ADMIN.map((item) => (
-              <SidebarLink
-                key={item.key}
-                item={item}
-                isActive={isNavActive(pathname, item.href)}
-                isExpanded={isExpanded}
-              />
-            ))}
-          </>
-        ) : null}
-      </nav>
-
-      <div className="border-t border-border-subtle pt-4">
+    <>
+      <button
+        type="button"
+        onClick={() => setIsMobileOpen((value) => !value)}
+        aria-expanded={isMobileOpen}
+        aria-controls="app-sidebar"
+        aria-label={isMobileOpen ? '메뉴 닫기' : '메뉴 열기'}
+        className="fixed top-[18px] left-3 z-50 flex size-9 items-center justify-center rounded-lg border-0 bg-gray-75 text-[18px] text-ink-900 shadow-(--hairline-subtle) md:hidden"
+      >
+        <span aria-hidden="true">{isMobileOpen ? '×' : '☰'}</span>
+      </button>
+      {isMobileOpen ? (
         <button
           type="button"
-          onClick={() => setIsExpanded((value) => !value)}
-          aria-expanded={isExpanded}
-          aria-label="사이드바 접기/펼치기"
-          title="사이드바 접기/펼치기"
-          className="w-full rounded-lg border-0 bg-gray-75 py-[9px] text-[12px] font-semibold text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900"
-        >
-          {isExpanded ? '« 접기' : '»'}
-        </button>
-      </div>
-    </aside>
+          tabIndex={-1}
+          aria-label="메뉴 닫기"
+          onClick={closeMobile}
+          className="fixed inset-0 z-30 border-0 bg-ink-900/30 md:hidden"
+        />
+      ) : null}
+      <aside
+        id="app-sidebar"
+        aria-label="주 메뉴"
+        data-expanded={isExpanded}
+        data-mobile-open={isMobileOpen}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') closeMobile();
+        }}
+        onClick={(event) => {
+          if ((event.target as HTMLElement).closest('a')) closeMobile();
+        }}
+        className={cn(
+          'sticky top-0 flex h-screen shrink-0 flex-col gap-7 border-r border-border-subtle bg-surface-sidebar py-6 transition-[width,transform] duration-200',
+          isExpanded ? 'w-(--sidebar-width) px-4' : 'w-[72px] px-3',
+          'max-md:fixed max-md:left-0 max-md:z-40 max-md:w-(--sidebar-width) max-md:px-4 max-md:pt-16 max-md:shadow-xl',
+          isMobileOpen ? '' : 'max-md:invisible max-md:-translate-x-full',
+        )}
+      >
+        <SidebarLogo isExpanded={isExpanded} />
+
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
+          {NAV_MAIN.map((item) => (
+            <SidebarLink
+              key={item.key}
+              item={item}
+              isActive={isNavActive(pathname, item.href)}
+              isExpanded={isExpanded}
+            />
+          ))}
+
+          {showAdminNav ? (
+            <>
+              {isExpanded ? (
+                <div className="mx-2 mt-5 mb-2 text-[11px] font-semibold tracking-[0.04em] text-text-tertiary">
+                  관리자
+                </div>
+              ) : (
+                <div aria-hidden="true" className="my-3 border-t border-border-subtle" />
+              )}
+              {NAV_ADMIN.map((item) => (
+                <SidebarLink
+                  key={item.key}
+                  item={item}
+                  isActive={isNavActive(pathname, item.href)}
+                  isExpanded={isExpanded}
+                />
+              ))}
+            </>
+          ) : null}
+        </nav>
+
+        <div className="border-t border-border-subtle pt-4 max-md:hidden">
+          <button
+            type="button"
+            onClick={() => setIsExpanded((value) => !value)}
+            aria-expanded={isExpanded}
+            aria-label="사이드바 접기/펼치기"
+            title="사이드바 접기/펼치기"
+            className="w-full rounded-lg border-0 bg-gray-75 py-[9px] text-[12px] font-semibold text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900"
+          >
+            {isExpanded ? '« 접기' : '»'}
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
 

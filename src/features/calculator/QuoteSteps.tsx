@@ -292,7 +292,7 @@ export function StepDiscount({
           <span className="text-[13px] font-semibold text-text-secondary">
             할인 적용 후 금액 (1,000원 단위 절삭)
           </span>
-          <span className="text-[18px] font-bold text-purple-500" data-testid="line-total">
+          <span className="text-[18px] font-bold text-purple-600" data-testid="line-total">
             {priceLabel(lineTotal, currency)}
           </span>
         </div>

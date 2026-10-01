@@ -78,7 +78,7 @@ export function LlmCredentialCard({
             href={vendor.consoleUrl}
             target="_blank"
             rel="noreferrer"
-            className="font-semibold text-purple-500"
+            className="font-semibold text-purple-600"
           >
             {vendor.label} 키 관리 열기
           </a>
@@ -140,7 +140,7 @@ export function LlmCredentialCard({
             href={vendor.consoleUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center px-2 text-[12px] font-semibold text-purple-500"
+            className="inline-flex items-center px-2 text-[12px] font-semibold text-purple-600"
           >
             벤더 콘솔
           </a>

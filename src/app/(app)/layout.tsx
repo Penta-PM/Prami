@@ -26,7 +26,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <Sidebar showAdminNav={hasPermission(user.role, 'users.manage')} />
         <div className="flex min-w-0 flex-1 flex-col">
           <Header user={{ name: user.name, roleLabel }} testMode={isTestModeEnabled(env)} />
-          <main className="flex-1 overflow-y-auto p-8">{children}</main>
+          <main className="flex-1 overflow-y-auto p-8 max-md:p-4">{children}</main>
         </div>
         <ChatDock />
       </div>

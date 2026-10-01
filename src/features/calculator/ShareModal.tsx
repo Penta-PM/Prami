@@ -86,7 +86,7 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
             className={
               flash.tone === 'error'
                 ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
-                : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-600'
+                : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
             }
           >
             {flash.text}
@@ -156,7 +156,7 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
                       링크 복사
                     </Button>
                     <a
-                      className="inline-flex items-center rounded-lg border border-border-subtle px-3 text-[12px] font-semibold text-purple-500"
+                      className="inline-flex items-center rounded-lg border border-border-subtle px-3 text-[12px] font-semibold text-purple-600"
                       href={share.path}
                       target="_blank"
                       rel="noreferrer"

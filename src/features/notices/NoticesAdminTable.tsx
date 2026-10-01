@@ -52,7 +52,7 @@ export function NoticesAdminTable({ notices, defaultAuthor }: NoticesAdminTableP
       {flash ? (
         <p
           role="status"
-          className="m-0 mb-4 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-600"
+          className="m-0 mb-4 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700"
         >
           {flash}
         </p>
@@ -89,7 +89,7 @@ export function NoticesAdminTable({ notices, defaultAuthor }: NoticesAdminTableP
                   <button
                     type="button"
                     aria-label={`${notice.title} 수정`}
-                    className={`${ACTION} text-purple-500`}
+                    className={`${ACTION} text-purple-600`}
                     onClick={() => setForm({ kind: 'edit', notice })}
                   >
                     수정

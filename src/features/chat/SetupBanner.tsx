@@ -13,7 +13,7 @@ export const BILLING_NOTICE = 'LLM 요금은 등록한 본인 벤더 계정으�
 
 export function SetupLink({ href }: { href: string }) {
   return (
-    <Link href={href} className="mt-2 block text-[12px] font-semibold text-purple-500 underline">
+    <Link href={href} className="mt-2 block text-[12px] font-semibold text-purple-600 underline">
       {SETUP_LINK_LABEL} →
     </Link>
   );

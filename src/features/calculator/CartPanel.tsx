@@ -94,7 +94,7 @@ export function CartPanel(props: CartPanelProps) {
           <h2 className="m-0 text-[13px] font-semibold">내 견적 목록 ({saved.length})</h2>
           <button
             type="button"
-            className="border-0 bg-transparent text-[11px] font-semibold text-purple-500"
+            className="border-0 bg-transparent text-[11px] font-semibold text-purple-600"
             onClick={() => setListOpen(true)}
           >
             전체보기
@@ -117,7 +117,7 @@ export function CartPanel(props: CartPanelProps) {
                 <button
                   type="button"
                   aria-label={`${quote.quoteNo} 담기`}
-                  className="border-0 bg-transparent text-[11px] font-semibold text-purple-500"
+                  className="border-0 bg-transparent text-[11px] font-semibold text-purple-600"
                   onClick={() => props.onReload(quote)}
                 >
                   담기
@@ -291,7 +291,7 @@ function SavedQuotesModal({
                 </TableCell>
                 <TableCell className="pr-5 text-right whitespace-nowrap">
                   <a
-                    className="mr-1.5 text-[12px] font-semibold text-purple-500"
+                    className="mr-1.5 text-[12px] font-semibold text-purple-600"
                     href={quotePdfHref(quote)}
                     target="_blank"
                     rel="noreferrer"
@@ -302,7 +302,7 @@ function SavedQuotesModal({
                   <button
                     type="button"
                     aria-label={`${quote.quoteNo} 공유`}
-                    className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-500"
+                    className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-600"
                     onClick={() => onShare(quote)}
                   >
                     공유
@@ -310,7 +310,7 @@ function SavedQuotesModal({
                   <button
                     type="button"
                     aria-label={`${quote.quoteNo} 장바구니 담기`}
-                    className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-500"
+                    className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-600"
                     onClick={() => {
                       onReload(quote);
                       onClose();

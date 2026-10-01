@@ -49,7 +49,7 @@ export function GroupsManager({ family, groups, candidates }: GroupsManagerProps
       {flash ? (
         <p
           role="status"
-          className="m-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-600"
+          className="m-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700"
         >
           {flash}
         </p>
@@ -66,7 +66,7 @@ export function GroupsManager({ family, groups, candidates }: GroupsManagerProps
                 <button
                   type="button"
                   aria-label={`${group.name} 수정`}
-                  className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-purple-500 hover:underline"
+                  className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-purple-600 hover:underline"
                   onClick={() => setForm({ kind: 'edit', group })}
                 >
                   수정

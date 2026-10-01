@@ -66,7 +66,7 @@ function FlashMessage({ flash }: { flash: Flash }) {
       className={
         error
           ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
-          : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-600'
+          : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
       }
     >
       {flash.text}
@@ -83,7 +83,7 @@ type RowActionsProps = {
 
 function RowActions({ row, onEdit, onCopy, onDelete }: RowActionsProps) {
   const buttons = [
-    { label: '수정', tone: 'text-purple-500', onClick: onEdit },
+    { label: '수정', tone: 'text-purple-600', onClick: onEdit },
     { label: '복사', tone: 'text-text-tertiary', onClick: onCopy },
     { label: '삭제', tone: 'text-red-500', onClick: onDelete },
   ];
