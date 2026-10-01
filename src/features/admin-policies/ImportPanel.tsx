@@ -32,6 +32,12 @@ type ImportPanelProps = {
 
 type ApplyOutcome = { ok: true; stats: PolicyApplyStats } | { ok: false; message: string };
 
+function blockedReason(previewPending: boolean, mergeUnchosen: boolean): string {
+  if (mergeUnchosen) return '품목 제품군 병합 방식을 선택하면 적용할 수 있습니다';
+  if (previewPending) return '품목 제품군 병합 여부를 확인하는 중입니다…';
+  return '오류 없는 판매단가 파일을 선택하면 적용할 수 있습니다';
+}
+
 function initialSelection(currentId: string | null): FileSelection {
   return currentId
     ? { mode: 'reuse', upload: null, reuseId: currentId }
@@ -55,10 +61,15 @@ export function ImportPanel({
   const [isPending, startTransition] = useTransition();
   const itemBatchId = selectedBatchId(item);
   // 미리보기·선택은 품목 배치 id 에 묶는다 — 배치를 바꾸면 이전 선택이 자동으로 무효 (PRAMI-003 §4.2.3)
-  const [preview, setPreview] = useState<{ batchId: string; info: ItemMergeInfo } | null>(null);
+  // info=null 은 미리보기 실패(서버가 적용 시 다시 판정한다)
+  const [preview, setPreview] = useState<{ batchId: string; info: ItemMergeInfo | null } | null>(
+    null,
+  );
   const [choice, setChoice] = useState<{ batchId: string; mode: ItemMergeMode } | null>(null);
   const [confirming, setConfirming] = useState(false);
   const mergeInfo = preview && preview.batchId === itemBatchId ? preview.info : null;
+  // 품목 배치를 고른 뒤 병합 미리보기 응답 전에는 병합 선택 필요 여부를 모르므로 적용을 잠근다 (QA L-4)
+  const previewPending = itemBatchId !== null && preview?.batchId !== itemBatchId;
   const itemMerge = choice && choice.batchId === itemBatchId ? choice.mode : null;
   const setItemMerge = (mode: ItemMergeMode) => {
     if (itemBatchId) setChoice({ batchId: itemBatchId, mode });
@@ -67,9 +78,14 @@ export function ImportPanel({
   useEffect(() => {
     if (!itemBatchId) return;
     let active = true;
-    void previewItemMergeAction(itemBatchId).then((result) => {
-      if (active && result.ok) setPreview({ batchId: itemBatchId, info: result.data });
-    });
+    void previewItemMergeAction(itemBatchId).then(
+      (result) => {
+        if (active) setPreview({ batchId: itemBatchId, info: result.ok ? result.data : null });
+      },
+      () => {
+        if (active) setPreview({ batchId: itemBatchId, info: null });
+      },
+    );
     return () => {
       active = false;
     };
@@ -79,6 +95,7 @@ export function ImportPanel({
   const blocked =
     selectionBlocksApply(sales, false) ||
     selectionBlocksApply(item, true) ||
+    previewPending ||
     (needsMerge && itemMerge === null);
 
   const runApply = () =>
@@ -140,9 +157,7 @@ export function ImportPanel({
       <div className="flex items-center justify-end gap-2.5">
         {blocked ? (
           <span className="text-[12px] text-text-tertiary">
-            {needsMerge && itemMerge === null
-              ? '품목 제품군 병합 방식을 선택하면 적용할 수 있습니다'
-              : '오류 없는 판매단가 파일을 선택하면 적용할 수 있습니다'}
+            {blockedReason(previewPending, needsMerge && itemMerge === null)}
           </span>
         ) : null}
         <Button variant="primary" size="sm" disabled={blocked || isPending} onClick={apply}>

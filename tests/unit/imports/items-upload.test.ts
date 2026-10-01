@@ -206,6 +206,7 @@ describe('AC-305·AC-306·AC-307·AC-314 적용 (합성 품목 + 판매단가 20
     expect(merged.stats.itemMerge).toMatchObject({
       mode: 'merge',
       keptMajors: missing,
+      droppedMajors: [],
       fromBatchId: itemsV1Id,
     });
     const [run] = await handle.db
@@ -220,7 +221,17 @@ describe('AC-305·AC-306·AC-307·AC-314 적용 (합성 품목 + 판매단가 20
     expect(updated[0]!.n).toBe(subset.length);
 
     const replaced = await applyPolicy(ctx(handle), { ...input, itemMerge: 'replace' });
-    expect(replaced.stats.itemMerge).toMatchObject({ mode: 'replace' });
+    // QA L-3: 전량 교체에서 빠진 대분류는 keptMajors 가 아니라 droppedMajors 로 기록한다
+    expect(replaced.stats.itemMerge).toMatchObject({
+      mode: 'replace',
+      keptMajors: [],
+      droppedMajors: missing,
+    });
+    const [replacedRun] = await handle.db
+      .select()
+      .from(policyApplyRuns)
+      .where(eq(policyApplyRuns.id, replaced.runId));
+    expect(replacedRun?.itemMerge).toMatchObject({ keptMajors: [], droppedMajors: missing });
     expect(await majors()).toEqual([[onlyMajor, subset.length]]);
     const stubs = await handle.db.$count(items, eq(items.source, 'stub'));
     expect(stubs).toBeGreaterThanOrEqual(vanishing);

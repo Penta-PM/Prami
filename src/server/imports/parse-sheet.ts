@@ -212,7 +212,7 @@ export function parseSheet<Row>(
       if (spec.uniqueKey!.policy !== 'warn') {
         errors.push({
           row: excelRow,
-          column: '',
+          column: spec.uniqueKey!.column ?? '',
           message: `${spec.uniqueKey!.describe} (${earlier.row}행)`,
           value: key,
           ...(spec.uniqueKey!.errorCode ? { code: spec.uniqueKey!.errorCode } : {}),

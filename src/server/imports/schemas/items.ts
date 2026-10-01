@@ -104,7 +104,14 @@ const optionalIsoDate = z
 /** 정규 컬럼 (필수 6: 품명·품번·품목 상태·대·중·소분류) */
 export const ITEM_COLUMNS = [
   { key: 'itemName', header: '품명', schema: requiredText, required: true },
-  { key: 'itemCode', header: '품번', schema: itemCodeText, required: true },
+  {
+    key: 'itemCode',
+    header: '품번',
+    schema: itemCodeText,
+    required: true,
+    // 형식·빈 값 행 오류에 기계용 코드 (QA L-2 — 다른 행 오류처럼 코드로 걸러 볼 수 있게)
+    errorCode: 'invalid_item_code',
+  },
   { key: 'baseUnit', header: '기준단위', schema: optionalText, required: false },
   {
     key: 'itemStatusRaw',
@@ -194,5 +201,7 @@ export const ITEM_SPEC: SheetSpec<ItemRow> = {
     describe: '같은 품번이 이미 있습니다',
     of: (row) => row.itemCode,
     errorCode: 'duplicate_item_code',
+    // 파일 간 중복(item-checks)과 같은 컬럼 표시 (QA L-2)
+    column: '품번',
   },
 };
