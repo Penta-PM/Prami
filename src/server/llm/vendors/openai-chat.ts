@@ -26,7 +26,37 @@ export function createOpenAIChatModel(
   modelId: string,
   options: ChatModelFactoryOptions,
 ): BaseChatModel {
-  const reserve = findModel('openai', modelId)?.reasoningReserveTokens ?? 0;
+  return createResponsesChatModel(secret, modelId, options, OPENAI_PROFILE);
+}
+
+/**
+ * Responses API 벤더 프로필 (PRAMI-003 §4.7.2) — OpenAI 와 OpenAI 호환 Responses 벤더(xAI)의 차이만 담는다.
+ * - vendor: 모델 상수(`reasoningReserveTokens`) 조회용 레지스트리 id
+ * - baseURL: 없으면 기본 OpenAI. 코드 상수만(사용자·env 로 바꿀 수 없다, T-12)
+ * - modelKwargs: 요청 본문에 그대로 더해지는 벤더 고유 필드(include·search_parameters)
+ */
+export type ResponsesProfile = {
+  vendor: string;
+  baseURL?: string;
+  reasoningEffort: 'low';
+  modelKwargs: Record<string, unknown>;
+};
+
+export const OPENAI_PROFILE: ResponsesProfile = {
+  vendor: 'openai',
+  reasoningEffort: 'low',
+  modelKwargs: { include: ['reasoning.encrypted_content'] },
+};
+
+/** Responses API 채팅 모델 공통 생성 — 재시도 1회·타임아웃·`store:false`(zdrEnabled)·fetch 주입은 모든 프로필이 같다 */
+export function createResponsesChatModel(
+  secret: string,
+  modelId: string,
+  options: ChatModelFactoryOptions,
+  profile: ResponsesProfile,
+): BaseChatModel {
+  const reserve = findModel(profile.vendor, modelId)?.reasoningReserveTokens ?? 0;
+  const fetchOption = options.fetch ? { fetch: options.fetch } : {};
   return new ChatOpenAI({
     apiKey: secret,
     model: modelId,
@@ -35,9 +65,9 @@ export function createOpenAIChatModel(
     timeout: options.timeoutMs,
     useResponsesApi: true,
     zdrEnabled: true,
-    reasoning: { effort: 'low' },
-    modelKwargs: { include: ['reasoning.encrypted_content'] },
-    configuration: options.fetch ? { fetch: options.fetch } : {},
+    reasoning: { effort: profile.reasoningEffort },
+    modelKwargs: profile.modelKwargs,
+    configuration: profile.baseURL ? { baseURL: profile.baseURL, ...fetchOption } : fetchOption,
   });
 }
 

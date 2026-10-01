@@ -221,6 +221,8 @@ const ADAPTER_PACKAGES: Record<string, keyof typeof dependencies> = {
   openai: '@langchain/openai',
   openrouter: '@langchain/openai',
   google: '@langchain/google-genai',
+  // xAI 는 OpenAI 호환 Responses — 같은 패키지를 프로필만 바꿔 쓴다 (PRAMI-003 §4.7.2)
+  xai: '@langchain/openai',
 };
 
 export function adapterOf(vendor: string | null): string | undefined {

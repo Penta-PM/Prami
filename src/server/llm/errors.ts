@@ -58,7 +58,8 @@ function fromStatus(status: number, bodyCodes: readonly string[]): LlmErrorCode 
   if (status === 429) return 'rate_limited';
   if (status === 408 || status >= 500) return 'unavailable';
   // 그 밖의 400·422 = 벤더가 요청을 거부 (예: OpenAI invalid_request_error param=reasoning_effort, PRAMI-003)
-  if (status === 400 || status === 422) return 'request_rejected';
+  // 415(본문·Content-Type, xAI 문서 debugging) 도 어댑터 결함 신호 (PRAMI-003 §4.7.5)
+  if (status === 400 || status === 415 || status === 422) return 'request_rejected';
   return null;
 }
 

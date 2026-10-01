@@ -3,6 +3,7 @@ import { google } from './google';
 import { openai } from './openai';
 import { openrouter } from './openrouter';
 import type { LlmVendor, VendorFlags } from './types';
+import { xai } from './xai';
 
 export type { LlmAuthType, LlmVendor, ModelListPage, VendorFlags, VerifyRequest } from './types';
 
@@ -11,7 +12,7 @@ export type { LlmAuthType, LlmVendor, ModelListPage, VendorFlags, VerifyRequest 
  * **벤더 추가 = 어댑터 파일 1개 + 이 목록 1줄 + 모델 상수**(AC-242). DB `vendor` 는 text 라 마이그레이션이 필요 없다.
  * 벤더 호스트는 코드 상수다 — 사용자·env 로 바꿀 수 없다(SSRF, T-12).
  */
-export const LLM_VENDORS: readonly LlmVendor[] = [anthropic, openai, google, openrouter];
+export const LLM_VENDORS: readonly LlmVendor[] = [anthropic, openai, google, xai, openrouter];
 
 /** 검증 호출이 나갈 수 있는 호스트 (벤더 상수에서 파생) */
 export const VENDOR_HOSTS: readonly string[] = LLM_VENDORS.map((vendor) => vendor.host);

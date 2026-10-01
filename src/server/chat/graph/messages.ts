@@ -1,3 +1,5 @@
+import { LLM_API_KEY_VENDOR_LIST } from '@/lib/constants/llm-vendor-names';
+
 import { CHAT_MAX_LENGTH } from '../intent';
 import { SETUP_HREF, type SetupInfo, type SetupStatus } from './types';
 
@@ -7,8 +9,8 @@ import { SETUP_HREF, type SetupInfo, type SetupStatus } from './types';
  */
 export const TRUNCATED_NOTICE = `질문이 ${CHAT_MAX_LENGTH}자를 넘어 앞 ${CHAT_MAX_LENGTH}자만 사용했습니다.`;
 
-export const MISSING_MESSAGE =
-  'LLM API 키가 등록되지 않았습니다. 사용자 설정에서 Anthropic·OpenAI·Google 중 하나의 API 키를 등록하면 자연어로 질문할 수 있어요. 지금은 기본 응답으로 답해 드립니다.';
+/** 미등록 안내 (PRAMI-003 §4.8.2 ③ 확정 문구 — 회사 발급 키 권고, 벤더 나열은 공통 상수) */
+export const MISSING_MESSAGE = `LLM API 키가 등록되지 않았습니다. 사용자 설정에서 회사에서 발급한 ${LLM_API_KEY_VENDOR_LIST} 중 하나의 API 키를 등록하면 자연어로 질문할 수 있어요. 개인 API 키는 입력한 데이터가 모델 학습에 활용될 수 있으니 사용하지 마세요. 지금은 기본 응답으로 답해 드립니다.`;
 
 /** 이후 응답의 짧은 안내 (첫 응답에만 전체 문구 — 클라이언트가 판단) */
 export const MISSING_SHORT = 'LLM 미연결 — 기본 응답';
