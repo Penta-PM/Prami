@@ -4,12 +4,20 @@
  * - `--target preview|production`: `--target-host` 가 실제 연결 호스트와 같아야 실행(오타·엉뚱한 셸 env 방지)
  * - `--target local`(기본): 원격 DB(neon·로컬 목록 밖)면 import:source 와 같은 규칙으로 `--target-host` 필요
  * - `--fresh`: 클린 설치 직후용 — 시연·업무 데이터 0, fixture 0, seed 감사 0, 적용 배치 종류별 1
- * - `--baseline <json>`: 기준값 파일(테스트·리허설용 축소 픽스처). 없으면 src/server/ops/data-baseline.ts(r3 원본 기준)
+ * - `--baseline <json>`: 기준값 파일(테스트·리허설용 축소 픽스처) — 로컬 DB 에서만. 없으면 src/server/ops/data-baseline.ts(r3 원본 기준)
+ * - 활성 ADMIN 검사: preview·production 이거나 연결 대상이 원격 DB 면 사용자 0명도 FAIL (로컬 클린 설치만 SKIP)
  * 출력은 항목·기대·실측·판정 표(개수만). exit 0 = 통과, 1 = 실패, 2 = 원본 SHA-256 이 기준과 다름(실측만 출력).
  */
 import { readFileSync } from 'node:fs';
 
 import { loadEnvConfig } from '@next/env';
+
+import {
+  dbHostOf,
+  isRemoteDbTarget,
+  TARGET_HOST_MESSAGES,
+  targetHostViolation,
+} from '../src/lib/db-host';
 
 const TARGETS = ['local', 'preview', 'production'] as const;
 type Target = (typeof TARGETS)[number];
@@ -45,20 +53,35 @@ export function parseDataVerifyArgs(args: string[]): DataVerifyArgs {
   };
 }
 
+/**
+ * 실행 전 대상 확인 (DB 연결 전). 위반이면 throw. 반환: 활성 ADMIN 검사를 강제할지(사용자 0명 SKIP 금지).
+ * 원격 DB 는 `--target local` 로 돌려도 ADMIN 검사를 강제하고 `--baseline` 을 거부한다 (PR-2 QA L-5).
+ */
+export function resolveDataVerifyGuard(
+  args: DataVerifyArgs,
+  source: Record<string, string | undefined>,
+): { requireAdmin: boolean } {
+  const remote = args.target !== 'local' || isRemoteDbTarget(source);
+  if (args.target !== 'local') {
+    if (!args.targetHost?.trim()) throw new Error(TARGET_HOST_MESSAGES.missing);
+    if (args.targetHost.trim().toLowerCase() !== dbHostOf(source.DATABASE_URL))
+      throw new Error(TARGET_HOST_MESSAGES.mismatch);
+  } else {
+    const violation = targetHostViolation(source, args.targetHost);
+    if (violation) throw new Error(TARGET_HOST_MESSAGES[violation]);
+  }
+  if (remote && args.baselinePath) {
+    throw new Error(
+      '--baseline 은 로컬 DB 에서만 쓸 수 있습니다 (원격·운영 대상은 기본 기준값으로 검증)',
+    );
+  }
+  return { requireAdmin: remote };
+}
+
 async function main(): Promise<void> {
   loadEnvConfig(process.cwd());
   const args = parseDataVerifyArgs(process.argv.slice(2));
-  const { dbHostOf, targetHostViolation, TARGET_HOST_MESSAGES } =
-    await import('../src/lib/db-host');
-  if (args.target !== 'local') {
-    const host = dbHostOf(process.env.DATABASE_URL);
-    if (!args.targetHost?.trim()) throw new Error(TARGET_HOST_MESSAGES.missing);
-    if (args.targetHost.trim().toLowerCase() !== host)
-      throw new Error(TARGET_HOST_MESSAGES.mismatch);
-  } else {
-    const violation = targetHostViolation(process.env, args.targetHost);
-    if (violation) throw new Error(TARGET_HOST_MESSAGES[violation]);
-  }
+  const { requireAdmin } = resolveDataVerifyGuard(args, process.env);
 
   const [{ createDb }, { withTransaction }, { env }, { verifyData, formatReport }] =
     await Promise.all([
@@ -75,7 +98,7 @@ async function main(): Promise<void> {
           stage: args.stage,
           fresh: args.fresh,
           allowPartMappings: args.allowPartMappings,
-          requireAdmin: args.target !== 'local',
+          requireAdmin,
           allowedDomains: env.ALLOWED_EMAIL_DOMAINS,
           ...(args.baselinePath
             ? { baseline: JSON.parse(readFileSync(args.baselinePath, 'utf8')) }

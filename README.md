@@ -112,7 +112,7 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 | `pnpm import:source`      | 엑셀을 업로드·적용 경로 그대로 반영(정식 임포트 경로). **파일 경로 필수**. `--kind sales`(기본) · `costs` · `items`(품목조회 1~5개 → 현재 판매단가 재사용 적용, `--merge merge\|replace`). 원격 DB 는 `--target-host` 필수       |
 | `pnpm data:verify`        | 데이터 자동 검증(읽기 전용) — `--fresh`(클린 설치 직후), `--stage schema`, `--target local\|preview\|production`(+`--target-host`). docs/deploy/local.md                                                                         |
 | `pnpm parts:draft`        | 파츠 매핑 초안 xlsx(`--out <저장소 밖>`, DB 변경 0) — 관리자 검수 후 `/admin/parts` 엑셀 등록                                                                                                                                    |
-| `pnpm check:trace`        | `DB_DRIVER=neon pnpm build` 뒤 `/api` 함수 트레이스에 PGlite 가 없는지 검사                                                                                                                                                      |
+| `pnpm check:trace`        | `DB_DRIVER=neon pnpm build` 뒤 함수 트레이스(proxy·instrumentation 포함)에 PGlite 가 없는지 검사                                                                                                                                 |
 | `pnpm credentials:rewrap` | LLM 키 DEK 를 활성 KEK 로 다시 감싼다 (KEK 회전, PRAMI-002). `--yes` 없으면 대상·건수만 출력                                                                                                                                     |
 | `pnpm check`              | lint + typecheck + format:check + test 일괄                                                                                                                                                                                      |
 
