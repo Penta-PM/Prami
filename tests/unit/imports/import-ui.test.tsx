@@ -6,10 +6,15 @@ import type { PolicyApplyStats } from '@/db/schema';
 import type { BatchOption, UploadSummaryData } from '@/features/admin-policies/types';
 
 /** 가격정책 관리 ImportPanel (§4.5.3 ①②③, R-11) — fetch·Server Action 은 모킹 */
-const mocks = vi.hoisted(() => ({ applyPolicyAction: vi.fn(), refresh: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  applyPolicyAction: vi.fn(),
+  previewItemMergeAction: vi.fn(),
+  refresh: vi.fn(),
+}));
 
 vi.mock('@/features/admin-policies/actions', () => ({
   applyPolicyAction: mocks.applyPolicyAction,
+  previewItemMergeAction: mocks.previewItemMergeAction,
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 
@@ -78,6 +83,11 @@ async function chooseFile(label: string, name = 'new.xlsx') {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // 빠지는 제품군 없음 → 병합 방식 선택 없이 적용 (PRAMI-003 §4.2.3)
+  mocks.previewItemMergeAction.mockResolvedValue({
+    ok: true,
+    data: { missingFamilies: [], vanishingItems: 0, previousBatchId: null },
+  });
 });
 
 afterEach(() => {
@@ -213,7 +223,7 @@ describe('ImportPanel', () => {
     render(
       <ImportPanel salesOptions={[]} itemOptions={[]} currentSalesId={null} currentItemId={null} />,
     );
-    await chooseFile('품목조회 파일 업로드 (임시/폐기/사용)');
+    await chooseFile('품목조회 파일 업로드 (1~5개, 제품군별)');
     expect(await screen.findByRole('alert')).toHaveTextContent('업로드하지 못했습니다');
 
     mockFetch({
