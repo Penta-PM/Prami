@@ -254,7 +254,8 @@ describe('가드·히스토리·오류·프롬프트 단위', () => {
       { status: 400, error: { error: { details: [{ reason: 'API_KEY_INVALID' }] } } },
       'invalid_key',
     ],
-    [{ status: 400, error: { error: { type: 'invalid_request_error' } } }, 'llm_error'],
+    // PRAMI-003: 벤더가 요청을 거부한 400 은 llm_error 로 뭉개지 않고 request_rejected (§4.8.3 보강)
+    [{ status: 400, error: { error: { type: 'invalid_request_error' } } }, 'request_rejected'],
     [{ status: 403 }, 'forbidden'],
     [{ status: 404 }, 'model_not_found'],
     [{ status: 429 }, 'rate_limited'],

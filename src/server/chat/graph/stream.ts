@@ -109,6 +109,7 @@ async function streamParts(
   signal: AbortSignal | undefined,
   emit: Emit,
 ) {
+  runtime.streaming = true;
   const state: StreamState = {
     reply: null,
     guard: createTokenGuard(),

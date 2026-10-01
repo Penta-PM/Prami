@@ -57,4 +57,6 @@ export type ChatRuntime = {
   credential: ResolvedChatCredential | null;
   /** 이번 요청의 LLM 호출 수 (상한 검사·로그) */
   llmCalls: number;
+  /** SSE 경로면 true (오류 진단 로그용 — LangGraph messages 모드는 모델을 스트리밍으로 부른다) */
+  streaming?: boolean;
 };

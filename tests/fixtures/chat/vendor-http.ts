@@ -1,5 +1,5 @@
 /**
- * OpenAI Chat Completions · Gemini generateContent 전송 계층 스텁 (PRAMI-002 AC-241·AC-243). 실제로 나가는 요청(URL·헤더·본문)을
+ * OpenAI Responses·Chat Completions · Gemini generateContent 전송 계층 스텁 (PRAMI-002 AC-241·AC-243). 실제로 나가는 요청(URL·헤더·본문)을
  * 기록하고 스크립트한 응답을 돌려준다 — 비스트리밍 JSON 과 SSE(stream:true / streamGenerateContent?alt=sse) 모두.
  * 실벤더로는 아무것도 나가지 않는다.
  */
@@ -8,7 +8,7 @@ import type { CapturedRequest } from './anthropic-http';
 export type VendorTurn =
   | { text: string }
   | { toolCall: { name: string; args: Record<string, unknown> } }
-  | { error: { status: number; body: unknown } }
+  | { error: { status: number; body: unknown; headers?: Record<string, string> } }
   | { hang: true };
 
 type Stub = { fetch: typeof fetch; requests: CapturedRequest[] };
@@ -91,6 +91,122 @@ function openAiResponse(turn: VendorTurn, stream: boolean): Response {
   );
 }
 
+/** Responses API 출력 항목 (PRAMI-003 — 직접 OpenAI 는 /v1/responses). 추론 항목은 암호화 내용만(store:false 방식) */
+type ResponsesItem = { type: string; id: string; [field: string]: unknown };
+
+function responsesOutput(turn: VendorTurn): ResponsesItem[] {
+  const reasoning = {
+    type: 'reasoning',
+    id: 'rs_1',
+    summary: [],
+    encrypted_content: 'enc-reasoning-1',
+  };
+  if ('toolCall' in turn) {
+    const call = {
+      type: 'function_call',
+      id: 'fc_1',
+      call_id: 'call_1',
+      name: turn.toolCall.name,
+      arguments: JSON.stringify(turn.toolCall.args),
+      status: 'completed',
+    };
+    return [reasoning, call];
+  }
+  const text = 'text' in turn ? turn.text : '';
+  const message = {
+    type: 'message',
+    id: 'msg_1',
+    role: 'assistant',
+    status: 'completed',
+    content: [{ type: 'output_text', text, annotations: [] }],
+  };
+  return [reasoning, message];
+}
+
+function responsesBody(turn: VendorTurn, status = 'completed') {
+  return {
+    id: 'resp_1',
+    object: 'response',
+    created_at: 1,
+    status,
+    model: 'gpt-6.1-sol',
+    output: status === 'completed' ? responsesOutput(turn) : [],
+    usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+  };
+}
+
+/** Responses 스트리밍 이벤트 (`event:` + `data:`) — 항목 추가 → 델타 → 항목 완료 → response.completed */
+function responsesStream(turn: VendorTurn): Response {
+  const events: Record<string, unknown>[] = [
+    { type: 'response.created', response: responsesBody(turn, 'in_progress') },
+  ];
+  responsesOutput(turn).forEach((item, outputIndex) => {
+    const started =
+      item.type === 'message'
+        ? { ...item, content: [] }
+        : item.type === 'function_call'
+          ? { ...item, arguments: '' }
+          : item;
+    events.push({ type: 'response.output_item.added', output_index: outputIndex, item: started });
+    if (item.type === 'message') {
+      const text = (item.content as { text: string }[])[0]!.text;
+      events.push({
+        type: 'response.content_part.added',
+        item_id: item.id,
+        output_index: outputIndex,
+        content_index: 0,
+        part: { type: 'output_text', text: '', annotations: [] },
+      });
+      events.push({
+        type: 'response.output_text.delta',
+        item_id: item.id,
+        output_index: outputIndex,
+        content_index: 0,
+        delta: text,
+      });
+      events.push({
+        type: 'response.output_text.done',
+        item_id: item.id,
+        output_index: outputIndex,
+        content_index: 0,
+        text,
+      });
+    }
+    if (item.type === 'function_call') {
+      events.push({
+        type: 'response.function_call_arguments.delta',
+        item_id: item.id,
+        output_index: outputIndex,
+        delta: item.arguments,
+      });
+      events.push({
+        type: 'response.function_call_arguments.done',
+        item_id: item.id,
+        output_index: outputIndex,
+        arguments: item.arguments,
+      });
+    }
+    events.push({ type: 'response.output_item.done', output_index: outputIndex, item });
+  });
+  events.push({ type: 'response.completed', response: responsesBody(turn) });
+  const body = events
+    .map(
+      (event, index) => `event: ${String(event.type)}
+data: ${JSON.stringify({ ...event, sequence_number: index })}
+
+`,
+    )
+    .join('');
+  return new Response(body, { headers: { 'content-type': 'text/event-stream' } });
+}
+
+function openAiReply(url: string, turn: VendorTurn, stream: boolean): Response {
+  if (url.endsWith('/responses')) {
+    return stream ? responsesStream(turn) : Response.json(responsesBody(turn));
+  }
+  return openAiResponse(turn, stream);
+}
+
 export function createOpenAIStub(turns: VendorTurn[]): Stub {
   const requests: CapturedRequest[] = [];
   let index = 0;
@@ -99,8 +215,12 @@ export function createOpenAIStub(turns: VendorTurn[]): Stub {
     const turn = turns[Math.min(index, turns.length - 1)]!;
     index += 1;
     if ('hang' in turn) return hang(init);
-    if ('error' in turn) return Response.json(turn.error.body, { status: turn.error.status });
-    return openAiResponse(turn, body.stream === true);
+    if ('error' in turn)
+      return Response.json(turn.error.body, {
+        status: turn.error.status,
+        headers: turn.error.headers,
+      });
+    return openAiReply(String(url), turn, body.stream === true);
   };
   return { fetch: fetchImpl as typeof fetch, requests };
 }
@@ -108,7 +228,13 @@ export function createOpenAIStub(turns: VendorTurn[]): Stub {
 function geminiCandidate(turn: VendorTurn) {
   const parts =
     'toolCall' in turn
-      ? [{ functionCall: { name: turn.toolCall.name, args: turn.toolCall.args } }]
+      ? [
+          // Gemini 3 는 함수 호출 부분에 thoughtSignature 를 붙이고, 다음 요청에 그대로 돌려받아야 한다(없으면 400)
+          {
+            functionCall: { name: turn.toolCall.name, args: turn.toolCall.args },
+            thoughtSignature: 'sig-gemini-fixture-1',
+          },
+        ]
       : [{ text: 'text' in turn ? turn.text : '' }];
   return {
     candidates: [{ content: { role: 'model', parts }, finishReason: 'STOP', index: 0 }],
@@ -125,7 +251,11 @@ export function createGeminiStub(turns: VendorTurn[]): Stub {
     const turn = turns[Math.min(index, turns.length - 1)]!;
     index += 1;
     if ('hang' in turn) return hang(init);
-    if ('error' in turn) return Response.json(turn.error.body, { status: turn.error.status });
+    if ('error' in turn)
+      return Response.json(turn.error.body, {
+        status: turn.error.status,
+        headers: turn.error.headers,
+      });
     const payload = geminiCandidate(turn);
     return String(url).includes('streamGenerateContent') ? sse([payload]) : Response.json(payload);
   };

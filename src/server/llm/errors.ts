@@ -12,6 +12,8 @@ export const LLM_ERROR_CODES = [
   'unavailable',
   'refused',
   'too_long',
+  /** 벤더가 요청 형식·파라미터를 거부(400/422 invalid_request 등) — 어댑터·모델 조합 결함 신호 (PRAMI-003, §4.8.3 보강) */
+  'request_rejected',
   'llm_error',
 ] as const;
 export type LlmErrorCode = (typeof LLM_ERROR_CODES)[number];
@@ -45,13 +47,21 @@ const BODY_CODES: Record<string, LlmErrorCode> = {
   overloaded_error: 'unavailable',
 };
 
-function fromStatus(status: number, bodyCodes: readonly string[]): LlmErrorCode | null {
+function fromStatus(
+  status: number,
+  bodyCodes: readonly string[],
+  lcCode: unknown,
+): LlmErrorCode | null {
   if (status === 401) return 'invalid_key';
   if (status === 400 && bodyCodes.includes('API_KEY_INVALID')) return 'invalid_key';
   if (status === 403) return 'forbidden';
   if (status === 404) return 'model_not_found';
   if (status === 429) return 'rate_limited';
   if (status === 408 || status >= 500) return 'unavailable';
+  // 컨텍스트 초과(400)는 too_long 로 — LangChain 이 CONTEXT_OVERFLOW 를 붙인다
+  if (lcCode === 'CONTEXT_OVERFLOW') return 'too_long';
+  // 그 밖의 400·422 = 벤더가 요청을 거부 (예: OpenAI invalid_request_error param=reasoning_effort, PRAMI-003)
+  if (status === 400 || status === 422) return 'request_rejected';
   return null;
 }
 
@@ -93,7 +103,7 @@ export function normalizeLlmError(raw: unknown): LlmErrorCode {
   if (isTimeout(error)) return 'unavailable';
   const bodyCodes = bodyCodesOf(error);
   if (typeof error.status === 'number') {
-    const byStatus = fromStatus(error.status, bodyCodes);
+    const byStatus = fromStatus(error.status, bodyCodes, error.lc_error_code);
     if (byStatus) return byStatus;
   }
   if (typeof error.lc_error_code === 'string' && LC_CODES[error.lc_error_code]) {
@@ -111,5 +121,10 @@ export function isAuthError(code: LlmErrorCode): code is 'invalid_key' | 'forbid
 
 /** 규칙 폴백으로 넘기는 일시·기타 오류 */
 export function isTransientError(code: LlmErrorCode): boolean {
-  return code === 'rate_limited' || code === 'unavailable' || code === 'llm_error';
+  return (
+    code === 'rate_limited' ||
+    code === 'unavailable' ||
+    code === 'request_rejected' ||
+    code === 'llm_error'
+  );
 }

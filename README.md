@@ -389,7 +389,7 @@ prepare → precheck ─(원가 의도)→ costRefusal ────────�
 ## 챗봇 다중 벤더 · 스트리밍 · OAuth (PRAMI-002 PR-C)
 
 - **채팅 어댑터**(`src/server/llm/vendors/*-chat.ts`, 요청마다 새 인스턴스·재시도 1·타임아웃·강제 도구 선택 없음): Anthropic(`@langchain/anthropic`),
-  OpenAI(`@langchain/openai` 1.6.0 — Chat Completions, 도구 strict), Google Gemini(`@langchain/google-genai` 2.3.2 — 호출 signal 을 넘기려고
+  OpenAI(`@langchain/openai` 1.6.0 — **Responses API**(`/v1/responses`, `reasoning.effort: low`, `store: false`, 도구 strict). GPT-6 계열은 Chat Completions 에서 함수 도구를 `reasoning_effort: none` 일 때만 받아 400 이 나던 문제를 PRAMI-003 에서 고침), Google Gemini(`@langchain/google-genai` 2.3.2 — 호출 signal 을 넘기려고
   스트리밍 경로 사용), OpenRouter(OpenAI 호환 API, baseURL `https://openrouter.ai/api/v1`). 모델 ID 는 `models.ts` 상수만.
 - **벤더 추가** = 어댑터 1개 + `registry.ts` 1줄 + 모델 상수 — 설정 카드·검증(벤더별 상수 `host` 만 허용)·챗봇 경로가 레지스트리에서 파생한다.
 - **SSE 스트리밍**(옵트인): `POST /api/chat` 에 `Accept: text/event-stream` → `event: token`(agent 텍스트) · `status`(도구 진행) ·
