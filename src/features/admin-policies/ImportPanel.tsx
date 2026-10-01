@@ -151,6 +151,7 @@ export function ImportPanel({
       <ReplaceConfirmModal
         open={confirming}
         vanishingItems={mergeInfo?.vanishingItems ?? 0}
+        {...(mergeInfo?.operating ? { operating: mergeInfo.operating } : {})}
         onCancel={() => setConfirming(false)}
         onConfirm={runApply}
       />

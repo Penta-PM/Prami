@@ -59,6 +59,10 @@ test('ADMIN: 품목조회 5파일 동시 업로드 → 파일 목록·검증 통
   await apply.click();
   const modal = page.getByRole('dialog', { name: '품목 전량 교체' });
   await expect(modal).toContainText('품번 1개가 사라집니다');
+  // AC-373 ③: 운영중 판매단가 행 증감 예상 (예: 2,428 → 3,644)
+  await expect(modal.getByTestId('operating-delta')).toContainText(
+    /운영중 판매단가 행은 [\d,]+ → [\d,]+/,
+  );
   await modal.getByRole('button', { name: '취소' }).click();
   await expect(modal).toBeHidden();
 

@@ -30,6 +30,7 @@ import {
 } from './apply-steps';
 import { ApplyInvariantError, assertInvariants, checkInvariants } from './invariants';
 import { batchMajors } from './item-upload';
+import { queryCount } from './sql-rows';
 import { logger } from '@/server/log';
 
 /**
@@ -265,7 +266,34 @@ export type ItemMergePreview = {
   /** 전량 교체 시 사라질(stub 이 될) master 품번 수 */
   vanishingItems: number;
   previousBatchId: string | null;
+  /**
+   * 운영중 판매단가 행 — 현재와 전량 교체 시 예상 (PRAMI-003 AC-373 ③, PR #19 I-3). 사라지는 품번이 stub(미확인)이 되면
+   * 폐기 판정이 풀려 그 최신 행이 운영중이 된다. 이번 배치가 남는 제품군 상태를 바꾸는 효과는 넣지 않는다(병합·교체 공통).
+   */
+  operating: { now: number; afterReplace: number };
 };
+
+async function operatingForecast(
+  handle: DbHandle,
+  missing: readonly string[],
+): Promise<ItemMergePreview['operating']> {
+  const now = await queryCount(
+    handle.db,
+    sql`select count(*)::int as n from sales_prices where deleted_at is null and operation_status = '운영중'`,
+  );
+  if (missing.length === 0) return { now, afterReplace: now };
+  const released = await queryCount(
+    handle.db,
+    sql`select count(*)::int as n from sales_prices sp join items i on i.item_code = sp.item_code
+        where sp.deleted_at is null and sp.is_latest_in_series and i.source = 'master'
+          and i.item_status = '폐기'
+          and i.category_major in (${sql.join(
+            missing.map((major) => sql`${major}`),
+            sql`, `,
+          )})`,
+  );
+  return { now, afterReplace: now + released };
+}
 
 /** 품목 배치를 적용하면 빠지는 제품군 미리보기 (적용 화면의 병합 방식 선택·확인 모달, §4.2.3) */
 export async function previewItemMerge(
@@ -282,7 +310,12 @@ export async function previewItemMerge(
           items,
           and(eq(items.source, 'master'), inArray(items.categoryMajor, missing)),
         );
-  return { missingFamilies: missing, vanishingItems, previousBatchId: previous.batchId };
+  return {
+    missingFamilies: missing,
+    vanishingItems,
+    previousBatchId: previous.batchId,
+    operating: await operatingForecast(handle, missing),
+  };
 }
 
 /** 병합 방식 결정: 이번 배치에 없는 직전 대분류가 있으면 선택 필수 (§4.2.3, AC-306) */

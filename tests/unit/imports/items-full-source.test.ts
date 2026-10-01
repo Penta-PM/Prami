@@ -318,5 +318,7 @@ describe.skipIf(!available)('품목 마스터 실데이터 (PRAMI-003 AC-303·AC
     });
     const preview = await previewItemMerge(handle, upload.batchId);
     expect(preview.vanishingItems).toBe(2126);
+    // AC-373 ③ (PR #19 QA I-3 실측: 전량 교체 후 운영중 2,428 → 3,644)
+    expect(preview.operating).toEqual({ now: 2428, afterReplace: 3644 });
   });
 });

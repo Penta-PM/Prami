@@ -189,6 +189,8 @@ describe('AC-305·AC-306·AC-307·AC-314 적용 (합성 품목 + 판매단가 20
     const preview = await previewItemMerge(handle, upload.batchId);
     const vanishing = before.filter(([m]) => m !== onlyMajor).reduce((n, [, c]) => n + c, 0);
     expect(preview).toMatchObject({ missingFamilies: missing, vanishingItems: vanishing });
+    // AC-373 ③: 운영중 행 예상 — 사라질 품번 중 폐기였던 최신 행만큼 늘어난다 (병합이면 그대로)
+    expect(preview.operating.afterReplace).toBeGreaterThanOrEqual(preview.operating.now);
 
     const input = {
       salesBatchId: salesId,
