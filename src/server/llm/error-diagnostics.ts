@@ -1,6 +1,7 @@
 import { dependencies } from '../../../package.json';
 
-import { causeChain, classNameOf, isNetworkError } from './error-chain';
+import { causeChain, classNameOf, CONTEXT_OVERFLOW_ERROR, isNetworkError } from './error-chain';
+import { requestGuardOf } from './request-guard';
 import { maskString } from '../log';
 
 /**
@@ -11,6 +12,8 @@ import { maskString } from '../log';
  * 예외: 개발 환경(`NODE_ENV=development`)에서만 `debugMessage`(maskString — 키 형식·Bearer·URL userinfo 마스킹 후 120자) — production·preview 빌드에는 없다.
  * `requestId` 는 로거 규약상 **앱 요청 id** 다 — 벤더 요청 id 는 `vendorRequestId` (r2, QA M-1 충돌 해소).
  */
+const DEPRECATED_TOKEN = 'deprecated';
+
 export const LLM_VENDOR_ERROR_TOKENS = [
   // 공통·OpenAI·xAI
   'invalid_request_error',
@@ -28,6 +31,10 @@ export const LLM_VENDOR_ERROR_TOKENS = [
   'unsupported_value',
   'invalid_value',
   'content_filter',
+  // xAI 본문 code (더미 키 관측값·문서 404 예시, PRAMI-003 §4.7.5 — 하이픈·콜론 형식이라 OpenAI 와 겹치지 않는다)
+  'invalid-argument',
+  'unauthenticated:no-credentials',
+  'not-found',
   // Anthropic
   'overloaded_error',
   'request_too_large',
@@ -45,7 +52,22 @@ export const LLM_VENDOR_ERROR_TOKENS = [
   'incomplete_content_filter',
   'incomplete_other',
   'empty_output',
+  // 공통 파생 토큰 (§4.7.7 ②·③): 본문 메시지의 고정 패턴 일치 여부만 뽑은 값, 응답 사후 검사의 서버측 도구 사용
+  DEPRECATED_TOKEN,
+  'server_tool_used',
 ] as const;
+
+/**
+ * 폐기(deprecation) 고정 패턴 (§4.7.7 ②) — 벤더 사람용 메시지는 **이 패턴 일치 여부만** 보고 즉시 버린다.
+ * 남는 것은 고정 토큰 `deprecated` 1개뿐이다(메시지 원문은 로그·응답·SSE·감사 어디에도 없다, PRAMI-002 T-6).
+ */
+const DEPRECATION_PATTERN = /deprecat(ed|ion)/i;
+
+export function deprecationToken(message: unknown): typeof DEPRECATED_TOKEN | undefined {
+  return typeof message === 'string' && DEPRECATION_PATTERN.test(message)
+    ? DEPRECATED_TOKEN
+    : undefined;
+}
 
 /** 허용 목록 밖 값 */
 export const OTHER_TOKEN = 'other';
@@ -95,6 +117,8 @@ type Body = {
   status?: unknown;
   param?: unknown;
   details?: unknown;
+  /** 사람용 메시지 — 폐기 패턴 판정에만 쓰고 기록하지 않는다 */
+  message?: unknown;
   error?: Body;
 };
 
@@ -105,7 +129,6 @@ type ErrorShape = Body & {
   lc_error_code?: unknown;
   errorDetails?: unknown;
   stack?: unknown;
-  message?: unknown;
 };
 
 const strings = (values: unknown[]): string[] =>
@@ -168,6 +191,18 @@ function sourceOf(
   return 'local';
 }
 
+/**
+ * 오류 체인(자신 + cause 3단계)과 본문(`error.message`·`error.error.message`)의 사람용 메시지 중 폐기 패턴이 있는지 —
+ * 벤더 공통. xAI 는 `withXaiErrorBody` 가 원문을 버리기 전에 같은 판정을 하고 고정 토큰만 남긴다(xai-chat.ts).
+ */
+function deprecationOf(raw: unknown): string | undefined {
+  const messages = causeChain(raw).flatMap((link) => {
+    const body = (link as ErrorShape).error;
+    return [link.message, body?.message, body?.error?.message];
+  });
+  return messages.map(deprecationToken).find(Boolean);
+}
+
 function withoutUndefined<T extends object>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 }
@@ -175,6 +210,17 @@ function withoutUndefined<T extends object>(value: T): T {
 export function describeLlmError(raw: unknown, signals?: CallAbortState): LlmErrorDiagnostics {
   if (!raw || typeof raw !== 'object') {
     return { source: signals?.timedOut ? 'timeout' : signals?.aborted ? 'abort' : 'local' };
+  }
+  const guard = requestGuardOf(raw);
+  if (guard) return { source: 'local', sdkErrorName: guard.name, frame: guard.frame };
+  // LangChain 컨텍스트 초과 래퍼는 상태·본문을 잃는다 — 원래 SDK 오류(cause)로 진단한다 (L-1 r3: sdkErrorName = BadRequestError)
+  const unwrapped = (raw as ErrorShape & { cause?: unknown }).cause;
+  if (
+    classNameOf(raw as ErrorShape) === CONTEXT_OVERFLOW_ERROR &&
+    unwrapped &&
+    typeof unwrapped === 'object'
+  ) {
+    return describeLlmError(unwrapped, signals);
   }
   const error = raw as ErrorShape;
   const body = error.error ?? {};
@@ -190,16 +236,18 @@ export function describeLlmError(raw: unknown, signals?: CallAbortState): LlmErr
     vendorErrorType: allowlisted(
       strings([error.type, inner.type, body.type, inner.status, body.status]),
     ),
-    vendorErrorCode: allowlisted(
-      strings([
-        error.code,
-        inner.code,
-        body.code,
-        ...reasons(inner.details),
-        ...reasons(body.details),
-        ...reasons(error.errorDetails),
-      ]),
-    ),
+    vendorErrorCode:
+      deprecationOf(raw) ??
+      allowlisted(
+        strings([
+          error.code,
+          inner.code,
+          body.code,
+          ...reasons(inner.details),
+          ...reasons(body.details),
+          ...reasons(error.errorDetails),
+        ]),
+      ),
     vendorErrorParam: param,
     vendorRequestId: vendorRequestIdOf(error),
     lcCode: lcCode && LC_CODES.has(lcCode) ? lcCode : undefined,
@@ -221,6 +269,8 @@ const ADAPTER_PACKAGES: Record<string, keyof typeof dependencies> = {
   openai: '@langchain/openai',
   openrouter: '@langchain/openai',
   google: '@langchain/google-genai',
+  // xAI 는 OpenAI 호환 Responses — 같은 패키지를 프로필만 바꿔 쓴다 (PRAMI-003 §4.7.2)
+  xai: '@langchain/openai',
 };
 
 export function adapterOf(vendor: string | null): string | undefined {

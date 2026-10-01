@@ -15,6 +15,9 @@ import {
 } from '@/server/llm/vendors/openai-chat';
 import { OPENROUTER_API_BASE } from '@/server/llm/vendors/openrouter';
 import type { ChatModelFactoryOptions } from '@/server/llm/vendors/types';
+import { createXaiChatModel } from '@/server/llm/vendors/xai';
+
+import { ScriptedChatModel } from '../../fixtures/chat/scripted-model';
 
 import { ask, scriptedRuntime, setupChatDb, type ChatTestDb } from '../../helpers/chat';
 import { expectNoSecret } from '../../helpers/secret';
@@ -222,6 +225,169 @@ describe('L-2 연결 오류 → unavailable · source network (AC-354 ②)', () 
     },
     30_000,
   );
+});
+
+/**
+ * AC-369 (r3, PR #22 L-1): LangChain 이 `ContextOverflowError` 로 바꾼 컨텍스트 초과도 too_long. 래핑되면 `status`·`lc_error_code`
+ * 가 사라져 이전에는 llm_error(일반 안내)였다 — OpenAI 실제형 메시지와 xAI(`withXaiErrorBody` 경로)가 그 경우다.
+ */
+describe('AC-369 컨텍스트 초과 — ContextOverflowError 래핑 포함 → too_long (JSON·SSE)', () => {
+  const XAI_KEY = 'xai-test-CLASSIFY-context-overflow-0000000005';
+  const openAiContext = (message: string) =>
+    json(400, {
+      error: {
+        message,
+        type: 'invalid_request_error',
+        code: 'context_length_exceeded',
+        param: 'input',
+      },
+    });
+  const xaiContext = json(400, { code: 'context_length_exceeded', error: VENDOR_MESSAGE });
+
+  async function xaiRuntime(fetchImpl: FetchImpl): Promise<ChatRuntime> {
+    const runtime = scriptedRuntime(ctx.handle, {
+      status: 'ready',
+      vendor: 'xai',
+      modelId: 'grok-4.7',
+    });
+    const credential = await runtime.resolveCredential();
+    runtime.resolveCredential = async () => ({
+      ...credential,
+      createModel: (options) =>
+        createXaiChatModel(XAI_KEY, 'grok-4.7', {
+          ...options,
+          fetch: fetchImpl as unknown as typeof fetch,
+        }),
+    });
+    return runtime;
+  }
+
+  const overflowModel = () =>
+    new ScriptedChatModel([
+      {
+        throw: {
+          name: 'ContextOverflowError',
+          message: "Input exceeded the model's context window.",
+        },
+      },
+    ]);
+
+  it.each<[string, () => Promise<ChatRuntime>, string]>([
+    [
+      '① OpenAI 실제형 메시지 "maximum context length is …"',
+      () =>
+        runtimeFor(
+          'openai',
+          openAiContext(
+            `This model's maximum context length is 128000 tokens. However, your messages resulted in 130000 tokens. ${VENDOR_MESSAGE}`,
+          ),
+        ),
+      'BadRequestError',
+    ],
+    [
+      '② OpenAI 같은 코드 + "too long"',
+      () => runtimeFor('openai', openAiContext(`too long ${VENDOR_MESSAGE}`)),
+      'BadRequestError',
+    ],
+    [
+      '③ xAI 400 {code:context_length_exceeded} (withXaiErrorBody)',
+      () => xaiRuntime(xaiContext),
+      'BadRequestError',
+    ],
+    [
+      '④ ContextOverflowError 를 직접 던지는 모델',
+      async () =>
+        scriptedRuntime(ctx.handle, {
+          status: 'ready',
+          vendor: 'openai',
+          modelId: 'gpt-6.1-sol',
+          model: overflowModel(),
+        }),
+      'ContextOverflowError',
+    ],
+  ])(
+    '%s',
+    async (_label, makeRuntime, sdkErrorName) => {
+      const logs = captureLlmErrors();
+      const reply = await ask(await makeRuntime(), 'Wapples-500 가격');
+      const final = await sse(await makeRuntime());
+      for (const answer of [reply, final]) {
+        expect(answer.reply).toBe(TOO_LONG_REPLY);
+        expect(JSON.stringify(answer)).not.toContain(VENDOR_MESSAGE);
+      }
+      const lines = logs();
+      expect(lines).toHaveLength(2);
+      for (const line of lines) expect(line).toMatchObject({ code: 'too_long', sdkErrorName });
+      expect(lines.map((line) => line.stream)).toEqual([false, true]);
+    },
+    30_000,
+  );
+
+  it('다른 400(invalid_value)은 여전히 request_rejected', async () => {
+    const logs = captureLlmErrors();
+    const fetchImpl = json(400, {
+      error: { message: VENDOR_MESSAGE, type: 'invalid_request_error', code: 'invalid_value' },
+    });
+    await ask(await runtimeFor('openai', fetchImpl), 'Wapples-500 가격');
+    await ask(
+      await xaiRuntime(json(400, { code: 'invalid-argument', error: VENDOR_MESSAGE })),
+      'Wapples-500 가격',
+    );
+    expect(logs().map((line) => line.code)).toEqual(['request_rejected', 'request_rejected']);
+  });
+
+  it('분류 표: cause 체인의 ContextOverflowError 는 상태 판정보다 앞', () => {
+    const wrapped = Object.assign(new Error('wrapped'), {
+      name: 'ContextOverflowError',
+      cause: { status: 400, code: 'context_length_exceeded' },
+    });
+    expect(normalizeLlmError(wrapped)).toBe('too_long');
+    expect(normalizeLlmError({ status: 503, cause: wrapped })).toBe('too_long');
+  });
+});
+
+/** 410 + 벤더 사람용 메시지(폐기 패턴 포함) — 벤더별 오류 본문 형태 (PRAMI-003 §4.7.7 ②, AC-368 ②) */
+const GONE_MESSAGE = `This endpoint is deprecated ${VENDOR_MESSAGE}`;
+const GONE_410: Record<Vendor, FetchImpl> = {
+  openai: json(410, { error: { message: GONE_MESSAGE, type: 'invalid_request_error' } }),
+  openrouter: json(410, { error: { message: GONE_MESSAGE, code: 410 } }),
+  anthropic: json(410, { type: 'error', error: { type: 'api_error', message: GONE_MESSAGE } }),
+  google: json(410, { error: { code: 410, message: GONE_MESSAGE, status: 'FAILED_PRECONDITION' } }),
+};
+
+describe('410 Gone → request_rejected · vendorErrorCode deprecated · error 로그 — 벤더 공통 (AC-368 ②)', () => {
+  it.each(['openai', 'openrouter', 'anthropic', 'google'] as const)(
+    '%s (JSON·SSE)',
+    async (vendor) => {
+      const logs = captureLlmErrors();
+      const errorLevel = vi.mocked(console.error);
+      const reply = await ask(await runtimeFor(vendor, GONE_410[vendor]), 'Wapples-500 가격');
+      const final = await sse(await runtimeFor(vendor, GONE_410[vendor]));
+      for (const answer of [reply, final]) {
+        expect(answer.mode).toBe('rule');
+        expect(JSON.stringify(answer)).not.toContain(VENDOR_MESSAGE);
+      }
+      const lines = logs();
+      expect(lines).toHaveLength(2);
+      for (const line of lines) {
+        expect(line).toMatchObject({
+          code: 'request_rejected',
+          httpStatus: 410,
+          vendorErrorCode: 'deprecated',
+          vendor,
+        });
+      }
+      expect(
+        errorLevel.mock.calls.filter(([text]) => String(text).includes('chat.llm_error')),
+      ).toHaveLength(2);
+    },
+    30_000,
+  );
+
+  it('분류 표: 410 은 본문과 관계없이 request_rejected', () => {
+    expect(normalizeLlmError({ status: 410 })).toBe('request_rejected');
+    expect(normalizeLlmError({ status: 410, code: 'invalid_api_key' })).toBe('request_rejected');
+  });
 });
 
 describe('AC-366 벤더별 진단 필드 (fake·전송 가로채기)', () => {

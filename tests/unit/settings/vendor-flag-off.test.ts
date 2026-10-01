@@ -138,6 +138,6 @@ describe('QA L-3 플래그 off 후 남은 OpenRouter 자격 증명', () => {
     const stranger = (await insertUser(ctx.handle, { email: 'flag-off-none@pentasecurity.com' }))
       .id;
     const vendors = (await view(stranger)).vendors.map((vendor) => vendor.id);
-    expect(vendors).toEqual(['anthropic', 'openai', 'google']);
+    expect(vendors).toEqual(['anthropic', 'openai', 'google', 'xai']);
   });
 });

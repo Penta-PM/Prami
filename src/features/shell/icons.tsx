@@ -106,3 +106,22 @@ export function Icon({ name, ...props }: IconProps) {
     </svg>
   );
 }
+
+/** 경고 삼각형(느낌표) — 주의 안내용 (PRAMI-003 §4.8.3). 색은 currentColor, 의미는 함께 둔 제목 텍스트가 전달한다 */
+export function WarningIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={16}
+      height={16}
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+      {...props}
+    >
+      <path d="M12 3.5 21 19.5H3L12 3.5Z" {...STROKE} strokeLinejoin="round" />
+      <path d="M12 10v4.5" {...STROKE} strokeLinecap="round" />
+      <circle cx="12" cy="17" r="1" fill="currentColor" />
+    </svg>
+  );
+}

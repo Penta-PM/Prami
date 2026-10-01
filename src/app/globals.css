@@ -123,6 +123,13 @@
   --hairline-default: inset 0 0 0 1px var(--border-default);
   --hairline-accent-panel: inset 0 0 0 1px var(--border-accent-panel);
   --shadow-elevated: 0 12px 24px var(--shadow-soft);
+
+  /* ── 앱 확장 토큰 (원본 디자인 토큰 밖 — PRAMI-003 §4.8.3, tokens.test.ts 확장 목록) ──
+   * --red-500 은 흰 배경 4.62:1·옅은 빨강 배경 약 3.9:1 로 13px 본문 AA 미달 → 위험 텍스트는 --red-600.
+   * 다크 테마 도입 시: --text-danger: #ff8a8a, --surface-danger: #3a1a1f (대비 6.9:1 계산값). 현재 앱에는 다크 테마가 없다. */
+  --red-600: #c40018;
+  --surface-danger: color-mix(in srgb, var(--red-500) 8%, var(--white));
+  --border-danger: var(--red-500);
 }
 
 /* --text-* 토큰: Tailwind font-size 네임스페이스 충돌 회피를 위해 @theme 밖에 둔다 (값·이름은 원본 동일) */
@@ -133,6 +140,8 @@
   --text-tertiary: var(--slate-600);
   --text-inverse: var(--white);
   --text-on-accent: var(--ink-900);
+  /* 앱 확장 토큰 (PRAMI-003 §4.8.3): 주의 문구 제목·본문·아이콘 — --surface-danger 위 AA */
+  --text-danger: var(--red-600);
 
   /* typography.css */
   --text-page-title: 600 25px/1 var(--font-body);
@@ -172,6 +181,7 @@
   --color-orange-500: var(--orange-500);
   --color-amber-500: var(--amber-500);
   --color-red-500: var(--red-500);
+  --color-red-600: var(--red-600);
 
   --color-surface-page: var(--surface-page);
   --color-surface-sidebar: var(--surface-sidebar);
@@ -199,6 +209,11 @@
   --color-text-tertiary: var(--text-tertiary);
   --color-text-inverse: var(--text-inverse);
   --color-text-on-accent: var(--text-on-accent);
+
+  /* 앱 확장 토큰 별칭 (PRAMI-003 §4.8.3) */
+  --color-text-danger: var(--text-danger);
+  --color-surface-danger: var(--surface-danger);
+  --color-border-danger: var(--border-danger);
 
   --font-sans: var(--font-body);
 }

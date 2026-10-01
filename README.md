@@ -346,7 +346,7 @@ QA 는 `IMPORT_FAULT_INJECTION=<단계>`(개발·테스트 전용)로 적용 중
 스펙: PRAMI-002 §4.6~4.13. 챗봇 LLM 경로는 PR-B("챗봇 LangGraph" 절), 다중 벤더·스트리밍·OpenRouter OAuth 는 PR-C 절. 기본 벤더·모델은 챗봇이 자연어 질문에 쓴다.
 
 - **화면 `/settings`** (헤더 "사용자 설정", 권한 `settings.self` = USER·ADMIN): ① 계정 연결 — 로그인 방식·이메일·마지막 로그인, Google 연결 여부는
-  boolean 으로만(`google_sub` 값 미노출), "Google 계정으로 다시 로그인" ② LLM 연결 — Anthropic·OpenAI·Google Gemini 카드(상태 필·마스킹 힌트
+  boolean 으로만(`google_sub` 값 미노출), "Google 계정으로 다시 로그인" ② LLM 연결 — Anthropic·OpenAI·Google Gemini·xAI (Grok) 카드(상태 필·마스킹 힌트
   `sk-ant-…WXYZ`·등록/교체/검증/삭제·콘솔 링크) ③ 챗봇 기본값 — **정상** 검증된 벤더와 그 벤더의 모델 상수(`src/server/llm/models.ts`)만, 이 키의 사용 가능 모델 밖은 "이 키로 사용 불가"(비활성), 레거시는 '레거시' 배지 ④ 요금·데이터 안내.
   저장된 키를 다시 보여주는 UI 는 없다(교체만). 입력은 password·autocomplete off, 제출 즉시 비운다.
 - **본인만** (§4.7.1): 모든 조회·변경·검증은 세션 사용자 id 로만 스코프된다 — 입력에 userId 를 받지 않고(strict 스키마), ADMIN 도 남의 키를

@@ -12,6 +12,17 @@
  * - Google: https://ai.google.dev/gemini-api/docs/models — gemini-3.8-flash · gemini-3.5-flash-lite (stable). Pro 는 preview 뿐이라 제외.
  * - OpenRouter(PR-C, OAuth 전용·플래그): 모델 페이지(2026-09-30) https://openrouter.ai/anthropic/claude-sonnet-5.5 ·
  *   https://openrouter.ai/openai/gpt-6.1-sol · https://openrouter.ai/google/gemini-3.8-flash 의 모델 ID.
+ * - xAI(PRAMI-003 PR-1c, 2026-10-01 확인): https://docs.x.ai/developers/models · https://docs.x.ai/developers/grok-4-7 —
+ *   "For everything else, including code, use Grok 4.7. It is the most capable model we've built." / "`<modelname>` is aliased
+ *   to the latest stable version". 현행 grok-4.7(기본) · grok-4.3(저가). 날짜 없는 별칭만 — 퇴역 ID
+ *   (https://docs.x.ai/developers/migration/may-15-retirement)·`-latest`·코딩·멀티 에이전트 모델은 넣지 않는다.
+ *   추론 여유: https://docs.x.ai/developers/rest-api-reference/inference/responses — `max_output_tokens` "includes both
+ *   output and reasoning tokens. Defaults to 128,000" → 명시 상한 = 보이는 답 상한 + 8,192.
+ *   (r3 정정, 2026-10-01 재확인) effort low 지원 근거: grok-4.7 = https://docs.x.ai/developers/model-capabilities/text/reasoning,
+ *   grok-4.3 = https://docs.x.ai/developers/migration/may-15-retirement. 잘못된 키 400 은 문서 문구가 아니라 더미 키 관측
+ *   (`{"code":"invalid-argument"}`) — 이전 인용 "An incorrect API key was supplied." 은 https://docs.x.ai/developers/debugging
+ *   현재 페이지에 없어 삭제. 실시간 검색: 레퍼런스는 `search_parameters` 를 아직 싣고 있지만 실제 API 는 이 키가 있으면
+ *   `mode:'off'` 여도 410 "Live search is deprecated" (PR #22 QA 더미 키 관측) → 어댑터는 이 키를 보내지 않는다(vendors/xai.ts).
  */
 export type ModelTier = 'low' | 'balanced' | 'top';
 export type ModelLifecycle = 'current' | 'legacy';
@@ -33,6 +44,9 @@ export type LlmModelOption = {
    */
   reasoningReserveTokens?: number;
 };
+
+/** xAI 추론 여유 (PRAMI-003 §4.7.4 — 스펙 확정값). 기본 1,024 + 8,192 = 9,216 (문서 기본 128,000 은 쓰지 않는다) */
+export const XAI_REASONING_RESERVE_TOKENS = 8192;
 
 /**
  * OpenAI GPT-6 계열 추론 여유 (PRAMI-003 §4.5.5 L-3 — 스펙 확정값). 근거: https://developers.openai.com/api/docs/guides/reasoning
@@ -142,6 +156,23 @@ export const LLM_MODELS = {
       label: 'Gemini 3.5 Flash-Lite',
       tier: 'low',
       lifecycle: 'current',
+    },
+  ],
+  xai: [
+    {
+      id: 'grok-4.7',
+      label: 'Grok 4.7',
+      tier: 'balanced',
+      lifecycle: 'current',
+      isDefault: true,
+      reasoningReserveTokens: XAI_REASONING_RESERVE_TOKENS,
+    },
+    {
+      id: 'grok-4.3',
+      label: 'Grok 4.3',
+      tier: 'low',
+      lifecycle: 'current',
+      reasoningReserveTokens: XAI_REASONING_RESERVE_TOKENS,
     },
   ],
   openrouter: [

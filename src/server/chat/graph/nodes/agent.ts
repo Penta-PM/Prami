@@ -8,6 +8,7 @@ import {
   type LlmErrorDiagnostics,
 } from '@/server/llm/error-diagnostics';
 import { isAuthError, normalizeLlmError, type LlmErrorCode } from '@/server/llm/errors';
+import { XAI_REQUEST_GUARD_FRAME } from '@/server/llm/vendors/xai-chat';
 import { logger } from '@/server/log';
 
 import { toolsFor } from '../../features/registry';
@@ -33,6 +34,9 @@ import { runtimeOf } from './util';
  * Gemini 어댑터는 strict 를 무시한다 — 계약 테스트 AC-241)
  */
 const BIND_OPTIONS: Record<string, unknown> = { strict: true };
+
+/** 응답 사후 검사 진단 토큰 (§4.7.7 ③) */
+const SERVER_TOOL_USED = 'server_tool_used';
 
 /**
  * 모델 호출 신호 = 요청 타임아웃 + 클라이언트 중단(SSE 연결 끊김, §4.3.9). 두 신호를 따로 보관해 오류 시 **어느 쪽이
@@ -113,6 +117,19 @@ function llmErrorFields(
 
 type ErrorContext = { stats?: Partial<CallStats>; debugMessage?: string };
 
+/**
+ * 운영 알림 대상(§4.3.8)은 warn 이 아니라 error 수준 (PRAMI-003 §4.7.7): 벤더 폐기(410·`deprecated`) = 어댑터 갱신 필요,
+ * 서버측 도구 사용 = 검색 비사용 보장 위반, 요청 가드 = 금지 키가 본문에 들어간 코드 결함
+ */
+function isAlert(diagnostics: LlmErrorDiagnostics): boolean {
+  return (
+    diagnostics.httpStatus === 410 ||
+    diagnostics.vendorErrorCode === 'deprecated' ||
+    diagnostics.vendorErrorType === SERVER_TOOL_USED ||
+    diagnostics.frame === XAI_REQUEST_GUARD_FRAME
+  );
+}
+
 async function onError(
   state: ChatGraphState,
   runtime: ChatRuntime,
@@ -130,6 +147,7 @@ async function onError(
   );
   // 클라이언트 중단(SSE 끊김)은 사용자 행위 — 경고가 아니라 info (L-4)
   if (diagnostics.source === 'abort') logger.info('chat.llm_aborted', fields);
+  else if (isAlert(diagnostics)) logger.error('chat.llm_error', fields);
   else logger.warn('chat.llm_error', fields);
   const next: ChatGraphState = { ...state, llmError: code };
   if (isAuthError(code)) {
@@ -207,7 +225,23 @@ export function makeAgent(features: readonly ChatFeature[]) {
       return onError(state, runtime, 'llm_error', { source: 'local', frame: 'message_invariant' });
     }
     const { maxOutputTokens, timeoutMs, maxToolCalls } = runtime.settings;
-    const model = createModel({ maxTokens: maxOutputTokens, timeoutMs });
+    // 서버측 도구(검색 등) 사용이 감지되면 성공·실패와 관계없이 그 출력을 버리고 규칙 답 (§4.7.7 ③)
+    let serverToolUsed = false;
+    const model = createModel({
+      maxTokens: maxOutputTokens,
+      timeoutMs,
+      onServerToolUse: () => {
+        serverToolUsed = true;
+      },
+    });
+    const serverToolError = (stats: CallStats) =>
+      onError(
+        state,
+        runtime,
+        'llm_error',
+        { source: 'response', httpStatus: 200, vendorErrorType: SERVER_TOOL_USED },
+        { stats },
+      );
     const tools = toolsFor(features, state.actor).map(toLangChainTool);
     const signals = callSignals(config, timeoutMs);
     runtime.llmCalls += 1;
@@ -219,17 +253,19 @@ export function makeAgent(features: readonly ChatFeature[]) {
       attempts = attemptCounter(bound);
       message = (await bound.invoke(state.messages, { signal: signals.signal })) as AIMessage;
     } catch (error) {
+      if (serverToolUsed) {
+        return serverToolError({ attempts: attempts(true), latencyMs: Date.now() - started });
+      }
       const aborted = { timedOut: signals.timeout.aborted, aborted: !!signals.client?.aborted };
       return onError(state, runtime, normalizeLlmError(error), describeLlmError(error, aborted), {
         stats: { attempts: attempts(false), latencyMs: Date.now() - started },
         debugMessage: debugMessageOf(error),
       });
     }
+    const stats = { attempts: attempts(true), latencyMs: Date.now() - started };
+    if (serverToolUsed) return serverToolError(stats);
     const verdict = classifyResponse(message);
-    logResponseIssue(state, runtime, verdict, {
-      attempts: attempts(true),
-      latencyMs: Date.now() - started,
-    });
+    logResponseIssue(state, runtime, verdict, stats);
     // 거부(refusal 콘텐츠·stop_reason·content_filter 미완료)는 content 를 버린다 (§4.5.3)
     if (verdict.outcome === 'refused') return { llmError: 'refused' };
     const answer = verdict.outcome === 'answer' ? message : withoutToolCalls(message);

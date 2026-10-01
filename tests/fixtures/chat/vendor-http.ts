@@ -264,6 +264,24 @@ export function createOpenAIStub(turns: VendorTurn[]): Stub {
   return { fetch: fetchImpl as typeof fetch, requests };
 }
 
+/**
+ * Gemini 출력 상한 도달 (PRAMI-003 L-a, AC-370): 실 스트리밍처럼 텍스트 청크(finishReason 없음) 뒤 마지막 청크에
+ * `finishReason: 'MAX_TOKENS'`. 비스트리밍은 한 응답에 둘 다. `incomplete.reason` 이 max_output_tokens 일 때만 쓴다.
+ */
+function geminiTruncated(text: string) {
+  const usageMetadata = { promptTokenCount: 10, candidatesTokenCount: 5, totalTokenCount: 15 };
+  const candidate = (parts: unknown[], finishReason?: string) => ({
+    candidates: [
+      { content: { role: 'model', parts }, index: 0, ...(finishReason ? { finishReason } : {}) },
+    ],
+    usageMetadata,
+  });
+  return {
+    whole: candidate([{ text }], 'MAX_TOKENS'),
+    chunks: [candidate([{ text }]), candidate([{ text: '' }], 'MAX_TOKENS')],
+  };
+}
+
 function geminiCandidate(turn: VendorTurn) {
   const parts =
     'toolCall' in turn
@@ -295,8 +313,13 @@ export function createGeminiStub(turns: VendorTurn[]): Stub {
         status: turn.error.status,
         headers: turn.error.headers,
       });
+    const streaming = String(url).includes('streamGenerateContent');
+    if ('incomplete' in turn && turn.incomplete.reason === 'max_output_tokens') {
+      const truncated = geminiTruncated(turn.incomplete.text ?? '');
+      return streaming ? sse(truncated.chunks) : Response.json(truncated.whole);
+    }
     const payload = geminiCandidate(turn);
-    return String(url).includes('streamGenerateContent') ? sse([payload]) : Response.json(payload);
+    return streaming ? sse([payload]) : Response.json(payload);
   };
   return { fetch: fetchImpl as typeof fetch, requests };
 }

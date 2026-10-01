@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 
+import { WarningIcon } from '@/features/shell/icons';
 import type { ChatDefaultsView, VendorView } from '@/server/llm/credentials/settings';
 import type { CredentialView } from '@/server/llm/credentials/view';
 
@@ -13,8 +14,11 @@ import {
 } from './actions';
 import { ChatDefaultsForm } from './ChatDefaultsForm';
 import {
+  COMPANY_KEY_WARNING_BODY,
+  COMPANY_KEY_WARNING_TITLE,
   DELETE_DONE_MESSAGE,
   KEYRING_MISSING_NOTICE,
+  NO_CREDENTIAL_NOTICE,
   NOTICES,
   verifyResultMessage,
 } from './labels';
@@ -99,16 +103,14 @@ export function LlmSection({
         <h2 id="llm-title" className="m-0 text-[15px] font-semibold">
           LLM 연결
         </h2>
+        <CompanyKeyWarning />
         {!keyringReady ? (
           <p role="alert" className="m-0 rounded-lg bg-amber-500/15 px-3.5 py-2.5 text-[13px]">
             {KEYRING_MISSING_NOTICE}
           </p>
         ) : null}
         {credentials.length === 0 ? (
-          <p className="m-0 text-[13px] text-text-secondary">
-            아직 등록한 LLM API 키가 없습니다. Anthropic·OpenAI·Google 중 하나의 키를 등록하면
-            챗봇에서 자연어로 질문할 수 있게 됩니다.
-          </p>
+          <p className="m-0 text-[13px] text-text-secondary">{NO_CREDENTIAL_NOTICE}</p>
         ) : null}
         {flash ? (
           <p
@@ -158,5 +160,27 @@ export function LlmSection({
         </ul>
       </section>
     </>
+  );
+}
+
+/**
+ * 회사 API 키 주의 안내 (PRAMI-003 §4.8.2 ①·§4.8.3): 자격 증명 유무와 관계없이 항상, 닫기 없음.
+ * 정적 안내라 role="alert"·aria-live 를 쓰지 않는다(진입마다 스크린 리더가 끼어들지 않게) — role="note".
+ */
+function CompanyKeyWarning() {
+  return (
+    <aside
+      role="note"
+      aria-labelledby="llm-company-key-title"
+      className="flex gap-2.5 rounded-lg border-l-[3px] border-border-danger bg-surface-danger px-3.5 py-2.5 text-[13px] text-text-danger"
+    >
+      <WarningIcon className="mt-0.5 shrink-0" />
+      <div className="flex min-w-0 flex-col gap-1">
+        <p id="llm-company-key-title" className="m-0">
+          <strong>{COMPANY_KEY_WARNING_TITLE}</strong>
+        </p>
+        <p className="m-0 break-keep">{COMPANY_KEY_WARNING_BODY}</p>
+      </div>
+    </aside>
   );
 }

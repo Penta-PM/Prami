@@ -1,4 +1,5 @@
 import type { PillTone } from '@/components/ui';
+import { LLM_API_KEY_VENDOR_LIST } from '@/lib/constants/llm-vendor-names';
 
 /** 설정 화면 문구·상태 라벨 (PRAMI-002 §4.6.1). 서버 모듈을 import 하지 않는 순수 상수 */
 export type CredentialStatusView =
@@ -73,6 +74,19 @@ export const NOTICES = [
   '질문 내용과 조회된 판매단가가 선택한 LLM 벤더로 전송됩니다. 원가 정보는 전송되지 않습니다.',
   '키는 암호화되어 저장되며 관리자를 포함해 누구도 열람할 수 없습니다.',
 ] as const;
+
+/**
+ * 회사 API 키 주의 문구 (PRAMI-003 §4.8.1 확정 문구 — 변경은 Plan 재검토). 모든 벤더 공통, 벤더 이름을 넣지 않는다.
+ * TITLE·BODY = LLM 연결 섹션 상단 안내, FORM_HINT = 키 등록·교체 폼 입력란 바로 위.
+ */
+export const COMPANY_KEY_WARNING_TITLE = '회사 API 키를 사용하세요';
+export const COMPANY_KEY_WARNING_BODY =
+  '개인 API 키를 사용하면 입력한 질문과 조회된 판매단가 등 민감한 업무 데이터가 벤더의 모델 학습에 활용될 수 있습니다. 업무에는 반드시 회사에서 발급한 API 키를 사용하세요.';
+export const COMPANY_KEY_FORM_HINT =
+  '회사에서 발급한 API 키만 입력하세요. 개인 키는 입력한 데이터가 모델 학습에 활용될 수 있습니다.';
+
+/** 설정 화면 미등록 문구 (벤더 나열은 챗봇 미등록 안내와 같은 공통 상수, §4.8.2) */
+export const NO_CREDENTIAL_NOTICE = `아직 등록한 LLM API 키가 없습니다. ${LLM_API_KEY_VENDOR_LIST} 중 하나의 키를 등록하면 챗봇에서 자연어로 질문할 수 있게 됩니다.`;
 
 /** PR-B 머지 전까지 고정 (§6.1) */
 /** PR-B 부터 챗봇이 이 기본값으로 LLM 을 호출한다 (PR-A 의 "곧 제공됩니다" 문구는 §6.1 대로 제거) */

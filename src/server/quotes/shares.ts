@@ -18,6 +18,9 @@ import { findAccessibleQuote, type QuotesContext } from './mutations';
  * 견적 공유 링크 (§4.3.8 quote_shares, §4.5.8, AC-71, Q-13):
  * - 토큰 = 32바이트 난수(hex 64자), 만료 기본 30일(최대 365일).
  * - 폐기 = `expires_at` 을 지금으로 당긴다 (행·감사는 남고 링크만 즉시 404) — 스키마 변경 없음.
+ * - 시계는 **DB 하나**(PRAMI-003 AC-371, AC-71 간헐 실패 원인): 폐기 시각·활성 판정·공개 조회 비교를 모두 SQL `now()` 로 한다.
+ *   앱 시계(`new Date()`)로 폐기 시각을 쓰고 DB 시계로 비교하면, 앱 시계가 DB 보다 앞선 만큼 폐기된 링크가 열려 있었다
+ *   (컨테이너 시계 차이·다중 인스턴스). 생성 시 만료일(일 단위)만 앱 시계로 계산한다.
  * - 공유 페이지는 토큰이 살아 있고 견적이 삭제되지 않았을 때만 문서를 돌려주며 원가는 문서 모델에 없다.
  */
 export const AUDIT_QUOTE_SHARE_CREATE = 'quote.share.create';
@@ -56,10 +59,13 @@ export function sharePath(token: string): string {
   return `/share/quotes/${token}`;
 }
 
+/** DB 시계 기준 활성 여부 — 조회 열 (`expires_at > now()`) */
+const isActiveSql = sql<boolean>`${quoteShares.expiresAt} > now()`;
+
 function toView(
   row: typeof quoteShares.$inferSelect,
   quoteNo: string,
-  now = new Date(),
+  isActive: boolean,
 ): QuoteShareView {
   return {
     id: row.id,
@@ -69,7 +75,7 @@ function toView(
     path: sharePath(row.token),
     expiresAt: row.expiresAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
-    isActive: row.expiresAt.getTime() > now.getTime(),
+    isActive,
   };
 }
 
@@ -97,7 +103,8 @@ export async function createQuoteShare(
       after: { shareId: created.id, expiresAt: expiresAt.toISOString(), days: input.expiresInDays },
       meta: ctx.meta,
     });
-    return toView(created, quote.quoteNo);
+    // 방금 만든 링크는 만료일이 1일 이상 뒤다
+    return toView(created, quote.quoteNo, true);
   }, ctx.handle);
 }
 
@@ -109,12 +116,12 @@ export async function revokeQuoteShare(
   const [share] = await ctx.handle.db.select().from(quoteShares).where(eq(quoteShares.id, shareId));
   if (!share) throw new AppError('NOT_FOUND', '공유 링크를 찾을 수 없습니다');
   const quote = await findAccessibleQuote(ctx, share.quoteId, AUDIT_QUOTE_SHARE_REVOKE);
-  const now = new Date();
   return withTransaction(async (tx) => {
+    // 폐기 시각 = DB 시계 (공개 조회 비교와 같은 시계 — AC-371). 저장된 값은 returning 으로 받는다
     const [updated] = await tx
       .update(quoteShares)
-      .set({ expiresAt: now })
-      .where(and(eq(quoteShares.id, shareId), gt(quoteShares.expiresAt, now)))
+      .set({ expiresAt: sql`now()` })
+      .where(and(eq(quoteShares.id, shareId), gt(quoteShares.expiresAt, sql`now()`)))
       .returning();
     if (!updated) throw new AppError('CONFLICT', '이미 만료·폐기된 링크입니다');
     await writeAudit(tx, {
@@ -122,10 +129,10 @@ export async function revokeQuoteShare(
       action: AUDIT_QUOTE_SHARE_REVOKE,
       target: { type: 'quote', id: quote.id, label: quote.quoteNo },
       before: { shareId, expiresAt: share.expiresAt.toISOString() },
-      after: { shareId, expiresAt: now.toISOString() },
+      after: { shareId, expiresAt: updated.expiresAt.toISOString() },
       meta: ctx.meta,
     });
-    return toView(updated, quote.quoteNo, now);
+    return toView(updated, quote.quoteNo, false);
   }, ctx.handle);
 }
 
@@ -137,12 +144,11 @@ export async function listQuoteShares(
   const { quoteId } = listSharesSchema.parse(raw);
   const quote = await findAccessibleQuote(ctx, quoteId, AUDIT_QUOTE_SHARE_LIST);
   const rows = await ctx.handle.db
-    .select()
+    .select({ share: quoteShares, isActive: isActiveSql })
     .from(quoteShares)
     .where(eq(quoteShares.quoteId, quoteId))
     .orderBy(desc(quoteShares.createdAt));
-  const now = new Date();
-  return rows.map((row) => toView(row, quote.quoteNo, now));
+  return rows.map((row) => toView(row.share, quote.quoteNo, row.isActive === true));
 }
 
 export type SharedQuote = { document: QuoteDocument; expiresAt: string };

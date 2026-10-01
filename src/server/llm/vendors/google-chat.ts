@@ -1,4 +1,7 @@
+import type { CallbackManagerForLLMRun } from '@langchain/core/callbacks/manager';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { AIMessageChunk, type BaseMessage } from '@langchain/core/messages';
+import { ChatGenerationChunk } from '@langchain/core/outputs';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 
 import type { ChatModelFactoryOptions } from './types';
@@ -12,12 +15,38 @@ import type { ChatModelFactoryOptions } from './types';
  * 호출 signal(타임아웃·클라이언트 중단)을 SDK 요청에 넘기지 않는다. 스트리밍 경로는 `generateContentStream(request, { signal })`
  * 로 넘기므로, 결과는 같고(청크를 모아 한 메시지) agent 노드의 AbortSignal.timeout 이 실제로 요청을 끊는다(계약 테스트로 확인).
  */
+/**
+ * 스트리밍 종료 사유 보존 (PRAMI-003 §4.5.5 L-1 r3, PR #20 L-a). 설치 버전 확인: `@langchain/google-genai` 2.3.2 는 청크의
+ * `finishReason` 을 `generationInfo` 에만 싣고, `@langchain/core` 1.2.13 의 스트리밍 집계(SSE 경로 — 스트리밍 콜백이 있을 때)는
+ * `generationInfo` 를 메시지 `response_metadata` 에 합치지 않는다 → `MAX_TOKENS` 가 판정(`classifyResponse`)에 보이지 않았다.
+ * 스트림 끝에 마지막 `finishReason` 만 담은 빈 청크를 하나 더 내보내 집계 메시지의 `response_metadata.finishReason` 에 남긴다
+ * (청크마다 넣으면 문자열 병합으로 값이 이어 붙을 수 있다). 비스트리밍 집계(JSON 경로)는 원래 합쳐지므로 결과가 같다.
+ */
+class GeminiChatModel extends ChatGoogleGenerativeAI {
+  override async *_streamResponseChunks(
+    messages: BaseMessage[],
+    options: this['ParsedCallOptions'],
+    runManager?: CallbackManagerForLLMRun,
+  ): AsyncGenerator<ChatGenerationChunk> {
+    let finishReason: unknown;
+    for await (const chunk of super._streamResponseChunks(messages, options, runManager)) {
+      finishReason = chunk.generationInfo?.finishReason ?? finishReason;
+      yield chunk;
+    }
+    if (typeof finishReason !== 'string') return;
+    yield new ChatGenerationChunk({
+      text: '',
+      message: new AIMessageChunk({ content: '', response_metadata: { finishReason } }),
+    });
+  }
+}
+
 export function createGoogleChatModel(
   secret: string,
   modelId: string,
   options: ChatModelFactoryOptions,
 ): BaseChatModel {
-  return new ChatGoogleGenerativeAI({
+  return new GeminiChatModel({
     apiKey: secret,
     model: modelId,
     maxOutputTokens: options.maxTokens,

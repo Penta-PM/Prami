@@ -1,7 +1,8 @@
-import { isNetworkError } from './error-chain';
+import { isContextOverflowWrapper, isNetworkError } from './error-chain';
+import { requestGuardOf } from './request-guard';
 
 /**
- * 벤더 오류 정규화 (PRAMI-002 §4.8.3 + PRAMI-003 §4.5.5 L-2). 판정 순서: 타임아웃 → 컨텍스트 초과 → `err.status` →
+ * 벤더 오류 정규화 (PRAMI-002 §4.8.3 + PRAMI-003 §4.5.5 L-2). 판정 순서: 요청 가드 → 타임아웃 → 컨텍스트 초과 → `err.status` →
  * `lc_error_code` → 벤더 본문 코드 → 연결 오류(cause 체인).
  * 벤더·SDK 오류 **메시지는 절대 쓰지 않는다** — 벤더 원문(키 반복 가능, T-6)이 응답·로그로 새지 않게 코드만 돌려준다.
  * (설치 버전 확인: @langchain/anthropic 1.5.11 은 SDK 오류의 `.status` 를 보존하고 `lc_error_code` 에
@@ -57,8 +58,12 @@ function fromStatus(status: number, bodyCodes: readonly string[]): LlmErrorCode 
   if (status === 404) return 'model_not_found';
   if (status === 429) return 'rate_limited';
   if (status === 408 || status >= 500) return 'unavailable';
+  // 410 Gone = 벤더가 요청 기능을 폐기(예: xAI `search_parameters` → "Live search is deprecated", PRAMI-003 B-1) —
+  // 키·모델 문제가 아니라 어댑터 요청 형태 결함이다. 벤더 공통 (§4.7.7 ②)
+  if (status === 410) return 'request_rejected';
   // 그 밖의 400·422 = 벤더가 요청을 거부 (예: OpenAI invalid_request_error param=reasoning_effort, PRAMI-003)
-  if (status === 400 || status === 422) return 'request_rejected';
+  // 415(본문·Content-Type, xAI 문서 debugging) 도 어댑터 결함 신호 (PRAMI-003 §4.7.5)
+  if (status === 400 || status === 415 || status === 422) return 'request_rejected';
   return null;
 }
 
@@ -93,8 +98,13 @@ function bodyCodesOf(error: ErrorLike & { errorDetails?: unknown }): string[] {
 /**
  * 컨텍스트 초과 (L-2 ①) → too_long("대화를 새로 시작해주세요"). OpenAI·xAI 는 400 + 본문 코드 `context_length_exceeded`
  * (설치 버전 @langchain/openai 1.6.0 은 CONTEXT_OVERFLOW 를 붙이지 않는다 — 전송 가로채기로 확인), Anthropic 은 `request_too_large`(413).
+ * (r3, PR #22 L-1) LangChain 이 오류를 `ContextOverflowError` 로 바꾼 경우(오류 문자열에 `context_length_exceeded`, 메시지에
+ * "maximum context length"·"exceeds the context window" — 원래 오류의 `status`·`lc_error_code` 가 사라진다)도 too_long.
+ * 이 판정은 상태 코드 판정보다 앞이다. 실제형 OpenAI 메시지와 xAI(`withXaiErrorBody` 가 본문을 `{error:{code}}` 로 바꿔
+ * 코드가 오류 문자열에 들어간다) 두 경로가 여기로 온다.
  */
-function isContextOverflow(error: ErrorLike, bodyCodes: readonly string[]): boolean {
+function isContextOverflow(raw: unknown, error: ErrorLike, bodyCodes: readonly string[]): boolean {
+  if (isContextOverflowWrapper(raw)) return true;
   if (error.lc_error_code === 'CONTEXT_OVERFLOW') return true;
   if (bodyCodes.includes('request_too_large')) return true;
   return error.status === 400 && bodyCodes.includes('context_length_exceeded');
@@ -107,9 +117,11 @@ function isTimeout(error: ErrorLike): boolean {
 export function normalizeLlmError(raw: unknown): LlmErrorCode {
   if (!raw || typeof raw !== 'object') return 'llm_error';
   const error = raw as ErrorLike;
+  // 전송 전 요청 가드(§4.7.7 ①) — SDK 가 APIConnectionError 로 감싸도 연결 오류가 아니다
+  if (requestGuardOf(raw)) return 'llm_error';
   if (isTimeout(error)) return 'unavailable';
   const bodyCodes = bodyCodesOf(error);
-  if (isContextOverflow(error, bodyCodes)) return 'too_long';
+  if (isContextOverflow(raw, error, bodyCodes)) return 'too_long';
   if (typeof error.status === 'number') {
     const byStatus = fromStatus(error.status, bodyCodes);
     if (byStatus) return byStatus;

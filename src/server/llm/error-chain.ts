@@ -41,3 +41,13 @@ function isNetworkLink(error: ErrorObject): boolean {
 export function isNetworkError(raw: unknown): boolean {
   return causeChain(raw).some(isNetworkLink);
 }
+
+/**
+ * LangChain 컨텍스트 초과 래퍼 (`@langchain/core` `ContextOverflowError`, PRAMI-003 L-1 r3) — 자신 또는 cause 체인의 클래스 이름.
+ * `@langchain/openai` 1.6.0 `wrapOpenAIClientError` 가 원래 SDK 오류를 cause 로 감싼다.
+ */
+export const CONTEXT_OVERFLOW_ERROR = 'ContextOverflowError';
+
+export function isContextOverflowWrapper(raw: unknown): boolean {
+  return causeChain(raw).some((link) => classNameOf(link) === CONTEXT_OVERFLOW_ERROR);
+}

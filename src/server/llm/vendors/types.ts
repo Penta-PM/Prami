@@ -46,6 +46,11 @@ export type ChatModelFactoryOptions = {
   maxTokens: number;
   timeoutMs: number;
   fetch?: typeof fetch;
+  /**
+   * 응답이 서버측 도구(검색 등)를 썼음을 어댑터가 감지했을 때 (PRAMI-003 §4.7.7 ③ — xAI 사후 검사). agent 가 그 출력을 버린다.
+   * 사후 검사가 없는 어댑터는 부르지 않는다.
+   */
+  onServerToolUse?: () => void;
 };
 
 /** API 키 허용 문자 (§4.12: `[A-Za-z0-9_\-.]`) */

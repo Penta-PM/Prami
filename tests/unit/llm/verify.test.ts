@@ -192,17 +192,19 @@ describe('형식·마스킹·레지스트리', () => {
     expect(maskKey(anthropic, '---------------_')).toBeNull();
   });
 
-  it('레지스트리 3사 + OpenRouter(OAuth 전용·플래그), 벤더별 상수 호스트, 모델 상수 검증', () => {
+  it('레지스트리 4사(xAI 포함, PRAMI-003 §4.7.2) + OpenRouter(OAuth 전용·플래그), 벤더별 상수 호스트, 모델 상수 검증', () => {
     expect(LLM_VENDORS.map((vendor) => vendor.id)).toEqual([
       'anthropic',
       'openai',
       'google',
+      'xai',
       'openrouter',
     ]);
     expect(activeVendors({ oauthOpenRouter: false }).map((vendor) => vendor.id)).toEqual([
       'anthropic',
       'openai',
       'google',
+      'xai',
     ]);
     expect(activeVendors({ oauthOpenRouter: true }).map((vendor) => vendor.id)).toContain(
       'openrouter',

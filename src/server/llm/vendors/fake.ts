@@ -65,8 +65,9 @@ function listResponse(secret: string, vendorId: string, url: string): SimulatedR
   if (secret.startsWith('fake-nolist-')) return { status: 200, body: { unexpected: true } };
   const paged = secret.startsWith('fake-paged-');
   if (!paged && !secret.startsWith('fake-pagefail-')) return null;
-  // OpenAI 목록은 페이지가 없다 — 한 번에 전부 (다음 페이지 실패도 일어나지 않음)
-  if (vendorId === 'openai') return { status: 200, body: listBody(vendorId, all, null) };
+  // OpenAI·xAI 목록은 페이지가 없다 — 한 번에 전부 (다음 페이지 실패도 일어나지 않음)
+  if (vendorId === 'openai' || vendorId === 'xai')
+    return { status: 200, body: listBody(vendorId, all, null) };
   const half = Math.ceil(all.length / 2);
   if (!cursorOf(url))
     return { status: 200, body: listBody(vendorId, all.slice(0, half), 'page-2') };
@@ -75,7 +76,7 @@ function listResponse(secret: string, vendorId: string, url: string): SimulatedR
     : { status: 500, body: {} };
 }
 
-function errorResponse(secret: string): SimulatedResponse {
+function errorResponse(secret: string, vendorId: string): SimulatedResponse {
   if (secret.startsWith('fake-invalid-') || secret.startsWith('fake-401-')) {
     return { status: 401, body: { error: { type: 'authentication_error' } } };
   }
@@ -84,6 +85,10 @@ function errorResponse(secret: string): SimulatedResponse {
       status: 400,
       body: { error: { status: 'INVALID_ARGUMENT', details: [{ reason: 'API_KEY_INVALID' }] } },
     };
+  }
+  // xAI 는 잘못된 키에 400 invalid-argument (PRAMI-003 §4.7.1)
+  if (vendorId === 'xai' && secret.startsWith('fake-xai400-')) {
+    return { status: 400, body: { code: 'invalid-argument', error: 'fake' } };
   }
   if (secret.startsWith('fake-403-')) return { status: 403, body: {} };
   if (secret.startsWith('fake-429-')) return { status: 429, body: {} };
@@ -106,7 +111,7 @@ export function simulateVendorResponse(
   vendorId: string,
   url: string,
 ): SimulatedResponse {
-  return listResponse(secret, vendorId, url) ?? errorResponse(secret);
+  return listResponse(secret, vendorId, url) ?? errorResponse(secret, vendorId);
 }
 
 /** live 검증 경로에 끼울 가짜 fetch — 요청 URL(페이지 커서)만 보고 응답을 만든다 */
