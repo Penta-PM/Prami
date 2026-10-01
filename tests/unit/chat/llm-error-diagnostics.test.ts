@@ -61,7 +61,10 @@ function captureWarnings() {
   return () => lines.filter((line) => line.includes('chat.llm_error'));
 }
 
-function expectDiagnostics(line: string | undefined, streaming: boolean) {
+/** PR #18 이름 (r2 에서 바뀜, AC-352) — 로그에 남으면 안 된다 */
+const LEGACY_KEYS = ['status', 'errorType', 'errorCode', 'errorParam', 'errorName', 'streaming'];
+
+function expectDiagnostics(line: string | undefined, stream: boolean) {
   expect(line).toBeDefined();
   const entry = JSON.parse(line!) as Record<string, unknown>;
   expect(entry).toMatchObject({
@@ -70,13 +73,19 @@ function expectDiagnostics(line: string | undefined, streaming: boolean) {
     vendor: 'openai',
     model: 'gpt-6-luna',
     adapter: '@langchain/openai@1.6.0',
-    streaming,
+    stream,
     source: 'http',
-    status: 400,
-    errorType: 'invalid_request_error',
-    errorParam: 'reasoning_effort',
-    requestId: 'req_fixture_prami003',
+    httpStatus: 400,
+    vendorErrorType: 'invalid_request_error',
+    vendorErrorParam: 'reasoning_effort',
+    vendorRequestId: 'req_fixture_prami003',
+    sdkErrorName: 'BadRequestError',
+    attempts: 1,
   });
+  expect(typeof entry.latencyMs).toBe('number');
+  for (const key of LEGACY_KEYS) expect(entry).not.toHaveProperty(key);
+  // 앱 요청 id 가 없는 런타임에서는 requestId 가 없다 (벤더 요청 id 로 채우지 않는다)
+  expect(entry).not.toHaveProperty('requestId');
   expectNoSecret(line!, KEY, 'chat.llm_error 로그');
   expect(line).not.toContain('FIXTURE-MESSAGE');
   expect(line).not.toContain('PRAMI003-QUESTION');
@@ -97,11 +106,11 @@ describe('PRAMI-003 벤더 거부 진단 (§4.8.3 보강)', () => {
     const diagnostics = describeLlmError(error);
     expect(diagnostics).toEqual({
       source: 'http',
-      status: 400,
-      errorType: 'invalid_request_error',
-      errorParam: 'reasoning_effort',
-      requestId: 'req_fixture_prami003',
-      errorName: 'Error',
+      httpStatus: 400,
+      vendorErrorType: 'invalid_request_error',
+      vendorErrorParam: 'reasoning_effort',
+      vendorRequestId: 'req_fixture_prami003',
+      sdkErrorName: 'Error',
     });
     expect(JSON.stringify(diagnostics)).not.toMatch(/FIXTURE|sk-proj/);
   });
@@ -115,12 +124,12 @@ describe('PRAMI-003 벤더 거부 진단 (§4.8.3 보강)', () => {
     expect(normalizeLlmError(local)).toBe('llm_error');
     expect(describeLlmError(local)).toMatchObject({
       source: 'local',
-      errorName: 'TypeError',
+      sdkErrorName: 'TypeError',
       frame: 'convertTools',
     });
   });
 
-  it('비스트리밍: 규칙 폴백 + 안내, chat.llm_error 진단 필드 (streaming:false)', async () => {
+  it('비스트리밍: 규칙 폴백 + 안내, chat.llm_error 진단 필드 (stream:false)', async () => {
     const warnings = captureWarnings();
     const reply = await ask(await failingRuntime(), QUESTION);
     expect(reply.mode).toBe('rule');
@@ -128,7 +137,7 @@ describe('PRAMI-003 벤더 거부 진단 (§4.8.3 보강)', () => {
     expectDiagnostics(warnings()[0], false);
   });
 
-  it('스트리밍: final 은 규칙 답 + 안내, 진단 필드 (streaming:true), SSE 에 키·벤더 원문 없음', async () => {
+  it('스트리밍: final 은 규칙 답 + 안내, 진단 필드 (stream:true), SSE 에 키·벤더 원문 없음', async () => {
     const warnings = captureWarnings();
     const input = {
       text: QUESTION,

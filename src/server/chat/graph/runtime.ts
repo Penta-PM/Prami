@@ -46,10 +46,16 @@ export function chatSettingsFromEnv(env: LlmEnv): ChatSettings {
   };
 }
 
-export function createChatRuntime(input: { db: Db; userId: string; env: LlmEnv }): ChatRuntime {
+export function createChatRuntime(input: {
+  db: Db;
+  userId: string;
+  env: LlmEnv;
+  requestId?: string | null;
+}): ChatRuntime {
   const { db, userId, env } = input;
   return {
     db,
+    requestId: input.requestId ?? null,
     settings: chatSettingsFromEnv(env),
     resolveCredential: () =>
       resolveChatCredential({
