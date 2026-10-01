@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { buildChatGraph } from '@/server/chat/graph/build';
-import { LLM_ERROR_NOTICE } from '@/server/chat/graph/messages';
+import { EMPTY_LLM_REPLY, LLM_ERROR_NOTICE, REFUSED_REPLY } from '@/server/chat/graph/messages';
 import { streamChat } from '@/server/chat/graph/stream';
 import type { ChatReplyOut, ChatRuntime, ChatSettings } from '@/server/chat/graph/types';
 import { findModel } from '@/server/llm/models';
@@ -413,17 +413,53 @@ describe('xAI 오류 분류·진단 (§4.7.5, AC-358)', () => {
     expect(diagnosticOf(lines).entry).toMatchObject({ code: 'unavailable', vendor: 'xai' });
   }, 20_000);
 
-  it.each<[string, XaiTurn]>([
-    ['refusal 콘텐츠', { refusal: 'XAI-REFUSAL-MARKER 거부 원문' }],
-    ['incomplete content_filter', { incomplete: 'content_filter', text: '' }],
-  ])('200 %s: 거부·필터 원문을 답으로 쓰지 않는다 (JSON·SSE)', async (_label, turn) => {
-    const json = await xaiRuntime([turn], 'grok-4.7');
-    const reply = await ask(json.runtime, QUESTION);
-    const sse = await xaiRuntime([turn], 'grok-4.7');
-    const { raw } = await runStream(sse.runtime);
-    for (const text of [JSON.stringify(reply), raw]) {
+  // L-1(§4.5.5, PR-1b #20) 응답 판정이 xAI 에도 적용된다 — 거부 답·진단 type·원문 미노출 (JSON·SSE)
+  it.each<[string, XaiTurn, string]>([
+    ['refusal 콘텐츠', { refusal: 'XAI-REFUSAL-MARKER 거부 원문' }, 'refusal'],
+    [
+      'incomplete content_filter',
+      { incomplete: 'content_filter', text: '' },
+      'incomplete_content_filter',
+    ],
+  ])(
+    '200 %s: 거부 답 + 진단 %s, 원문을 답으로 쓰지 않는다 (JSON·SSE)',
+    async (_label, turn, issue) => {
+      for (const streaming of [false, true]) {
+        const lines = captureLlmErrors();
+        const { runtime } = await xaiRuntime([turn], 'grok-4.7');
+        const streamed = streaming ? await runStream(runtime) : null;
+        const reply = streamed ? streamed.final : await ask(runtime, QUESTION);
+        const raw = streamed?.raw ?? '';
+        expect(reply, streaming ? 'SSE' : 'JSON').toMatchObject({
+          mode: 'refusal',
+          reply: REFUSED_REPLY,
+        });
+        const { entry, httpStatus, stream } = diagnosticOf(lines);
+        expect(entry).toMatchObject({ source: 'response', vendorErrorType: issue, vendor: 'xai' });
+        expect(httpStatus).toBe(200);
+        expect(stream).toBe(streaming);
+        for (const text of [JSON.stringify(reply), raw, ...lines]) {
+          expect(text).not.toContain('XAI-REFUSAL-MARKER');
+          expectNoSecret(text, KEY, '응답·로그');
+        }
+        vi.restoreAllMocks();
+      }
+    },
+  );
+  // 이벤트명 UNVERIFIED 최악 경우: SSE 에서 거부가 output_item.done 항목에만 있으면 파서가 refusal 을 못 본다 →
+  // 거부 판정 대신 빈 답 안내(empty_output)로 떨어지지만 거부 원문은 어디에도 나가지 않는다 (fail-closed)
+  it('SSE refusal 이벤트 없이 output_item.done 에만 거부 → 원문 미노출, 빈 답 안내', async () => {
+    const lines = captureLlmErrors();
+    const { runtime } = await xaiRuntime(
+      [{ refusal: 'XAI-REFUSAL-MARKER 거부 원문', refusalEvents: false }],
+      'grok-4.7',
+    );
+    const { raw, final } = await runStream(runtime);
+    expect(final.mode).not.toBe('error');
+    expect(final.reply).toBe(EMPTY_LLM_REPLY);
+    for (const text of [raw, ...lines]) {
       expect(text).not.toContain('XAI-REFUSAL-MARKER');
-      expectNoSecret(text, KEY, '응답');
+      expectNoSecret(text, KEY, 'SSE·로그');
     }
   });
 });

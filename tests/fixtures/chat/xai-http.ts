@@ -16,7 +16,8 @@ import type { CapturedRequest } from './anthropic-http';
 export type XaiTurn =
   | { text: string }
   | { toolCall: { name: string; args: Record<string, unknown> } }
-  | { refusal: string }
+  /** `refusalEvents: false` = 거부를 `output_item.done` 항목에만 싣는다(델타·done 이벤트 없음 — 이벤트명 UNVERIFIED 최악 경우) */
+  | { refusal: string; refusalEvents?: false }
   | { incomplete: 'max_output_tokens' | 'content_filter'; text?: string }
   | { error: { status: number; body: unknown; headers?: Record<string, string> } }
   | { networkError: true }
@@ -88,15 +89,15 @@ function streamOf(turn: XaiTurn, model: string): Response {
         output_index: outputIndex,
         item: { ...item, content: [] },
       });
-      const part = (item.content as { type: string; text?: string }[])[0]!;
+      const part = (item.content as { type: string; text?: string; refusal?: string }[])[0]!;
+      const at = { item_id: item.id, output_index: outputIndex, content_index: 0 };
       if (part.type === 'output_text') {
-        events.push({
-          type: 'response.output_text.delta',
-          item_id: item.id,
-          output_index: outputIndex,
-          content_index: 0,
-          delta: part.text,
-        });
+        events.push({ type: 'response.output_text.delta', ...at, delta: part.text });
+      }
+      // refusal 은 OpenAI Responses 와 같은 이벤트 이름 가정 (refusal.delta → refusal.done)
+      if (part.type === 'refusal' && !('refusalEvents' in turn && turn.refusalEvents === false)) {
+        events.push({ type: 'response.refusal.delta', ...at, delta: part.refusal });
+        events.push({ type: 'response.refusal.done', ...at, refusal: part.refusal });
       }
     } else {
       events.push({ type: 'response.output_item.added', output_index: outputIndex, item });
