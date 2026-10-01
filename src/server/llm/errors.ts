@@ -1,5 +1,8 @@
+import { isNetworkError } from './error-chain';
+
 /**
- * 벤더 오류 정규화 (PRAMI-002 §4.8.3). 판정 순서: `err.status` → `lc_error_code` → 벤더 본문 코드.
+ * 벤더 오류 정규화 (PRAMI-002 §4.8.3 + PRAMI-003 §4.5.5 L-2). 판정 순서: 타임아웃 → 컨텍스트 초과 → `err.status` →
+ * `lc_error_code` → 벤더 본문 코드 → 연결 오류(cause 체인).
  * 벤더·SDK 오류 **메시지는 절대 쓰지 않는다** — 벤더 원문(키 반복 가능, T-6)이 응답·로그로 새지 않게 코드만 돌려준다.
  * (설치 버전 확인: @langchain/anthropic 1.5.11 은 SDK 오류의 `.status` 를 보존하고 `lc_error_code` 에
  *  MODEL_AUTHENTICATION·MODEL_RATE_LIMIT·MODEL_NOT_FOUND 를 붙인다. 메시지에는 벤더 본문 JSON 이 들어 있다.)
@@ -47,19 +50,13 @@ const BODY_CODES: Record<string, LlmErrorCode> = {
   overloaded_error: 'unavailable',
 };
 
-function fromStatus(
-  status: number,
-  bodyCodes: readonly string[],
-  lcCode: unknown,
-): LlmErrorCode | null {
+function fromStatus(status: number, bodyCodes: readonly string[]): LlmErrorCode | null {
   if (status === 401) return 'invalid_key';
   if (status === 400 && bodyCodes.includes('API_KEY_INVALID')) return 'invalid_key';
   if (status === 403) return 'forbidden';
   if (status === 404) return 'model_not_found';
   if (status === 429) return 'rate_limited';
   if (status === 408 || status >= 500) return 'unavailable';
-  // 컨텍스트 초과(400)는 too_long 로 — LangChain 이 CONTEXT_OVERFLOW 를 붙인다
-  if (lcCode === 'CONTEXT_OVERFLOW') return 'too_long';
   // 그 밖의 400·422 = 벤더가 요청을 거부 (예: OpenAI invalid_request_error param=reasoning_effort, PRAMI-003)
   if (status === 400 || status === 422) return 'request_rejected';
   return null;
@@ -93,6 +90,16 @@ function bodyCodesOf(error: ErrorLike & { errorDetails?: unknown }): string[] {
   ].filter((value): value is string => typeof value === 'string');
 }
 
+/**
+ * 컨텍스트 초과 (L-2 ①) → too_long("대화를 새로 시작해주세요"). OpenAI·xAI 는 400 + 본문 코드 `context_length_exceeded`
+ * (설치 버전 @langchain/openai 1.6.0 은 CONTEXT_OVERFLOW 를 붙이지 않는다 — 전송 가로채기로 확인), Anthropic 은 `request_too_large`(413).
+ */
+function isContextOverflow(error: ErrorLike, bodyCodes: readonly string[]): boolean {
+  if (error.lc_error_code === 'CONTEXT_OVERFLOW') return true;
+  if (bodyCodes.includes('request_too_large')) return true;
+  return error.status === 400 && bodyCodes.includes('context_length_exceeded');
+}
+
 function isTimeout(error: ErrorLike): boolean {
   return error.name === 'TimeoutError' || error.name === 'AbortError' || error.code === 'ETIMEDOUT';
 }
@@ -102,15 +109,17 @@ export function normalizeLlmError(raw: unknown): LlmErrorCode {
   const error = raw as ErrorLike;
   if (isTimeout(error)) return 'unavailable';
   const bodyCodes = bodyCodesOf(error);
+  if (isContextOverflow(error, bodyCodes)) return 'too_long';
   if (typeof error.status === 'number') {
-    const byStatus = fromStatus(error.status, bodyCodes, error.lc_error_code);
+    const byStatus = fromStatus(error.status, bodyCodes);
     if (byStatus) return byStatus;
   }
   if (typeof error.lc_error_code === 'string' && LC_CODES[error.lc_error_code]) {
     return LC_CODES[error.lc_error_code]!;
   }
   for (const code of bodyCodes) if (BODY_CODES[code]) return BODY_CODES[code]!;
-  if (error.name === 'APIConnectionError' || error.code === 'ECONNRESET') return 'unavailable';
+  // 연결 오류 (L-2 ②): APIConnectionError·fetch failed·ECONNRESET 등 — cause 체인 3단계까지
+  if (isNetworkError(raw)) return 'unavailable';
   return 'llm_error';
 }
 
