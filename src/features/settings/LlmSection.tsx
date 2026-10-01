@@ -20,11 +20,25 @@ import {
   KEYRING_MISSING_NOTICE,
   NO_CREDENTIAL_NOTICE,
   NOTICES,
+  oauthDisconnectNotice,
   verifyResultMessage,
 } from './labels';
 import { LlmCredentialCard, type CardHandlers } from './LlmCredentialCard';
 
-type Flash = { tone: 'ok' | 'error'; text: string };
+/** link: 연결 해제 후 벤더 대시보드 폐기 안내 (PRAMI-003 AC-347) */
+type Flash = { tone: 'ok' | 'error'; text: string; link?: { href: string; label: string } };
+
+/** 삭제 성공 문구 — OAuth 연결이면 벤더 대시보드에서 키 라벨로 폐기하라는 안내와 링크 (AC-347) */
+function deletedFlash(vendor: VendorView | undefined, removed: CredentialView | undefined): Flash {
+  if (removed?.authType === 'oauth_pkce' && vendor?.oauthKeyLabel) {
+    return {
+      tone: 'ok',
+      text: oauthDisconnectNotice(vendor.label, vendor.oauthKeyLabel),
+      link: { href: vendor.consoleUrl, label: `${vendor.label} 키 관리 열기` },
+    };
+  }
+  return { tone: 'ok', text: DELETE_DONE_MESSAGE };
+}
 
 /**
  * LLM 연결 `#llm` + 챗봇 기본값 + 안내 (PRAMI-002 §4.6.1 ②③④). 서버 응답은 CredentialView(힌트까지)뿐이라
@@ -71,8 +85,14 @@ export function LlmSection({
       startTransition(async () => {
         const result = await deleteLlmCredentialAction({ vendor });
         if (!result.ok) return setFlash({ tone: 'error', text: result.error.message });
+        const removed = credentials.find((entry) => entry.vendor === vendor);
         setCredentials((list) => list.filter((entry) => entry.vendor !== vendor));
-        setFlash({ tone: 'ok', text: DELETE_DONE_MESSAGE });
+        setFlash(
+          deletedFlash(
+            vendors.find((entry) => entry.id === vendor),
+            removed,
+          ),
+        );
       }),
   };
 
@@ -122,6 +142,19 @@ export function LlmSection({
             }
           >
             {flash.text}
+            {flash.link ? (
+              <>
+                {' '}
+                <a
+                  href={flash.link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold underline"
+                >
+                  {flash.link.label}
+                </a>
+              </>
+            ) : null}
           </p>
         ) : null}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">

@@ -109,13 +109,22 @@ export function callbackUrl(appUrl: string, state: string): string {
   return url.toString();
 }
 
-export function authorizeUrl(appUrl: string, session: PkceSession): string {
+/**
+ * 인증 화면 URL. `key_label` 은 문서화된 auth URL 파라미터다(PRAMI-003 §4.4.3, 2026-10-02 확인).
+ * 한도(`limit`·`usage_limit_type`)·만료(`expires_at`)는 auth URL 이 아니라 관리 키가 필요한 서버 API
+ * (`POST /api/v1/auth/keys/code`)에만 있어 이 흐름에서는 보내지 않는다 — 한도는 사용자가 OpenRouter 대시보드에서 설정한다.
+ */
+export function authorizeUrl(appUrl: string, session: PkceSession, keyLabel: string): string {
   const url = new URL(OPENROUTER_AUTH_URL);
   url.searchParams.set('callback_url', callbackUrl(appUrl, session.state));
   url.searchParams.set('code_challenge', session.challenge);
   url.searchParams.set('code_challenge_method', 'S256');
+  url.searchParams.set('key_label', keyLabel.slice(0, KEY_LABEL_MAX));
   return url.toString();
 }
+
+/** OpenRouter `key_label` 최대 길이 (API 레퍼런스) */
+const KEY_LABEL_MAX = 100;
 
 const ExchangeResponse = z.object({ key: z.string().min(16).max(256) });
 

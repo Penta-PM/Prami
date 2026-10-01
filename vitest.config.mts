@@ -40,6 +40,9 @@ export default defineConfig({
           include: ['tests/unit/**/*.test.{ts,tsx}'],
           setupFiles: ['tests/setup.ts'],
           css: false,
+          // next-auth 는 'next/server' 를 확장자 없이 import 해 Node ESM 이 직접 읽으면 실패한다 — Vite 로 변환해 해석한다
+          // (PRAMI-003 AC-342·343: 실제 Auth.js 핸들러로 302 Location·쿠키 검사)
+          server: { deps: { inline: ['next-auth'] } },
           testTimeout: 30_000,
           // 파일마다 PGlite 를 띄우고 마이그레이션하므로 병렬·커버리지 실행에서는 준비 시간이 길어진다
           hookTimeout: 60_000,

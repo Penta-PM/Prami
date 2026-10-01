@@ -1,0 +1,1 @@
+ALTER TABLE "user_llm_credentials" ADD COLUMN "expires_at" timestamp with time zone;

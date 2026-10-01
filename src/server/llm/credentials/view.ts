@@ -1,4 +1,5 @@
 import { findVendor } from '../vendors/registry';
+import { isCredentialExpired } from './expiry';
 import type { KeyProvider } from './keyring';
 import type { CredentialRow } from './repository';
 
@@ -11,7 +12,9 @@ export type CredentialDisplayStatus =
   /** 복호화 불가(KEK 버전 없음·무결성 실패) → 재등록 필요 (§4.10) */
   | 'unreadable'
   /** 레지스트리에서 빠진 벤더 → 삭제만 가능 (§4.5.1) */
-  | 'unsupported';
+  | 'unsupported'
+  /** expires_at 이 지남 → 재연결 필요 (PRAMI-003 §4.4.3, AC-346) */
+  | 'expired';
 
 export type CredentialView = {
   vendor: string;
@@ -28,12 +31,13 @@ export type CredentialView = {
 };
 
 export function displayStatus(
-  row: Pick<CredentialRow, 'vendor' | 'status' | 'kekVersion'>,
+  row: Pick<CredentialRow, 'vendor' | 'status' | 'kekVersion' | 'expiresAt'>,
   keys: KeyProvider | null,
   unreadable = false,
 ): CredentialDisplayStatus {
   if (!findVendor(row.vendor)) return 'unsupported';
   if (unreadable || !keys || !keys.kek(row.kekVersion)) return 'unreadable';
+  if (isCredentialExpired(row)) return 'expired';
   return row.status;
 }
 

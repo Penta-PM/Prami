@@ -92,9 +92,9 @@ const envShape = z.object({
   // ── 인증 (§4.6.1, Auth.js v5 Google) ───────────────────────────────────
   AUTH_SECRET: z.preprocess(emptyToUndefined, z.string().min(32).optional()),
   AUTH_URL: optionalUrl,
-  /** preview 전용: 고정 preview 호스트의 /api/auth (Auth.js 리다이렉트 프록시, §4.4.1 — PR-3) */
+  /** preview 전용: https://<고정 preview 호스트>/api/auth (Auth.js 리다이렉트 프록시, §4.4.1). production 금지·preview 는 AUTH_URL 과 함께 두지 않음(기동 검사 ⓚ) */
   AUTH_REDIRECT_PROXY_URL: optionalUrl,
-  /** Google `hd` 클레임 서버 검증 (§4.4.1 — PR-3 에서 사용) */
+  /** Google ID 토큰 `hd` 클레임 서버 검증 (§4.4.1, callbacks.ts). production·preview 는 true 필수(기동 검사 ⓚ) */
   AUTH_REQUIRE_HD: booleanFromString(false),
   AUTH_GOOGLE_ID: optionalString,
   AUTH_GOOGLE_SECRET: optionalString,

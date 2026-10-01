@@ -37,9 +37,22 @@ export function unsupportedVendorsMessage(labels: readonly string[]): string {
   return `${labels.join('·')} 연결은 현재 챗봇에서 사용할 수 없습니다. 사용자 설정에서 연결을 해제하거나 다른 벤더 키를 등록하세요. 이번 답변은 기본 응답입니다.`;
 }
 
-export function setupFor(status: SetupStatus, labels: Partial<Labels> = {}): SetupInfo {
+/** 만료된 연결 (PRAMI-003 §4.4.3 확정 문구). 상태는 invalid 그대로 — 문구만 "다시 연결" */
+export function expiredMessage(vendor: string): string {
+  return `${vendor} 연결이 만료되었습니다 — 다시 연결하세요. 사용자 설정에서 연결할 수 있어요.`;
+}
+
+export function setupFor(
+  status: SetupStatus,
+  labels: Partial<Labels> = {},
+  options: { expired?: boolean } = {},
+): SetupInfo {
   const filled = { vendor: labels.vendor ?? 'LLM', model: labels.model ?? '선택한 모델' };
-  return { status, message: TEMPLATES[status](filled), href: SETUP_HREF };
+  const message =
+    status === 'invalid' && options.expired
+      ? expiredMessage(filled.vendor)
+      : TEMPLATES[status](filled);
+  return { status, message, href: SETUP_HREF };
 }
 
 export const REFUSED_REPLY = '이 요청은 처리할 수 없습니다.';

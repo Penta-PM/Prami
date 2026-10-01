@@ -17,6 +17,7 @@
 | **T-1** 전환 | UP-4a 도착 | `AUTH_GOOGLE_ID`·`AUTH_GOOGLE_SECRET` = `prami-dev` 클라이언트, `AUTH_URL=http://localhost:3000`, `NEXT_PUBLIC_APP_URL=http://localhost:3000`, `AUTH_REQUIRE_HD=true`(PR-3 이후), **`AUTH_TEST_MODE`·`AUTH_TEST_PASSWORD` 삭제**. dev 서버 재시작 후 `/login` 에 Google 버튼만 있고 TEST MODE 배너·테스트 폼이 없다. T-0 에서 만든 계정은 같은 이메일이라 그대로 이어진다(이메일 기준 매칭) |
 | **T-2** 이후 | — | CI·E2E·QA·Dev 격리 DB 는 테스트 모드 유지(운영·preview 차단은 그대로). 로컬 :3000 만 실로그인 |
 
+- Google 콘솔 동의 화면·클라이언트 생성 절차는 [`oauth.md`](oauth.md) §4 를 따른다.
 - **Google Cloud 콘솔 승인된 리다이렉트 URI**(로컬 클라이언트 `prami-dev`에 2개 모두 등록 — dev 스크립트가 `--hostname 127.0.0.1` 로 바인딩):
   - `http://localhost:3000/api/auth/callback/google`
   - `http://127.0.0.1:3000/api/auth/callback/google`
@@ -101,7 +102,7 @@ docker exec prami-postgres-1 rm "/tmp/prami-$stamp.dump"
 | 옵션 | 의미 |
 | --- | --- |
 | `--target local\|preview\|production` | 원격(`preview`·`production`)은 `--target-host <연결 호스트>` 가 실제 호스트와 같아야 실행. `local` 도 DB 가 원격이면 같은 규칙 |
-| `--stage schema\|data` | `schema` = 저널 최신 = DB 최신·마이그레이션 7행. 기본 `data` |
+| `--stage schema\|data` | `schema` = 저널 최신 = DB 최신·마이그레이션 8행(`0000`~`0007`). 기본 `data` |
 | `--fresh` | 클린 설치 직후용: fixture 계정 0, 공지·견적·공유·솔루션 그룹·LLM 키·OAuth state 0, part_mappings 0, 감사 actor `seed` 0, 적용 배치 종류별 1, 허용 도메인 밖 사용자 0, 활성 ADMIN ≥ 1(로컬은 로그인 전이면 SKIP) |
 | `--allow-part-mappings` | 관리자가 파츠 매핑을 넣은 뒤 — 매핑 수만 출력 |
 | exit | 0 통과 · 1 실패 · 2 원본 SHA-256 이 기준과 다름(수치는 실측만 출력 — Plan 기준값 재계산 필요) |
@@ -142,7 +143,7 @@ DB 를 바꾸지 않는다. 관리자가 시트 2 로 검수하고 필요한 행
 | --- | --- |
 | 1) 백업 | `pg_dump -Fc` 성공, `pg_restore --list` 정상(TOC 181), 덤프 약 360KB |
 | 2) 드롭·재생성 | 성공 |
-| 3) migrate + `data:verify --stage schema` | `0000`~`0006` 7행, exit 0 |
+| 3) migrate + `data:verify --stage schema` | `0000`~`0007` 8행, exit 0 |
 | 5) 임포트 | 판매단가 → 품목 5파일 → 원가 모두 exit 0 |
 | 6) `data:verify --fresh --target local` | exit 0 — PASS 31 / SKIP 1(활성 ADMIN, 로그인 전) |
 | 대체 검증 SQL | items_master 2511 · items_stub 0 · sales_rows 5885 · sales_operating 2428 · sales_unused 3457 · costs_rows 487 · fixture_users 0 · notices 0 · quotes 0 · solution_groups 0 · part_mappings 0 · seed_audit 0 — `data:verify` 와 동일 |

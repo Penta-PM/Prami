@@ -6,7 +6,14 @@ import { Button, Modal, Pill } from '@/components/ui';
 import type { CredentialView } from '@/server/llm/credentials/view';
 import type { VendorView } from '@/server/llm/credentials/settings';
 
-import { ERROR_CODE_LABELS, formatDateTime, STATUS_LABELS, UNREADABLE_NOTICE } from './labels';
+import {
+  ERROR_CODE_LABELS,
+  expiredNotice,
+  formatDateTime,
+  oauthLimitNotice,
+  STATUS_LABELS,
+  UNREADABLE_NOTICE,
+} from './labels';
 import { LlmCredentialForm } from './LlmCredentialForm';
 
 /**
@@ -31,7 +38,7 @@ export function LlmCredentialCard({
   handlers,
 }: {
   vendor: Pick<VendorView, 'id' | 'label' | 'consoleUrl'> &
-    Partial<Pick<VendorView, 'connectHref' | 'disabled'>>;
+    Partial<Pick<VendorView, 'connectHref' | 'disabled' | 'oauthKeyLabel'>>;
   credential: CredentialView | null;
   keyringReady: boolean;
   busy: boolean;
@@ -57,6 +64,24 @@ export function LlmCredentialCard({
       {credential?.status === 'unreadable' ? (
         <p role="alert" className="m-0 rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-500">
           {UNREADABLE_NOTICE}
+        </p>
+      ) : null}
+      {credential?.status === 'expired' ? (
+        <p role="alert" className="m-0 rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-500">
+          {expiredNotice(vendor.label)}
+        </p>
+      ) : null}
+      {supported && vendor.connectHref && vendor.oauthKeyLabel ? (
+        <p role="note" className="m-0 text-[12px] text-text-secondary">
+          {oauthLimitNotice(vendor.label, vendor.oauthKeyLabel)}{' '}
+          <a
+            href={vendor.consoleUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-purple-500"
+          >
+            {vendor.label} 키 관리 열기
+          </a>
         </p>
       ) : null}
       {vendor.disabled ? (

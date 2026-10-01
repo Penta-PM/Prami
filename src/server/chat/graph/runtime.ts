@@ -97,10 +97,11 @@ export async function chatStatus(input: { db: Db; userId: string; env: LlmEnv })
       ? modelLabel(credential.vendor, credential.model)
       : undefined;
   const setup = needsSetup
-    ? setupFor(credential.status as SetupStatus, {
-        vendor: credential.vendorLabel ?? undefined,
-        model,
-      })
+    ? setupFor(
+        credential.status as SetupStatus,
+        { vendor: credential.vendorLabel ?? undefined, model },
+        { expired: credential.expired },
+      )
     : undefined;
   const unsupported = credential.unsupportedVendorLabels;
   return {

@@ -16,6 +16,7 @@ import {
 } from '../vendors/registry';
 import type { ChatModelFactoryOptions } from '../vendors/types';
 import { CredentialUnreadableError } from './crypto';
+import { isCredentialExpired } from './expiry';
 import type { KeyProvider } from './keyring';
 import {
   getOwnSettings,
@@ -46,6 +47,8 @@ export type ResolvedChatCredential = {
    * 이 벤더 키는 복호화·호출하지 않는다.
    */
   unsupportedVendorLabels: string[];
+  /** status=invalid 의 원인이 만료(expires_at 경과)일 때 true — 안내 문구를 "다시 연결" 로 바꾼다 (PRAMI-003 AC-346) */
+  expired?: boolean;
 };
 
 type ResolveInput = {
@@ -89,7 +92,8 @@ function pickModel(row: CredentialRow, settings: Awaited<ReturnType<typeof getOw
 }
 
 function statusOf(row: CredentialRow): ChatCredentialStatus | null {
-  if (row.status === 'invalid') return 'invalid';
+  // 만료된 키는 복호화·호출하지 않는다 (PRAMI-003 §4.4.3)
+  if (row.status === 'invalid' || isCredentialExpired(row)) return 'invalid';
   if (row.status === 'forbidden') return 'forbidden';
   // valid·unverified·rate_limited·error 는 호출해 본다 (확정적으로 나쁜 키만 막는다)
   return null;
@@ -112,7 +116,10 @@ export async function resolveChatCredential(input: ResolveInput): Promise<Resolv
   const model = pickModel(row, settings);
   const base = { vendor: vendor.id, vendorLabel: vendor.label, model, credentialId: row.id };
   const bad = statusOf(row);
-  if (bad) return { status: bad, ...base, createModel: null, unsupportedVendorLabels };
+  if (bad) {
+    const expired = isCredentialExpired(row) ? { expired: true } : {};
+    return { status: bad, ...base, createModel: null, unsupportedVendorLabels, ...expired };
+  }
   const createModel = await openFactory(input, vendor, model ?? '');
   if (!createModel)
     return { status: 'unreadable', ...base, createModel: null, unsupportedVendorLabels };

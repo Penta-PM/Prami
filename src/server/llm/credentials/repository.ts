@@ -25,6 +25,7 @@ const viewColumns = {
   lastErrorCode: userLlmCredentials.lastErrorCode,
   lastUsedAt: userLlmCredentials.lastUsedAt,
   availableModels: userLlmCredentials.availableModels,
+  expiresAt: userLlmCredentials.expiresAt,
   createdAt: userLlmCredentials.createdAt,
 };
 
@@ -39,6 +40,8 @@ export type CredentialRow = {
   lastErrorCode: string | null;
   lastUsedAt: Date | null;
   availableModels: string[] | null;
+  /** NULL = 비만료 (PRAMI-003 §4.4.3) */
+  expiresAt: Date | null;
   createdAt: Date;
 };
 
