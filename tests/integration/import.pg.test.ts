@@ -51,7 +51,8 @@ describe.skipIf(!enabled)('PostgreSQL (DB_DRIVER=pg) 임포트 파이프라인',
     const itemBatchId = await batchFor('items', 'items-v1.xlsx');
     const input = { salesBatchId, itemBatchId, salesReused: false, itemReused: false };
     const { stats } = await applyPolicy(ctx(), input);
-    expect(stats).toMatchObject({ inserted: 200, missingItems: 3, unmappedItemStatus: 1 });
+    // 상태 매핑 불가는 업로드 행 오류가 됐으므로(PRAMI-003 §4.2.6) 적용된 배치에서는 0
+    expect(stats).toMatchObject({ inserted: 200, missingItems: 3, unmappedItemStatus: 0 });
     expect(await checkInvariants(handle.db)).toEqual({ i1: 0, i2: 0 });
 
     const before = await queryRows<{ id: number }>(
