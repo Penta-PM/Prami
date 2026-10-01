@@ -50,7 +50,9 @@ describe('deploy-production.yml (AC-362)', () => {
   });
 
   it('시크릿을 받는 잡은 environment: production (승인 필요)', () => {
-    for (const job of [migrate, deploy, rollback]) expect(job!.environment).toBe('production');
+    for (const job of [migrate, deploy]) expect(job!.environment).toBe('production');
+    // 롤백은 승인 대기 없이 — Vercel 시크릿만 가진 별도 Environment (보안 리뷰 L-2)
+    expect(rollback!.environment).toBe('production-rollback');
   });
 
   it('순서: 마이그레이션 → 빌드 → 배포 → 스모크 → 실패 시 롤백 (needs 사슬)', () => {
@@ -121,14 +123,15 @@ describe.each(['deploy-production.yml', 'preview-migrate.yml', 'preview-smoke.ym
 describe('preview 워크플로 (AC-362)', () => {
   it('preview-migrate: drizzle 변경 + db-migration 라벨 + 같은 저장소 PR, 동시에 하나(취소 안 함)', () => {
     const workflow = load('preview-migrate.yml');
-    expect(workflow.on).toMatchObject({ pull_request: { paths: ['drizzle/**'] } });
+    // 라벨을 붙이는 순간에만 — 라벨 후 push 로 검토 안 된 코드가 시크릿을 받지 않게 (보안 리뷰 M-1)
+    expect(workflow.on).toEqual({ pull_request: { types: ['labeled'], paths: ['drizzle/**'] } });
     expect(workflow.concurrency).toEqual({
       group: 'preview-db-migration',
       'cancel-in-progress': false,
     });
     const job = workflow.jobs['migrate-preview']!;
     expect(job.environment).toBe('preview');
-    expect(job.if).toContain("'db-migration'");
+    expect(job.if).toContain("github.event.label.name == 'db-migration'");
     expect(job.if).toContain('github.event.pull_request.head.repo.full_name == github.repository');
   });
 

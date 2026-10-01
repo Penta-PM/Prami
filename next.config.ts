@@ -47,6 +47,9 @@ const nextConfig: NextConfig = {
   // src/db/index.ts 의 동적 import('@electric-sql/pglite') 는 DB_DRIVER=pglite 일 때만 실행된다. 검사: pnpm check:trace
   ...(IS_NEON_BUILD ? { outputFileTracingExcludes: { '/**': [...PGLITE_TRACE_EXCLUDES] } } : {}),
   poweredByHeader: false,
+  // 배포 식별자(PRAMI-003 §4.3.8): deploy-production 은 `vercel build` 단계에만 APP_RELEASE(커밋 SHA)를 준다 —
+  // 빌드 때 값을 번들에 고정해 런타임 헬스·로그의 release 가 SHA 가 되게 한다 (src/server/ops/release.ts)
+  env: { APP_RELEASE_BUILD: process.env.APP_RELEASE ?? '' },
   logging: {
     // 개발 모드에서 Next 는 Server Function 호출을 인자째 터미널에 찍는다(기본 true) — LLM API 키 평문이 dev 로그에 남으므로 끈다
     // (PRAMI-002 QA H-1, 불변식 I-3·T-3). 문서: node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/logging.md

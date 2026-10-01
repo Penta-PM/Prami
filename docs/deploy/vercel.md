@@ -17,7 +17,8 @@ GitHub (main) ──CI(lint·typecheck·unit·integration·e2e·secret scan)
 Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 ```
 
-- Vercel Git 연동은 **preview 전용**이다. 프로덕션 자동 배포는 끈다(마이그레이션보다 앱이 먼저 배포되는 것 방지, P-4). 설정은 PR-4 워크플로와 함께 확정한다.
+- Vercel Git 연동은 **preview 전용**이다. 프로덕션 자동 배포는 끈다(마이그레이션보다 앱이 먼저 배포되는 것 방지, P-4):
+  저장소 루트 `vercel.json` 의 `git.deploymentEnabled.main = false`(PR-4). production 배포는 §10 `deploy-production` 워크플로만 한다.
 - 함수 본문 한도 **4.5MB**(Vercel 플랫폼): 원본 엑셀 합계 약 0.9MB(최대 `병합_가격_raw.xlsx` 0.43MB)라 관리 화면 업로드가 가능하다.
   4.5MB 를 넘으면 플랫폼이 413 을 먼저 낸다 — 그때는 `pnpm import:source --target-host <호스트>` 대안을 쓴다(§4.9.1, PR #19 I-4).
 
@@ -88,7 +89,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 | ⓗ | `AUTH_SECRET`·`AUTH_GOOGLE_ID`·`AUTH_GOOGLE_SECRET` 없음 |
 | ⓘ | `RATE_LIMIT_BACKEND=memory` 인데 `RATE_LIMIT_ALLOW_MEMORY_IN_PRODUCTION≠true` (upstash 인데 URL·토큰 없음은 모든 환경에서 거부) |
 | ⓙ | `CHAT_LLM_ENABLED=true` 인데 KEK 없음 |
-| ⓚ | (PR-3) `AUTH_REQUIRE_HD≠true` · production 에 `AUTH_REDIRECT_PROXY_URL` 설정 · preview 의 `AUTH_REDIRECT_PROXY_URL` 이 `https://…/api/auth` 형식 아님 · preview 에 프록시와 `AUTH_URL` 동시 설정 |
+| ⓚ | (PR-3·PR-4) `AUTH_REQUIRE_HD≠true` · production 에 `AUTH_REDIRECT_PROXY_URL` 설정(공백뿐인 값 포함) · preview 의 `AUTH_REDIRECT_PROXY_URL` 이 **정확히** `https://<호스트>/api/auth` 가 아님(끝 슬래시·userinfo·프래그먼트·쿼리·점 세그먼트·`:443`·대문자 호스트 거부) · preview 프록시 origin ≠ `NEXT_PUBLIC_APP_URL` · preview 에 프록시와 `AUTH_URL` 동시 설정 · 배포 환경에 `NEXTAUTH_URL` 설정 ([`oauth.md`](oauth.md) §3.1) |
 | seed | `PRAMI_ALLOW_SEED` 설정(§4.9.3 L2) |
 
 ## 3. Vercel 프로젝트 설정
@@ -149,7 +150,9 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 - `GET /api/health/deep`(ADMIN): fixture 계정 수, `items.source='stub'` 수, 품목·판매단가·원가 행 수, 활성 KEK 존재, rate limit 백엔드 왕복.
   USER 는 권한 거부(403 + 감사 `access.denied`). 원가 값·이메일 목록은 없다.
 - `MAINTENANCE_MODE=true`: 비 ADMIN 의 페이지·API 요청에 503 점검 안내. `/login`·`/api/auth/*`·`/api/health` 는 열어 둔다(ADMIN 복구 작업, Q-13).
-- 구조화 로그는 모든 줄에 `release`(`APP_RELEASE` → `VERCEL_GIT_COMMIT_SHA` → `dev`)와 `env`(`VERCEL_ENV` 또는 `local`)를 싣는다.
+- 구조화 로그는 모든 줄에 `release`(`APP_RELEASE` → `VERCEL_GIT_COMMIT_SHA` → `dev`)·`env`(`VERCEL_ENV` 또는 `local`)·`requestId`
+  (proxy 가 붙인 `x-request-id`, Server Action·Route 경계 `runAction`·`runRoute` 의 요청 스코프에서 자동, 요청 밖은 `null`)를 싣는다(PR-4, AC-363).
+  로그 검색 쿼리·알림·사고 대응은 [`../ops/runbook.md`](../ops/runbook.md).
 
 ## 7. 시연 데이터·로컬 스크립트 차단 (§4.3.4·§4.9.3)
 
@@ -178,3 +181,27 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
   `pnpm credentials:rewrap --yes` → 구버전 행 0 이면 옛 KEK 제거.
 - **백업 잔존(T-2)**: 삭제한 키도 PITR 보존 기간 동안 암호문으로 남는다(KEK 없이 복호화 불가). 보존 기간은 PR-5 에서 기록.
 - 키 평문은 DB·로그·감사·응답 어디에도 남지 않는다.
+
+## 10. 배포 워크플로·스모크·배포 게이트 (§4.3.1·§4.3.6·§4.3.10·§4.3.12, PR-4)
+
+| 워크플로 | 트리거 | 하는 일 | 필요한 설정 |
+| --- | --- | --- | --- |
+| `.github/workflows/deploy-production.yml` | `main` push(= `integration/prami-003` → `main` 머지 1회), 수동 | ① `pnpm db:migrate`(Neon main, `DATABASE_URL_UNPOOLED`) → ② `vercel build --prod`(`APP_RELEASE`=커밋 SHA) → ③ `vercel deploy --prebuilt --prod` → ④ `pnpm smoke`(운영 도메인, 헬스 `release`=SHA) → ⑤ 실패 시 직전 production 배포로 `vercel rollback`. 앞 단계가 실패하면 뒤 단계는 실행하지 않는다(`needs`), 동시에 하나(`concurrency`, 취소 안 함) | GitHub Environment `production`(Required reviewers ≥ 1) 시크릿 `DATABASE_URL_UNPOOLED`·`VERCEL_TOKEN`·`VERCEL_ORG_ID`·`VERCEL_PROJECT_ID`, 저장소 변수 `PRODUCTION_URL` |
+| `.github/workflows/preview-migrate.yml` | `drizzle/**` 변경 PR 에 라벨 `db-migration` 을 **붙일 때만**(라벨 후 push 로는 실행 안 함 — 다시 적용은 라벨 제거 후 다시 붙이기) | Neon `preview` 브랜치에 `pnpm db:migrate`. preview DB 는 공용이라 동시에 하나(`preview-db-migration`). 포크 PR 은 실행하지 않는다. Environment `preview` 에 Required reviewers 권장 | GitHub Environment `preview` 시크릿 `DATABASE_URL_UNPOOLED`, 저장소 변수 `PREVIEW_URL` |
+| `.github/workflows/preview-smoke.yml` | Vercel `deployment_status`(success, Preview), 수동(URL 입력) | 그 배포 URL 에 `pnpm smoke`(비인증 8항목) | (선택) 배포 보호를 켰으면 저장소 시크릿 `VERCEL_AUTOMATION_BYPASS_SECRET` — `deployment_status` 이벤트이고 대상이 https `*.vercel.app` 일 때만 헤더로 보낸다 |
+
+- **GitHub 설정(사용자 제공 항목)**: Environment `production` = Required reviewers ≥ 1 + Deployment branches `main` 만.
+  Environment `production-rollback` = 시크릿 `VERCEL_TOKEN`·`VERCEL_ORG_ID`·`VERCEL_PROJECT_ID` 만, reviewers 없음(사고 중 승인 대기 없이 롤백), Deployment branches `main` 만.
+  Environment `preview` = `DATABASE_URL_UNPOOLED`(Neon preview), Required reviewers 권장. `main` 브랜치 보호로 CI 4잡 통과를 머지 조건으로 둔다 —
+  `deploy-production` 은 CI 결과를 다시 확인하지 않으므로(머지 = 배포 트리거) 이 보호가 "검사 전 마이그레이션"을 막는다(보안 리뷰 L-1).
+- **스모크 8항목**(`src/server/ops/smoke-checks.ts`, `tests/smoke/preview.smoke.ts`): ① `/api/health` 200·`schema:'ok'`(+`db`·`data` ok, no-store)
+  ② `/login` Google 버튼만(테스트 폼·TEST MODE 배너·Credentials 공급자 없음) ③ 보안 헤더 6종 + CSP nonce ④ 비인증 `/pricing` → `/login`, `POST /api/chat` → 401 봉투
+  ⑤ 비인증 Server Action 직접 호출 → `/login` ⑥ 없는 공유 토큰 404 ⑦ OpenRouter OAuth 시작이 벤더로 리다이렉트되지 않음(비인증 401 — 플래그 확인은 인증 E2E·C-3)
+  ⑧ 위조 `X-Forwarded-For` 를 매번 바꿔도 31회 안에 429. 실행: `SMOKE_URL=https://<대상> pnpm smoke`.
+- **로컬 preview 모의**(AC-361): `SMOKE_PG_URL=postgres://…@localhost:<격리 포트>/<DB> pnpm smoke:local` — 프로덕션 빌드(`.next-smoke`) + `VERCEL_ENV=preview`
+  (preview 기동 검사 그대로) + 격리 Postgres. 앱은 `*.neon-smoke.test` 호스트로 Neon HTTP 드라이버를 쓰고, 테스트 전용 preload(`scripts/smoke/neon-local-fetch.mjs`,
+  `next start` 의 `NODE_OPTIONS` 로만 주입 — 운영 코드·번들에 없음)가 그 요청을 격리 DB 로 실행한다. `--fault fixture` 는 fixture 계정을 넣어 ①이 실패하는지 본다.
+  `:5432`·DB 이름 `prami`(로컬 실데이터)는 거부한다.
+- **배포 게이트** `pnpm release:check env|schema|data|headers` — [`checklist.md`](checklist.md) C-3·C-5·C-7·C-8·C-9.
+- actionlint 는 로컬에서 `docker run --rm -v "<저장소>:/repo" -w /repo rhysd/actionlint:latest` 로 확인한다(CI 잡 없음). 워크플로 구조는 `tests/unit/ops/workflows.test.ts` 가 고정한다.
+- 오류 추적(Sentry, §4.3.8)은 DSN(UP-11)이 없어 도입하지 않았다 — `logger.error` + Vercel 로그·알림으로 대신한다. 도입 시 조건은 런북 §2.

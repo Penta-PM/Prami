@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { cn } from '@/lib/cn';
 
@@ -16,16 +16,43 @@ import { NAV_ADMIN, NAV_MAIN, isNavActive, type NavItem } from './nav';
  * 메뉴 숨김은 표시용일 뿐 보안 경계가 아니다 (proxy·requirePermission 이 막는다).
  * 좁은 화면(md 미만, PRAMI-003 AC-375 ② — 320px 에서 본문 폭 확보)은 레이아웃 폭을 차지하지 않는 오버레이다:
  * 기본은 화면 밖(보이지 않고 탭 이동에서도 빠짐), [메뉴] 버튼으로 열고 메뉴 선택·바깥 누름·Esc 로 닫는다.
+ * 열면 첫 메뉴로, Esc·바깥 누름으로 닫으면 [메뉴] 버튼으로 포커스를 옮긴다(메뉴 선택은 이동한 화면에 둔다).
  */
 export function Sidebar({ showAdminNav = false }: { showAdminNav?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const pathname = usePathname();
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
   const closeMobile = () => setIsMobileOpen(false);
+  const dismissMobile = () => {
+    setIsMobileOpen(false);
+    menuButtonRef.current?.focus();
+  };
+
+  // 열려 있는 동안 어디에 포커스가 있든 Esc 로 닫는다
+  useEffect(() => {
+    if (!isMobileOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setIsMobileOpen(false);
+      menuButtonRef.current?.focus();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isMobileOpen]);
+
+  // 열리면 첫 메뉴로 포커스 (invisible 이 풀린 다음 프레임)
+  useEffect(() => {
+    if (!isMobileOpen) return;
+    const frame = requestAnimationFrame(() => asideRef.current?.querySelector('a')?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [isMobileOpen]);
 
   return (
     <>
       <button
+        ref={menuButtonRef}
         type="button"
         onClick={() => setIsMobileOpen((value) => !value)}
         aria-expanded={isMobileOpen}
@@ -40,18 +67,16 @@ export function Sidebar({ showAdminNav = false }: { showAdminNav?: boolean }) {
           type="button"
           tabIndex={-1}
           aria-label="메뉴 닫기"
-          onClick={closeMobile}
+          onClick={dismissMobile}
           className="fixed inset-0 z-30 border-0 bg-ink-900/30 md:hidden"
         />
       ) : null}
       <aside
+        ref={asideRef}
         id="app-sidebar"
         aria-label="주 메뉴"
         data-expanded={isExpanded}
         data-mobile-open={isMobileOpen}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') closeMobile();
-        }}
         onClick={(event) => {
           if ((event.target as HTMLElement).closest('a')) closeMobile();
         }}

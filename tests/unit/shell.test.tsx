@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -89,13 +89,14 @@ describe('Sidebar', () => {
     await userEvent.click(backdrops.at(-1)!);
     expect(aside).toHaveAttribute('data-mobile-open', 'false');
 
-    await userEvent.click(screen.getByRole('button', { name: '메뉴 열기' }));
-    await userEvent.keyboard('{Escape}');
-    expect(aside).toHaveAttribute('data-mobile-open', 'true');
-    aside.focus();
-    within(aside).getAllByRole('link')[0]!.focus();
+    // 메뉴 버튼에 포커스가 있어도 Esc 로 닫히고 포커스는 메뉴 버튼으로 돌아온다
+    const menuButton = screen.getByRole('button', { name: '메뉴 열기' });
+    await userEvent.click(menuButton);
+    await waitFor(() => expect(within(aside).getAllByRole('link')[0]).toHaveFocus());
+    menuButton.focus();
     await userEvent.keyboard('{Escape}');
     expect(aside).toHaveAttribute('data-mobile-open', 'false');
+    expect(menuButton).toHaveFocus();
 
     await userEvent.click(screen.getByRole('button', { name: '메뉴 열기' }));
     await userEvent.click(within(aside).getByRole('link', { name: '원가 관리' }));

@@ -23,14 +23,26 @@ const PORT = option('--port', '3200');
 const FAULT = option('--fault', '');
 const BASE_URL = `http://localhost:${PORT}`;
 
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
 function assertIsolatedDb(url: string): void {
   if (!url) throw new Error('SMOKE_PG_URL(격리 Postgres) 이 필요합니다');
   const parsed = new URL(url);
-  if ((parsed.port || '5432') === '5432' || parsed.pathname.replace('/', '') === 'prami') {
+  // 로컬 격리 컨테이너만 — 원격 호스트·:5432(로컬 :3000 의 실데이터 DB 컨테이너)·DB 이름 prami 거부 (보안 리뷰 L-3)
+  if (
+    !LOCAL_HOSTS.has(parsed.hostname) ||
+    (parsed.port || '5432') === '5432' ||
+    parsed.pathname.replace('/', '') === 'prami'
+  ) {
     throw new Error(
-      'SMOKE_PG_URL 은 격리 컨테이너여야 합니다 (:5432·DB prami 금지 — 로컬 실데이터 보호)',
+      'SMOKE_PG_URL 은 로컬 격리 컨테이너여야 합니다 (localhost, :5432·DB prami 금지 — 로컬 실데이터 보호)',
     );
   }
+}
+
+function assertPort(port: string): void {
+  // 셸 명령으로 넘기므로 숫자만 (보안 리뷰 L-3)
+  if (!/^\d{2,5}$/.test(port)) throw new Error('--port 는 숫자여야 합니다');
 }
 
 /** preview 기동 검사를 통과하는 최소 설정 — 값은 전부 더미(실 Google·벤더·Upstash 없음) */
@@ -117,6 +129,7 @@ async function insertFixtureAccount(): Promise<void> {
 
 async function main(): Promise<number> {
   assertIsolatedDb(PG_URL);
+  assertPort(PORT);
   await assertPortFree();
   const env = previewEnv();
   if ((await run('pnpm db:migrate', cleanEnv({ DB_DRIVER: 'pg', DATABASE_URL: PG_URL }))) !== 0) {

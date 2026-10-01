@@ -1,12 +1,15 @@
 # PRAMI-003 §4.3.6 preview 마이그레이션 게이트 (AC-362)
-# - 새 마이그레이션(drizzle/**)이 있는 PR 에만, 라벨 `db-migration` 이 붙었을 때 Neon `preview` 브랜치(공용 1개)에 적용한다.
+# - 새 마이그레이션(drizzle/**)이 있는 PR 에만, 라벨 `db-migration` 을 **붙이는 순간**에만 Neon `preview` 브랜치(공용 1개)에 적용한다.
+#   라벨이 붙은 뒤의 push(synchronize)로는 실행하지 않는다 — 시크릿을 쓰는 PR 코드는 매번 사람이 확인하고 라벨을 다시 붙여야 한다
+#   (보안 리뷰 M-1: 라벨 후 push 로 검토 안 된 코드가 DATABASE_URL_UNPOOLED 를 받는 경로 차단). 다시 적용: 라벨 제거 → 다시 붙이기.
+#   GitHub Environment `preview` 에 Required reviewers 를 두면 실행 전 승인도 받는다(권장).
 # - preview DB 는 모든 PR 이 공유하므로 concurrency 그룹으로 동시에 하나만 적용한다(취소하지 않음).
 # - 포크 PR 은 시크릿을 받지 못하고, 받아서도 안 된다 — 같은 저장소 PR 만 실행한다.
 name: preview-migrate
 
 on:
   pull_request:
-    types: [labeled, synchronize, opened, reopened]
+    types: [labeled]
     paths:
       - 'drizzle/**'
 
@@ -24,7 +27,7 @@ jobs:
   migrate-preview:
     name: preview DB 마이그레이션 (Neon preview, 직접 연결)
     if: >-
-      contains(github.event.pull_request.labels.*.name, 'db-migration') &&
+      github.event.label.name == 'db-migration' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     environment: preview

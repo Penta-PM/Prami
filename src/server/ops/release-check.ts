@@ -136,6 +136,11 @@ export function parseReleaseCheckArgs(argv: readonly string[]): ReleaseCheckArgs
   if (!(RELEASE_TARGETS as readonly string[]).includes(target)) {
     throw new Error(`--target: ${RELEASE_TARGETS.join('|')}`);
   }
+  // data 하위 명령이 셸 명령으로 넘기므로 호스트 이름 문자만 허용한다 (명령 주입 방지)
+  const host = option('--target-host');
+  if (host !== undefined && !/^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$/.test(host)) {
+    throw new Error('--target-host 는 호스트 이름이어야 합니다');
+  }
   return {
     command: command as ReleaseCommand,
     target: target as ReleaseTarget,
@@ -166,8 +171,21 @@ async function schemaRows(args: ReleaseCheckArgs, deps: ReleaseCheckDeps): Promi
       redirect: 'manual',
     });
     const body = (await response.json().catch(() => null)) as { schema?: unknown } | null;
-    const schema = String(body?.schema ?? `HTTP ${response.status}`);
+    // 원격 응답 값은 알려진 상태로만 출력한다 — 대상이 표를 깨거나 임의 문자열을 넣지 못하게 (보안 리뷰 L-5)
+    const known = ['ok', 'behind', 'ahead', 'unknown'];
+    const schema =
+      typeof body?.schema === 'string' && known.includes(body.schema)
+        ? body.schema
+        : body
+          ? 'unexpected'
+          : `HTTP ${response.status}`;
     return [{ item: '헬스 schema', expected: 'ok', actual: schema, ok: schema === 'ok' }];
+  }
+  // 원격 대상은 배포된 앱의 헬스로만 본다 — 셸의 DATABASE_URL 이 다른 DB 를 가리켜도 엉뚱한 판정을 하지 않게 (리뷰 M1)
+  if (args.target !== 'local') {
+    return [
+      { item: '대상', expected: '--url https://<배포 호스트>', actual: '--url 없음', ok: false },
+    ];
   }
   const state = await deps.schemaState();
   return [{ item: 'DB 스키마 (저널 대비)', expected: 'ok', actual: state, ok: state === 'ok' }];

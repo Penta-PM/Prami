@@ -48,6 +48,10 @@ describe('parseReleaseCheckArgs', () => {
     ).toEqual({ command: 'data', target: 'preview', targetHost: 'ep-x.neon.tech' });
     expect(() => parseReleaseCheckArgs(['deploy'])).toThrow(/env\|schema\|data\|headers/);
     expect(() => parseReleaseCheckArgs(['env', '--target', 'staging'])).toThrow(/--target/);
+    // 셸로 넘어가는 값 — 호스트 이름 문자만
+    for (const bad of ['h; rm -rf /', 'h && echo', '$(id)', '-x', 'h|x']) {
+      expect(() => parseReleaseCheckArgs(['data', '--target-host', bad])).toThrow(/--target-host/);
+    }
   });
 });
 
@@ -139,6 +143,13 @@ describe('schema (C-5)', () => {
     });
   });
 
+  it('preview·production 은 --url 필수 (직접 연결 DB 로 판정하지 않는다)', async () => {
+    const schemaState = vi.fn(async () => 'ok');
+    const result = await run(['schema', '--target', 'production'], { schemaState });
+    expect(result.ok).toBe(false);
+    expect(schemaState).not.toHaveBeenCalled();
+  });
+
   it('--url: 앱 헬스의 schema 필드, JSON 이 아니면 HTTP 상태로 실패', async () => {
     const fetch = vi.fn(async () => Response.json({ ok: true, schema: 'ok' }));
     expect((await run(['schema', '--url', 'https://p.example/'], { fetch })).ok).toBe(true);
@@ -147,6 +158,10 @@ describe('schema (C-5)', () => {
       fetch: async () => new Response('<html>', { status: 502 }),
     });
     expect(broken.rows[0]).toMatchObject({ actual: 'HTTP 502', ok: false });
+    const hostile = await run(['schema', '--url', 'https://p.example'], {
+      fetch: async () => Response.json({ schema: 'ok | injected\n| PASS |' }),
+    });
+    expect(hostile.rows[0]).toMatchObject({ actual: 'unexpected', ok: false });
   });
 
   it('DB 연결 오류는 오류 이름만 남긴다 (연결 문자열 비노출)', async () => {

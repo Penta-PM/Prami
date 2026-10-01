@@ -68,13 +68,27 @@ Google 은 리다이렉트 URI 를 정확 일치로만 받는다(와일드카드
 > 실패한다(재현 테스트: `tests/unit/auth/auth-flow.test.ts` "preview 에 AUTH_URL(고정 호스트)을 두면 …"). 그래서 preview 는 `AUTH_URL` 을
 > 두지 않고(Vercel 은 요청 Host 를 신뢰) 기동 검사 ⓚ 가 "프록시 + `AUTH_URL` 동시 설정"을 거부한다. ⓕ 의 preview `AUTH_URL` 경고도 프록시를 쓰면 내지 않는다.
 
-기동 검사 ⓚ(`src/env-deploy.ts`, production·preview 모두 거부): `AUTH_REQUIRE_HD≠true` · production 에 `AUTH_REDIRECT_PROXY_URL` 설정 ·
-preview 프록시 값이 `https://…/api/auth` 형식이 아님 · preview 에 프록시와 `AUTH_URL` 동시 설정.
+기동 검사 ⓚ(`src/env-deploy.ts`, production·preview 모두 거부): `AUTH_REQUIRE_HD≠true` · production 에 `AUTH_REDIRECT_PROXY_URL` 설정
+(공백뿐인 값 포함) · preview 프록시 값이 **정확히** `https://<호스트>/api/auth` 가 아님(끝 슬래시·`user:pw@`·`#…`·`?…`·`/api/./auth`·`:443`·
+대문자 호스트도 거부 — Auth.js 가 원문 뒤에 `/callback/google` 을 붙여 Google 정확 일치가 깨진다, PR #25 L-1) · preview 프록시 origin 이
+`NEXT_PUBLIC_APP_URL`(고정 preview 호스트)과 다름 · preview 에 프록시와 `AUTH_URL` 동시 설정 · 배포 환경에 `NEXTAUTH_URL` 설정
+(next-auth 가 `AUTH_URL` 처럼 origin 을 덮어쓴다, PR #25 L-2).
+
+- **`AUTH_TRUST_HOST` 는 두지 않는다**(PR #25 I-5): 코드가 `trustHost: true` 로 고정(`src/server/auth/auth.config.ts`)이라 이 변수는 효과가 없다.
+- **위조 X-Forwarded-Host 차단**(PR #25 L-3): preview 는 `AUTH_URL` 이 없어 요청 Host·X-Forwarded-Host 를 origin 으로 쓴다. proxy 가 preview 에서
+  X-Forwarded-Host 를 허용 목록(요청 Host · `VERCEL_URL` · `VERCEL_BRANCH_URL` · `NEXT_PUBLIC_APP_URL` 호스트)과 비교해 다르면 400 으로 막는다
+  (`src/server/security/forwarded-host.ts`). Vercel 엣지가 이 헤더를 직접 설정하는지는 PR-5 체크리스트 C-11a 에서 실 preview 로 1회 확인한다.
+
+**고정 preview 호스트 만들기**(L-4): Vercel 프로젝트 → Settings → Domains → 도메인 추가(예 `preview.<회사 도메인>` 또는
+`prami-preview.vercel.app`) → 그 도메인의 **Git Branch** 를 preview 용 브랜치(예 `integration/prami-003`)로 지정한다. 그 브랜치의 최신
+preview 배포가 이 호스트로 서빙되며, 이 호스트가 Google 콜백을 받는 프록시 역할을 한다. 값은 Preview 스코프 `NEXT_PUBLIC_APP_URL`·
+`AUTH_REDIRECT_PROXY_URL` 과 `prami-preview` 클라이언트 리다이렉트 URI 에 같은 호스트로 넣는다.
 
 ## 4. Google Cloud 콘솔 설정 절차 (사용자 작업 — UP-4a·UP-4)
 
 Google Cloud 콘솔(<https://console.cloud.google.com>)에서 회사 Workspace 계정으로 진행한다. 메뉴 이름은 2026-10 기준
-"Google Auth Platform"(구 "OAuth 동의 화면") 화면이다.
+"Google Auth Platform"(구 "OAuth 동의 화면") 화면이다. **들어가는 법**(L-4): 콘솔 왼쪽 위 ☰ → **API 및 서비스** → **OAuth 동의 화면**
+(또는 상단 검색창에 "Google Auth Platform") — 처음이면 "시작하기" 화면이 열린다.
 
 ### 4.1 프로젝트
 
@@ -99,6 +113,8 @@ Google Cloud 콘솔(<https://console.cloud.google.com>)에서 회사 Workspace �
 | `prami-dev` | 로컬 :3000 | `http://localhost:3000/api/auth/callback/google` 와 `http://127.0.0.1:3000/api/auth/callback/google` 두 개 |
 
 - https 필수(localhost·127.0.0.1 만 예외), 끝 슬래시·경로 오타가 있으면 `redirect_uri_mismatch` 가 난다.
+- **클라이언트 보안 비밀번호는 만들 때 나오는 창에서 바로 복사하거나 JSON 을 다운로드한다**(L-4). 2025년 이후 콘솔은 나중에 비밀번호를
+  다시 보여 주지 않는다 — 잃어버리면 새 비밀번호를 추가하고 옛 것을 삭제한다.
 - `<운영 도메인>`·`<preview 고정 호스트>` 가 아직 없으면 `prami-dev` 만 먼저 만들어도 된다(로컬 T-1 전환, UP-4a). 나머지는 도메인 확정 후(PR-5).
 
 ### 4.4 Main 에게 전달할 것 (값은 채팅·PR·저장소에 쓰지 않는다 — 안전한 경로로 Main 에게만)
@@ -136,6 +152,8 @@ Google Cloud 콘솔(<https://console.cloud.google.com>)에서 회사 Workspace �
 
 충족하지 않으면 off 로 배포한다. off 여도 API 키 벤더(Anthropic·OpenAI·Gemini·xAI)는 정상이다.
 preview 에서 켤 때 `callback_url` 은 `NEXT_PUBLIC_APP_URL`(고정 preview 호스트) 기준이므로 연결은 고정 호스트에서 시작한다.
+배포별 preview URL 에서 [연결]하면 콜백이 고정 호스트로 가서 PKCE 쿠키가 맞지 않아 실패한다(fail-closed, PR #25 I-4) — preview 의 OpenRouter 연결은
+**고정 preview 호스트에서만** 한다.
 
 ## 6. 토큰 저장·갱신·폐기·감사 (§4.4.4)
 

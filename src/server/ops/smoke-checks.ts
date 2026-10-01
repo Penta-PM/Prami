@@ -10,7 +10,10 @@ export type SmokeFetch = (url: string, init?: RequestInit) => Promise<Response>;
 export type SmokeOptions = {
   baseUrl: string;
   fetch?: SmokeFetch;
-  /** Vercel 배포 보호 우회(`x-vercel-protection-bypass`) — 있으면 모든 요청에 싣는다 */
+  /**
+   * Vercel 배포 보호 우회(`x-vercel-protection-bypass`). 대상이 https 이고 Vercel 배포 호스트(`*.vercel.app`)일 때만 싣는다 —
+   * 다른 호스트로 시크릿이 새지 않게 (보안 리뷰 M-2)
+   */
   bypassSecret?: string;
   /** 배포 직후 스모크: 헬스 `release` 가 이 값(커밋 SHA)이어야 한다 */
   expectRelease?: string;
@@ -209,16 +212,29 @@ export const SMOKE_CHECKS: readonly SmokeCheck[] = [
   },
 ];
 
+const BYPASS_HOST_SUFFIX = '.vercel.app';
+
+/** 우회 시크릿을 보내도 되는 대상인지 — https + `*.vercel.app` */
+export function bypassAllowed(baseUrl: string): boolean {
+  try {
+    const url = new URL(baseUrl);
+    return url.protocol === 'https:' && url.hostname.toLowerCase().endsWith(BYPASS_HOST_SUFFIX);
+  } catch {
+    return false;
+  }
+}
+
 export function smokeContext(options: SmokeOptions): Ctx {
   const baseUrl = options.baseUrl.replace(/\/+$/, '');
   const doFetch = options.fetch ?? ((url, init) => fetch(url, init));
+  const bypass = options.bypassSecret && bypassAllowed(baseUrl) ? options.bypassSecret : undefined;
   return {
     baseUrl,
     rateLimitAttempts: options.rateLimitAttempts ?? 31,
     ...(options.expectRelease ? { expectRelease: options.expectRelease } : {}),
     request: (path, init = {}) => {
       const headers = new Headers(init.headers);
-      if (options.bypassSecret) headers.set('x-vercel-protection-bypass', options.bypassSecret);
+      if (bypass) headers.set('x-vercel-protection-bypass', bypass);
       return doFetch(`${baseUrl}${path}`, { ...init, headers, redirect: 'manual' });
     },
   };

@@ -1,7 +1,12 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
-import { runSmoke, SMOKE_CHECKS, type SmokeCheckId } from '@/server/ops/smoke-checks';
+import {
+  bypassAllowed,
+  runSmoke,
+  SMOKE_CHECKS,
+  type SmokeCheckId,
+} from '@/server/ops/smoke-checks';
 import { STATIC_SECURITY_HEADERS } from '@/server/security/headers';
 
 /**
@@ -159,14 +164,38 @@ describe('AC-361 스모크 판정', () => {
     expect((await run('sha-2')).problems).toContain('release 가 배포 커밋과 다름');
   });
 
-  it('배포 보호 우회 시크릿은 헤더로만 싣고, 결과(problems)에는 남기지 않는다', async () => {
+  it('배포 보호 우회 시크릿은 https *.vercel.app 대상에만 헤더로 싣고, 결과(problems)에는 남기지 않는다', async () => {
+    const vercel = 'https://prami-abc-team.vercel.app';
     const { fetchImpl, seen } = fakeSite(new Set(['missing-hsts']));
-    const results = await runSmoke({ baseUrl: BASE, fetch: fetchImpl, bypassSecret: 'bypass-xyz' });
+    const results = await runSmoke({
+      baseUrl: vercel,
+      fetch: fetchImpl,
+      bypassSecret: 'bypass-xyz',
+    });
     expect(
       seen.every((call) => call.headers.get('x-vercel-protection-bypass') === 'bypass-xyz'),
     ).toBe(true);
     expect(seen.every((call) => !call.url.includes('bypass-xyz'))).toBe(true);
     expect(JSON.stringify(results)).not.toContain('bypass-xyz');
+  });
+
+  it.each([
+    'https://preview.example.test',
+    'http://prami-abc-team.vercel.app',
+    'https://vercel.app.evil.example',
+    'not a url',
+  ])('보안 리뷰 M-2: %s 에는 우회 시크릿을 보내지 않는다', async (baseUrl) => {
+    expect(bypassAllowed(baseUrl)).toBe(false);
+    const { fetchImpl, seen } = fakeSite();
+    if (baseUrl !== 'not a url') {
+      await runSmoke({
+        baseUrl,
+        fetch: fetchImpl,
+        bypassSecret: 'bypass-xyz',
+        rateLimitAttempts: 1,
+      });
+      expect(seen.some((call) => call.headers.has('x-vercel-protection-bypass'))).toBe(false);
+    }
   });
 
   it('요청 자체가 실패하면(연결 거부) 오류 이름만 남기고 모든 항목 실패', async () => {
