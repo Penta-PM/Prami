@@ -12,6 +12,21 @@ const FIXTURE_DIR = path.join(ROOT, 'tests', 'fixtures', 'design-tokens');
 const TOKEN_FILES = ['colors.css', 'typography.css', 'spacing.css', 'effects.css'] as const;
 const EXPECTED_TOKEN_COUNT = 85;
 
+/**
+ * 원본 밖 앱 확장 토큰 (PRAMI-003 §4.8.3 — 주의 문구 대비 AA). 원본 픽스처는 수정하지 않고 이 목록으로 따로 검사한다.
+ * --text-* 는 Tailwind font-size 충돌 회피 규약대로 :root, 나머지는 @theme static.
+ */
+const EXTENSION_TOKENS = [
+  { name: '--red-600', value: '#c40018', block: '@theme static' },
+  { name: '--text-danger', value: 'var(--red-600)', block: ':root' },
+  {
+    name: '--surface-danger',
+    value: 'color-mix(in srgb, var(--red-500) 8%, var(--white))',
+    block: '@theme static',
+  },
+  { name: '--border-danger', value: 'var(--red-500)', block: '@theme static' },
+] as const;
+
 const globalsCss = stripComments(
   readFileSync(path.join(ROOT, 'src', 'app', 'globals.css'), 'utf8'),
 );
@@ -76,6 +91,21 @@ describe('디자인 토큰 이식 (globals.css ↔ 원본 토큰 파일)', () =>
         expect(themeStaticNames.has(name), `${name} 는 @theme static 에 있어야 합니다`).toBe(true);
       }
     }
+  });
+
+  it.each(EXTENSION_TOKENS)(
+    '앱 확장 토큰 $name = $value ($block) 이 한 번만 정의되고 --color-* 별칭이 있다 (PRAMI-003 §4.8.3)',
+    ({ name, value, block }) => {
+      expect(globalsDeclarations.get(name)).toEqual([normalize(value)]);
+      const names = block === ':root' ? rootNames : themeStaticNames;
+      expect(names.has(name), `${name} 는 ${block} 에 있어야 합니다`).toBe(true);
+      expect(globalsDeclarations.get(`--color-${name.slice(2)}`)?.[0]).toBe(`var(${name})`);
+    },
+  );
+
+  it('확장 토큰은 원본 토큰 이름과 겹치지 않는다 (원본 85개 검사와 분리)', () => {
+    const original = new Set(fixtureTokens.map(({ name }) => name));
+    for (const { name } of EXTENSION_TOKENS) expect(original.has(name)).toBe(false);
   });
 
   it('색상 팔레트에는 --color-* 별칭이 있다', () => {
