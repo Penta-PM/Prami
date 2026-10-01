@@ -43,6 +43,13 @@
       "when": 1790823916756,
       "tag": "0005_items_master",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790840333179,
+      "tag": "0006_items_legacy_write_compat",
+      "breakpoints": true
     }
   ]
 }

@@ -49,7 +49,16 @@ afterAll(async () => {
 
 describe('0005_items_master 이관 (AC-315)', () => {
   it('백필: stub·빈 행 → stub, 완전한 행 → master, 기존 값 보존', async () => {
-    await migrateDb(handle);
+    // 0005 자체를 검증한다 — 0006(구 앱 쓰기 호환 트리거)은 migration-0006.test.ts
+    const journalPath = path.join(tmp, 'meta', '_journal.json');
+    const journal = JSON.parse(
+      readFileSync(path.join(DRIZZLE, 'meta', '_journal.json'), 'utf8'),
+    ) as {
+      entries: { idx: number }[];
+    };
+    journal.entries = journal.entries.filter((entry) => entry.idx <= 5);
+    writeFileSync(journalPath, JSON.stringify(journal));
+    await migrateDb(handle, { migrationsFolder: tmp });
     const rows = await queryRows<{ item_code: string; source: string; item_name: string }>(
       handle.db,
       sql`select item_code, source::text as source, item_name from items order by item_code`,
