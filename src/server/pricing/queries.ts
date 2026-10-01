@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 
 import type { Db } from '@/db';
+import { ITEM_REMARK_HEADER } from '@/server/imports/schemas/items';
 import { importBatches, items, salesPrices, type SalesPrice } from '@/db/schema';
 import type { PriceFilter } from '@/features/pricing/filter';
 import { productFamilyMajors } from '@/lib/constants/product-cards';
@@ -130,21 +131,38 @@ export async function listEffectiveYears(db: Db): Promise<number[]> {
 }
 
 export type PriceRowDetail = {
-  row: SalesPrice & { itemStatus: ItemStatusLabel; major: string; batchFileName: string | null };
+  row: SalesPrice & {
+    itemStatus: ItemStatusLabel;
+    major: string;
+    batchFileName: string | null;
+    /** ERP 품목대분류 원문 (예: D'Amo, PRAMI-003 §4.2.4) — 품목 마스터 있을 때 */
+    erpMajor: string | null;
+    /** ERP 비고 — **ADMIN 응답에만** (자유 텍스트에 사람 이름이 섞일 수 있음, §4.2.2) */
+    erpRemark?: string | null;
+  };
   history: Pick<
     SalesPrice,
     'id' | 'effectiveFrom' | 'effectiveTo' | 'unitPrice' | 'currency' | 'operationStatus' | 'source'
   >[];
 };
 
-/** getPriceRowDetail (§4.7): 원본 20컬럼 + 메타 + 같은 계열 이력(삭제 제외) */
-export async function getPriceRowDetail(db: Db, id: number): Promise<PriceRowDetail | null> {
+/**
+ * getPriceRowDetail (§4.7): 원본 20컬럼 + 메타 + 같은 계열 이력(삭제 제외).
+ * `includeRemark` = ADMIN 일 때만 ERP 비고를 싣는다(USER 응답에는 키 자체가 없다, PRAMI-003 §4.2.2·AC-303).
+ */
+export async function getPriceRowDetail(
+  db: Db,
+  id: number,
+  options: { includeRemark?: boolean } = {},
+): Promise<PriceRowDetail | null> {
   const [row] = await db
     .select({
       price: salesPrices,
       itemStatus: ITEM_STATUS,
       major: MAJOR,
       batch: importBatches.fileName,
+      erpMajor: items.categoryMajorRaw,
+      remark: sql<string | null>`${items.raw}->>${ITEM_REMARK_HEADER}`,
     })
     .from(salesPrices)
     .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
@@ -165,7 +183,14 @@ export async function getPriceRowDetail(db: Db, id: number): Promise<PriceRowDet
     .where(and(eq(salesPrices.seriesKey, row.price.seriesKey), isNull(salesPrices.deletedAt)))
     .orderBy(desc(salesPrices.effectiveFrom));
   return {
-    row: { ...row.price, itemStatus: row.itemStatus, major: row.major, batchFileName: row.batch },
+    row: {
+      ...row.price,
+      itemStatus: row.itemStatus,
+      major: row.major,
+      batchFileName: row.batch,
+      erpMajor: row.erpMajor,
+      ...(options.includeRemark ? { erpRemark: row.remark } : {}),
+    },
     history,
   };
 }

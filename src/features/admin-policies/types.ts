@@ -1,4 +1,4 @@
-import type { ImportRowError } from '@/db/schema';
+import type { ImportRowError, ImportSourceFile } from '@/db/schema';
 import type { DuplicateWarnings } from '@/lib/imports/duplicates';
 
 /** 클라이언트 컴포넌트가 주고받는 직렬화 가능한 모양 (서버 모듈을 import 하지 않기 위해 분리) */
@@ -23,6 +23,9 @@ export type UploadSummaryData = {
   warnings: ImportRowError[];
   /** r4: 원가 같은 날짜 중복 그룹(전부 / 값이 다른 그룹). 다른 종류는 비어 있다 */
   duplicateWarnings: DuplicateWarnings;
+  /** 품목조회 다중 파일 배치의 파일 목록 (PRAMI-003 §4.2.3) */
+  sourceFiles?: ImportSourceFile[];
+  itemMerge?: { missingFamilies: string[]; vanishingItems: number };
 };
 
 export type FileMode = 'new' | 'reuse';

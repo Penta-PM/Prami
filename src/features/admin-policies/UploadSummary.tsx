@@ -16,12 +16,14 @@ const PREVIEW_COLUMNS: Record<ImportFileKind, readonly [string, string][]> = {
     ['customerCode', '거래처코드'],
   ],
   items: [
+    ['파일', '파일'],
     ['itemCode', '품번'],
     ['itemName', '품명'],
     ['categoryMajor', '대분류'],
     ['categoryMid', '중분류'],
     ['categoryMinor', '소분류'],
-    ['itemStatusRaw', '품목상태'],
+    ['itemStatus', '품목 상태'],
+    ['itemKind', '종류'],
   ],
   parts: [
     ['modelItemCode', '모델품번'],
@@ -76,6 +78,18 @@ export function UploadSummary({ kind, data }: { kind: ImportFileKind; data: Uplo
             : ''}
         </span>
       </div>
+      {data.sourceFiles && data.sourceFiles.length > 0 ? (
+        <ul
+          aria-label="업로드 파일"
+          className="m-0 flex list-none flex-col gap-0.5 p-0 text-[12px]"
+        >
+          {data.sourceFiles.map((file) => (
+            <li key={file.sha256}>
+              {file.name} · {file.rowCount.toLocaleString('ko-KR')}행 · {file.majors.join(', ')}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {data.errors.length > 0 ? <ErrorList errors={data.errors} total={data.errorCount} /> : null}
       <WarningLists data={data} />
       {data.preview.length > 0 ? <PreviewTable kind={kind} data={data} /> : null}
@@ -99,7 +113,8 @@ function WarningLists({ data }: { data: UploadSummaryData }) {
         <ul className="m-0 list-none p-0 text-[12px] text-amber-500">
           {others.slice(0, 10).map((warning, index) => (
             <li key={index}>
-              경고: {warning.column} — {warning.message}
+              경고: {warning.file ? `${warning.file} · ` : ''}
+              {warning.column} — {warning.message}
             </li>
           ))}
           {others.length > 10 ? <li>외 경고 {others.length - 10}건</li> : null}
@@ -118,6 +133,7 @@ function ErrorList({ errors, total }: { errors: UploadSummaryData['errors']; tot
       <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
         {errors.slice(0, VISIBLE_ERRORS).map((error, index) => (
           <li key={index}>
+            {error.file ? `${error.file} ` : ''}
             {error.row > 0 ? `${error.row}행` : '파일'}
             {error.column ? ` · ${error.column}` : ''} — {error.message}
             {error.value !== undefined && error.value !== null

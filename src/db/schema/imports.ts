@@ -21,6 +21,10 @@ export type ImportRowError = {
   column: string;
   message: string;
   value?: unknown;
+  /** 기계용 검증 코드 (PRAMI-003 §4.2.3 — duplicate_item_code, unknown_major 등). 없으면 일반 오류 */
+  code?: string;
+  /** 다중 파일 배치에서 오류·경고가 난 원본 파일명 */
+  file?: string;
 };
 
 /** 가격정책 적용 결과 통계 (§4.3.3) */
@@ -38,6 +42,33 @@ export type PolicyApplyStats = {
   unmappedItemStatus: number;
   /** 원본 최종여부 ≠ 산정 is_latest_in_series 인 ERP 행 수 (AC-21) */
   finalSourceMismatch: number;
+  /** 이하 PRAMI-003 PR-1 (품목 마스터) — 품목 배치를 적용한 run 에만 */
+  itemMerge?: ItemMerge;
+  /** I-10 위반(판매단가 제품군 ≠ 품목 대분류) 품번 수와 표본 — 경고, 화면은 판매단가 제품군 */
+  i10Violations?: number;
+  i10Samples?: string[];
+  /** 파츠 매핑 종류 불일치: 모델이 본품이 아님 / 파츠가 파츠가 아님 (매핑은 유지) */
+  partMappingMismatch?: { models: number; parts: number };
+  /** 예외표(ITEM_KIND_OVERRIDES)에 있지만 품목 마스터에 없는 품번 (override_unknown_item) */
+  overrideUnknown?: string[];
+};
+
+/** 다중 파일 배치의 원본 파일 1건 (PRAMI-003 §4.2.3). 개인정보 없음 */
+export type ImportSourceFile = {
+  name: string;
+  sha256: string;
+  rowCount: number;
+  /** 파일에 있던 정규화 대분류 */
+  majors: string[];
+};
+
+/** 품목 배치 적용 시 제품군 병합 방식 (PRAMI-003 §4.2.3) */
+export type ItemMerge = {
+  mode: 'merge' | 'replace';
+  /** merge: 이번 배치에 없어 직전 값을 유지한 대분류 / replace: 사라진 대분류 */
+  keptMajors: string[];
+  /** 직전 적용 품목 배치 */
+  fromBatchId: string | null;
 };
 
 /** 업로드된 원본 파일 1건 (§4.3.3). 파싱 결과는 stg_* 스테이징 테이블에 저장 */
@@ -60,6 +91,8 @@ export const importBatches = pgTable(
     errors: jsonb('errors').$type<ImportRowError[]>().notNull().default([]),
     /** 무시한 추가 컬럼·매핑 불가 값 등 적용을 막지 않는 경고 (§4.4.1) */
     warnings: jsonb('warnings').$type<ImportRowError[]>().notNull().default([]),
+    /** 다중 파일 배치(품목조회)의 파일별 이름·SHA-256·행 수 (PRAMI-003 §4.2.3). 단일 파일 배치는 NULL */
+    sourceFiles: jsonb('source_files').$type<ImportSourceFile[]>(),
     uploadedBy: uuid('uploaded_by').references(() => users.id, { onDelete: 'set null' }),
     ...timestamps,
   },
@@ -83,6 +116,8 @@ export const policyApplyRuns = pgTable(
     itemReused: boolean('item_reused').notNull().default(false),
     status: applyRunStatusEnum('status').notNull().default('running'),
     stats: jsonb('stats').$type<PolicyApplyStats>(),
+    /** 품목 배치의 제품군 병합 방식 (PRAMI-003 §4.2.3) */
+    itemMerge: jsonb('item_merge').$type<ItemMerge>(),
     /** 실패 사유 (status='failed') */
     error: text('error'),
     runBy: uuid('run_by').references(() => users.id, { onDelete: 'set null' }),

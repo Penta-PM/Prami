@@ -86,26 +86,26 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 
 ### 스크립트
 
-| 명령                      | 설명                                                                                                                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm dev`                | 개발 서버 (`127.0.0.1` 바인드, LAN 노출은 `-H 0.0.0.0` 명시 + 테스트 모드 끄기)                                                                                                      |
-| `pnpm check:secrets`      | 추적 파일 비밀값 검사 (원격 DB 자격 증명·`AUTH_SECRET=` 값·OAuth 시크릿·LLM 벤더 키·KEK 값, CI `secret scan` 잡, AC-96·211)                                                          |
-| `pnpm build`              | 프로덕션 빌드 (빌드 전 `src/env.ts` 가 환경변수를 검증)                                                                                                                              |
-| `pnpm start`              | 빌드 결과 실행                                                                                                                                                                       |
-| `pnpm lint`               | ESLint                                                                                                                                                                               |
-| `pnpm typecheck`          | `tsc --noEmit`                                                                                                                                                                       |
-| `pnpm format:check`       | Prettier 검사 (`pnpm format` 으로 수정)                                                                                                                                              |
-| `pnpm test`               | Vitest 단위 테스트 (DB 테스트는 PGlite `memory://`)                                                                                                                                  |
-| `pnpm test:coverage`      | 단위 테스트 + 커버리지(임계 80%)                                                                                                                                                     |
-| `pnpm test:integration`   | 실제 Postgres 통합 테스트 — `DB_DRIVER=pg` + `DATABASE_URL` 필요, 없으면 스킵                                                                                                        |
-| `pnpm db:generate`        | 스키마(`src/db/schema`) 변경을 `drizzle/*.sql` 마이그레이션으로 생성                                                                                                                 |
-| `pnpm db:migrate`         | `DB_DRIVER` 에 맞는 드라이버로 마이그레이션 적용                                                                                                                                     |
-| `pnpm seed`               | 픽스처 ADMIN·USER, 공지 샘플, 감사 로그 `user.seed` 기록 (재실행 안전)                                                                                                               |
-| `pnpm test:e2e`           | Playwright E2E — `next dev`(포트 3100, `.next-e2e`) + Postgres `prami_e2e` DB(`E2E_DATABASE_URL`)에 자동 migrate·seed. 최초 1회 `pnpm exec playwright install chromium`              |
-| `pnpm fixtures`           | 임포트 테스트 픽스처 생성 — 원본 `병합_가격_raw.xlsx`(`SOURCE_XLSX`)에서 200행 + 오류·품목조회 합성 파일 → `tests/fixtures/imports/`                                                 |
-| `pnpm import:source`      | 엑셀을 업로드·적용 경로 그대로 반영. 기본은 판매단가(원본 `병합_가격_raw.xlsx`), `--kind costs` 면 원가(원본 `원자재코드 정보_260825.xlsx`). 인자로 경로 지정. 로컬·QA 데이터 준비용 |
-| `pnpm credentials:rewrap` | LLM 키 DEK 를 활성 KEK 로 다시 감싼다 (KEK 회전, PRAMI-002)                                                                                                                          |
-| `pnpm check`              | lint + typecheck + format:check + test 일괄                                                                                                                                          |
+| 명령                      | 설명                                                                                                                                                                                                                             |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                | 개발 서버 (`127.0.0.1` 바인드, LAN 노출은 `-H 0.0.0.0` 명시 + 테스트 모드 끄기)                                                                                                                                                  |
+| `pnpm check:secrets`      | 추적 파일 비밀값 검사 (원격 DB 자격 증명·`AUTH_SECRET=` 값·OAuth 시크릿·LLM 벤더 키·KEK 값, CI `secret scan` 잡, AC-96·211)                                                                                                      |
+| `pnpm build`              | 프로덕션 빌드 (빌드 전 `src/env.ts` 가 환경변수를 검증)                                                                                                                                                                          |
+| `pnpm start`              | 빌드 결과 실행                                                                                                                                                                                                                   |
+| `pnpm lint`               | ESLint                                                                                                                                                                                                                           |
+| `pnpm typecheck`          | `tsc --noEmit`                                                                                                                                                                                                                   |
+| `pnpm format:check`       | Prettier 검사 (`pnpm format` 으로 수정)                                                                                                                                                                                          |
+| `pnpm test`               | Vitest 단위 테스트 (DB 테스트는 PGlite `memory://`)                                                                                                                                                                              |
+| `pnpm test:coverage`      | 단위 테스트 + 커버리지(임계 80%)                                                                                                                                                                                                 |
+| `pnpm test:integration`   | 실제 Postgres 통합 테스트 — `DB_DRIVER=pg` + `DATABASE_URL` 필요, 없으면 스킵                                                                                                                                                    |
+| `pnpm db:generate`        | 스키마(`src/db/schema`) 변경을 `drizzle/*.sql` 마이그레이션으로 생성                                                                                                                                                             |
+| `pnpm db:migrate`         | `DB_DRIVER` 에 맞는 드라이버로 마이그레이션 적용                                                                                                                                                                                 |
+| `pnpm seed`               | 픽스처 ADMIN·USER, 공지 샘플, 감사 로그 `user.seed` 기록 (재실행 안전)                                                                                                                                                           |
+| `pnpm test:e2e`           | Playwright E2E — `next dev`(포트 3100, `.next-e2e`) + Postgres `prami_e2e` DB(`E2E_DATABASE_URL`)에 자동 migrate·seed. 최초 1회 `pnpm exec playwright install chromium`                                                          |
+| `pnpm fixtures`           | 임포트 테스트 픽스처 생성 — 원본 `병합_가격_raw.xlsx`(`SOURCE_XLSX`)에서 200행 + 오류·품목조회 합성 파일 → `tests/fixtures/imports/`, 품목조회 5파일(`PRAMI_INPUTS_DIR`) 축소본 → `tests/fixtures/items/`(개인정보 컬럼 가짜 값) |
+| `pnpm import:source`      | 엑셀을 업로드·적용 경로 그대로 반영(로컬·QA 데이터 준비용). **파일 경로 필수**. `--kind sales`(기본) · `costs` · `items`(품목조회 1~5개 → 현재 판매단가 재사용 적용, `--merge merge\|replace`)                                   |
+| `pnpm credentials:rewrap` | LLM 키 DEK 를 활성 KEK 로 다시 감싼다 (KEK 회전, PRAMI-002)                                                                                                                                                                      |
+| `pnpm check`              | lint + typecheck + format:check + test 일괄                                                                                                                                                                                      |
 
 CI(`.github/workflows/ci.yml`)는 PR 마다 lint → typecheck → format → 단위(커버리지, PGlite) → build,
 이어서 PostgreSQL 16 service container 에서 `db:migrate` → `seed` → 통합 테스트, 그리고 같은 service container 와
@@ -157,7 +157,7 @@ tests/
 `/admin/policies`(ADMIN) 상단에서 **판매단가 파일**·**품목상태 파일**을 각각 `신규 업로드` 또는 `기존 파일 재사용`으로
 고른 뒤 `가격정책 적용`을 누릅니다.
 
-1. 업로드(`POST /api/imports/{sales|items|costs|parts}`, multipart `file`, .xlsx ≤ 10MB): 시트 선택(판매단가는 `RAW` 우선)
+1. 업로드(`POST /api/imports/{sales|items|costs|parts}`, multipart `file`, .xlsx ≤ 10MB — 품목조회는 `files[]` 1~5개·합계 25MB): 시트 선택(판매단가는 `RAW` 우선)
    → 상위 5행에서 헤더 감지(이름 정확 일치, 누락이면 배치 `failed`) → 행별 검증 → 스테이징(`stg_*`) + 미리보기 20행 + 오류 목록.
    같은 파일 재업로드는 409 와 기존 배치 안내.
 2. 적용(`applyPolicyAction`): 한 트랜잭션에서 품목 마스터 반영 → 수동 행 충돌 처리(ERP 우선) → ERP 행 전량 교체(적용시작일
@@ -165,9 +165,24 @@ tests/
    → 불변식 I-1·I-2·행수 검증 → run·배치 상태·감사 `policy.apply`. 실패하면 전부 되돌리고 run 은 `failed`.
 3. 오류가 1건이라도 있는 배치는 적용할 수 없습니다. 품목조회 파일은 선택 사항입니다(없으면 모든 품번이 `미확인` stub).
 
-ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 오면 `src/server/imports/schemas/items.ts` 의 헤더 상수와
-`src/lib/constants/item-status.ts` 의 `ITEM_STATUS_MAP` 만 고칩니다. QA 는 `IMPORT_FAULT_INJECTION=<단계>`(개발·테스트 전용)로
-적용 중 실패를 재현할 수 있습니다.
+QA 는 `IMPORT_FAULT_INJECTION=<단계>`(개발·테스트 전용)로 적용 중 실패를 재현할 수 있습니다.
+
+### 품목 마스터 (PRAMI-003 PR-1)
+
+- 원본: ERP 품목조회 5파일(제품군별, 1행 제목 `품목조회` + 2행 헤더 **39컬럼**). 헤더 상수·처리 구분(정규 9 · raw 27 · 제외 3)은
+  `src/server/imports/schemas/items.ts`. 개인정보 컬럼(등록자·최종수정자·관리자)은 **값을 읽지도 저장하지도 않는다**(raw·스테이징·로그·감사·
+  오류 리포트 모두). 비고는 raw 에 두고 가격 상세 드로어에서 **ADMIN 에게만** 보인다. 정의에 없는 헤더는 경고 `extra_header` 만 내고 저장하지 않는다.
+- 업로드: 관리 화면 "품목상태 파일"에서 1~5개 동시 선택(또는 병합 파일 1개) → 배치 1개(`import_batches.source_files`).
+  검증 코드: 오류 `duplicate_item_code`(파일 간 포함)·`duplicate_file`·`missing_required_header`·행 오류 `unknown_major`·`unmapped_status`,
+  경고 `mixed_major_in_file`·`missing_families`·`sales_items_not_covered`·`missing_header`·`extra_header`, 정보 `excluded_columns_dropped`.
+- 대분류 정규화 `ERP_MAJOR_TO_FAMILY`(`src/lib/constants/product-family.ts`): `D'Amo`→`D.AMO`, `iSIGN+`→`iSIGN`, `iSIGN+ PKI`→`iSIGN PKI`.
+  화면·필터·챗봇은 정규화 값만 쓰고 원문은 상세 드로어 "ERP 대분류". 정합 I-10(판매단가 제품군 = 품목 대분류) 위반은 적용 통계 경고.
+- 품목 상태 = 임시·폐기·사용(그 외 행 오류). 종류 = 규칙표 K0~K7 + 품번 예외표(`src/lib/constants/item-kind-rules.ts`) — **품명으로 판정하지 않는다**.
+  저장값(`items.item_kind`·`item_kind_rule`)만 읽고, 마스터에 없는(stub) 품번은 `기타`(계산기 STEP3).
+- 제품군 병합: 이번 배치에 직전 품목의 제품군이 빠지면 "누락 제품군 유지(병합, 기본)" / "전량 교체" 중 선택해야 적용된다(전량 교체는 사라질 품번 수 확인 모달).
+  적용 통계에 `itemMerge`·I-10·파츠 매핑 종류 불일치(매핑은 유지)·예외표 미존재 품번이 남는다.
+- 분류 드롭다운 = 판매단가가 있는 품목의 실데이터 대·중·소분류(홈 카드 진입 시 그 카드의 대분류만).
+- 로컬 반영: `pnpm db:migrate`(0005) → `pnpm import:source --kind items "<WAPPLES 품목.xlsx>" … "<cloudbric 품목.xlsx>"`.
 
 ## 가격정책 조회 · 관리 (PR-4)
 
@@ -175,6 +190,7 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
   관리 표는 조회 표에 `적용시작일`·`운영 연도`·`관리`가 더해진다.
 - 필터(대/중/소분류, `적용시작일 기준`/`적용기간 기준`, 연도 칩, 기간, 검색, 페이지)는 모두 URL 검색 파라미터라
   새로고침·공유해도 유지된다. 품목조회 파일이 적용되기 전에는 대분류 = 제품군이고 중/소분류는 비활성이다.
+  옵션은 판매단가가 있는 품목의 분류만(PRAMI-003 §4.2.5).
 - 행을 누르면 원본 20컬럼과 같은 계열 이력을 보여 주는 `행 상세` 드로어가 열린다.
 - 관리 화면의 `+ 등록`·수정·복사·삭제는 변경 사유가 필수이며, 저장 시 해당 계열만 다시 계산하고 불변식(I-1·I-2)을
   확인한 뒤 감사 로그(`price_policy.create|update|delete`, 원본 20컬럼 스냅샷)를 남긴다. 폐기 품목은 운영중이 될 수 없다.
@@ -215,8 +231,8 @@ ERP 품목조회 파일 포맷은 아직 미확정입니다. 실제 파일이 �
 - `/admin/parts`(ADMIN, `parts.write`): 제품군 탭 → `수동 등록`(모델 선택 → 장착 가능한 파츠 다중 선택 → 저장) /
   `엑셀 등록`(`모델품번`, `파츠품번` 2컬럼 업로드 → 미리보기 → 적용). 저장은 모델 단위 **전체 교체**(기존 매핑이 있으면
   경고 후 덮어씀)이고 "등록된 매핑" 표는 모델별 한 행에 파츠 품명(품번) 목록으로 그룹화한다(사용자 요구 2, 예:
-  Wapples-2700 (H2700) → N_51080). 파츠/본품 구분은 품목 마스터의 `item_kind` 가 있으면 그것을, 없으면
-  `category_mid='Parts'` 또는 품명 규칙(`N_…`/`N-…`)을 쓴다. 판매단가에만 있는 품번은 `items` stub 으로 만들어 FK 를
+  Wapples-2700 (H2700) → N_51080). 파츠/본품 구분은 품목 마스터 적용 시 저장된 `item_kind`(규칙표 K0~K7)만 쓴다
+  (PRAMI-003 — 품명 규칙 제거). 판매단가에만 있는 품번은 `items` stub(`source='stub'`, 종류 `기타`)으로 만들어 FK 를
   만족시킨다(§4.3.6). 감사 `part_mapping.save|delete`, `part_import.apply`.
 - `/admin/groups`(ADMIN, `groups.write`): 제품군 탭, 카드(그룹명 + 항목 칩·현재 단가), 생성/수정 모달(제품군의 운영중
   정상판매 품목 체크), 삭제(soft). 항목 가격은 저장하지 않고 조회 시점의 최신 정상판매가를 보여 주며, 견적 계산기(PR-7)

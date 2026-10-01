@@ -97,6 +97,22 @@ function DetailBody({ detail }: { detail: Detail }) {
           {row.batchFileName ? ` (${row.batchFileName})` : ''}
         </span>
       </div>
+      {row.erpMajor || row.erpRemark ? (
+        <dl aria-label="ERP 품목 정보" className="m-0 grid grid-cols-[120px_1fr] gap-x-3 gap-y-1.5">
+          {row.erpMajor ? (
+            <>
+              <dt className="text-text-tertiary">ERP 대분류</dt>
+              <dd className="m-0 text-ink-900">{row.erpMajor}</dd>
+            </>
+          ) : null}
+          {row.erpRemark ? (
+            <>
+              <dt className="text-text-tertiary">ERP 비고</dt>
+              <dd className="m-0 break-all text-ink-900">{row.erpRemark}</dd>
+            </>
+          ) : null}
+        </dl>
+      ) : null}
       <section aria-label="원본 20컬럼">
         <h3 className="m-0 mb-2 text-[12px] font-semibold text-text-tertiary">원본 20컬럼</h3>
         <dl className="m-0 grid grid-cols-[120px_1fr] gap-x-3 gap-y-1.5">

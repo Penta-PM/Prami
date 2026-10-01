@@ -55,9 +55,16 @@ beforeAll(async () => {
     .id;
   userId = (await insertUser(state.handle, { email: 'user@pentasecurity.com', role: 'USER' })).id;
   const sales = await uploadFixture(state.handle, 'sales', 'sales-200.xlsx');
+  // 모델 = 저장된 종류 본품 (PRAMI-003 §4.2.7) — 품목 마스터 함께 적용
+  const itemsBatch = await uploadFixture(state.handle, 'items', 'items-v1.xlsx');
   await applyPolicy(
     { handle: state.handle, actor: TEST_ACTOR, meta: TEST_META },
-    { salesBatchId: sales.batchId, itemBatchId: null, salesReused: false, itemReused: false },
+    {
+      salesBatchId: sales.batchId,
+      itemBatchId: itemsBatch.batchId,
+      salesReused: false,
+      itemReused: false,
+    },
   );
   model = (await listPartsCatalog(state.handle.db, 'WAPPLES')).models[0]!.itemCode;
 });

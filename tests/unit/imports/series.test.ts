@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 
-import { deriveItemKind, mapItemStatus } from '@/lib/constants/item-status';
+import { mapItemStatus } from '@/lib/constants/item-status';
 import { computeSeries, salesSeriesKey } from '@/server/imports/series';
 
 /** §4.4.3 계열 규칙 (순수 함수) + 품목상태 매핑 상수 (Q-02) */
@@ -42,8 +42,6 @@ describe('item-status', () => {
     expect(mapItemStatus(' 폐기 ')).toBe('폐기');
     expect(mapItemStatus('보류')).toBeNull();
     expect(mapItemStatus(null)).toBeNull();
-    expect(deriveItemKind('Parts')).toBe('파츠');
-    expect(deriveItemKind('WAPPLES')).toBeNull();
   });
 });
 

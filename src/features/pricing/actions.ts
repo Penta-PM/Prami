@@ -45,10 +45,11 @@ export async function getPriceRowDetailAction(id: number): Promise<ActionResult<
     auditAction: 'price_policy.read',
     name: 'getPriceRowDetail',
   } as const;
-  return runAction(guard, async () => {
+  return runAction(guard, async (actor) => {
     const detail = await getPriceRowDetail(
       await getDb(),
       z.coerce.number().int().positive().parse(id),
+      { includeRemark: actor.role === 'ADMIN' },
     );
     if (!detail) throw new AppError('NOT_FOUND', '가격정책을 찾을 수 없습니다');
     return detail;

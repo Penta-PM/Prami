@@ -1,14 +1,20 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui';
 import type { PolicyApplyStats } from '@/db/schema';
 
-import { applyPolicyAction } from './actions';
+import { applyPolicyAction, previewItemMergeAction } from './actions';
 import { ApplyStatsView } from './ApplyStatsView';
 import { ImportFileRow } from './ImportFileRow';
+import {
+  ItemMergeChoice,
+  ReplaceConfirmModal,
+  type ItemMergeInfo,
+  type ItemMergeMode,
+} from './ItemMergeChoice';
 import {
   selectedBatchId,
   selectionBlocksApply,
@@ -47,18 +53,45 @@ export function ImportPanel({
   const [item, setItem] = useState(() => initialSelection(currentItemId));
   const [outcome, setOutcome] = useState<ApplyOutcome | null>(null);
   const [isPending, startTransition] = useTransition();
+  const itemBatchId = selectedBatchId(item);
+  // 미리보기·선택은 품목 배치 id 에 묶는다 — 배치를 바꾸면 이전 선택이 자동으로 무효 (PRAMI-003 §4.2.3)
+  const [preview, setPreview] = useState<{ batchId: string; info: ItemMergeInfo } | null>(null);
+  const [choice, setChoice] = useState<{ batchId: string; mode: ItemMergeMode } | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const mergeInfo = preview && preview.batchId === itemBatchId ? preview.info : null;
+  const itemMerge = choice && choice.batchId === itemBatchId ? choice.mode : null;
+  const setItemMerge = (mode: ItemMergeMode) => {
+    if (itemBatchId) setChoice({ batchId: itemBatchId, mode });
+  };
 
-  const blocked = selectionBlocksApply(sales, false) || selectionBlocksApply(item, true);
+  useEffect(() => {
+    if (!itemBatchId) return;
+    let active = true;
+    void previewItemMergeAction(itemBatchId).then((result) => {
+      if (active && result.ok) setPreview({ batchId: itemBatchId, info: result.data });
+    });
+    return () => {
+      active = false;
+    };
+  }, [itemBatchId]);
 
-  const apply = () =>
+  const needsMerge = (mergeInfo?.missingFamilies.length ?? 0) > 0;
+  const blocked =
+    selectionBlocksApply(sales, false) ||
+    selectionBlocksApply(item, true) ||
+    (needsMerge && itemMerge === null);
+
+  const runApply = () =>
     startTransition(async () => {
+      setConfirming(false);
       const salesBatchId = selectedBatchId(sales);
       if (!salesBatchId) return;
       const result = await applyPolicyAction({
         salesBatchId,
-        itemBatchId: selectedBatchId(item),
+        itemBatchId,
         salesReused: sales.mode === 'reuse',
         itemReused: item.mode === 'reuse',
+        ...(needsMerge && itemMerge ? { itemMerge } : {}),
       });
       setOutcome(
         result.ok
@@ -67,6 +100,8 @@ export function ImportPanel({
       );
       if (result.ok) router.refresh();
     });
+
+  const apply = () => (needsMerge && itemMerge === 'replace' ? setConfirming(true) : runApply());
 
   return (
     <section aria-label="가격정책 파일 적용" className="flex flex-col gap-2.5">
@@ -81,21 +116,33 @@ export function ImportPanel({
       <ImportFileRow
         kind="items"
         label="품목상태 파일"
-        uploadLabel="품목조회 파일 업로드 (임시/폐기/사용)"
+        uploadLabel="품목조회 파일 업로드 (1~5개, 제품군별)"
         options={itemOptions}
         selection={item}
         onChange={setItem}
         optional
+        multiple
         note={
           <span className="text-[11px] text-text-tertiary">
             폐기 품목은 운영중 상태를 가질 수 없습니다.
           </span>
         }
       />
+      {needsMerge && mergeInfo ? (
+        <ItemMergeChoice info={mergeInfo} value={itemMerge} onChange={setItemMerge} />
+      ) : null}
+      <ReplaceConfirmModal
+        open={confirming}
+        vanishingItems={mergeInfo?.vanishingItems ?? 0}
+        onCancel={() => setConfirming(false)}
+        onConfirm={runApply}
+      />
       <div className="flex items-center justify-end gap-2.5">
         {blocked ? (
           <span className="text-[12px] text-text-tertiary">
-            오류 없는 판매단가 파일을 선택하면 적용할 수 있습니다
+            {needsMerge && itemMerge === null
+              ? '품목 제품군 병합 방식을 선택하면 적용할 수 있습니다'
+              : '오류 없는 판매단가 파일을 선택하면 적용할 수 있습니다'}
           </span>
         ) : null}
         <Button variant="primary" size="sm" disabled={blocked || isPending} onClick={apply}>

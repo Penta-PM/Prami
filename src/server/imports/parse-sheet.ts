@@ -21,6 +21,8 @@ export type ParseOutcome<Row> = {
   errorCount: number;
   errors: ImportRowError[];
   warnings: ImportRowError[];
+  /** (strictHeaders) 파일에 있었지만 저장하지 않은 제외 컬럼 헤더 (excluded_columns_dropped 정보용) */
+  droppedColumns?: string[];
 };
 
 type RowContext = { excelRow: number; errors: ImportRowError[] };
@@ -88,14 +90,82 @@ function convertRow<Row>(
     } else {
       valid = false;
       const message = result.error.issues[0]?.message ?? '값이 올바르지 않습니다';
-      ctx.errors.push({ row: ctx.excelRow, column: column.header, message, value: cell ?? null });
+      ctx.errors.push({
+        row: ctx.excelRow,
+        column: column.header,
+        message,
+        value: cell ?? null,
+        ...(column.errorCode ? { code: column.errorCode } : {}),
+      });
     }
   }
   if (!valid) return null;
-  const extras = Object.fromEntries(
-    extraColumns.map(({ header, column }) => [header, cells[column] ?? null]),
-  );
-  return spec.build(values, extras);
+  return spec.build(values, extrasOf(spec, cells, columns, extraColumns));
+}
+
+function isBlankCell(cell: Cell): boolean {
+  return cell === null || cell === undefined || (typeof cell === 'string' && cell.trim() === '');
+}
+
+/**
+ * build 의 두 번째 인자. 기본: 정의에 없는 컬럼 원문 전부. strictHeaders: rawColumns 만, 빈 값은 키 생략
+ * (제외 컬럼·미지 컬럼 값은 읽지 않는다 — PRAMI-003 §4.2.1·§4.2.2).
+ */
+function extrasOf<Row>(
+  spec: SheetSpec<Row>,
+  cells: readonly Cell[],
+  columns: Map<string, number>,
+  extraColumns: { header: string; column: number }[],
+): Record<string, unknown> {
+  if (!spec.strictHeaders) {
+    return Object.fromEntries(
+      extraColumns.map(({ header, column }) => [header, cells[column] ?? null]),
+    );
+  }
+  const raw: Record<string, unknown> = {};
+  for (const header of spec.rawColumns ?? []) {
+    const index = columns.get(header);
+    const cell = index === undefined ? null : (cells[index] ?? null);
+    if (!isBlankCell(cell)) raw[header] = cell;
+  }
+  return raw;
+}
+
+/** 헤더 경고: 기본은 "무시한 추가 컬럼", strictHeaders 는 extra_header(저장 안 함) + missing_header */
+function headerWarnings<Row>(
+  spec: SheetSpec<Row>,
+  headerRow: number,
+  columns: Map<string, number>,
+  extras: { header: string }[],
+): ImportRowError[] {
+  if (!spec.strictHeaders) {
+    return extras.map(({ header }) => ({
+      row: headerRow,
+      column: header,
+      message: '정의되지 않은 컬럼이라 무시했습니다',
+    }));
+  }
+  const defined = [
+    ...spec.columns.map((column) => column.header),
+    ...(spec.rawColumns ?? []),
+    ...(spec.excludedColumns ?? []),
+  ];
+  return [
+    ...extras.map(({ header }) => ({
+      row: headerRow,
+      column: header,
+      code: 'extra_header',
+      message: '정의되지 않은 컬럼입니다 — 값을 저장하지 않습니다',
+    })),
+    ...defined
+      .filter((header) => !columns.has(header))
+      .map((header) => ({
+        row: headerRow,
+        column: header,
+        code: 'missing_header',
+        message: '헤더가 없습니다 (필수 아님 — 빈 값으로 처리)',
+      })),
+  ];
 }
 
 /**
@@ -108,18 +178,24 @@ export function parseSheet<Row>(
 ): ParseOutcome<Row> {
   const sheet = pickSheet(sheets, spec.preferredSheets);
   const required = spec.columns.filter((column) => column.required).map((column) => column.header);
-  const known = spec.columns.map((column) => column.header);
+  const known = [
+    ...spec.columns.map((column) => column.header),
+    ...(spec.rawColumns ?? []),
+    ...(spec.excludedColumns ?? []),
+  ];
   const header = detectHeader(sheet.rows, required, known);
   if (!header.ok) {
-    return failed(sheet.name, header.bestRowIndex, `필수 헤더 누락: ${header.missing.join(', ')}`);
+    const outcome = failed<Row>(
+      sheet.name,
+      header.bestRowIndex,
+      `필수 헤더 누락: ${header.missing.join(', ')}`,
+    );
+    if (spec.strictHeaders) outcome.errors[0]!.code = 'missing_required_header';
+    return outcome;
   }
 
   const errors: ImportRowError[] = [];
-  const warnings: ImportRowError[] = header.extras.map(({ header: name }) => ({
-    row: header.rowIndex + 1,
-    column: name,
-    message: '정의되지 않은 컬럼이라 무시했습니다',
-  }));
+  const warnings = headerWarnings(spec, header.rowIndex + 1, header.columns, header.extras);
   const rows: ParsedRow<Row>[] = [];
   const seen = new Map<string, { row: number; value: string | undefined }>();
   let rowCount = 0;
@@ -139,6 +215,7 @@ export function parseSheet<Row>(
           column: '',
           message: `${spec.uniqueKey!.describe} (${earlier.row}행)`,
           value: key,
+          ...(spec.uniqueKey!.errorCode ? { code: spec.uniqueKey!.errorCode } : {}),
         });
         return;
       }
@@ -150,7 +227,11 @@ export function parseSheet<Row>(
   });
 
   if (rowCount === 0) return failed(sheet.name, header.rowIndex, '데이터 행이 없습니다');
+  const droppedColumns = spec.strictHeaders
+    ? (spec.excludedColumns ?? []).filter((name) => header.columns.has(name))
+    : undefined;
   return {
+    ...(droppedColumns ? { droppedColumns } : {}),
     status: 'parsed',
     sheetName: sheet.name,
     headerRowIndex: header.rowIndex,

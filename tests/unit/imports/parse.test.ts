@@ -118,11 +118,13 @@ describe('parseSheet — 픽스처', () => {
     );
   });
 
-  it('품목조회: 1행 제목 + 2행 헤더, 추가 컬럼(비고)은 raw 로 보존·경고', async () => {
+  it('품목조회(39컬럼): 1행 제목 + 2행 헤더, raw = 처리=raw 헤더의 빈 값 아닌 원문, 개인정보 컬럼 미저장·경고 없음', async () => {
     const outcome = parseSheet(ITEM_SPEC, await fixtureSheets('items-v1.xlsx'));
     expect(outcome).toMatchObject({ status: 'parsed', headerRowIndex: 1, errorCount: 0 });
-    expect(outcome.rows[0]!.row.raw).toEqual({ 비고: '비고 0' });
-    expect(outcome.warnings[0]).toMatchObject({ column: '비고' });
+    expect(outcome.rows[0]!.row.raw).toMatchObject({ 비고: '비고 0', 부가세구분: '과세' });
+    expect(Object.keys(outcome.rows[0]!.row.raw)).not.toContain('등록자');
+    expect(outcome.warnings).toEqual([]);
+    expect(outcome.droppedColumns).toEqual(['관리자', '등록자', '최종수정자']);
   });
 
   it('원가 12컬럼(제목 행 포함)·파츠 2컬럼', async () => {

@@ -14,6 +14,9 @@ export const itemStatusEnum = pgEnum('item_status', ['임시', '폐기', '사용
 /** 계산기 STEP 구분용 품목 종류 (§4.3.2, 파생) */
 export const itemKindEnum = pgEnum('item_kind', ['본품', '파츠', '결합형', '서비스', '기타']);
 
+/** 품목 행 출처 (PRAMI-003 §4.2.8): master = ERP 품목조회 적용, stub = 판매단가에만 있는 품번 */
+export const itemSourceEnum = pgEnum('item_source', ['master', 'stub']);
+
 /** 임포트 파일 종류 (§4.3.3) */
 export const importKindEnum = pgEnum('import_kind', [
   'sales_price',
