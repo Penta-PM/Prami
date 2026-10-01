@@ -25,21 +25,30 @@ const databaseUrl = process.env.DATABASE_URL;
 const enabled = process.env.DB_DRIVER === 'pg' && Boolean(databaseUrl);
 const APP_CLOCK_AHEAD_MS = 5_000;
 
-/** 판매단가 픽스처 적용 — 같은 DB 에서 다시 실행하면 이미 적용된 배치(CONFLICT)를 그대로 쓴다 */
+/**
+ * 판매단가 픽스처 적용. 같은 DB 를 쓰는 다른 통합 테스트 파일이 같은 파일을 이미 올려 두었으면(CONFLICT) 그 배치를 쓴다.
+ * PR #24·#25 QA I-4: 기존 배치가 적용(applied)이 아니면(업로드만 됨·다른 배치 적용으로 교체됨) 예외를 그대로 던져
+ * 실행 순서·DB 상태에 따라 간헐 실패했다 — 적용 상태와 관계없이 기존 배치를 "재사용"으로 적용한다.
+ */
 async function ensureSalesPrices(handle: DbHandle) {
+  let salesBatchId: string;
+  let salesReused = false;
   try {
-    const sales = await uploadFixture(handle, 'sales', 'sales-200.xlsx');
-    await applyPolicy(
-      { handle, actor: TEST_ACTOR, meta: TEST_META },
-      { salesBatchId: sales.batchId, itemBatchId: null, salesReused: false, itemReused: false },
-    );
+    salesBatchId = (await uploadFixture(handle, 'sales', 'sales-200.xlsx')).batchId;
   } catch (error) {
-    const applied =
-      error instanceof AppError &&
-      error.code === 'CONFLICT' &&
-      (error.details as { status?: unknown } | undefined)?.status === 'applied';
-    if (!applied) throw error;
+    const existing =
+      error instanceof AppError && error.code === 'CONFLICT'
+        ? (error.details as { existingBatchId?: unknown; status?: unknown } | undefined)
+        : undefined;
+    if (typeof existing?.existingBatchId !== 'string') throw error;
+    if (existing.status === 'applied') return;
+    salesBatchId = existing.existingBatchId;
+    salesReused = true;
   }
+  await applyPolicy(
+    { handle, actor: TEST_ACTOR, meta: TEST_META },
+    { salesBatchId, itemBatchId: null, salesReused, itemReused: false },
+  );
 }
 
 describe.skipIf(!enabled)('공유 폐기 시계 통일 (AC-371, PostgreSQL)', () => {

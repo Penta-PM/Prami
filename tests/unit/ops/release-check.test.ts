@@ -16,7 +16,9 @@ import { STATIC_SECURITY_HEADERS } from '@/server/security/headers';
 const SECRET_VALUE = 'super-secret-value-should-not-print';
 
 const goodPage = () => {
-  const headers = new Headers(STATIC_SECURITY_HEADERS.map(({ key, value }) => [key, value]));
+  const headers = new Headers(
+    STATIC_SECURITY_HEADERS.map(({ key, value }): [string, string] => [key, value]),
+  );
   headers.set(
     'content-security-policy',
     "script-src 'self' 'nonce-abc' 'strict-dynamic'; frame-ancestors 'none'",

@@ -91,10 +91,17 @@ function factory(vendor: Vendor, fetchImpl: FetchImpl) {
   };
 }
 
+/**
+ * 모델 호출 타임아웃 기본값. 단위 env 의 CHAT_LLM_TIMEOUT_MS(2초)는 재시도 백오프(무작위 약 1~2초)와 합쳐지면 부하에서 넘쳐
+ * 네트워크 오류가 timeout 으로 분류됐다(PR #24 QA I-3 — "anthropic 소켓 끊김" 간헐 실패). 재시도 경로를 보는 테스트는 넉넉히 둔다.
+ * 타임아웃 자체를 보는 테스트는 값을 직접 넘긴다.
+ */
+const RETRY_SAFE_TIMEOUT_MS = 20_000;
+
 async function runtimeFor(
   vendor: Vendor,
   fetchImpl: FetchImpl,
-  settings: { timeoutMs?: number } = {},
+  settings: { timeoutMs?: number } = { timeoutMs: RETRY_SAFE_TIMEOUT_MS },
 ): Promise<ChatRuntime> {
   if (vendor === 'google') vi.stubGlobal('fetch', fetchImpl);
   const modelId = defaultModelFor(vendor)!;
