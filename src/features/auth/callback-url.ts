@@ -16,6 +16,8 @@ export function loginErrorMessage(code: string | undefined, allowedDomains: read
       return `허용된 회사 도메인(${domains})의 인증된 Google 계정만 로그인할 수 있습니다.`;
     case 'inactive':
       return '비활성화된 계정입니다. 관리자에게 문의하세요.';
+    case 'fixture_account':
+      return '시연용(fixture) 계정은 이 환경에서 로그인할 수 없습니다. 회사 계정으로 로그인하세요.';
     case 'unregistered':
       return '등록되지 않은 사용자입니다. 관리자에게 사전 등록을 요청하세요.';
     case 'credentials':

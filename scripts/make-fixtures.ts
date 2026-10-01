@@ -3,6 +3,7 @@
  * 원본 `병합_가격_raw.xlsx`(SOURCE_XLSX, 읽기 전용)에서 계열 단위로 200행을 뽑고, 오류·품목조회 픽스처를 만든다.
  * 품목조회는 39컬럼(PRAMI-003) — scripts/fixtures-items.ts.
  * 출력: tests/fixtures/imports/*.xlsx (커밋 대상). 원본이 바뀌지 않는 한 결과는 결정적이다.
+ * 원격 조건(NODE_ENV=production·VERCEL_ENV·DB_DRIVER=neon·원격 호스트)에서는 거부, 로컬도 PRAMI_ALLOW_SEED=1 필요 (PRAMI-003 §4.3.4).
  */
 import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -54,6 +55,9 @@ async function write(name: string, data: SheetData, sheet: string) {
 const cells = (rows: Row[]): SheetData => rows.map((row) => row.map((value) => value as Cell));
 
 async function main() {
+  // seed 와 같은 대상 조건 (PRAMI-003 §4.3.4·§4.9.3 L2) — 원격 조건이면 거부, 로컬이어도 PRAMI_ALLOW_SEED=1 필요
+  const { assertSeedTargetIsLocal } = await import('../src/db/seed');
+  assertSeedTargetIsLocal(process.env);
   mkdirSync(OUT_DIR, { recursive: true });
   const [sheet] = await readXlsxFile(readFileSync(SOURCE));
   if (!sheet) throw new Error('원본 시트가 없습니다');

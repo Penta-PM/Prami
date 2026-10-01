@@ -106,6 +106,8 @@ jobs:
     env:
       DB_DRIVER: pg
       DATABASE_URL: postgres://prami:prami@localhost:5432/prami
+      # PRAMI-003 §4.9.3 L2: seed 는 CI·격리 DB 에서만 이 표식으로 허용된다
+      PRAMI_ALLOW_SEED: '1'
     steps:
       - uses: actions/checkout@v4
 

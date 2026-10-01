@@ -1,6 +1,7 @@
 /**
- * `pnpm import:source <파일…> [--kind sales|costs|items] [--merge merge|replace]` — 엑셀을 화면과 같은 업로드·적용 경로로
- * 반영한다(로컬·QA 데이터 준비용). 감사 로그 actor 는 `script`. 같은 파일(묶음)이 이미 업로드돼 있으면 그 배치를 재사용한다.
+ * `pnpm import:source <파일…> [--kind sales|costs|items] [--merge merge|replace] [--target-host <호스트>]` — 엑셀을 화면과 같은
+ * 업로드·적용 경로(정식 임포트 경로, PRAMI-003 §4.9)로 반영한다. 감사 로그 actor 는 `script:<OS 사용자>`.
+ * 원격 DB(neon·로컬 목록 밖 호스트)가 대상이면 `--target-host` 가 실제 연결 호스트와 같아야 실행한다 (§4.3.4 ②). 같은 파일(묶음)이 이미 업로드돼 있으면 그 배치를 재사용한다.
  * - sales(기본): 판매단가 파일 1개 → 적용(품목조회 없음)
  * - costs: 원가 파일 1개 → 원가 적용
  * - items: 품목조회 파일 1~5개 → 배치 1개 → **현재 적용 중인 판매단가 배치 재사용** + 품목 새 업로드로 적용 (PRAMI-003 §4.2.8).
@@ -8,6 +9,7 @@
  * 파일 경로는 필수다 — 로컬 하드코딩 기본 경로는 없다 (PRAMI-003 §4.3.4 ①).
  */
 import { readFileSync } from 'node:fs';
+import { userInfo } from 'node:os';
 import path from 'node:path';
 
 import { loadEnvConfig } from '@next/env';
@@ -31,13 +33,14 @@ function parseArgs(args: string[]) {
   if (!(KINDS as readonly string[]).includes(kindArg)) {
     throw new Error(`--kind 는 ${KINDS.join('|')} 중 하나입니다`);
   }
+  const targetHost = option('--target-host');
   const merge = option('--merge');
   if (merge !== undefined && merge !== 'merge' && merge !== 'replace') {
     throw new Error('--merge 는 merge|replace 중 하나입니다');
   }
   // 옵션 값 위치(--kind 다음, --merge 다음)는 파일 경로가 아니다 (CI E2E globalSetup 회귀 방지)
   const valueIndexes = new Set(
-    ['--kind', '--merge']
+    ['--kind', '--merge', '--target-host']
       .map((name) => args.indexOf(name))
       .filter((i) => i >= 0)
       .map((i) => i + 1),
@@ -45,7 +48,12 @@ function parseArgs(args: string[]) {
   const files = args.filter((arg, index) => !arg.startsWith('--') && !valueIndexes.has(index));
   if (files.length === 0)
     throw new Error('파일 경로를 지정하세요 (예: pnpm import:source <파일.xlsx>)');
-  return { kind: kindArg as Kind, files, merge: merge as 'merge' | 'replace' | undefined };
+  return {
+    kind: kindArg as Kind,
+    files,
+    merge: merge as 'merge' | 'replace' | undefined,
+    targetHost,
+  };
 }
 
 function existingBatchId(error: unknown): string | null {
@@ -113,14 +121,26 @@ async function currentSalesBatchId(ctx: Ctx): Promise<string> {
   return current.sales.id;
 }
 
+/** 감사 actor 라벨 — 누가 실행했는지 남긴다 (§4.3.4 ③) */
+function scriptActorLabel(): string {
+  try {
+    return `script:${userInfo().username}`;
+  } catch {
+    return 'script:unknown';
+  }
+}
+
 async function main(): Promise<void> {
   loadEnvConfig(process.cwd());
-  const { kind, files, merge } = parseArgs(process.argv.slice(2));
+  const { kind, files, merge, targetHost } = parseArgs(process.argv.slice(2));
+  const { targetHostViolation, TARGET_HOST_MESSAGES } = await import('../src/lib/db-host');
+  const violation = targetHostViolation(process.env, targetHost);
+  if (violation) throw new Error(TARGET_HOST_MESSAGES[violation]);
   const { createDb } = await import('../src/db');
   const handle = await createDb();
   const ctx: Ctx = {
     handle,
-    actor: { id: null, label: 'script' },
+    actor: { id: null, label: scriptActorLabel() },
     meta: { ip: null, userAgent: 'import-source' },
   };
   try {

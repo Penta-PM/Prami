@@ -164,3 +164,39 @@ describe('resolveSignIn', () => {
     expect((await findUserByEmail(handle, email))?.name).toBe(email.split('@')[0]);
   });
 });
+
+describe('fixture 계정 거부 (PRAMI-003 §4.9.3 L3, AC-333 ③)', () => {
+  const PREVIEW_POLICY: SignInPolicy = { ...POLICY, rejectFixtureAccounts: true };
+
+  it('운영·preview 정책: fixture-admin@<허용 도메인>(hd·email_verified 정상) → 거부, 감사 auth.denied_domain 사유 fixture_account, users 무변경', async () => {
+    const email = 'fixture-admin@pentasecurity.com';
+    const before = await handle.db.select({ id: users.id }).from(users);
+
+    const outcome = await resolveSignIn(handle, input(email), PREVIEW_POLICY);
+
+    expect(outcome).toEqual({ ok: false, reason: 'fixture_account' });
+    expect(await findUserByEmail(handle, email)).toBeUndefined();
+    expect(await handle.db.select({ id: users.id }).from(users)).toHaveLength(before.length);
+    const logs = await auditByAction(handle, 'auth.denied_domain');
+    const log = logs.find((entry) => entry.targetLabel === email);
+    expect(log).toMatchObject({ result: 'denied', after: { reason: 'fixture_account' } });
+  });
+
+  it('대소문자·공백이 섞여도 접두를 잡고, ADMIN_EMAILS 에 있어도 거부한다', async () => {
+    const outcome = await resolveSignIn(handle, input(' Fixture-User@PentaSecurity.com '), {
+      ...PREVIEW_POLICY,
+      adminEmails: ['fixture-user@pentasecurity.com'],
+    });
+    expect(outcome).toEqual({ ok: false, reason: 'fixture_account' });
+  });
+
+  it('로컬 정책(기본)에서는 기존 동작 — fixture 계정도 허용 도메인이면 로그인된다', async () => {
+    const outcome = await resolveSignIn(handle, input('fixture-local@pentasecurity.com'), POLICY);
+    expect(outcome.ok).toBe(true);
+  });
+
+  it('접두가 아닌 곳에 fixture 가 있으면 거부하지 않는다', async () => {
+    const outcome = await resolveSignIn(handle, input(uniqueEmail('my-fixture-')), PREVIEW_POLICY);
+    expect(outcome.ok).toBe(true);
+  });
+});

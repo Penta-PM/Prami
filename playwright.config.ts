@@ -19,6 +19,8 @@ export const E2E_ENV = {
   ALLOWED_EMAIL_DOMAINS: 'pentasecurity.com',
   ADMIN_EMAILS: 'fixture-admin@pentasecurity.com',
   AUTH_AUTO_PROVISION: 'true',
+  // PRAMI-003 §4.9.3 L2: globalSetup 의 pnpm seed 는 이 표식이 있는 격리 DB 에서만 실행된다
+  PRAMI_ALLOW_SEED: '1',
   AUTH_GOOGLE_ID: '',
   AUTH_GOOGLE_SECRET: '',
   NEXT_DIST_DIR: '.next-e2e',
