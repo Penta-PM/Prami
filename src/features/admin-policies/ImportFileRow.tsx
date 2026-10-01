@@ -3,6 +3,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 
 import { Button, Segmented, Select } from '@/components/ui';
+import { checkUploadFiles, PLATFORM_TOO_LARGE_MESSAGE } from '@/lib/constants/upload-limits';
 
 import type {
   BatchOption,
@@ -50,6 +51,19 @@ const STATUS_LABELS: Record<BatchOption['status'], string> = {
   failed: '실패',
 };
 
+/** JSON 봉투가 아닌 응답(플랫폼 413 등)도 사용자 문구로 바꾼다 */
+async function readUploadResponse(response: Response): Promise<UploadResponse> {
+  try {
+    return (await response.json()) as UploadResponse;
+  } catch {
+    const message =
+      response.status === 413
+        ? PLATFORM_TOO_LARGE_MESSAGE
+        : `업로드하지 못했습니다 (HTTP ${response.status}). 잠시 후 다시 시도하세요`;
+    return { ok: false, error: { code: 'HTTP', message } };
+  }
+}
+
 function optionLabel(option: BatchOption): string {
   const date = option.createdAt.slice(0, 10);
   return `${option.fileName} · ${date} · ${option.rowCount.toLocaleString('ko-KR')}행 · ${STATUS_LABELS[option.status]}`;
@@ -66,16 +80,23 @@ export function ImportFileRow(props: ImportFileRowProps) {
   const [existingId, setExistingId] = useState<string | null>(null);
 
   const upload = async (files: File[]) => {
-    setBusy(true);
     setMessage(null);
     setFileErrors([]);
     setExistingId(null);
+    // 상한 초과는 보내기 전에 알린다 — 큰 본문이 플랫폼·proxy 에서 잘려 원인 없는 오류가 되는 것을 막는다 (QA M-2)
+    const tooLarge = checkUploadFiles(files, multiple);
+    if (tooLarge) {
+      setMessage(tooLarge);
+      if (inputRef.current) inputRef.current.value = '';
+      return;
+    }
+    setBusy(true);
     try {
       const body = new FormData();
       if (multiple) for (const file of files) body.append('files', file);
       else body.set('file', files[0]!);
       const response = await fetch(`/api/imports/${kind}`, { method: 'POST', body });
-      const json = (await response.json()) as UploadResponse;
+      const json = await readUploadResponse(response);
       if (json.ok) onChange({ ...selection, upload: json.data });
       else {
         setMessage(json.error.message);

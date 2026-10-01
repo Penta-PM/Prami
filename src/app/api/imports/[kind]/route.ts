@@ -3,12 +3,15 @@ import { AppError, ERROR_STATUS } from '@/lib/result';
 import { currentRequestMeta } from '@/server/audit/request-meta';
 import { runRoute } from '@/server/auth/rbac';
 import { isImportKind, KIND_DEFINITIONS } from '@/server/imports/kinds';
-import { MAX_IMPORT_FILE_BYTES } from '@/server/imports/parse-xlsx';
 import {
+  MAX_IMPORT_FILE_BYTES,
   MAX_ITEM_FILES,
   MAX_ITEM_TOTAL_BYTES,
-  uploadItemFiles,
-} from '@/server/imports/item-upload';
+  MULTIPART_OVERHEAD_BYTES,
+  TOO_LARGE_FILE_MESSAGE,
+  TOO_LARGE_ITEM_TOTAL_MESSAGE,
+} from '@/lib/constants/upload-limits';
+import { uploadItemFiles } from '@/server/imports/item-upload';
 import { AUDIT_IMPORT_UPLOAD, uploadImport } from '@/server/imports/upload';
 import { rateLimiters, retryAfterSeconds } from '@/server/rate-limit';
 
@@ -77,17 +80,15 @@ export async function POST(
   });
 }
 
-const TOO_LARGE = '파일은 10MB 이하만 업로드할 수 있습니다';
-/** multipart 경계·헤더 여유분 */
-const MULTIPART_OVERHEAD = 64 * 1024;
-
 /**
- * 요청 본문에서 file 을 꺼낸다. 본문을 읽기 전에 Content-Length 로 크기를 확인하고(413),
+ * 요청 본문을 multipart 로 읽는다. 본문을 읽기 전에 Content-Length 로 크기를 확인하고(413, 상한별 문구),
  * 본문이 잘려 multipart 파싱이 실패해도 500 이 아니라 규정된 오류 봉투로 응답한다 (PR-3 QA LOW).
+ * 상한 + 여유분은 proxy 본문 상한(PROXY_BODY_LIMIT_BYTES)보다 작아 proxy 가 자르기 전에 여기서 413 이 난다 (PRAMI-003 QA M-2).
  */
-async function readForm(request: Request, limit: number): Promise<FormData> {
+async function readForm(request: Request, limit: number, tooLarge: string): Promise<FormData> {
   const declared = Number(request.headers.get('content-length') ?? 0);
-  if (declared > limit + MULTIPART_OVERHEAD) throw new AppError('PAYLOAD_TOO_LARGE', TOO_LARGE);
+  if (declared > limit + MULTIPART_OVERHEAD_BYTES)
+    throw new AppError('PAYLOAD_TOO_LARGE', tooLarge);
   try {
     return await request.formData();
   } catch {
@@ -97,7 +98,7 @@ async function readForm(request: Request, limit: number): Promise<FormData> {
 
 /** 품목조회: `files` 여러 개(또는 `file` 1개). 개수·크기 상세 검증은 uploadItemFiles 가 한다 */
 async function readUploadedFiles(request: Request): Promise<File[]> {
-  const form = await readForm(request, MAX_ITEM_TOTAL_BYTES);
+  const form = await readForm(request, MAX_ITEM_TOTAL_BYTES, TOO_LARGE_ITEM_TOTAL_MESSAGE);
   const files = [...form.getAll('files'), ...form.getAll('file')].filter(
     (entry): entry is File => entry instanceof File,
   );
@@ -109,19 +110,11 @@ async function readUploadedFiles(request: Request): Promise<File[]> {
 }
 
 async function readUploadedFile(request: Request): Promise<File> {
-  const declared = Number(request.headers.get('content-length') ?? 0);
-  if (declared > MAX_IMPORT_FILE_BYTES + MULTIPART_OVERHEAD) {
-    throw new AppError('PAYLOAD_TOO_LARGE', TOO_LARGE);
-  }
-  let form: FormData;
-  try {
-    form = await request.formData();
-  } catch {
-    throw new AppError('VALIDATION', '업로드 본문을 읽을 수 없습니다. 파일을 다시 선택해 주세요');
-  }
+  const form = await readForm(request, MAX_IMPORT_FILE_BYTES, TOO_LARGE_FILE_MESSAGE);
   const file = form.get('file');
   if (!(file instanceof File))
     throw new AppError('VALIDATION', 'file 필드에 엑셀 파일을 첨부하세요');
-  if (file.size > MAX_IMPORT_FILE_BYTES) throw new AppError('PAYLOAD_TOO_LARGE', TOO_LARGE);
+  if (file.size > MAX_IMPORT_FILE_BYTES)
+    throw new AppError('PAYLOAD_TOO_LARGE', TOO_LARGE_FILE_MESSAGE);
   return file;
 }

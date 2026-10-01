@@ -15,6 +15,11 @@ import {
   type ImportSourceFile,
 } from '@/db/schema';
 import { withTransaction, type Tx } from '@/db/tx';
+import {
+  MAX_ITEM_FILES,
+  MAX_ITEM_TOTAL_BYTES,
+  TOO_LARGE_ITEM_TOTAL_MESSAGE,
+} from '@/lib/constants/upload-limits';
 import { EMPTY_DUPLICATE_WARNINGS } from '@/lib/imports/duplicates';
 import { AppError } from '@/lib/result';
 import { writeAudit } from '@/server/audit/log';
@@ -48,8 +53,7 @@ import {
  * 품목조회 다중 파일 업로드 (PRAMI-003 §4.2.3): 파일 1~5개(또는 병합 파일 1개) → 배치 1개.
  * 파일별 파싱(39컬럼, 개인정보 제외) → 파일 간 검증 → 배치·스테이징·감사 (한 트랜잭션). 적용은 하지 않는다.
  */
-export const MAX_ITEM_FILES = 5;
-export const MAX_ITEM_TOTAL_BYTES = 25 * 1024 * 1024;
+export { MAX_ITEM_FILES, MAX_ITEM_TOTAL_BYTES };
 
 type ItemFileInput = Omit<UploadInput, 'kind'>;
 
@@ -61,10 +65,7 @@ function validateFiles(files: readonly ItemFileInput[]) {
   for (const file of files) validateFile(file);
   const total = files.reduce((sum, file) => sum + file.bytes.length, 0);
   if (total > MAX_ITEM_TOTAL_BYTES) {
-    throw new AppError(
-      'PAYLOAD_TOO_LARGE',
-      '품목조회 파일 합계는 25MB 이하만 업로드할 수 있습니다',
-    );
+    throw new AppError('PAYLOAD_TOO_LARGE', TOO_LARGE_ITEM_TOTAL_MESSAGE);
   }
 }
 

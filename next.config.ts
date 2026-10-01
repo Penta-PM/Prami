@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 
 // 빌드/기동 시 환경변수를 zod로 먼저 검증한다 (실패 시 즉시 중단).
 import './src/env';
+import { PROXY_BODY_LIMIT_BYTES } from './src/lib/constants/upload-limits';
 import { STATIC_SECURITY_HEADERS } from './src/server/security/headers';
 
 const nextConfig: NextConfig = {
@@ -31,9 +32,10 @@ const nextConfig: NextConfig = {
   // Next 16.3 문서: node_modules/next/dist/docs/01-app/02-guides/ai-agents.md "Opting out"
   agentRules: false,
   experimental: {
-    // proxy(1차 방어)를 거치는 요청 본문 상한. 기본 10MB 면 10MB 파일 + multipart 오버헤드가 잘리므로
-    // 업로드 상한(10MB, §4.4.1)보다 약간 크게 둔다 — 초과분은 Route 가 413 으로 응답한다
-    proxyClientMaxBodySize: '11mb',
+    // proxy(1차 방어)를 거치는 요청 본문 상한. 넘는 본문은 proxy 가 잘라 Route 가 "본문을 읽을 수 없습니다"(400)가 되므로
+    // 가장 큰 업로드(품목조회 합계 25MB, PRAMI-003 §4.2.3) + multipart 여유보다 크게 둔다(26MB, QA M-2).
+    // 그보다 작은 초과분은 Route 가 Content-Length 로 413 을 낸다. Vercel 함수 본문 한도(4.5MB)는 플랫폼이 먼저 413 을 낸다(I-4)
+    proxyClientMaxBodySize: PROXY_BODY_LIMIT_BYTES,
   },
 };
 
