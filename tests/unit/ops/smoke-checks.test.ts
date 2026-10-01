@@ -6,6 +6,7 @@ import {
   runSmoke,
   SMOKE_CHECKS,
   type SmokeCheckId,
+  smokeTitle,
 } from '@/server/ops/smoke-checks';
 import { STATIC_SECURITY_HEADERS } from '@/server/security/headers';
 
@@ -294,6 +295,17 @@ describe('AC-361 스모크 판정', () => {
         'share-404',
         'openrouter-start',
       ]);
+    });
+
+    it('I2-10: 점검 모드 결과 제목은 점검 503 기대를 보인다 (④~⑦만, 나머지는 평시 제목)', async () => {
+      const { fetchImpl } = fakeSite(new Set<Break>(['maintenance']));
+      const titles = (await runSmoke({ baseUrl: BASE, fetch: fetchImpl, maintenance: true })).map(
+        (result) => result.title,
+      );
+      expect(titles.filter((title) => title.includes('(점검)'))).toHaveLength(4);
+      expect(titles.some((title) => title.includes('→ 401'))).toBe(false);
+      expect(titles[0]).toBe(SMOKE_CHECKS[0]!.title);
+      expect(smokeTitle(SMOKE_CHECKS[3]!, false)).toBe(SMOKE_CHECKS[3]!.title);
     });
 
     it('점검 중에도 헬스·로그인 고장은 그대로 잡는다', async () => {

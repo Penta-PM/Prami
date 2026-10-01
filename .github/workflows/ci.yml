@@ -9,6 +9,10 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# 최소 권한 — PR 이벤트를 받는 워크플로라 쓰기 권한·시크릿을 두지 않는다 (PR #26 I2-9)
+permissions:
+  contents: read
+
 env:
   NEXT_TELEMETRY_DISABLED: '1'
   NEXT_PUBLIC_APP_URL: http://localhost:3000
@@ -24,6 +28,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
 
@@ -44,6 +50,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4 # package.json 의 packageManager 버전을 사용
 
@@ -116,6 +124,8 @@ jobs:
       PRAMI_ALLOW_SEED: '1'
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
 
@@ -161,6 +171,8 @@ jobs:
       E2E_DATABASE_URL: postgres://prami:prami@localhost:5432/prami
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
 

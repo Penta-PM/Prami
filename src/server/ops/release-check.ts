@@ -115,6 +115,16 @@ export function parseVercelEnvNames(output: string): Set<string> {
   );
 }
 
+/**
+ * `vercel env ls` 출력 → 이름 집합. 이름을 하나도 못 읽었으면 "전부 누락" 으로 판정하지 않고 실행 실패로 알린다
+ * (출력 형식 변화·미연결 — PR #26 F-9, I2-7)
+ */
+export function vercelEnvNamesOrThrow(output: string): Set<string> {
+  const names = parseVercelEnvNames(output);
+  if (names.size === 0) throw new Error('vercel env ls 출력에서 이름을 찾지 못함');
+  return names;
+}
+
 export type ReleaseCheckArgs = {
   command: ReleaseCommand;
   target: ReleaseTarget;

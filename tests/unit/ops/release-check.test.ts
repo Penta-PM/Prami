@@ -10,6 +10,7 @@ import {
   releaseCheckTitle,
   runReleaseCheck,
   type ReleaseCheckDeps,
+  vercelEnvNamesOrThrow,
 } from '@/server/ops/release-check';
 import { STATIC_SECURITY_HEADERS } from '@/server/security/headers';
 
@@ -122,6 +123,16 @@ describe('env (C-3)', () => {
       ' NAME x',
     ].join('\n');
     expect([...parseVercelEnvNames(output)].sort()).toEqual(['AUTH_SECRET', 'DATABASE_URL']);
+  });
+
+  it('I2-7: 이름을 하나도 못 읽으면 "전부 누락" 이 아니라 실행 실패 (형식 변화·미연결)', () => {
+    expect(() =>
+      vercelEnvNamesOrThrow('Vercel CLI 62.1.0\n> No Environment Variables found\n'),
+    ).toThrow('vercel env ls 출력에서 이름을 찾지 못함');
+    expect(() => vercelEnvNamesOrThrow('')).toThrow();
+    expect([...vercelEnvNamesOrThrow(' AUTH_SECRET  Encrypted  Production  2d ago\n')]).toEqual([
+      'AUTH_SECRET',
+    ]);
   });
 
   it('runReleaseCheck env: 실패하면 ok=false, 출력은 이름뿐', async () => {

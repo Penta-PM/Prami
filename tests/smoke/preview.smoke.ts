@@ -1,6 +1,11 @@
 import { expect, test } from '@playwright/test';
 
-import { runSmokeCheck, SMOKE_CHECKS, smokeContext } from '../../src/server/ops/smoke-checks';
+import {
+  runSmokeCheck,
+  SMOKE_CHECKS,
+  smokeContext,
+  smokeTitle,
+} from '../../src/server/ops/smoke-checks';
 
 /**
  * preview·프로덕션 스모크 8항목 (PRAMI-003 §4.3.10, AC-361). 판정은 `src/server/ops/smoke-checks.ts`(단위 테스트로 고장 주입 검증).
@@ -33,8 +38,9 @@ const ctx = smokeContext({
 });
 
 for (const check of SMOKE_CHECKS) {
-  test(check.title, async () => {
+  const title = smokeTitle(check, ctx.maintenance);
+  test(title, async () => {
     const result = await runSmokeCheck(check, ctx);
-    expect(result.problems, check.title).toEqual([]);
+    expect(result.problems, title).toEqual([]);
   });
 }

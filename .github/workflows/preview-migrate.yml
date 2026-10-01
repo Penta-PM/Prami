@@ -1,18 +1,23 @@
 # PRAMI-003 §4.3.6 preview 마이그레이션 게이트 (AC-362)
-# - 새 마이그레이션(drizzle/**)이 있는 PR 에만, 라벨 `db-migration` 을 **붙이는 순간**에만 Neon `preview` 브랜치(공용 1개)에 적용한다.
-#   라벨이 붙은 뒤의 push(synchronize)로는 실행하지 않는다 — 시크릿을 쓰는 PR 코드는 매번 사람이 확인하고 라벨을 다시 붙여야 한다
-#   (보안 리뷰 M-1: 라벨 후 push 로 검토 안 된 코드가 DATABASE_URL_UNPOOLED 를 받는 경로 차단). 다시 적용: 라벨 제거 → 다시 붙이기.
-#   GitHub Environment `preview` 에 Required reviewers 를 **반드시** 둔다(PR #26 L-S2) — 라벨(triage 권한)만으로는 PR 코드가
-#   DATABASE_URL_UNPOOLED 를 받지 못하고, 승인자가 그 커밋을 확인한 뒤에만 실행된다(설정: docs/deploy/vercel.md §10, 체크리스트 C-3).
+# - 수동 실행(workflow_dispatch, 브랜치 `main`)만 한다 — 입력: PR 번호 + 검토한 PR head 커밋 SHA (PR #26 S1-b).
+#   PR 이벤트(pull_request·pull_request_target)로는 돌지 않는다: pull_request 는 PR 커밋의 YAML 을 실행하므로, 시크릿을 쓰는 워크플로가
+#   그 이벤트를 받으면 PR 쪽에서 YAML 을 고쳐 PREVIEW_DATABASE_URL_UNPOOLED 를 꺼낼 수 있다(GitHub Free 는 Environment 시크릿 불가 — docs/deploy/github-plan.md).
+# - 실행 코드(pnpm install·마이그레이션 스크립트)는 기본 브랜치 것이고, PR 에서는 `drizzle/`(SQL·저널)만 가져온다 — PR 의 JS·패키지 스크립트는
+#   시크릿과 함께 실행되지 않는다. 입력 SHA 가 지금 PR head 이고 같은 저장소 브랜치일 때만 진행한다(검토 뒤 push 된 커밋 적용 방지).
 # - preview DB 는 모든 PR 이 공유하므로 concurrency 그룹으로 동시에 하나만 적용한다(취소하지 않음).
-# - 포크 PR 은 시크릿을 받지 못하고, 받아서도 안 된다 — 같은 저장소 PR 만 실행한다.
 name: preview-migrate
 
 on:
-  pull_request:
-    types: [labeled]
-    paths:
-      - 'drizzle/**'
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: '마이그레이션을 적용할 PR 번호 (drizzle/ 변경 PR)'
+        required: true
+        type: string
+      sha:
+        description: '검토한 PR head 커밋 SHA (40자) — 지금 PR head 와 다르면 중단'
+        required: true
+        type: string
 
 concurrency:
   group: preview-db-migration
@@ -20,6 +25,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   NEXT_TELEMETRY_DISABLED: '1'
@@ -27,30 +33,91 @@ env:
 jobs:
   migrate-preview:
     name: preview DB 마이그레이션 (Neon preview, 직접 연결)
-    if: >-
-      github.event.label.name == 'db-migration' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+    # 기본 브랜치의 이 YAML 로만 시크릿을 쓴다 — 다른 브랜치에서 Run workflow 를 고르면 잡이 돌지 않는다
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: preview
     timeout-minutes: 10
     steps:
+      # 신뢰 코드: 기본 브랜치. 토큰은 작업 폴더에 남기지 않는다
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: PR 확인 (열린 PR · 같은 저장소 · head = 입력 SHA)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr }}
+          EXPECTED_SHA: ${{ inputs.sha }}
+        run: |
+          case "$PR_NUMBER" in ''|*[!0-9]*) echo "::error::PR 번호는 숫자여야 합니다"; exit 1 ;; esac
+          if ! printf '%s' "$EXPECTED_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::sha 는 40자 소문자 16진수여야 합니다"
+            exit 1
+          fi
+          info=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '[.state, .head.sha, .head.repo.full_name] | @tsv')
+          IFS=$'\t' read -r state head_sha head_repo <<< "$info"
+          if [ "$state" != "open" ] || [ "$head_repo" != "$REPO" ]; then
+            echo "::error::열린 같은 저장소 PR 이 아닙니다 — 중단"
+            exit 1
+          fi
+          if [ "$head_sha" != "$EXPECTED_SHA" ]; then
+            echo "::error::PR head 가 입력 SHA 와 다릅니다(검토 뒤 push 됨) — 다시 검토하고 새 SHA 로 실행하세요"
+            exit 1
+          fi
+
+      # PR 커밋은 drizzle/ 만 받는다(실행하지 않음)
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          path: .pr-src
+          sparse-checkout: drizzle
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
 
+      # 캐시 없음 — 다른 브랜치가 만든 캐시를 시크릿 잡에서 복원하지 않는다 (PR #26 L2-8)
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
 
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Migrate (DATABASE_URL_UNPOOLED)
+      # 설치 뒤에 바꾼다. 일반 파일 + 정해진 이름(`NNNN_<이름>.sql`·`meta/_journal.json`·`meta/NNNN_snapshot.json`)만 받는다 —
+      # 심볼릭 링크·특수 파일·`../` 태그로 러너 파일을 SQL 로 읽혀 오류 로그에 내용이 찍히는 경로를 막는다 (보안 리뷰 L-1)
+      - name: PR 의 drizzle/ 로 교체 (SQL·저널만)
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.sha }}
+        run: |
+          src=.pr-src/drizzle
+          test "$(git -C .pr-src rev-parse HEAD)" = "$EXPECTED_SHA"
+          if [ -L "$src" ] || [ ! -d "$src" ] || [ -n "$(find "$src" ! -type f ! -type d -print -quit)" ]; then
+            echo "::error::drizzle/ 에 심볼릭 링크·특수 파일이 있거나 폴더가 아닙니다 — 중단"
+            exit 1
+          fi
+          if find "$src" -type f | grep -Ev '^\.pr-src/drizzle/([0-9]{4}_[a-z0-9_]+\.sql|meta/_journal\.json|meta/[0-9]{4}_snapshot\.json)$' | grep -q .; then
+            echo "::error::drizzle/ 에 허용되지 않은 파일 이름이 있습니다 — 중단"
+            exit 1
+          fi
+          if find "$src" -mindepth 1 -type d | grep -vx "$src/meta" | grep -q .; then
+            echo "::error::drizzle/ 에 meta 외 하위 폴더가 있습니다 — 중단"
+            exit 1
+          fi
+          jq -e '[.entries[].tag | test("^[0-9]{4}_[a-z0-9_]+$")] | all' "$src/meta/_journal.json" > /dev/null
+          rm -rf drizzle
+          cp -R "$src" drizzle
+          rm -rf .pr-src
+
+      # 시크릿 이름이 production 과 다르다(PREVIEW_…) — Environment 시크릿을 못 쓰는 플랜에서 저장소 시크릿이 하나로 겹쳐
+      # preview 마이그레이션이 운영 DB 에 적용되는 사고를 막는다 (docs/deploy/github-plan.md)
+      - name: Migrate (PREVIEW_DATABASE_URL_UNPOOLED)
         run: pnpm db:migrate
         env:
           DB_DRIVER: neon
-          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.PREVIEW_DATABASE_URL_UNPOOLED }}
+          DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL_UNPOOLED }}
           NEXT_PUBLIC_APP_URL: ${{ vars.PREVIEW_URL }}
           CHAT_LLM_ENABLED: 'false'

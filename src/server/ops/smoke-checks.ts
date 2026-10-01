@@ -46,7 +46,18 @@ type Ctx = Required<Pick<SmokeOptions, 'baseUrl' | 'rateLimitAttempts'>> & {
   maintenance: boolean;
 };
 
-type SmokeCheck = { id: SmokeCheckId; title: string; run: (ctx: Ctx) => Promise<string[]> };
+type SmokeCheck = {
+  id: SmokeCheckId;
+  title: string;
+  /** 점검 모드 스모크의 제목 — 기대값이 503 으로 바뀌는 ④~⑦ 만 (PR #26 I2-10) */
+  maintenanceTitle?: string;
+  run: (ctx: Ctx) => Promise<string[]>;
+};
+
+/** 실행 모드에 맞는 제목 — 점검 모드 로그가 "→ 401" 같은 평시 기대값을 보이지 않게 */
+export function smokeTitle(check: SmokeCheck, maintenance: boolean): string {
+  return maintenance && check.maintenanceTitle ? check.maintenanceTitle : check.title;
+}
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const GOOGLE_BUTTON_LABEL = 'Google 계정으로 로그인';
@@ -205,7 +216,7 @@ async function checkShare404(ctx: Ctx): Promise<string[]> {
 
 /**
  * ⑦ OpenRouter OAuth 시작 — 비인증은 proxy 가 401 로 막고, 로그인했더라도 플래그 off 면 404 다.
- * 어느 쪽이든 벤더(openrouter.ai)로 가는 리다이렉트가 나오면 실패(점검 모드에서는 점검 503 기대). 플래그 자체의 확인은 인증 E2E(`chat-llm.spec`)와 C-3 env 비교.
+ * 어느 쪽이든 벤더(openrouter.ai)로 가는 리다이렉트가 나오면 실패(점검 모드에서는 점검 503 기대). 플래그 자체의 확인은 인증 E2E(`chat-llm.spec`)와 체크리스트 C-14(대시보드 값 확인, PR #26 I2-2).
  */
 async function checkOpenRouterStart(ctx: Ctx): Promise<string[]> {
   const response = await ctx.request('/api/settings/oauth/openrouter/start');
@@ -245,11 +256,27 @@ export const SMOKE_CHECKS: readonly SmokeCheck[] = [
   {
     id: 'auth-gate',
     title: '④ 비인증 /pricing → /login, POST /api/chat → 401',
+    maintenanceTitle: '④ (점검) /pricing · POST /api/chat → 점검 503',
     run: checkAuthGate,
   },
-  { id: 'server-action', title: '⑤ 비인증 Server Action 직접 호출 차단', run: checkServerAction },
-  { id: 'share-404', title: '⑥ 없는 공유 토큰 404', run: checkShare404 },
-  { id: 'openrouter-start', title: '⑦ OpenRouter OAuth 시작 차단', run: checkOpenRouterStart },
+  {
+    id: 'server-action',
+    title: '⑤ 비인증 Server Action 직접 호출 차단',
+    maintenanceTitle: '⑤ (점검) Server Action 직접 호출 → 점검 503',
+    run: checkServerAction,
+  },
+  {
+    id: 'share-404',
+    title: '⑥ 없는 공유 토큰 404',
+    maintenanceTitle: '⑥ (점검) 공유 링크 → 점검 503',
+    run: checkShare404,
+  },
+  {
+    id: 'openrouter-start',
+    title: '⑦ OpenRouter OAuth 시작 차단',
+    maintenanceTitle: '⑦ (점검) OpenRouter OAuth 시작 → 점검 503',
+    run: checkOpenRouterStart,
+  },
   {
     id: 'rate-limit',
     title: '⑧ 위조 X-Forwarded-For 로 rate limit 우회 불가',
@@ -313,7 +340,12 @@ export async function runSmokeCheck(check: SmokeCheck, ctx: Ctx): Promise<SmokeR
   } catch (error) {
     problems = [`요청 실패: ${error instanceof Error ? error.name : 'unknown'}`];
   }
-  return { id: check.id, title: check.title, ok: problems.length === 0, problems };
+  return {
+    id: check.id,
+    title: smokeTitle(check, ctx.maintenance),
+    ok: problems.length === 0,
+    problems,
+  };
 }
 
 export async function runSmoke(options: SmokeOptions): Promise<SmokeResult[]> {

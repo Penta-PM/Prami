@@ -53,10 +53,11 @@ Vercel 대시보드 → 프로젝트 → **Logs** 검색창 예시(로그 드레
 Vercel 환경변수는 **배포 시점에 고정**된다(롤백한 배포도 그때의 값을 쓴다). 그래서 값을 바꾼 뒤 반드시 재배포하고, 재배포는 아래 절차로만 한다
 (PR #26 D-1 — 재배포 경로가 점검 모드를 모르면 스모크 ④~⑦이 점검 503 으로 실패하고, 자동 롤백이 점검 전 배포로 되돌려 쓰기 차단이 풀린다).
 
-1. Vercel 대시보드 → Settings → Environment Variables → **Production** 스코프에서 값을 바꾼다. `MAINTENANCE_MODE` 는 Sensitive 로 두지 않는다(워크플로가 읽음).
+1. Vercel 대시보드 → Settings → Environment Variables → **Production** 스코프에서 값을 바꾼다. `MAINTENANCE_MODE` 는 유형 **Config** 로 둔다(Secret 이면 워크플로가 값을 못 읽어 멈춘다 — vercel.md §3, L2-7).
 2. GitHub → Actions → `deploy-production` → **Run workflow**(브랜치 `main`) → 입력 `maintenance` 를 **바꾼 뒤의 값**으로 고른다
-   (점검 켜기·유지 = `true`, 끄기·평시 = `false`). 승인자가 두 번 승인한다(마이그레이션 → 배포, R-1 2단계).
-3. 워크플로가 production env 의 `MAINTENANCE_MODE` 를 읽어 입력과 다르면 **빌드 전에 멈춘다**(값을 안 바꿨거나 입력을 잘못 고른 경우).
+   (점검 켜기·유지 = `true`, 끄기·평시 = `false`). 플랜이 Required reviewers 를 허용하면 승인자가 한 번 승인한다(R-1 2단계).
+   **롤백 상태(R-2 이후 롤포워드 전)면** 새 배포는 Staged 로 남아 deploy 잡이 "도메인 할당 확인"에서 멈춘다 — R-2 5단계로 그 배포를 promote 해야 env 변경이 적용된다(L2-1).
+3. 워크플로가 production env 의 `MAINTENANCE_MODE` 를 읽어 입력과 다르면 **마이그레이션·빌드 전에 멈춘다**(값을 안 바꿨거나 입력을 잘못 고른 경우, L2-2).
    점검 모드 배포는 점검 스모크(④~⑦이 점검 503 이어야 통과 — 쓰기 차단 확인)를 돌리고, 실패해도 **자동 롤백하지 않는다**(사람이 R-2·R-3 로 판단).
    롤백 잡은 실행되더라도 운영이 점검 503 이면 `vercel rollback` 전에 멈춘다.
 4. 확인: `curl -s -X POST https://<운영 도메인>/api/chat` → 점검 중이면 503 `code:"MAINTENANCE"`, 해제 후면 401 `UNAUTHENTICATED`.
@@ -65,6 +66,11 @@ Vercel 환경변수는 **배포 시점에 고정**된다(롤백한 배포도 그
   Vercel Git 빌드(`APP_RELEASE` 없음)가 된다(PR-5 에서 동작 확인 전까지 금지).
 - **GitHub Actions 가 막혀 있을 때(비상 점검만)**: Vercel CLI 로 `vercel redeploy <지금 production 배포 URL> --target production --token "$VERCEL_TOKEN" --scope <팀>`
   → 바로 `SMOKE_URL=https://<운영 도메인> SMOKE_MAINTENANCE=true pnpm smoke`(점검 켰을 때) 로 확인하고 사고 기록에 남긴다. 이 경로에는 자동 롤백이 없다.
+  - **위험 (PR #26 L2-3)**: `vercel redeploy` 는 기존 배포를 **다시 빌드**한다 — 바로 위 금지 사유가 그대로 적용된다. Actions 빌드가 넣는 `APP_RELEASE` 가 없어 헬스
+    `release` 가 SHA 가 아닐 수 있고(스모크에 `SMOKE_EXPECT_RELEASE` 를 주지 않는다), `--prebuilt` 배포를 다시 빌드할 때의 동작은 아직 확인하지 않았다.
+    롤백 상태면 새 배포가 Staged 로 남을 수 있다 — 운영 도메인 헬스·`/api/chat` 503 으로 적용 여부를 반드시 본다. 쓰기 전에 PR-5 에서 preview 배포로 1회 실측한다.
+  - **끄기**: 원인 해결 뒤 Vercel `MAINTENANCE_MODE` 를 제거(또는 `false`) → 같은 `vercel redeploy` → `SMOKE_URL=https://<운영 도메인> SMOKE_MAINTENANCE=false pnpm smoke`
+    8/8(④~⑦ 평시 응답) → Actions 가 풀리면 R-1 로 정상 배포해 `release` 를 SHA 로 되돌린다.
 
 ### 0.4 오류 추적(Sentry) — 현재 미도입
 
@@ -77,36 +83,42 @@ UP-11(DSN)이 없어 도입하지 않았다(AC-364 해당 없음). 도입하면:
 2. 토큰: Vercel Account → Tokens 에서 팀 범위 토큰 → 셸 변수 `VERCEL_TOKEN` 으로만.
 3. 프로젝트 연결: 저장소 폴더에서 `vercel link --yes --scope <팀 슬러그> --token "$VERCEL_TOKEN"`(`.vercel/` 은 gitignore), 또는 셸에
    `VERCEL_ORG_ID`·`VERCEL_PROJECT_ID` 를 준다. 이후 명령에는 `--scope <팀 슬러그> --token "$VERCEL_TOKEN"` 을 붙인다.
-4. 배포 목록: `vercel ls --prod`(production 배포 URL·상태), 특정 배포: `vercel inspect <URL>`.
+4. 배포 목록: `vercel ls --prod`(production 배포 URL·상태), 특정 배포: `vercel inspect <URL>`, 도메인·별칭이 가리키는 배포: `vercel alias ls`(L2-4).
 
 ## R-1 정기 배포
 
 1. `integration/prami-003`(또는 이후 통합 브랜치) → `main` PR 을 QA 최종 승인 후 머지한다. 체크리스트의 **배포 전** 항목이 모두 끝나 있어야 한다.
-   GitHub Actions 가 막혀 있으면 production 배포를 하지 않는다(체크리스트 "워크플로" 절).
-2. Actions `deploy-production` 이 대기한다 → GitHub Environment `production` 승인자가 **Review deployments → Approve** 를 **두 번** 한다
-   (① 마이그레이션 잡, ② 빌드·배포 잡 — 두 잡이 각각 `environment: production`, PR #26 F-5).
-3. 워크플로가 순서대로 ① 마이그레이션(`DATABASE_URL_UNPOOLED`) ② 점검 모드 판정(push 는 `MAINTENANCE_MODE` 미설정·false 여야 진행) → `vercel build --prod`
-   ③ `vercel deploy --prebuilt --prod` ④ 스모크 8항목 ⑤ 실패 시 롤백을 한다. 마이그레이션이 실패하면 배포 단계는 실행되지 않는다.
+   GitHub Actions 가 막혀 있으면 production 배포를 하지 않는다(체크리스트 "워크플로" 절). 머지는 배포 트리거가 아니다(PR #26 S1-b).
+   `git log origin/main` 의 최신 커밋이 QA 승인 PR 의 머지 커밋인지 확인한다(Free 플랜은 `main` 브랜치 보호를 걸 수 없다 — [`../deploy/github-plan.md`](../deploy/github-plan.md) F-R2).
+2. 운영자가 GitHub → Actions → `deploy-production` → **Run workflow**(브랜치 `main`, `maintenance`=`false`)를 누른다. 플랜이 Required reviewers 를
+   허용하면(Enterprise) Environment `production` 승인자가 **Review deployments → Approve** 를 **한 번** 한다(배포가 한 잡이다 — 이전 판의 승인 2회는 없어졌다).
+3. deploy 잡이 순서대로 ① 운영 도메인이 가리키는 배포 기록(롤백 기준) ② 점검 모드 판정(평시는 `MAINTENANCE_MODE` 미설정·false 여야 진행) ③ 마이그레이션(`DATABASE_URL_UNPOOLED`)
+   ④ `vercel build --prod` ⑤ `vercel deploy --prebuilt --prod` ⑥ 도메인 할당 확인을 하고, 이어서 스모크 8항목 → 실패 시 롤백을 한다.
+   앞 단계가 실패하면 뒤 단계는 실행되지 않는다(마이그레이션 실패 → 빌드·배포 없음).
 4. 결과 기록: 워크플로 실행 URL, 커밋 SHA, 스모크 결과, `/api/health` 의 `release` 가 SHA 와 같은지. 이어서 체크리스트 **배포 직후** 항목.
 5. 실패하면 R-2.
 
 ## R-2 앱 롤백
 
-1. 자동: 스모크가 실패하면 워크플로의 `rollback` 잡이 직전 production 배포로 `vercel rollback` 한다(잡 로그에서 확인).
-   다음이면 롤백하지 않고 실패로 남는다 — 점검 모드 배포(§0.3), 운영이 점검 503, 운영 도메인의 헬스 `release` 가 이번 SHA 가 아님(아래 5단계 상태).
+1. 자동: 스모크가 실패하면 워크플로의 `rollback` 잡이 직전 production 배포(배포 전 운영 도메인이 가리키던 배포)로 `vercel rollback` 한다(잡 로그에서 확인).
+   다음이면 롤백하지 않고 실패로 남는다 — deploy 잡 실패(마이그레이션·도메인 할당 확인 포함), 점검 모드 배포(§0.3), 운영이 점검 503,
+   운영 도메인의 헬스 `release` 가 이번 SHA 가 아님(아래 5단계 상태).
 2. 수동(§0.5 준비 후): Vercel 대시보드 → 프로젝트 Overview → production 타일 **Instant Rollback** → 직전 정상 배포 선택, 또는
    `vercel ls --prod` 로 직전 정상 배포 URL 을 찾아 `vercel rollback <직전 배포 URL> --scope <팀> --token "$VERCEL_TOKEN"`.
    Instant Rollback 은 **production 에 할당된 적 있는 배포만** 대상이다(preview 배포 불가 — C-18 리허설은 별도 절차).
 3. `curl -s https://<운영 도메인>/api/health` → 200·`schema` 가 `ok` 또는 `ahead`(구버전 앱 — expand/contract 라 정상)인지, `release` 가 되돌린 배포의 SHA 인지 확인.
 4. 스키마는 되돌리지 않는다(forward-only — 마이그레이션 down 스크립트는 없다, PR #19 I-5). 원인 PR 은 일반 PR 로 revert 하거나 고친다.
-5. **롤포워드 (PR #26 D-3)**: 롤백하면 Vercel 이 production 도메인 **자동 할당을 끈다** — 이 상태로 `deploy-production` 을 돌리면 새 배포가 도메인에 붙지 않아
-   스모크 ①이 `release` 불일치로 실패한다(롤백 잡은 release 확인에서 멈춰 롤백이 반복되지는 않는다). 그래서:
-   1. 수정 PR 을 `main` 에 머지하기 **전에** 자동 할당을 되살린다: 대시보드 production 타일 **Undo Rollback** → 지금 서비스 중인(되돌린) 배포를 골라 Confirm,
-      또는 `vercel promote <지금 production 배포 URL> --scope <팀> --token "$VERCEL_TOKEN"`. 헬스 `release` 가 바뀌지 않았는지 확인한다.
-   2. 수정 PR 머지 → `deploy-production` 정상 진행 → 헬스 `release` = 새 SHA.
-   3. 1)을 빠뜨려 스모크가 `release` 불일치로 실패했으면: 그 실행의 deploy 잡 로그에 나온 배포 URL 로 `vercel promote <URL> …` →
-      `curl -s https://<운영 도메인>/api/health` 의 `release` = SHA → `SMOKE_URL=https://<운영 도메인> SMOKE_EXPECT_RELEASE=<SHA> pnpm smoke` 8/8 을 기록한다.
-   (근거: Vercel "Instant Rollback" — 롤백 후 자동 할당 꺼짐, Undo Rollback·`vercel promote` 로 복구. 2026-10-02 확인, 실제 동작은 C-18 리허설에서 기록)
+5. **롤포워드 (PR #26 D-3·D3-N1)**: 롤백하면 Vercel 이 production 도메인 **자동 할당을 끈다**. 되살리는 방법은 **다른(새) 배포를 promote** 하는 것뿐이다 —
+   이미 promote 된 배포(지금 서비스 중인 되돌린 배포 포함)는 다시 promote 할 수 없다. 이 상태에서 `deploy-production` 이 만든 새 배포는 도메인에 붙지 않고
+   **Staged** 로 남는다. 워크플로의 deploy 잡은 배포 직후 운영 도메인이 그 배포를 가리키는지 확인해, 아니면 **실패로 멈춘다**(스모크·자동 롤백 미실행, L2-1 —
+   같은 SHA 재배포에서도 옛 배포로 거짓 통과하지 않는다). 기본 경로:
+   1. 수정 PR 을 `main` 에 머지 → `deploy-production` 수동 실행(`maintenance`=현재 값) → deploy 잡이 "도메인 할당 확인"에서 실패하고 로그에 **새 배포 URL** 을 남긴다(정상).
+   2. 그 새 배포를 promote 한다: 대시보드 production 타일 **Undo Rollback** 대화상자에서 그 배포를 고르거나 `vercel promote <새 배포 URL> --scope <팀> --token "$VERCEL_TOKEN"`.
+   3. `curl -s https://<운영 도메인>/api/health` 의 `release` = 새 SHA 확인 → `SMOKE_URL=https://<운영 도메인> SMOKE_EXPECT_RELEASE=<SHA> pnpm smoke` 8/8
+      (점검 중이면 `SMOKE_MAINTENANCE=true`)을 사고 기록에 남긴다. 대시보드 production 타일의 롤백 표시가 사라졌는지(자동 할당 복구) 본다.
+   4. 고칠 코드가 없는 같은 SHA 재배포(env 변경 반영 — §0.3·R-4·R-5)도 같은 순서다. 롤백 상태에서 env 만 바꾸고 재배포하면 1)에서 멈추므로 2)~3)을 한다.
+   (근거: Vercel "Instant Rollback" — 롤백 후 자동 할당 꺼짐, "promoting a different deployment" 로 되돌림 · "Promoting a deployment" — 이미 promote 된 배포는
+   다시 promote 불가. 2026-10-02 확인. 실제 동작은 A-4 리허설에서 기록)
 6. **롤포워드 후 점검 (PR #21 I-10)**: 롤백 창 동안 감사 로그에 `policy.apply`(품목 배치 포함)가 있었으면 — 구버전 앱이 적용한 품목은 종류가 비어
    stub(미확인)이 된다 — 신버전 재배포 직후 `/admin/policies` 에서 **직전 품목 5파일 배치를 "기존 파일 재사용"으로 다시 적용**하고
    `DB_DRIVER=neon DATABASE_URL="$DATABASE_URL_UNPOOLED" pnpm data:verify --target production --target-host <그 URL 의 호스트>` 로
@@ -119,9 +131,11 @@ UP-11(DSN)이 없어 도입하지 않았다(AC-364 해당 없음). 도입하면:
 1. **먼저 이력 재적용으로 되는지 본다**: 임포트를 잘못 적용했으면 `/admin/policies` 에서 이전 배치를 "기존 파일 재사용"으로 다시 적용한다(PRAMI-001 §4.4.6).
 2. 쓰기 중단: §0.3 으로 `MAINTENANCE_MODE=true` → `deploy-production`(`maintenance`=`true`). 점검 스모크 통과(④~⑦ 503)를 확인한다.
    이 배포부터는 자동 롤백이 걸리지 않으므로 쓰기 차단이 풀리지 않는다.
+   **R-3 이 끝날 때까지 `main` 머지 금지 (PR #26 L2-2)**: 아래 5·6단계의 `deploy-production` 이 그 사이 머지된 새 마이그레이션을 복구 중인 DB 에 적용한다.
+   점검 판정은 마이그레이션보다 먼저라 입력을 잘못 고른 실행은 마이그레이션 전에 멈추지만, 올바른 입력의 실행은 마이그레이션을 한다.
 3. Neon 콘솔에서 배포 직전 스냅샷 브랜치 `pre-deploy-<날짜>-<sha7>`(C-16) 또는 PITR(플랜 보존 기간 안)로 **새 브랜치**를 만든다. 원래 `main` 은 지우지 않는다.
 4. 새 브랜치를 읽기 전용으로 확인: `DB_DRIVER=neon DATABASE_URL="<새 브랜치 직접 연결>" pnpm data:verify --target production --target-host <그 호스트>` → 기대 수치.
-5. Vercel Production `DATABASE_URL`(pooled)과 GitHub Environment `production` 의 `DATABASE_URL_UNPOOLED` 를 새 브랜치로 바꾼다 →
+5. Vercel Production `DATABASE_URL`(pooled)과 GitHub 시크릿 `DATABASE_URL_UNPOOLED`(위치는 플랜별 — github-plan.md §3·§4) 를 새 브랜치로 바꾼다 →
    `deploy-production`(`maintenance`=`true` — 점검 유지) → `/api/health` 200·`schema:'ok'`.
 6. `MAINTENANCE_MODE` 제거 → `deploy-production`(`maintenance`=`false`) → 일반 스모크 8/8. 이 배포가 실패해 자동 롤백되면 직전 배포(점검 중 배포)로 돌아가므로
    쓰기 차단이 유지된다. 사고 기록(R-7 5단계)에 복원 시점·브랜치 이름을 남긴다.
@@ -129,9 +143,11 @@ UP-11(DSN)이 없어 도입하지 않았다(AC-364 해당 없음). 도입하면:
 ## R-4 KEK 회전 (PRAMI-002 §4.7.2)
 
 1. 새 KEK 버전을 Vercel Production `LLM_CREDENTIALS_KEKS` 에 **추가**(기존 유지) → `LLM_CREDENTIALS_ACTIVE_KEK` 를 새 버전으로 → `deploy-production`(`maintenance`=현재 값).
-2. 운영자 셸에 **운영** KEK 를 넣는다(Sensitive 라 `vercel pull` 로 받지 못한다 — 보관 위치에서 직접. PR #26 F-8). 로컬 `.env.local` 의 dev KEK 를 읽지 않게
-   두 변수를 반드시 셸에서 준다:
-   `export LLM_CREDENTIALS_KEKS='<새 목록>' LLM_CREDENTIALS_ACTIVE_KEK=<새 버전> DB_DRIVER=neon DATABASE_URL="$DATABASE_URL_UNPOOLED"`
+2. 운영자 셸에 **운영** KEK 를 넣는다(유형 Secret 이라 `vercel pull` 로 받지 못한다 — 보관 위치에서 직접. PR #26 F-8). 로컬 `.env.local` 의 dev KEK 를 읽지 않게
+   두 변수를 반드시 셸에서 준다. KEK 는 명령줄에 쓰지 않고 입력으로 받는다(셸 히스토리에 남지 않게 — PR #26 L2-6):
+   `read -rs -p 'LLM_CREDENTIALS_KEKS: ' LLM_CREDENTIALS_KEKS; echo` → 붙여 넣고 Enter →
+   `export LLM_CREDENTIALS_KEKS LLM_CREDENTIALS_ACTIVE_KEK=<새 버전> DB_DRIVER=neon DATABASE_URL="$DATABASE_URL_UNPOOLED"`
+   (`DATABASE_URL_UNPOOLED` 도 같은 방법으로 `read -rs` 해 둔다)
 3. 확인 실행(변경 0): `pnpm credentials:rewrap` → 출력의 **대상 호스트**가 운영 Neon 직접 연결 호스트인지, 대상 행 수가 예상과 같은지 본다.
 4. 실행: `pnpm credentials:rewrap --yes` → 모든 행이 새 버전으로 바뀐다. 끝나면 `unset LLM_CREDENTIALS_KEKS LLM_CREDENTIALS_ACTIVE_KEK DATABASE_URL DATABASE_URL_UNPOOLED`.
 5. 옛 버전을 `LLM_CREDENTIALS_KEKS` 에서 제거 → `deploy-production` → 설정 화면에서 키 하나 [검증] 정상 확인.
@@ -145,12 +161,12 @@ UP-11(DSN)이 없어 도입하지 않았다(AC-364 해당 없음). 도입하면:
 | --- | --- | --- |
 | `AUTH_SECRET` | Vercel Production · Vercel Preview(서로 다른 값) | 새 값 → 재배포(전 세션 무효 — 사용자 재로그인) |
 | Google 클라이언트 시크릿 | Google Auth Platform · Vercel Production·Preview `AUTH_GOOGLE_SECRET` | 새 보안 비밀번호 추가 → Vercel 반영·재배포 → 옛 비밀번호 삭제 |
-| DB 비밀번호 (production) | Neon `main` 역할 → Vercel Production `DATABASE_URL` · GitHub Environment `production` `DATABASE_URL_UNPOOLED` | 비밀번호 재설정 → 두 곳 교체 → 재배포 |
-| DB 비밀번호 (preview) | Neon `preview` 역할 → Vercel Preview `DATABASE_URL` · GitHub Environment `preview` `DATABASE_URL_UNPOOLED` | 비밀번호 재설정 → 두 곳 교체 → preview 재배포 |
+| DB 비밀번호 (production) | Neon `main` 역할 → Vercel Production `DATABASE_URL` · GitHub 시크릿 `DATABASE_URL_UNPOOLED`(Free: 저장소, Team 이상: Environment `production`) | 비밀번호 재설정 → 두 곳 교체 → 재배포 |
+| DB 비밀번호 (preview) | Neon `preview` 역할 → Vercel Preview `DATABASE_URL` · GitHub 시크릿 `PREVIEW_DATABASE_URL_UNPOOLED`(Free: 저장소, Team 이상: Environment `preview`) | 비밀번호 재설정 → 두 곳 교체 → preview 재배포 |
 | KEK | Vercel Production(또는 Preview) `LLM_CREDENTIALS_KEKS` | R-4 + 저장된 사용자 키가 노출됐을 수 있으므로 사용자에게 키 재등록(벤더 콘솔에서 폐기) 공지 |
 | Upstash 토큰 | Upstash 콘솔 → Vercel Production·Preview `UPSTASH_REDIS_REST_TOKEN` | 재발급 → 반영 → 재배포 |
-| `VERCEL_TOKEN` | Vercel Account → Tokens · GitHub Environment `production` · `production-rollback` | 폐기·재발급 → 두 Environment 교체 |
-| `VERCEL_AUTOMATION_BYPASS_SECRET` | Vercel 프로젝트 Settings → Deployment Protection → Protection Bypass for Automation · GitHub Environment `preview-smoke` | 재생성 → `preview-smoke` 교체(영향: preview 배포 보호 우회만, 앱 로그인은 그대로) |
+| `VERCEL_TOKEN` | Vercel Account → Tokens · GitHub 시크릿 `VERCEL_TOKEN`(Free: 저장소 1곳, Team 이상: Environment `production` · `production-rollback` 2곳) | 폐기·재발급 → 전부 교체 |
+| `VERCEL_AUTOMATION_BYPASS_SECRET` | Vercel 프로젝트 Settings → Deployment Protection → Protection Bypass for Automation · GitHub 저장소 시크릿 | 재생성 → 저장소 시크릿 교체 → preview 재배포(배포에 박힌 옛 값 무효화 — 영향: preview 배포 보호 우회만, 앱 로그인은 그대로. PR 코드에는 원래 보이는 값이다, L2-11) |
 
 ## R-6 감사 로그 보관 (§4.9.7, Q-07)
 

@@ -16,11 +16,11 @@ import { loadEnvConfig } from '@next/env';
 import {
   formatRows,
   parseReleaseCheckArgs,
-  parseVercelEnvNames,
   releaseCheckTitle,
   runReleaseCheck,
   type ReleaseCheckArgs,
   type ReleaseCheckDeps,
+  vercelEnvNamesOrThrow,
 } from '../src/server/ops/release-check';
 
 /** capture 면 stdout·stderr 를 함께 모은다 — Vercel CLI 는 표를 stderr 로 낼 수 있다 (PR #26 F-9) */
@@ -59,10 +59,7 @@ async function envNames(args: ReleaseCheckArgs): Promise<Set<string>> {
   // 선행 조건: Vercel CLI 로그인 + `vercel link`(또는 VERCEL_ORG_ID·VERCEL_PROJECT_ID) — 런북 §0.5
   const { code, stdout } = await exec(`vercel env ls ${args.target}`, true);
   if (code !== 0) throw new Error('vercel env ls 실패');
-  const names = parseVercelEnvNames(stdout);
-  // 이름을 하나도 못 읽었으면 "전부 누락" 으로 판정하지 않고 실행 실패로 알린다 (출력 형식 변화·미연결)
-  if (names.size === 0) throw new Error('vercel env ls 출력에서 이름을 찾지 못함');
-  return names;
+  return vercelEnvNamesOrThrow(stdout);
 }
 
 const deps: ReleaseCheckDeps = {

@@ -52,11 +52,24 @@ describe('PR #26 D-1~D-4 운영 절차 회귀', () => {
 
   it('D-3 R-2 에 롤포워드(Undo Rollback · vercel promote)가 롤포워드 후 점검보다 앞에 있다', () => {
     const r2 = section(runbook, '## R-2 ', '## R-3 ');
-    const rollForward = r2.indexOf('**롤포워드 (PR #26 D-3)**');
+    const rollForward = r2.indexOf('**롤포워드 (PR #26 D-3·D3-N1)**');
     expect(rollForward).toBeGreaterThan(-1);
     expect(r2).toContain('Undo Rollback');
     expect(r2).toContain('vercel promote');
     expect(rollForward).toBeLessThan(r2.indexOf('롤포워드 후 점검'));
+  });
+
+  it('D3-N1 롤포워드 기본 경로 = 새(다른) 배포 promote — 이미 promote 된 지금 배포를 다시 promote 하라는 절차 없음, A-4 에 재promote 시도 기록', () => {
+    const r2 = section(runbook, '## R-2 ', '## R-3 ');
+    expect(r2).toContain('**다른(새) 배포를 promote**');
+    expect(r2).toContain('promoting a different deployment');
+    expect(r2).not.toMatch(
+      /지금 서비스 중인\(되돌린\) 배포를 골라|promote <지금 production 배포 URL>/,
+    );
+    expect(r2).not.toContain('C-18 리허설에서 기록');
+    const a4 = checklist.split(/\r?\n/).find((line) => line.startsWith('| A-4 |'))!;
+    expect(a4).toContain('현재 배포 재promote 시도');
+    expect(a4).toContain('Staged');
   });
 
   it('D-2 C-6 은 0건 통과가 불가능한 pnpm test:neon (vitest 프로젝트 neon, 건너뛰기 없음)', () => {
@@ -84,5 +97,39 @@ describe('PR #26 D-1~D-4 운영 절차 회귀', () => {
     expect(checklist.split(/\r?\n/).find((line) => line.startsWith('| A-4 |'))).toContain(
       'Undo Rollback',
     );
+  });
+});
+
+/** PR #26 S1-c — GitHub 플랜 전제조건이 문서에 있고, 현 플랜(Free)에서 설정할 수 없는 통제를 "필수" 로 적지 않는다 */
+describe('PR #26 S1-c GitHub 플랜 문서', () => {
+  const plan = read('docs/deploy/github-plan.md');
+  const docs = ['docs/ops/runbook.md', 'docs/deploy/checklist.md', 'docs/deploy/vercel.md'].map(
+    read,
+  );
+
+  it('플랜별(Free/Team/Enterprise) 가능·불가 표 · Free 남는 위험 · 업그레이드 절차 · Actions queued 확인 방법', () => {
+    expect(plan).toMatch(/\| 기능 \| Free \| Team \| Enterprise Cloud \|/);
+    for (const row of [
+      'Environment 시크릿',
+      'Required reviewers',
+      'Deployment branches',
+      '브랜치 보호',
+      'CODEOWNERS',
+    ]) {
+      expect(plan).toContain(row);
+    }
+    expect(plan).toContain('### 3.2 남는 위험');
+    expect(plan).toContain('### 4.1 Team');
+    expect(plan).toContain('### 4.2 Enterprise Cloud');
+    expect(plan).toContain('## 5. Actions 가 queued 로 멈춘 원인 확인');
+    expect(plan).toContain('Billing & licensing');
+  });
+
+  it('runbook·checklist·vercel.md 가 github-plan.md 를 가리키고, preview-smoke Environment·승인 2회·deployment_status 트리거 서술이 남지 않는다', () => {
+    for (const doc of docs) expect(doc).toContain('github-plan.md');
+    for (const doc of docs) {
+      expect(doc).not.toMatch(/Environment `preview-smoke`|\*\*두 번\*\* 한다|Sensitive 로 두지/);
+    }
+    expect(read('docs/deploy/vercel.md')).not.toMatch(/Vercel `deployment_status`\(success/);
   });
 });

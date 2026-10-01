@@ -1,16 +1,18 @@
 # PRAMI-003 §4.3.10 preview 스모크 (AC-361·AC-362)
-# Vercel Git 연동이 preview 배포를 마치면 deployment_status(success) 이벤트가 온다 → 그 배포 URL 에 비인증 스모크 8항목.
-# 보안 (PR #26 S-1): deployment_status 는 배포 커밋(PR 브랜치 head)의 워크플로·코드로 실행된다(GITHUB_SHA = 배포 커밋).
-# - 스모크 코드는 PR 코드가 아니라 **기본 브랜치**를 체크아웃해 실행한다(pnpm install 라이프사이클·스모크 코드 = 신뢰 코드).
-# - 배포 보호 우회 시크릿 VERCEL_AUTOMATION_BYPASS_SECRET 은 저장소 시크릿이 아니라 GitHub Environment `preview-smoke` 의
-#   시크릿으로만 둔다 — Required reviewers 승인 전에는 잡이 시크릿을 받지 못한다. PR 쪽에서 이 YAML 을 고쳐 environment 를
-#   빼면 시크릿 자체가 없다(설정은 docs/deploy/vercel.md §10). 우회 시크릿은 Vercel 이 알려준 배포 URL 이면서
-#   vars.VERCEL_PREVIEW_HOST_PATTERN(`<프로젝트>-*-<팀>.vercel.app`)에 맞는 호스트에만 보낸다(L-S1).
-# - 수동 실행(workflow_dispatch)은 고정 preview 호스트 등 임의 URL 을 대상으로 하고 우회 시크릿을 보내지 않는다.
+# Vercel 이 preview 배포를 마치면 repository_dispatch(`vercel.deployment.success`) 이벤트를 보낸다 → 그 배포 URL 에 비인증 스모크 8항목.
+# 보안 (PR #26 S1-a): repository_dispatch 는 **기본 브랜치의 이 YAML** 로만 돈다(GITHUB_REF = 기본 브랜치, 워크플로 파일이 기본 브랜치에 있어야 트리거).
+#   deployment_status 는 배포 커밋(PR 브랜치)의 YAML 이 돌아 PR 이 YAML 을 고쳐 시크릿을 꺼낼 수 있으므로 쓰지 않는다(Vercel 도 repository_dispatch 권고).
+#   Vercel 프로젝트 Git 설정에서 `deployment_status` Events 를 끈다(체크리스트 C-3) — PR 브랜치에 새로 추가한 deployment_status 워크플로도 트리거되지 않게.
+# - 체크아웃·실행 코드 = 기본 브랜치(pnpm install 라이프사이클·스모크 코드 = 신뢰 코드), 토큰은 작업 폴더에 남기지 않는다. 캐시 없음(L2-8).
+# - 배포 보호 우회 시크릿 VERCEL_AUTOMATION_BYPASS_SECRET 은 https + vars.VERCEL_PREVIEW_HOST_PATTERN(`<프로젝트>-*-<팀>.vercel.app`)에 맞는 호스트에만
+#   보낸다(L-S1 — 판정은 스모크 코드). 이 값은 Vercel 이 모든 배포의 빌드·런타임 system env 로 넣으므로 PR 코드에는 원래 비밀이 아니다(L2-11) —
+#   유출이 의심되면 재생성한다(런북 R-5). 위치는 docs/deploy/github-plan.md.
+# - 수동 실행(workflow_dispatch, 브랜치 `main`)은 URL 을 입력받는다. 우회 시크릿은 같은 호스트 패턴일 때만 보낸다(고정 preview 호스트는 패턴 밖 — L2-5).
 name: preview-smoke
 
 on:
-  deployment_status:
+  repository_dispatch:
+    types: [vercel.deployment.success]
   workflow_dispatch:
     inputs:
       url:
@@ -18,7 +20,7 @@ on:
         required: true
 
 concurrency:
-  group: preview-smoke-${{ github.event.deployment.id || github.run_id }}
+  group: preview-smoke-${{ github.event.client_payload.url || github.event.inputs.url || github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -30,19 +32,16 @@ env:
 jobs:
   smoke:
     name: preview 스모크 (비인증 8항목)
-    # Vercel 의 환경 이름은 `Preview` 또는 `Preview – <프로젝트>` 일 수 있다 (F-21 — PR-5 에서 실제 값 기록)
+    # Vercel payload 의 environment 가 preview 인 배포만 (production 은 deploy-production 스모크). 실제 값은 PR-5 에서 기록
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.deployment_status.state == 'success' &&
-       startsWith(github.event.deployment.environment, 'Preview'))
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.client_payload.environment == 'preview')
     runs-on: ubuntu-latest
-    environment: preview-smoke
     timeout-minutes: 10
     steps:
-      # 신뢰 코드: 배포 커밋이 아니라 기본 브랜치의 스모크 코드. 토큰은 작업 폴더에 남기지 않는다
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
       - uses: pnpm/action-setup@v4
@@ -50,15 +49,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
 
       - name: Install
         run: pnpm install --frozen-lockfile
 
       - name: Smoke
-        run: pnpm smoke
+        shell: bash
         env:
-          SMOKE_URL: ${{ github.event.inputs.url || github.event.deployment_status.target_url }}
-          # 우회 시크릿은 Vercel 이 알려준 배포 URL 에만 보낸다 — 수동 입력 URL 로는 보내지 않는다(임의 호스트 유출 방지)
-          SMOKE_BYPASS_SECRET: ${{ github.event_name == 'deployment_status' && secrets.VERCEL_AUTOMATION_BYPASS_SECRET || '' }}
+          TARGET: ${{ github.event.client_payload.url || github.event.inputs.url }}
+          SMOKE_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           SMOKE_BYPASS_HOST_PATTERN: ${{ vars.VERCEL_PREVIEW_HOST_PATTERN }}
+        run: |
+          # payload url 은 스킴 없는 호스트일 수 있다 — https 호스트 이름만 받는다(문자열 전체 판정 — 줄바꿈·userinfo·숫자 IP 거부, 보안 리뷰 L-2)
+          case "$TARGET" in https://*) ;; *) TARGET="https://${TARGET}" ;; esac
+          host_re='^https://[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+/?$'
+          if [[ ! "$TARGET" =~ $host_re ]] || [[ "$TARGET" =~ ^https://[0-9.]+/?$ ]]; then
+            echo "::error::스모크 대상은 https://<호스트 이름> 여야 합니다"
+            exit 1
+          fi
+          SMOKE_URL="$TARGET" pnpm smoke
