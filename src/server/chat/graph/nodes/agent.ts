@@ -12,6 +12,8 @@ import { logger } from '@/server/log';
 import { toolsFor } from '../../features/registry';
 import { toLangChainTool } from '../../features/tool-factory';
 import type { ChatFeature } from '../../features/types';
+import { recentHistory } from '../history';
+import { checkModelInput, withModelMessageId } from '../message-id';
 import { LLM_ERROR_NOTICE, TOOL_LIMIT_NOTICE } from '../messages';
 import { isRefusal } from '../refusal';
 import type { ChatGraphState, ChatGraphUpdate } from '../state';
@@ -63,6 +65,22 @@ async function onError(
   return { llmError: code, notices, ...errorSetup(next, runtime) };
 }
 
+/**
+ * 모델 입력 불변식 (PRAMI-003 H1-3, 모든 환경 — 비용 0): 위반이면 모델을 부르지 않는다(시스템 프롬프트 없는 호출 원천 차단,
+ * fail-closed). 로그는 메시지 수·타입 순서만 — 본문 없음.
+ */
+function invariantViolation(state: ChatGraphState, runtime: ChatRuntime): boolean {
+  const prefix = 1 + recentHistory(state.history, runtime.settings.historyMaxTurns).length + 1;
+  const reason = checkModelInput(state.messages, prefix);
+  if (!reason) return false;
+  logger.error('chat.message_invariant_violation', {
+    reason,
+    count: state.messages.length,
+    types: state.messages.map((message) => message.getType()),
+  });
+  return true;
+}
+
 export function makeAgent(features: readonly ChatFeature[]) {
   return async (
     state: ChatGraphState,
@@ -71,6 +89,9 @@ export function makeAgent(features: readonly ChatFeature[]) {
     const runtime = runtimeOf(config);
     const createModel = runtime.credential?.createModel;
     if (!createModel) return onError(state, runtime, 'llm_error');
+    if (invariantViolation(state, runtime)) {
+      return onError(state, runtime, 'llm_error', { source: 'local', frame: 'message_invariant' });
+    }
     const { maxOutputTokens, timeoutMs, maxToolCalls } = runtime.settings;
     const model = createModel({ maxTokens: maxOutputTokens, timeoutMs });
     const tools = toolsFor(features, state.actor).map(toLangChainTool);
@@ -87,7 +108,7 @@ export function makeAgent(features: readonly ChatFeature[]) {
     if (isRefusal(message)) return { llmError: 'refused' };
     const limitReached = (message.tool_calls?.length ?? 0) > 0 && state.toolCalls >= maxToolCalls;
     return {
-      messages: [message],
+      messages: [withModelMessageId(message)],
       notices: limitReached ? [{ code: 'tool_limit', text: TOOL_LIMIT_NOTICE }] : [],
     };
   };

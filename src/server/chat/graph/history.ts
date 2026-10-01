@@ -1,6 +1,8 @@
 import { AIMessage, HumanMessage, type BaseMessage } from '@langchain/core/messages';
 import { z } from 'zod';
 
+import { withMessageId } from './message-id';
+
 /**
  * 멀티턴 히스토리 (PRAMI-002 §4.3.7): 클라이언트가 요청마다 최근 대화를 보낸다. 서버는 저장하지 않는다(I-6).
  * 항목당 1,000자, role 은 user|assistant 만(system 위조 거부), strict. 모델에는 최근 CHAT_HISTORY_MAX_TURNS 개만 **텍스트로만** 넣는다
@@ -22,8 +24,9 @@ export function recentHistory(history: readonly HistoryItem[], maxTurns: number)
   return maxTurns <= 0 ? [] : history.slice(-maxTurns);
 }
 
+/** 이력 메시지마다 고유 id (PRAMI-003 H1-1 — 같은 id 면 리듀서가 합쳐 이력이 사라진다) */
 export function historyToMessages(history: readonly HistoryItem[]): BaseMessage[] {
   return history.map((item) =>
-    item.role === 'user' ? new HumanMessage(item.text) : new AIMessage(item.text),
+    withMessageId(item.role === 'user' ? new HumanMessage(item.text) : new AIMessage(item.text)),
   );
 }

@@ -7,6 +7,7 @@ import { logger } from '@/server/log';
 import { findAllowedTool } from '../../features/registry';
 import type { ChatFeature, ChatToolDef, ToolDeps } from '../../features/types';
 import { assertNoCostKeys } from '../guard';
+import { withMessageId } from '../message-id';
 import type { ChatGraphState, ChatGraphUpdate } from '../state';
 import { runtimeOf } from './util';
 
@@ -16,6 +17,7 @@ import { runtimeOf } from './util';
  * - 입력 zod 검증, 출력 **strict** 파싱 + 금지 키 검사를 통과한 값만 LLM 에 JSON 으로 전달 (AC-226)
  * - 요청당 도구 상한 초과분은 실행하지 않고 오류 ToolMessage 로 짝만 맞춘다 (tool_use ↔ tool_result 쌍 유지)
  * 오류 메시지는 고정 문구 — 예외 원문(쿼리·값)은 LLM 에 넘기지 않는다.
+ * 한 노드가 ToolMessage 여러 개를 반환하므로 모두 고유 id 를 단다 (PRAMI-003 H1-1 — 같은 id 면 도구 결과가 합쳐져 유실).
  */
 const TOOL_ERRORS = {
   forbidden: '이 도구는 사용할 수 없습니다.',
@@ -29,12 +31,14 @@ const TOOL_ERRORS = {
 const DEFAULT_STATUS_LABEL = '정보를 확인하는 중';
 
 function errorMessage(call: ToolCall, code: keyof typeof TOOL_ERRORS): ToolMessage {
-  return new ToolMessage({
-    tool_call_id: call.id ?? call.name,
-    name: call.name,
-    status: 'error',
-    content: JSON.stringify({ error: TOOL_ERRORS[code] }),
-  });
+  return withMessageId(
+    new ToolMessage({
+      tool_call_id: call.id ?? call.name,
+      name: call.name,
+      status: 'error',
+      content: JSON.stringify({ error: TOOL_ERRORS[code] }),
+    }),
+  );
 }
 
 async function execute(def: ChatToolDef, call: ToolCall, deps: ToolDeps): Promise<ToolMessage> {
@@ -58,12 +62,14 @@ async function execute(def: ChatToolDef, call: ToolCall, deps: ToolDeps): Promis
     logger.warn('chat.tool_output_rejected', { tool: def.name, reason: 'cost_key' });
     return errorMessage(call, 'output');
   }
-  return new ToolMessage({
-    tool_call_id: call.id ?? call.name,
-    name: def.name,
-    content: JSON.stringify(parsed.data),
-    artifact: result.artifact,
-  });
+  return withMessageId(
+    new ToolMessage({
+      tool_call_id: call.id ?? call.name,
+      name: def.name,
+      content: JSON.stringify(parsed.data),
+      artifact: result.artifact,
+    }),
+  );
 }
 
 export function makeTools(features: readonly ChatFeature[]) {
