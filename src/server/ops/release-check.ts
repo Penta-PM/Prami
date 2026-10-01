@@ -192,6 +192,12 @@ async function schemaRows(args: ReleaseCheckArgs, deps: ReleaseCheckDeps): Promi
 }
 
 async function headerRows(args: ReleaseCheckArgs, deps: ReleaseCheckDeps): Promise<CheckRow[]> {
+  // 원격 대상은 --url 로만 — 기본값(NEXT_PUBLIC_APP_URL = 로컬)으로 원격 판정을 내지 않게 (PR #26 F-23)
+  if (args.target !== 'local' && !args.url) {
+    return [
+      { item: '대상', expected: '--url https://<배포 호스트>', actual: '--url 없음', ok: false },
+    ];
+  }
   const url = (args.url ?? deps.defaultUrl())?.replace(/\/+$/, '');
   if (!url)
     return [
@@ -233,6 +239,24 @@ export async function runReleaseCheck(
     ];
   }
   return { rows, ok: rows.every((row) => row.ok) };
+}
+
+/**
+ * 출력 제목 — 실제로 본 대상을 적는다 (PR #26 F-23). `--url` 이 있으면 그 호스트(schema·headers),
+ * 없으면 `--target`(+ data 의 `--target-host`)
+ */
+export function releaseCheckTitle(args: ReleaseCheckArgs): string {
+  if (args.url && (args.command === 'schema' || args.command === 'headers')) {
+    let host = '잘못된 URL';
+    try {
+      host = new URL(args.url).host;
+    } catch {
+      // 판정 행이 실패를 보여 준다
+    }
+    return `release:check ${args.command} (--target ${args.target}, ${host})`;
+  }
+  const host = args.command === 'data' && args.targetHost ? `, ${args.targetHost}` : '';
+  return `release:check ${args.command} (--target ${args.target}${host})`;
 }
 
 export function formatRows(title: string, rows: readonly CheckRow[]): string {

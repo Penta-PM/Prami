@@ -51,7 +51,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 | `TRUST_PROXY_HEADERS` | `vercel` | `vercel` | `none` | ✓ | C | `vercel` 외 거부(ⓓ) |
 | `VERCEL` / `VERCEL_ENV` / `VERCEL_GIT_COMMIT_SHA` | Vercel 주입 | Vercel 주입 | — | | I | 직접 설정 금지 |
 | `APP_RELEASE` | Actions 가 커밋 SHA 주입 | (`VERCEL_GIT_COMMIT_SHA` 사용) | `dev` | | C | 헬스·로그 `release` |
-| `MAINTENANCE_MODE` | 평소 미설정 | 미설정 | — | | C | `true` 면 비 ADMIN 503(런북 R-3) |
+| `MAINTENANCE_MODE` | 평소 미설정 | 미설정 | — | | C | `true` 면 비 ADMIN 503(런북 §0.3·R-3). **Sensitive 로 두지 않는다** — `deploy-production` 이 `vercel pull` 로 값을 읽어 점검 모드 배포를 판정한다(PR #26 D-1). 켜기·끄기 절차는 런북 §0.3 |
 | `RATE_LIMIT_PER_MIN` | `30` | `30` | `30` | | C | |
 | `RATE_LIMIT_BACKEND` | `upstash` | `upstash` 권장 | `memory` | ✓ | C | §5 |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Marketplace 주입 | 동일(별 DB 권장) | — | backend=upstash | S | |
@@ -68,7 +68,9 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 <!-- env-table:end -->
 
 - 오류 추적(Sentry `SENTRY_DSN` 등)은 사용자 제공(UP-11) 시 PR-4 에서 추가한다(§4.3.8). 지금은 스키마에 없다.
-- GitHub Environment `production`·`preview` 시크릿: `DATABASE_URL_UNPOOLED`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`(PR-4·PR-5).
+- GitHub Environment 시크릿(PR-4·PR-5, 위치 전체는 §10): `production` = `DATABASE_URL_UNPOOLED`·`VERCEL_TOKEN`·`VERCEL_ORG_ID`·`VERCEL_PROJECT_ID`,
+  `production-rollback` = `VERCEL_TOKEN`·`VERCEL_ORG_ID`·`VERCEL_PROJECT_ID`, `preview` = `DATABASE_URL_UNPOOLED`(Neon preview),
+  `preview-smoke` = `VERCEL_AUTOMATION_BYPASS_SECRET`. 같은 값이 두 곳에 있으면 교체할 때 **둘 다** 바꾼다(런북 R-5).
 
 ### 운영 기동 검사 (§4.3.3, `src/env-deploy.ts`)
 
@@ -101,6 +103,12 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 5. PDF 폰트·로고는 `outputFileTracingIncludes` 로 함수 번들에 포함된다. preview 에서 한글 PDF 1회 확인(C-15).
 6. Google OAuth 클라이언트·동의 화면·리다이렉트 URI·preview 리다이렉트 프록시: [`oauth.md`](oauth.md) (PR-3).
 7. `DB_DRIVER=neon` 빌드의 함수 트레이스 전체(`/api/*`·페이지·proxy·instrumentation)에 `@electric-sql/pglite` 가 들어가지 않는지 `pnpm check:trace` 로 확인한다(AC-330 ③).
+8. **주의 (PR #26 F-22)**:
+   - Sensitive 변수는 `vercel pull`·`vercel env pull` 로 값을 받지 못할 수 있다(대시보드에서도 다시 볼 수 없음). 워크플로가 값을 읽어야 하는
+     `MAINTENANCE_MODE` 는 일반 변수로 둔다. 비밀값(§2 의 S)은 Sensitive 로 두되, 로컬에서 값이 필요하면 셸 환경변수로 직접 준다.
+   - Vercel 의 Neon 연동(Marketplace)을 켜면 연동이 `DATABASE_URL_UNPOOLED`·`PG*` 등을 Vercel 환경변수로 **자동 추가**한다. `DATABASE_URL_UNPOOLED` 는
+     C-3 금지 키다 — 연동을 쓰지 않고 `DATABASE_URL` 만 직접 넣거나, 연동이 만든 키를 지운 뒤 `pnpm release:check env` 로 다시 확인한다.
+     (연동이 실제로 만드는 키 목록은 PR-5 에서 `vercel env ls` 로 기록)
 
 ## 4. Neon 구성과 마이그레이션 (§4.3.5·§4.3.6)
 
@@ -150,6 +158,8 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 - `GET /api/health/deep`(ADMIN): fixture 계정 수, `items.source='stub'` 수, 품목·판매단가·원가 행 수, 활성 KEK 존재, rate limit 백엔드 왕복.
   USER 는 권한 거부(403 + 감사 `access.denied`). 원가 값·이메일 목록은 없다.
 - `MAINTENANCE_MODE=true`: 비 ADMIN 의 페이지·API 요청에 503 점검 안내. `/login`·`/api/auth/*`·`/api/health` 는 열어 둔다(ADMIN 복구 작업, Q-13).
+  Vercel 환경변수는 배포 시점에 고정되므로 바꾼 뒤 **재배포**해야 적용된다. 재배포는 `deploy-production` 수동 실행(`maintenance` 입력)으로만 한다 —
+  점검 스모크·자동 롤백 차단이 걸려 있다(런북 §0.3, PR #26 D-1).
 - 구조화 로그는 모든 줄에 `release`(`APP_RELEASE` → `VERCEL_GIT_COMMIT_SHA` → `dev`)·`env`(`VERCEL_ENV` 또는 `local`)·`requestId`
   (proxy 가 붙인 `x-request-id`, Server Action·Route 경계 `runAction`·`runRoute` 의 요청 스코프에서 자동, 요청 밖은 `null`)를 싣는다(PR-4, AC-363).
   로그 검색 쿼리·알림·사고 대응은 [`../ops/runbook.md`](../ops/runbook.md).
@@ -186,22 +196,34 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 
 | 워크플로 | 트리거 | 하는 일 | 필요한 설정 |
 | --- | --- | --- | --- |
-| `.github/workflows/deploy-production.yml` | `main` push(= `integration/prami-003` → `main` 머지 1회), 수동 | ① `pnpm db:migrate`(Neon main, `DATABASE_URL_UNPOOLED`) → ② `vercel build --prod`(`APP_RELEASE`=커밋 SHA) → ③ `vercel deploy --prebuilt --prod` → ④ `pnpm smoke`(운영 도메인, 헬스 `release`=SHA) → ⑤ 실패 시 직전 production 배포로 `vercel rollback`. 앞 단계가 실패하면 뒤 단계는 실행하지 않는다(`needs`), 동시에 하나(`concurrency`, 취소 안 함) | GitHub Environment `production`(Required reviewers ≥ 1) 시크릿 `DATABASE_URL_UNPOOLED`·`VERCEL_TOKEN`·`VERCEL_ORG_ID`·`VERCEL_PROJECT_ID`, 저장소 변수 `PRODUCTION_URL` |
-| `.github/workflows/preview-migrate.yml` | `drizzle/**` 변경 PR 에 라벨 `db-migration` 을 **붙일 때만**(라벨 후 push 로는 실행 안 함 — 다시 적용은 라벨 제거 후 다시 붙이기) | Neon `preview` 브랜치에 `pnpm db:migrate`. preview DB 는 공용이라 동시에 하나(`preview-db-migration`). 포크 PR 은 실행하지 않는다. Environment `preview` 에 Required reviewers 권장 | GitHub Environment `preview` 시크릿 `DATABASE_URL_UNPOOLED`, 저장소 변수 `PREVIEW_URL` |
-| `.github/workflows/preview-smoke.yml` | Vercel `deployment_status`(success, Preview), 수동(URL 입력) | 그 배포 URL 에 `pnpm smoke`(비인증 8항목) | (선택) 배포 보호를 켰으면 저장소 시크릿 `VERCEL_AUTOMATION_BYPASS_SECRET` — `deployment_status` 이벤트이고 대상이 https `*.vercel.app` 일 때만 헤더로 보낸다 |
+| `.github/workflows/deploy-production.yml` | `main` push(= `integration/prami-003` → `main` 머지 1회), 수동(`maintenance` 입력 `false`/`true`) | ① `pnpm db:migrate`(Neon main, `DATABASE_URL_UNPOOLED`) → ② `vercel pull` 후 **점검 모드 판정**(production env 의 `MAINTENANCE_MODE` ≠ 입력이면 중단, push 는 `false` 기대) → `vercel build --prod`(`APP_RELEASE`=커밋 SHA) → ③ `vercel deploy --prebuilt --prod` → ④ `pnpm smoke`(운영 도메인, 헬스 `release`=SHA, 점검 모드면 ④~⑦ 점검 503 기대) → ⑤ 실패 시 직전 production 배포로 `vercel rollback` — **점검 모드 배포면 하지 않고**, 롤백 직전에 운영이 점검 503 이거나 헬스 `release` 가 이번 SHA 가 아니면(롤백 상태) 멈춘다(PR #26 D-1·D-3). 앞 단계가 실패하면 뒤 단계는 실행하지 않는다(`needs`), 동시에 하나(`concurrency`, 취소 안 함) | GitHub Environment `production`(Required reviewers ≥ 1) 시크릿 `DATABASE_URL_UNPOOLED`·`VERCEL_TOKEN`·`VERCEL_ORG_ID`·`VERCEL_PROJECT_ID`, Environment `production-rollback` 시크릿 `VERCEL_TOKEN`·`VERCEL_ORG_ID`·`VERCEL_PROJECT_ID`, 저장소 변수 `PRODUCTION_URL` |
+| `.github/workflows/preview-migrate.yml` | `drizzle/**` 변경 PR 에 라벨 `db-migration` 을 **붙일 때만**(라벨 후 push 로는 실행 안 함 — 다시 적용은 라벨 제거 후 다시 붙이기) | Neon `preview` 브랜치에 `pnpm db:migrate`. preview DB 는 공용이라 동시에 하나(`preview-db-migration`). 포크 PR 은 실행하지 않는다. Environment `preview` 에 Required reviewers **필수**(PR #26 L-S2 — 라벨은 triage 권한으로 붙일 수 있어 승인 없이는 PR 코드가 시크릿을 받는다) | GitHub Environment `preview` 시크릿 `DATABASE_URL_UNPOOLED`, 저장소 변수 `PREVIEW_URL` |
+| `.github/workflows/preview-smoke.yml` | Vercel `deployment_status`(success, 환경 이름이 `Preview` 로 시작), 수동(URL 입력) | **기본 브랜치**의 스모크 코드(`persist-credentials: false`)로 그 배포 URL 에 `pnpm smoke`(비인증 8항목). PR 코드는 체크아웃·실행하지 않는다(PR #26 S-1) | GitHub Environment `preview-smoke`(Required reviewers 필수) 시크릿 `VERCEL_AUTOMATION_BYPASS_SECRET`(배포 보호를 켰을 때만), 저장소 변수 `VERCEL_PREVIEW_HOST_PATTERN`(`<프로젝트>-*-<팀 슬러그>.vercel.app`, `*` = 배포 고유 해시 한 칸 — 하이픈 든 별칭은 거부). 남는 위험: 워크플로 YAML 은 배포 커밋 것이 돌므로 Environment 승인이 실제 통제다. 우회 헤더는 `deployment_status` 이벤트이고 대상이 https + 이 패턴일 때만 보낸다 |
 
 - **GitHub 설정(사용자 제공 항목)**: Environment `production` = Required reviewers ≥ 1 + Deployment branches `main` 만.
   Environment `production-rollback` = 시크릿 `VERCEL_TOKEN`·`VERCEL_ORG_ID`·`VERCEL_PROJECT_ID` 만, reviewers 없음(사고 중 승인 대기 없이 롤백), Deployment branches `main` 만.
-  Environment `preview` = `DATABASE_URL_UNPOOLED`(Neon preview), Required reviewers 권장. `main` 브랜치 보호로 CI 4잡 통과를 머지 조건으로 둔다 —
+  Environment `preview` = `DATABASE_URL_UNPOOLED`(Neon preview), Required reviewers **필수**(L-S2).
+  Environment `preview-smoke` = 시크릿 `VERCEL_AUTOMATION_BYPASS_SECRET` 만, Required reviewers **필수**(S-1 — `deployment_status` 워크플로는 PR 브랜치 커밋의
+  YAML 로 돈다. 승인자는 대상 배포의 커밋이 신뢰할 만한지 본 뒤 승인한다). **저장소 시크릿에는 우회 시크릿을 두지 않는다.**
+  `main` 브랜치 보호로 CI 4잡 통과를 머지 조건으로 둔다 —
   `deploy-production` 은 CI 결과를 다시 확인하지 않으므로(머지 = 배포 트리거) 이 보호가 "검사 전 마이그레이션"을 막는다(보안 리뷰 L-1).
+- **근거(공식 문서, 2026-10-02 확인)**: GitHub "Events that trigger workflows — deployment_status"(`GITHUB_SHA` = 배포할 커밋, 워크플로 파일은 기본 브랜치에 있어야 트리거),
+  GitHub "Deployments and environments"(승인이 필요한 Environment 의 시크릿은 승인 전 잡이 접근 불가), Vercel "Instant Rollback"(production 전용 ·
+  롤백 후 production 도메인 자동 할당 꺼짐 · Undo Rollback 또는 `vercel promote` 로 복구), Vercel CLI `vercel redeploy`(`--target`).
 - **스모크 8항목**(`src/server/ops/smoke-checks.ts`, `tests/smoke/preview.smoke.ts`): ① `/api/health` 200·`schema:'ok'`(+`db`·`data` ok, no-store)
   ② `/login` Google 버튼만(테스트 폼·TEST MODE 배너·Credentials 공급자 없음) ③ 보안 헤더 6종 + CSP nonce ④ 비인증 `/pricing` → `/login`, `POST /api/chat` → 401 봉투
-  ⑤ 비인증 Server Action 직접 호출 → `/login` ⑥ 없는 공유 토큰 404 ⑦ OpenRouter OAuth 시작이 벤더로 리다이렉트되지 않음(비인증 401 — 플래그 확인은 인증 E2E·C-3)
+  ⑤ 비인증 Server Action 직접 호출 → `/login` ⑥ 없는 공유 토큰 404 ⑦ OpenRouter OAuth 시작이 벤더로 리다이렉트되지 않음(비인증 401 — 플래그 값 확인은 인증 E2E·C-14, PR #26 F-15)
   ⑧ 위조 `X-Forwarded-For` 를 매번 바꿔도 31회 안에 429. 실행: `SMOKE_URL=https://<대상> pnpm smoke`.
+  점검 모드 배포는 `SMOKE_MAINTENANCE=true` — ④~⑦이 리다이렉트·401·404 대신 점검 503(`Retry-After`, API 는 `code:'MAINTENANCE'`)이어야 통과한다(쓰기 차단 확인).
+  일반 스모크가 점검 중 배포를 만나면 ④~⑦이 실패한다.
 - **로컬 preview 모의**(AC-361): `SMOKE_PG_URL=postgres://…@localhost:<격리 포트>/<DB> pnpm smoke:local` — 프로덕션 빌드(`.next-smoke`) + `VERCEL_ENV=preview`
   (preview 기동 검사 그대로) + 격리 Postgres. 앱은 `*.neon-smoke.test` 호스트로 Neon HTTP 드라이버를 쓰고, 테스트 전용 preload(`scripts/smoke/neon-local-fetch.mjs`,
   `next start` 의 `NODE_OPTIONS` 로만 주입 — 운영 코드·번들에 없음)가 그 요청을 격리 DB 로 실행한다. `--fault fixture` 는 fixture 계정을 넣어 ①이 실패하는지 본다.
+  `--maintenance` 는 `MAINTENANCE_MODE=true` 서버에 점검 모드 스모크를 돌린다(8/8 통과가 기대값).
   `:5432`·DB 이름 `prami`(로컬 실데이터)는 거부한다.
 - **배포 게이트** `pnpm release:check env|schema|data|headers` — [`checklist.md`](checklist.md) C-3·C-5·C-7·C-8·C-9.
 - actionlint 는 로컬에서 `docker run --rm -v "<저장소>:/repo" -w /repo rhysd/actionlint:latest` 로 확인한다(CI 잡 없음). 워크플로 구조는 `tests/unit/ops/workflows.test.ts` 가 고정한다.
-- 오류 추적(Sentry, §4.3.8)은 DSN(UP-11)이 없어 도입하지 않았다 — `logger.error` + Vercel 로그·알림으로 대신한다. 도입 시 조건은 런북 §2.
+- 오류 추적(Sentry, §4.3.8)은 DSN(UP-11)이 없어 도입하지 않았다 — `logger.error` + Vercel 로그·알림으로 대신한다. 도입 시 조건은 런북 §0.4.
+- **Neon 실연결 회귀**(체크리스트 C-6): `pnpm test:neon` — vitest 프로젝트 `neon`(`tests/neon/*.neon.test.ts`)이 실제 Neon 드라이버
+  (neon-http 쿼리·마이그레이터, WebSocket 트랜잭션)로 AC-01·AC-21·AC-215·AC-244 ⑤ 를 확인한다. 환경이 없으면 **실패**한다(0건 통과 방지).
+  로컬 예행: `NEON_LOCAL_PG_URL=postgresql://…@localhost:<격리 포트>/<DB> pnpm test:neon`(Neon 전송만 격리 PG 로 돌림, `:5432` 거부).

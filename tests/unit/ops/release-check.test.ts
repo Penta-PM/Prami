@@ -7,6 +7,7 @@ import {
   formatRows,
   parseReleaseCheckArgs,
   parseVercelEnvNames,
+  releaseCheckTitle,
   runReleaseCheck,
   type ReleaseCheckDeps,
 } from '@/server/ops/release-check';
@@ -206,5 +207,34 @@ describe('headers (C-9)', () => {
 
   it('대상 URL 이 없으면 실패', async () => {
     expect((await run(['headers'], { defaultUrl: () => undefined })).ok).toBe(false);
+  });
+
+  it('PR #26 F-23: 원격 target 에 --url 이 없으면 로컬 기본 URL 로 판정하지 않고 실패', async () => {
+    const fetch = vi.fn(async () => goodPage());
+    const result = await run(['headers', '--target', 'production'], { fetch });
+    expect(result.ok).toBe(false);
+    expect(result.rows[0]!.actual).toBe('--url 없음');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('출력 제목 (PR #26 F-23)', () => {
+  it.each([
+    [
+      ['headers', '--target', 'production', '--url', 'https://prami.example/'],
+      'release:check headers (--target production, prami.example)',
+    ],
+    [
+      ['schema', '--target', 'preview', '--url', 'https://p.example'],
+      'release:check schema (--target preview, p.example)',
+    ],
+    [
+      ['data', '--target', 'production', '--target-host', 'ep-x.neon.tech'],
+      'release:check data (--target production, ep-x.neon.tech)',
+    ],
+    [['env', '--target', 'preview'], 'release:check env (--target preview)'],
+    [['headers'], 'release:check headers (--target local)'],
+  ])('%j → %s', (argv, title) => {
+    expect(releaseCheckTitle(parseReleaseCheckArgs(argv))).toBe(title);
   });
 });

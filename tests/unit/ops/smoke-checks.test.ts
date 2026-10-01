@@ -25,7 +25,8 @@ type Break =
   | 'server-action-runs'
   | 'share-200'
   | 'openrouter-redirect'
-  | 'xff-bypass';
+  | 'xff-bypass'
+  | 'maintenance';
 
 const NONCE = 'bm9uY2Utc21va2U=';
 const BASE = 'https://preview.example.test';
@@ -60,6 +61,19 @@ function fakeSite(breaks: ReadonlySet<Break> = new Set()) {
     const { pathname } = new URL(url);
     const method = init.method ?? 'GET';
     seen.push({ url, headers: new Headers(init.headers) });
+    // src/proxy.ts 점검 모드: /login·/api/auth/*·/api/health 만 열림, 나머지는 503 + Retry-After (API 는 봉투)
+    const open = ['/login', '/api/auth/', '/api/health'].some((prefix) =>
+      pathname.startsWith(prefix),
+    );
+    if (breaks.has('maintenance') && !open) {
+      const headers = { 'retry-after': '300', 'cache-control': 'no-store' };
+      return pathname.startsWith('/api/')
+        ? Response.json(
+            { ok: false, error: { code: 'MAINTENANCE', message: '점검' } },
+            { status: 503, headers },
+          )
+        : new Response('<p>점검</p>', { status: 503, headers });
+    }
     if (pathname === '/api/health') {
       healthHits += 1;
       // 위조 X-Forwarded-For 를 키로 쓰는 고장: 요청마다 새 버킷 → 429 가 오지 않는다
@@ -164,13 +178,16 @@ describe('AC-361 스모크 판정', () => {
     expect((await run('sha-2')).problems).toContain('release 가 배포 커밋과 다름');
   });
 
-  it('배포 보호 우회 시크릿은 https *.vercel.app 대상에만 헤더로 싣고, 결과(problems)에는 남기지 않는다', async () => {
-    const vercel = 'https://prami-abc-team.vercel.app';
+  const PATTERN = 'prami-*-team.vercel.app';
+
+  it('배포 보호 우회 시크릿은 https + 프로젝트 호스트 패턴 대상에만 헤더로 싣고, 결과(problems)에는 남기지 않는다', async () => {
+    const vercel = 'https://prami-abc123-team.vercel.app';
     const { fetchImpl, seen } = fakeSite(new Set(['missing-hsts']));
     const results = await runSmoke({
       baseUrl: vercel,
       fetch: fetchImpl,
       bypassSecret: 'bypass-xyz',
+      bypassHostPattern: PATTERN,
     });
     expect(
       seen.every((call) => call.headers.get('x-vercel-protection-bypass') === 'bypass-xyz'),
@@ -183,19 +200,108 @@ describe('AC-361 스모크 판정', () => {
     'https://preview.example.test',
     'http://prami-abc-team.vercel.app',
     'https://vercel.app.evil.example',
+    // PR #26 L-S1: 아무 *.vercel.app 이 아니라 이 프로젝트·팀 패턴만
+    'https://evil.com.vercel.app',
+    'https://evil-team.vercel.app',
+    'https://prami-team.vercel.app',
+    'https://prami-a.b-team.vercel.app',
+    'https://prami-abc-team.vercel.app:8443',
+    'https://prami-abc-team.vercel.app.evil.example',
     'not a url',
-  ])('보안 리뷰 M-2: %s 에는 우회 시크릿을 보내지 않는다', async (baseUrl) => {
-    expect(bypassAllowed(baseUrl)).toBe(false);
+  ])('보안 리뷰 M-2·L-S1: %s 에는 우회 시크릿을 보내지 않는다', async (baseUrl) => {
+    expect(bypassAllowed(baseUrl, PATTERN)).toBe(false);
     const { fetchImpl, seen } = fakeSite();
     if (baseUrl !== 'not a url') {
       await runSmoke({
         baseUrl,
         fetch: fetchImpl,
         bypassSecret: 'bypass-xyz',
+        bypassHostPattern: PATTERN,
         rateLimitAttempts: 1,
       });
       expect(seen.some((call) => call.headers.has('x-vercel-protection-bypass'))).toBe(false);
     }
+  });
+
+  it.each([
+    undefined,
+    '',
+    '*.vercel.app',
+    'prami-*',
+    'prami-*-team.example.com',
+    'a-*-*-b.vercel.app',
+  ])(
+    'L-S1: 호스트 패턴이 없거나 모양이 틀리면(%s) 프로젝트 호스트에도 보내지 않는다',
+    (pattern) => {
+      expect(bypassAllowed('https://prami-abc123-team.vercel.app', pattern)).toBe(false);
+    },
+  );
+
+  it('L-S1: 패턴의 * 는 배포 고유 해시 한 칸만 — 하이픈이 든 별칭은 거부 (대소문자 무시)', () => {
+    expect(bypassAllowed('https://prami-git-feat-x-team.vercel.app', PATTERN)).toBe(false);
+    expect(bypassAllowed('https://prami-x-y-team.vercel.app', PATTERN)).toBe(false);
+    expect(bypassAllowed('https://PRAMI-ABC123-TEAM.vercel.app/', PATTERN)).toBe(true);
+  });
+
+  describe('D-1 점검 모드 스모크 (maintenance: true)', () => {
+    it('503 이어도 Retry-After 가 없거나 API 봉투 code 가 MAINTENANCE 가 아니면 실패 (일반 장애와 구분)', async () => {
+      const outage = async (url: string) => {
+        const { pathname } = new URL(url);
+        if (pathname === '/api/chat') {
+          return Response.json(
+            { ok: false, error: { code: 'INTERNAL' } },
+            { status: 503, headers: { 'retry-after': '1' } },
+          );
+        }
+        return new Response('down', { status: 503 });
+      };
+      const results = await runSmoke({
+        baseUrl: BASE,
+        fetch: outage,
+        maintenance: true,
+        rateLimitAttempts: 1,
+      });
+      const authGate = results.find((result) => result.id === 'auth-gate')!;
+      expect(authGate.problems).toEqual([
+        'GET /pricing status 503 (점검 503 기대)',
+        'POST /api/chat code INTERNAL',
+      ]);
+    });
+
+    const maintenanceFailed = async (breaks: Break[]) => {
+      const { fetchImpl } = fakeSite(new Set(breaks));
+      const results = await runSmoke({ baseUrl: BASE, fetch: fetchImpl, maintenance: true });
+      return results.filter((result) => !result.ok).map((result) => result.id);
+    };
+
+    it('점검 중 배포: ④~⑦이 점검 503 이면 8항목 통과 (①②③⑧ 은 열린 경로라 그대로)', async () => {
+      expect(await maintenanceFailed(['maintenance'])).toEqual([]);
+    });
+
+    it('점검 모드를 기대했는데 쓰기 경로가 열려 있으면(점검 해제된 배포) ④~⑦ 실패', async () => {
+      expect(await maintenanceFailed([])).toEqual([
+        'auth-gate',
+        'server-action',
+        'share-404',
+        'openrouter-start',
+      ]);
+    });
+
+    it('일반 스모크가 점검 중 배포를 만나면 ④~⑦ 실패 — 점검 모드 배포는 SMOKE_MAINTENANCE=true 로만 통과', async () => {
+      expect(await failed(['maintenance'])).toEqual([
+        'auth-gate',
+        'server-action',
+        'share-404',
+        'openrouter-start',
+      ]);
+    });
+
+    it('점검 중에도 헬스·로그인 고장은 그대로 잡는다', async () => {
+      expect(await maintenanceFailed(['maintenance', 'health-503', 'test-mode-banner'])).toEqual([
+        'health',
+        'login',
+      ]);
+    });
   });
 
   it('요청 자체가 실패하면(연결 거부) 오류 이름만 남기고 모든 항목 실패', async () => {

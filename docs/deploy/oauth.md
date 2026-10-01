@@ -78,6 +78,8 @@ Google 은 리다이렉트 URI 를 정확 일치로만 받는다(와일드카드
 - **위조 X-Forwarded-Host 차단**(PR #25 L-3): preview 는 `AUTH_URL` 이 없어 요청 Host·X-Forwarded-Host 를 origin 으로 쓴다. proxy 가 preview 에서
   X-Forwarded-Host 를 허용 목록(요청 Host · `VERCEL_URL` · `VERCEL_BRANCH_URL` · `NEXT_PUBLIC_APP_URL` 호스트)과 비교해 다르면 400 으로 막는다
   (`src/server/security/forwarded-host.ts`). Vercel 엣지가 이 헤더를 직접 설정하는지는 PR-5 체크리스트 C-11a 에서 실 preview 로 1회 확인한다.
+  한계(PR #26 I-d·I-f): 허용 목록에 요청 Host 자신이 들어 있어 X-Forwarded-Host 를 Host 와 같게 보내면 통과한다 — Vercel 은 Host 가 배포 호스트로
+  고정이라 무해하다. 쉼표 체인(`a,evil.com`)·빈 값은 proxy 400 보다 먼저 Auth.js/Next 가 `Invalid URL` 로 500 을 낸다(로그인 진행 없음, fail-closed).
 
 **고정 preview 호스트 만들기**(L-4): Vercel 프로젝트 → Settings → Domains → 도메인 추가(예 `preview.<회사 도메인>` 또는
 `prami-preview.vercel.app`) → 그 도메인의 **Git Branch** 를 preview 용 브랜치(예 `integration/prami-003`)로 지정한다. 그 브랜치의 최신

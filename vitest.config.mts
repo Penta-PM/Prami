@@ -12,9 +12,11 @@ const alias = {
 };
 
 /**
- * 프로젝트 2개 (§4.9.2 환경 열):
+ * 프로젝트 3개 (§4.9.2 환경 열):
  * - unit: jsdom, PGlite(memory://) — `pnpm test`. DB 테스트 파일은 `@vitest-environment node` 지시자 사용
  * - integration: node, 실제 Postgres(DB_DRIVER=pg + DATABASE_URL) — `pnpm test:integration`, CI service container
+ * - neon: node, 실제 Neon 드라이버(DB_DRIVER=neon + 일회용 Neon 브랜치) — `pnpm test:neon`, 체크리스트 C-6 (PR #26 D-2).
+ *   환경이 없으면 실패한다(0건 통과 방지). 로컬 예행은 NEON_LOCAL_PG_URL(격리 PG) — tests/neon/setup.ts
  */
 export default defineConfig({
   plugins: [react()],
@@ -67,6 +69,18 @@ export default defineConfig({
           environment: 'node',
           include: ['tests/integration/**/*.test.ts'],
           // 같은 DB 에 마이그레이션을 동시에 적용하면 CREATE EXTENSION 이 경합하므로 파일을 순차 실행한다
+          fileParallelism: false,
+          testTimeout: 60_000,
+          hookTimeout: 60_000,
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'neon',
+          environment: 'node',
+          include: ['tests/neon/**/*.neon.test.ts'],
+          setupFiles: ['tests/neon/setup.ts'],
           fileParallelism: false,
           testTimeout: 60_000,
           hookTimeout: 60_000,

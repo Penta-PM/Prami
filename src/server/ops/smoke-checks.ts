@@ -11,10 +11,17 @@ export type SmokeOptions = {
   baseUrl: string;
   fetch?: SmokeFetch;
   /**
-   * Vercel 배포 보호 우회(`x-vercel-protection-bypass`). 대상이 https 이고 Vercel 배포 호스트(`*.vercel.app`)일 때만 싣는다 —
-   * 다른 호스트로 시크릿이 새지 않게 (보안 리뷰 M-2)
+   * Vercel 배포 보호 우회(`x-vercel-protection-bypass`). 대상이 https 이고 `bypassHostPattern` 에 맞는 이 프로젝트의
+   * Vercel 배포 호스트일 때만 싣는다 — 다른 호스트로 시크릿이 새지 않게 (보안 리뷰 M-2, PR #26 L-S1)
    */
   bypassSecret?: string;
+  /** 우회 시크릿을 보낼 호스트 패턴 — `<프로젝트>-*-<팀 슬러그>.vercel.app` (`*` 1개). 없으면 시크릿을 보내지 않는다 */
+  bypassHostPattern?: string;
+  /**
+   * 점검 모드(MAINTENANCE_MODE=true) 배포 스모크 (PR #26 D-1). ④~⑦은 리다이렉트·401·404 대신 **점검 503** 을 기대한다 —
+   * 쓰기 차단이 실제로 걸려 있는지 확인한다. ①②③⑧ 은 점검 중에도 같다(`/login`·`/api/auth/*`·`/api/health` 는 열림)
+   */
+  maintenance?: boolean;
   /** 배포 직후 스모크: 헬스 `release` 가 이 값(커밋 SHA)이어야 한다 */
   expectRelease?: string;
   /** rate limit 확인 요청 수 상한 (헬스 IP 한도 30/분 → 31회 이내 429) */
@@ -36,6 +43,7 @@ export type SmokeResult = { id: SmokeCheckId; title: string; ok: boolean; proble
 type Ctx = Required<Pick<SmokeOptions, 'baseUrl' | 'rateLimitAttempts'>> & {
   request: (path: string, init?: RequestInit) => Promise<Response>;
   expectRelease?: string;
+  maintenance: boolean;
 };
 
 type SmokeCheck = { id: SmokeCheckId; title: string; run: (ctx: Ctx) => Promise<string[]> };
@@ -63,6 +71,40 @@ function redirectsToLogin(response: Response, baseUrl: string): boolean {
   if (!location) return false;
   return new URL(location, baseUrl).pathname === '/login';
 }
+
+/** 점검 모드 503 (src/proxy.ts maintenanceResponse) 판정 — Retry-After 가 있고, API 는 봉투 code MAINTENANCE */
+async function maintenanceProblemsOf(response: Response, label: string): Promise<string[]> {
+  if (response.status !== 503 || !response.headers.get('retry-after')) {
+    await response.body?.cancel();
+    return [`${label} status ${response.status} (점검 503 기대)`];
+  }
+  if (!label.includes('/api/')) {
+    await response.body?.cancel();
+    return [];
+  }
+  const body = (await readJson(response)) as { error?: { code?: unknown } } | null;
+  return body?.error?.code === 'MAINTENANCE' ? [] : [`${label} code ${String(body?.error?.code)}`];
+}
+
+async function maintenanceProblems(
+  ctx: Ctx,
+  path: string,
+  init: RequestInit = {},
+): Promise<string[]> {
+  const label = `${init.method ?? 'GET'} ${path.startsWith('/share/') ? '/share/quotes/…' : path}`;
+  return maintenanceProblemsOf(await ctx.request(path, init), label);
+}
+
+const CHAT_PROBE: RequestInit = {
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ messages: [{ role: 'user', content: 'smoke' }] }),
+};
+const SERVER_ACTION_PROBE: RequestInit = {
+  method: 'POST',
+  headers: { 'next-action': '0'.repeat(42), 'content-type': 'text/plain;charset=UTF-8' },
+  body: '[]',
+};
 
 /** ① `/api/health` 200 · schema ok (+ db·data ok, no-store, 배포 SHA) */
 async function checkHealth(ctx: Ctx): Promise<string[]> {
@@ -128,14 +170,16 @@ export async function checkSecurityHeaders(
 
 /** ④ 비인증 `/pricing` → `/login` 리다이렉트, 비인증 `POST /api/chat` → 401 봉투 */
 async function checkAuthGate(ctx: Ctx): Promise<string[]> {
+  if (ctx.maintenance) {
+    return [
+      ...(await maintenanceProblems(ctx, '/pricing')),
+      ...(await maintenanceProblems(ctx, '/api/chat', CHAT_PROBE)),
+    ];
+  }
   const problems: string[] = [];
   const page = await ctx.request('/pricing');
   if (!redirectsToLogin(page, ctx.baseUrl)) problems.push(`/pricing status ${page.status}`);
-  const chat = await ctx.request('/api/chat', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ messages: [{ role: 'user', content: 'smoke' }] }),
-  });
+  const chat = await ctx.request('/api/chat', CHAT_PROBE);
   const body = (await readJson(chat)) as { ok?: unknown; error?: { code?: unknown } } | null;
   if (chat.status !== 401 || body?.ok !== false || body.error?.code !== 'UNAUTHENTICATED') {
     problems.push(`POST /api/chat status ${chat.status} code ${String(body?.error?.code)}`);
@@ -145,11 +189,8 @@ async function checkAuthGate(ctx: Ctx): Promise<string[]> {
 
 /** ⑤ 비인증 Server Action 직접 호출 → proxy 가 /login 으로 돌려보낸다(액션 미실행) */
 async function checkServerAction(ctx: Ctx): Promise<string[]> {
-  const response = await ctx.request('/pricing', {
-    method: 'POST',
-    headers: { 'next-action': '0'.repeat(42), 'content-type': 'text/plain;charset=UTF-8' },
-    body: '[]',
-  });
+  if (ctx.maintenance) return maintenanceProblems(ctx, '/pricing', SERVER_ACTION_PROBE);
+  const response = await ctx.request('/pricing', SERVER_ACTION_PROBE);
   return redirectsToLogin(response, ctx.baseUrl) || response.status === 401
     ? []
     : [`Server Action status ${response.status}`];
@@ -157,18 +198,22 @@ async function checkServerAction(ctx: Ctx): Promise<string[]> {
 
 /** ⑥ 없는 공유 토큰 → 404 */
 async function checkShare404(ctx: Ctx): Promise<string[]> {
+  if (ctx.maintenance) return maintenanceProblems(ctx, `/share/quotes/${randomToken()}`);
   const response = await ctx.request(`/share/quotes/${randomToken()}`);
   return response.status === 404 ? [] : [`status ${response.status} (404 기대)`];
 }
 
 /**
  * ⑦ OpenRouter OAuth 시작 — 비인증은 proxy 가 401 로 막고, 로그인했더라도 플래그 off 면 404 다.
- * 어느 쪽이든 벤더(openrouter.ai)로 가는 리다이렉트가 나오면 실패. 플래그 자체의 확인은 인증 E2E(`chat-llm.spec`)와 C-3 env 비교.
+ * 어느 쪽이든 벤더(openrouter.ai)로 가는 리다이렉트가 나오면 실패(점검 모드에서는 점검 503 기대). 플래그 자체의 확인은 인증 E2E(`chat-llm.spec`)와 C-3 env 비교.
  */
 async function checkOpenRouterStart(ctx: Ctx): Promise<string[]> {
   const response = await ctx.request('/api/settings/oauth/openrouter/start');
   const location = response.headers.get('location') ?? '';
   if (location.includes('openrouter.ai')) return ['벤더 인가 페이지로 리다이렉트됨'];
+  if (ctx.maintenance) {
+    return maintenanceProblemsOf(response, 'GET /api/settings/oauth/openrouter/start');
+  }
   return response.status === 401 || response.status === 404
     ? []
     : [`status ${response.status} (401/404 기대)`];
@@ -212,13 +257,30 @@ export const SMOKE_CHECKS: readonly SmokeCheck[] = [
   },
 ];
 
-const BYPASS_HOST_SUFFIX = '.vercel.app';
+/** `<프로젝트>-*-<팀 슬러그>.vercel.app` — 앞·뒤 고정부가 있고 `*` 는 정확히 1개 */
+const BYPASS_PATTERN_SHAPE = /^([a-z0-9][a-z0-9-]*-)\*(-[a-z0-9-]*[a-z0-9]\.vercel\.app)$/;
 
-/** 우회 시크릿을 보내도 되는 대상인지 — https + `*.vercel.app` */
-export function bypassAllowed(baseUrl: string): boolean {
+/**
+ * 우회 시크릿을 보내도 되는 대상인지 — https + 이 프로젝트의 Vercel 배포 호스트 패턴(`bypassHostPattern`).
+ * 패턴이 없거나 모양이 틀리면 보내지 않는다(아무 `*.vercel.app` 로 새지 않게 — PR #26 L-S1)
+ */
+export function bypassAllowed(baseUrl: string, hostPattern: string | undefined): boolean {
+  const shape = BYPASS_PATTERN_SHAPE.exec((hostPattern ?? '').trim().toLowerCase());
+  if (!shape) return false;
+  const [, prefix, suffix] = shape as unknown as [string, string, string];
   try {
     const url = new URL(baseUrl);
-    return url.protocol === 'https:' && url.hostname.toLowerCase().endsWith(BYPASS_HOST_SUFFIX);
+    const host = url.hostname.toLowerCase();
+    const middle = host.slice(prefix.length, host.length - suffix.length);
+    return (
+      url.protocol === 'https:' &&
+      url.port === '' &&
+      host.startsWith(prefix) &&
+      host.endsWith(suffix) &&
+      host.length > prefix.length + suffix.length &&
+      // 배포 고유 해시 한 칸만(하이픈 없음) — git 브랜치 별칭·다른 팀의 `<프로젝트>-x-y-<팀>` 류 이름을 받지 않는다
+      /^[a-z0-9]+$/.test(middle)
+    );
   } catch {
     return false;
   }
@@ -227,9 +289,13 @@ export function bypassAllowed(baseUrl: string): boolean {
 export function smokeContext(options: SmokeOptions): Ctx {
   const baseUrl = options.baseUrl.replace(/\/+$/, '');
   const doFetch = options.fetch ?? ((url, init) => fetch(url, init));
-  const bypass = options.bypassSecret && bypassAllowed(baseUrl) ? options.bypassSecret : undefined;
+  const bypass =
+    options.bypassSecret && bypassAllowed(baseUrl, options.bypassHostPattern)
+      ? options.bypassSecret
+      : undefined;
   return {
     baseUrl,
+    maintenance: options.maintenance ?? false,
     rateLimitAttempts: options.rateLimitAttempts ?? 31,
     ...(options.expectRelease ? { expectRelease: options.expectRelease } : {}),
     request: (path, init = {}) => {

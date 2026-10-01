@@ -17,21 +17,25 @@ import {
   formatRows,
   parseReleaseCheckArgs,
   parseVercelEnvNames,
+  releaseCheckTitle,
   runReleaseCheck,
   type ReleaseCheckArgs,
   type ReleaseCheckDeps,
 } from '../src/server/ops/release-check';
 
+/** capture 면 stdout·stderr 를 함께 모은다 — Vercel CLI 는 표를 stderr 로 낼 수 있다 (PR #26 F-9) */
 function exec(command: string, capture: boolean): Promise<{ code: number; stdout: string }> {
   return new Promise((resolve) => {
     const child = spawn(command, {
       shell: true,
-      stdio: capture ? ['ignore', 'pipe', 'inherit'] : 'inherit',
+      stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
     });
     let stdout = '';
-    child.stdout?.on('data', (chunk: Buffer) => {
+    const collect = (chunk: Buffer) => {
       stdout += chunk.toString('utf8');
-    });
+    };
+    child.stdout?.on('data', collect);
+    child.stderr?.on('data', collect);
     child.on('exit', (code) => resolve({ code: code ?? 1, stdout }));
   });
 }
@@ -52,9 +56,13 @@ async function envNames(args: ReleaseCheckArgs): Promise<Set<string>> {
     });
     return new Set(loadedEnvFiles.flatMap((file) => Object.keys(file.env)));
   }
+  // 선행 조건: Vercel CLI 로그인 + `vercel link`(또는 VERCEL_ORG_ID·VERCEL_PROJECT_ID) — 런북 §0.5
   const { code, stdout } = await exec(`vercel env ls ${args.target}`, true);
   if (code !== 0) throw new Error('vercel env ls 실패');
-  return parseVercelEnvNames(stdout);
+  const names = parseVercelEnvNames(stdout);
+  // 이름을 하나도 못 읽었으면 "전부 누락" 으로 판정하지 않고 실행 실패로 알린다 (출력 형식 변화·미연결)
+  if (names.size === 0) throw new Error('vercel env ls 출력에서 이름을 찾지 못함');
+  return names;
 }
 
 const deps: ReleaseCheckDeps = {
@@ -84,7 +92,7 @@ const deps: ReleaseCheckDeps = {
 async function main(): Promise<number> {
   const args = parseReleaseCheckArgs(process.argv.slice(2));
   const result = await runReleaseCheck(args, deps);
-  console.log(formatRows(`release:check ${args.command} (--target ${args.target})`, result.rows));
+  console.log(formatRows(releaseCheckTitle(args), result.rows));
   console.log(result.ok ? '\n결과: PASS' : '\n결과: FAIL');
   return result.ok ? 0 : 1;
 }

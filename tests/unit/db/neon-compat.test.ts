@@ -82,10 +82,18 @@ function statementPrefix(text: string, index: number): string {
   return before.slice(start + 1);
 }
 
-/** 매치가 한 줄 주석(`// …`·`-- …`) 안인지 — 주석 속 문장은 실행되지 않는다 (PR #24 QA I-7 FP12) */
+/** 같은 줄의 따옴표 문자열 리터럴 — 문자열 속 `' // '` 를 주석 시작으로 잡지 않게 먼저 비운다 (PR #26 L-c) */
+const QUOTED_LITERAL_RE = /'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"/g;
+
+/**
+ * 매치가 한 줄 주석(`// …`·`-- …`) 안인지 — 주석 속 문장은 실행되지 않는다 (PR #24 QA I-7 FP12).
+ * 같은 줄 앞쪽의 `'…'`·`"…"` 문자열은 지운 뒤 본다(PR #26 L-c — 문자열 속 `' // '` 뒤의 실제 sql 템플릿 SET 을 놓치지 않게).
+ * 한계: 여러 줄 문자열·템플릿 리터럴 속 `//` 는 다루지 않는다(해당 코드 0 — 생기면 아래 사례에 추가).
+ */
 function inLineComment(text: string, index: number): boolean {
   const lineStart = text.lastIndexOf('\n', index - 1) + 1;
-  return /(?:^|\s)(?:\/\/|--)(?:\s|$)/.test(text.slice(lineStart, index));
+  const prefix = text.slice(lineStart, index).replace(QUOTED_LITERAL_RE, "''");
+  return /(?:^|\s)(?:\/\/|--)(?:\s|$)/.test(prefix);
 }
 
 function scanNeonCompat(file: string, text: string, runtime: boolean): string[] {
@@ -229,5 +237,14 @@ describe('Neon transaction pooling 호환 (AC-325)', () => {
     expect(scanNeonCompat('bad.ts', 'i--; sql`SET work_mem = 1`', true)).toEqual([
       'bad.ts:1 런타임 세션 SET',
     ]);
+    // PR #26 L-c: 같은 줄 문자열 속 ' // ' · " -- " 뒤의 실제 SET 은 잡는다 (fail-open 경계)
+    expect(scanNeonCompat('bad.ts', "const a = ' // '; sql`SET work_mem = 1`", true)).toEqual([
+      'bad.ts:1 런타임 세션 SET',
+    ]);
+    expect(scanNeonCompat('bad.ts', 'const b = " -- \\" x"; sql`SET work_mem = 1`', true)).toEqual([
+      'bad.ts:1 런타임 세션 SET',
+    ]);
+    // 문자열 뒤에 진짜 주석이 오면 여전히 주석
+    expect(scanNeonCompat('ok.ts', "const a = 'x'; // we set x = 1 here", true)).toEqual([]);
   });
 });

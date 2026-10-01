@@ -20,6 +20,7 @@
     "test:watch": "vitest --project unit",
     "test:coverage": "vitest run --project unit --coverage",
     "test:integration": "vitest run --project integration",
+    "test:neon": "vitest run --project neon",
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",

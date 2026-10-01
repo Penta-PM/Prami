@@ -2,10 +2,11 @@
  * `pnpm smoke:local` — 로컬 preview 모의에서 preview 스모크 8항목 실행 (PRAMI-003 AC-361).
  * 프로덕션 빌드 + `VERCEL_ENV=preview`(preview 기동 검사 그대로) + 격리 Postgres. 실 외부 서비스 호출 없음.
  *
- *   SMOKE_PG_URL=postgres://prami:prami@localhost:5446/smoke pnpm smoke:local [--skip-build] [--fault fixture] [--port 3200]
+ *   SMOKE_PG_URL=postgres://prami:prami@localhost:5446/smoke pnpm smoke:local [--skip-build] [--fault fixture] [--maintenance] [--port 3200]
  *
  * 1) 격리 DB 마이그레이션(pg 드라이버) 2) `next build`(.next-smoke) 3) `next start` + Neon HTTP preload(scripts/smoke/neon-local-fetch.mjs)
  * 4) `pnpm smoke`. `--fault fixture` 는 fixture 계정을 넣어 헬스 `data:'fixture'`(503) 를 만든다 — ①이 실패해야 한다.
+ * `--maintenance` 는 서버를 MAINTENANCE_MODE=true 로 띄우고 점검 모드 스모크(SMOKE_MAINTENANCE=true, ④~⑦ 점검 503 기대)를 돌린다(PR #26 D-1).
  * 안전장치: :5432(로컬 :3000 의 실데이터 DB 컨테이너)·DB 이름 `prami` 는 거부한다. 서버는 끝나면 종료한다.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -21,6 +22,7 @@ const option = (name: string, fallback: string) => {
 const PG_URL = process.env.SMOKE_PG_URL ?? '';
 const PORT = option('--port', '3200');
 const FAULT = option('--fault', '');
+const MAINTENANCE = flag('--maintenance');
 const BASE_URL = `http://localhost:${PORT}`;
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -144,6 +146,7 @@ async function main(): Promise<number> {
     env: cleanEnv({
       ...env,
       SMOKE_PG_URL: PG_URL,
+      ...(MAINTENANCE ? { MAINTENANCE_MODE: 'true' } : {}),
       NODE_OPTIONS: '--import ./scripts/smoke/neon-local-fetch.mjs',
     }),
   });
@@ -151,7 +154,11 @@ async function main(): Promise<number> {
     await waitForServer(server);
     return await run(
       'pnpm smoke',
-      cleanEnv({ SMOKE_URL: BASE_URL, SMOKE_EXPECT_RELEASE: 'smoke-local' }),
+      cleanEnv({
+        SMOKE_URL: BASE_URL,
+        SMOKE_EXPECT_RELEASE: 'smoke-local',
+        SMOKE_MAINTENANCE: MAINTENANCE ? 'true' : 'false',
+      }),
     );
   } finally {
     // Windows: 셸 자식(next start)까지 프로세스 트리로 먼저 끝낸다 — 셸만 죽이면 서버가 남아 다음 실행이 옛 서버에 붙는다
