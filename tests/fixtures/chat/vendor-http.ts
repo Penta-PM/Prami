@@ -8,6 +8,16 @@ import type { CapturedRequest } from './anthropic-http';
 export type VendorTurn =
   | { text: string }
   | { toolCall: { name: string; args: Record<string, unknown> } }
+  /** Responses 전용 (PRAMI-003 L-1): refusal 콘텐츠 부분 */
+  | { refusal: string }
+  /** Responses 전용 (PRAMI-003 L-1): status incomplete + incomplete_details.reason, 부분 텍스트 선택 */
+  | {
+      incomplete: {
+        reason: 'max_output_tokens' | 'content_filter';
+        text?: string;
+        toolCall?: { name: string; args: Record<string, unknown> };
+      };
+    }
   | { error: { status: number; body: unknown; headers?: Record<string, string> } }
   | { hang: true };
 
@@ -112,33 +122,81 @@ function responsesOutput(turn: VendorTurn): ResponsesItem[] {
     };
     return [reasoning, call];
   }
-  const text = 'text' in turn ? turn.text : '';
-  const message = {
+  const message = (status: string, content: Record<string, unknown>[]) => ({
     type: 'message',
     id: 'msg_1',
     role: 'assistant',
-    status: 'completed',
-    content: [{ type: 'output_text', text, annotations: [] }],
-  };
-  return [reasoning, message];
+    status,
+    content,
+  });
+  if ('refusal' in turn) {
+    return [reasoning, message('completed', [{ type: 'refusal', refusal: turn.refusal }])];
+  }
+  if ('incomplete' in turn) {
+    const { text, toolCall } = turn.incomplete;
+    const items: ResponsesItem[] = [reasoning];
+    if (text) items.push(message('incomplete', [{ type: 'output_text', text, annotations: [] }]));
+    if (toolCall) {
+      items.push({
+        type: 'function_call',
+        id: 'fc_1',
+        call_id: 'call_1',
+        name: toolCall.name,
+        arguments: JSON.stringify(toolCall.args),
+        status: 'incomplete',
+      });
+    }
+    return items;
+  }
+  const text = 'text' in turn ? turn.text : '';
+  return [reasoning, message('completed', [{ type: 'output_text', text, annotations: [] }])];
 }
 
-function responsesBody(turn: VendorTurn, status = 'completed') {
+/** phase 'created' = 스트림 첫 이벤트(출력 없음), 'final' = 완료·미완료 본문 */
+function responsesBody(turn: VendorTurn, phase: 'created' | 'final' = 'final') {
+  const incomplete = 'incomplete' in turn ? turn.incomplete : null;
+  const status = phase === 'created' ? 'in_progress' : incomplete ? 'incomplete' : 'completed';
   return {
     id: 'resp_1',
     object: 'response',
     created_at: 1,
     status,
+    ...(incomplete && phase === 'final'
+      ? { incomplete_details: { reason: incomplete.reason } }
+      : { incomplete_details: null }),
     model: 'gpt-6.1-sol',
-    output: status === 'completed' ? responsesOutput(turn) : [],
+    output: phase === 'final' ? responsesOutput(turn) : [],
     usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
   };
+}
+
+/** 메시지 항목의 콘텐츠 부분 하나 → part.added · delta · done 이벤트 (output_text / refusal) */
+function contentPartEvents(item: ResponsesItem, outputIndex: number): Record<string, unknown>[] {
+  const part = (item.content as Record<string, string>[])[0];
+  if (!part) return [];
+  const at = { item_id: item.id, output_index: outputIndex, content_index: 0 };
+  if (part.type === 'refusal') {
+    return [
+      { type: 'response.content_part.added', ...at, part: { type: 'refusal', refusal: '' } },
+      { type: 'response.refusal.delta', ...at, delta: part.refusal },
+      { type: 'response.refusal.done', ...at, refusal: part.refusal },
+    ];
+  }
+  return [
+    {
+      type: 'response.content_part.added',
+      ...at,
+      part: { type: 'output_text', text: '', annotations: [] },
+    },
+    { type: 'response.output_text.delta', ...at, delta: part.text },
+    { type: 'response.output_text.done', ...at, text: part.text },
+  ];
 }
 
 /** Responses 스트리밍 이벤트 (`event:` + `data:`) — 항목 추가 → 델타 → 항목 완료 → response.completed */
 function responsesStream(turn: VendorTurn): Response {
   const events: Record<string, unknown>[] = [
-    { type: 'response.created', response: responsesBody(turn, 'in_progress') },
+    { type: 'response.created', response: responsesBody(turn, 'created') },
   ];
   responsesOutput(turn).forEach((item, outputIndex) => {
     const started =
@@ -148,30 +206,7 @@ function responsesStream(turn: VendorTurn): Response {
           ? { ...item, arguments: '' }
           : item;
     events.push({ type: 'response.output_item.added', output_index: outputIndex, item: started });
-    if (item.type === 'message') {
-      const text = (item.content as { text: string }[])[0]!.text;
-      events.push({
-        type: 'response.content_part.added',
-        item_id: item.id,
-        output_index: outputIndex,
-        content_index: 0,
-        part: { type: 'output_text', text: '', annotations: [] },
-      });
-      events.push({
-        type: 'response.output_text.delta',
-        item_id: item.id,
-        output_index: outputIndex,
-        content_index: 0,
-        delta: text,
-      });
-      events.push({
-        type: 'response.output_text.done',
-        item_id: item.id,
-        output_index: outputIndex,
-        content_index: 0,
-        text,
-      });
-    }
+    if (item.type === 'message') events.push(...contentPartEvents(item, outputIndex));
     if (item.type === 'function_call') {
       events.push({
         type: 'response.function_call_arguments.delta',
@@ -188,7 +223,11 @@ function responsesStream(turn: VendorTurn): Response {
     }
     events.push({ type: 'response.output_item.done', output_index: outputIndex, item });
   });
-  events.push({ type: 'response.completed', response: responsesBody(turn) });
+  const final = responsesBody(turn);
+  events.push({
+    type: final.status === 'incomplete' ? 'response.incomplete' : 'response.completed',
+    response: final,
+  });
   const body = events
     .map(
       (event, index) => `event: ${String(event.type)}

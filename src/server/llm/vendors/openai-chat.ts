@@ -1,6 +1,7 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { ChatOpenAI } from '@langchain/openai';
 
+import { findModel } from '../models';
 import type { ChatModelFactoryOptions } from './types';
 
 /**
@@ -16,7 +17,8 @@ import type { ChatModelFactoryOptions } from './types';
  * - `reasoning.effort: 'low'` — 모든 GPT-6 모델이 지원(Astra·6.1 Sol 은 `none` 미지원), Anthropic 어댑터의 effort low 와 같은 수준
  * - `store: false`(zdrEnabled) — 벤더 측 응답 저장 없음(앱도 대화를 저장하지 않는다, AC-230). 도구 루프의 추론 연속성은
  *   `include: ['reasoning.encrypted_content']` 로 받은 암호화 추론 항목을 다음 요청에 돌려준다(상태 없는 방식)
- * - `max_output_tokens`, 도구 `strict:true`(bindTools strict), `tool_choice` 없음, temperature·top_p 미전송
+ * - `max_output_tokens` = 보이는 답 상한 + 모델 상수 `reasoningReserveTokens`(추론 토큰이 상한에 포함, PRAMI-003 L-3 — 기본 9,216),
+ *   도구 `strict:true`(bindTools strict), `tool_choice` 없음, temperature·top_p 미전송
  * 요청마다 새 인스턴스 — 키는 이 인스턴스 안에만(I-3). 재시도 1회·타임아웃은 §4.8.1 상한.
  */
 export function createOpenAIChatModel(
@@ -24,10 +26,11 @@ export function createOpenAIChatModel(
   modelId: string,
   options: ChatModelFactoryOptions,
 ): BaseChatModel {
+  const reserve = findModel('openai', modelId)?.reasoningReserveTokens ?? 0;
   return new ChatOpenAI({
     apiKey: secret,
     model: modelId,
-    maxTokens: options.maxTokens,
+    maxTokens: options.maxTokens + reserve,
     maxRetries: 1,
     timeout: options.timeoutMs,
     useResponsesApi: true,

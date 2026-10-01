@@ -2,10 +2,14 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { ChatReplyOut, ChatSettings } from '@/server/chat/graph/types';
-import { defaultModelFor } from '@/server/llm/models';
+import { defaultModelFor, OPENAI_REASONING_RESERVE_TOKENS } from '@/server/llm/models';
 import { createAnthropicChatModel } from '@/server/llm/vendors/anthropic-chat';
 import { createGoogleChatModel } from '@/server/llm/vendors/google-chat';
-import { createOpenAIChatModel } from '@/server/llm/vendors/openai-chat';
+import {
+  createOpenAIChatModel,
+  createOpenAICompatibleChatModel,
+} from '@/server/llm/vendors/openai-chat';
+import { OPENROUTER_API_BASE } from '@/server/llm/vendors/openrouter';
 
 import { createAnthropicStub, toolUseBlock } from '../../fixtures/chat/anthropic-http';
 import {
@@ -133,7 +137,8 @@ describe('같은 시나리오 → 같은 형태의 ChatReply (AC-241)', () => {
     expect(body).not.toHaveProperty('reasoning_effort');
     expect(body).not.toHaveProperty('max_completion_tokens');
     expect(body.model).toBe('gpt-6.1-sol');
-    expect(body.max_output_tokens).toBe(1024);
+    // PRAMI-003 L-3: 보이는 답 상한 1,024 + 추론 여유 8,192 (추론 토큰이 max_output_tokens 에 포함)
+    expect(body.max_output_tokens).toBe(1024 + OPENAI_REASONING_RESERVE_TOKENS);
     expect(body.reasoning).toEqual({ effort: 'low' });
     expect(body.store).toBe(false);
     expect(body.include).toEqual(['reasoning.encrypted_content']);
@@ -238,12 +243,38 @@ describe('어댑터 상한 (AC-241·AC-229)', () => {
     };
     expect(openai.caller.maxRetries).toBe(1);
     expect(openai.timeout).toBe(20_000);
-    expect(openai.maxTokens).toBe(777);
+    expect(openai.maxTokens).toBe(777 + OPENAI_REASONING_RESERVE_TOKENS);
     const google = createGoogleChatModel(KEYS.google, 'gemini-3.8-flash', options) as unknown as {
       caller: { maxRetries: number };
       maxOutputTokens: number;
     };
     expect(google.caller.maxRetries).toBe(1);
+    expect(google.maxOutputTokens).toBe(777);
+  });
+
+  it('AC-354 ⑤ 추론 여유는 OpenAI(Responses) 직접 경로만 — Anthropic·Gemini·OpenRouter 출력 상한은 기존 값 (PRAMI-003 L-3)', () => {
+    const options = { maxTokens: 777, timeoutMs: 20_000 };
+    const maxOf = (model: unknown) => (model as { maxTokens?: number }).maxTokens;
+    expect(maxOf(createOpenAIChatModel(KEYS.openai, 'gpt-6-luna', options))).toBe(777 + 8192);
+    expect(maxOf(createOpenAIChatModel(KEYS.openai, 'gpt-6-astra', options))).toBe(777 + 8192);
+    expect(
+      maxOf(
+        createAnthropicChatModel('sk-ant-api03-test-L3-000000000000', 'claude-opus-5-5', options),
+      ),
+    ).toBe(777);
+    expect(
+      maxOf(
+        createOpenAICompatibleChatModel(
+          'sk-or-v1-test-L3-0000000000',
+          'openai/gpt-6.1-sol',
+          options,
+          OPENROUTER_API_BASE,
+        ),
+      ),
+    ).toBe(777);
+    const google = createGoogleChatModel(KEYS.google, 'gemini-3.8-flash', options) as unknown as {
+      maxOutputTokens: number;
+    };
     expect(google.maxOutputTokens).toBe(777);
   });
 

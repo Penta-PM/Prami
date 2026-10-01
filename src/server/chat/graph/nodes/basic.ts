@@ -7,6 +7,7 @@ import type { ChatFeature } from '../../features/types';
 import { classifyIntent } from '../../intent';
 import { COST_REPLY, COST_REPLY_USER, respondToChat } from '../../respond';
 import { historyToMessages, recentHistory } from '../history';
+import { withMessageId } from '../message-id';
 import { setupFor, TRUNCATED_NOTICE, unsupportedVendorsMessage } from '../messages';
 import { buildSystemPrompt } from '../prompt';
 import type { ChatGraphState, ChatGraphUpdate } from '../state';
@@ -22,11 +23,12 @@ export function makePrepare(features: readonly ChatFeature[]) {
   return (state: ChatGraphState, config: LangGraphRunnableConfig): ChatGraphUpdate => {
     const { settings } = runtimeOf(config);
     const history = recentHistory(state.history, settings.historyMaxTurns);
+    // 모든 메시지에 고유 id (PRAMI-003 H1-1): id 없이 반환하면 SSE(messages 모드)에서 같은 run id 로 합쳐진다(H-1)
     return {
       messages: [
-        new SystemMessage(system),
+        withMessageId(new SystemMessage(system)),
         ...historyToMessages(history),
-        new HumanMessage(state.input.text),
+        withMessageId(new HumanMessage(state.input.text)),
       ],
       notices: state.input.truncated ? [{ code: 'truncated', text: TRUNCATED_NOTICE }] : [],
     };

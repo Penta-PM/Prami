@@ -11,6 +11,7 @@ import { streamChat } from '@/server/chat/graph/stream';
 import { chatGraph, createChatRuntime } from '@/server/chat/graph/runtime';
 import { CHAT_MAX_LENGTH, normalizeMessage } from '@/server/chat/intent';
 import { rateLimiters, retryAfterSeconds } from '@/server/rate-limit';
+import { REQUEST_ID_HEADER } from '@/server/security/headers';
 
 /**
  * POST /api/chat (PRAMI-001 §4.5.9 → PRAMI-002 §4.3.11, chat.use): LangGraph 그래프로 답한다 — 키가 없거나 LLM 이 실패하면
@@ -84,7 +85,12 @@ export async function POST(request: Request): Promise<Response> {
       history,
       actor: { userId: user.id, role: user.role },
     };
-    const chatRuntime = createChatRuntime({ db, userId: user.id, env });
+    const chatRuntime = createChatRuntime({
+      db,
+      userId: user.id,
+      env,
+      requestId: request.headers.get(REQUEST_ID_HEADER),
+    });
     if (wantsEventStream(request)) {
       // SSE 옵트인 (§4.3.9) — 연결이 끊기면 request.signal 로 그래프·모델 호출을 중단한다
       return new Response(streamChat(chatGraph, input, chatRuntime, request.signal), {

@@ -27,7 +27,19 @@ export type LlmModelOption = {
   isDefault?: true;
   /** Anthropic 모델별 요청 제약 (§4.5.3) — 어댑터가 이 플래그만 보고 요청을 만든다 */
   anthropic?: AnthropicModelTraits;
+  /**
+   * 추론 모델의 출력 상한 여유 (PRAMI-003 §4.5.5 L-3): 출력 상한에 추론 토큰이 포함되는 벤더(OpenAI Responses
+   * `max_output_tokens`)는 보이는 답 상한(CHAT_LLM_MAX_OUTPUT_TOKENS) + 이 값을 보낸다. 없으면 0.
+   */
+  reasoningReserveTokens?: number;
 };
+
+/**
+ * OpenAI GPT-6 계열 추론 여유 (PRAMI-003 §4.5.5 L-3 — 스펙 확정값). 근거: https://developers.openai.com/api/docs/guides/reasoning
+ * (2026-10-01 확인) — 추론 토큰이 `max_output_tokens` 에 포함되고, 초과하면 `status: incomplete`(reason max_output_tokens).
+ * 기본 1,024 + 8,192 = 9,216. 사용자 과금 상한은 "추론 여유 포함"(PRAMI-002 §4.8 표).
+ */
+export const OPENAI_REASONING_RESERVE_TOKENS = 8192;
 
 /**
  * Anthropic 요청 제약 (스펙 r2 §4.5.3, 2026-09-30 공식 문서 기준). `thinking` 파라미터는 어떤 모델에도 보내지 않는다
@@ -100,9 +112,22 @@ export const LLM_MODELS = {
       tier: 'balanced',
       lifecycle: 'current',
       isDefault: true,
+      reasoningReserveTokens: OPENAI_REASONING_RESERVE_TOKENS,
     },
-    { id: 'gpt-6-luna', label: 'GPT-6 Luna', tier: 'low', lifecycle: 'current' },
-    { id: 'gpt-6-astra', label: 'GPT-6 Astra', tier: 'top', lifecycle: 'current' },
+    {
+      id: 'gpt-6-luna',
+      label: 'GPT-6 Luna',
+      tier: 'low',
+      lifecycle: 'current',
+      reasoningReserveTokens: OPENAI_REASONING_RESERVE_TOKENS,
+    },
+    {
+      id: 'gpt-6-astra',
+      label: 'GPT-6 Astra',
+      tier: 'top',
+      lifecycle: 'current',
+      reasoningReserveTokens: OPENAI_REASONING_RESERVE_TOKENS,
+    },
   ],
   google: [
     {
