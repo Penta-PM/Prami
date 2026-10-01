@@ -34,6 +34,11 @@ test('ADMIN: 품목조회 5파일 동시 업로드 → 파일 목록·검증 통
   page,
 }, testInfo) => {
   await loginAs(page, FIXTURE_ADMIN, '/admin/policies');
+  // globalSetup 이 품목 배치를 적용해 두었으므로 기본값은 "기존 파일 재사용" — 신규 업로드로 전환
+  await page
+    .getByRole('radiogroup', { name: '품목상태 파일 방식' })
+    .getByRole('radio', { name: '신규 업로드' })
+    .check();
   await page.getByLabel(ITEM_INPUT).setInputFiles(REDUCED);
   const summary = page.getByLabel(/wapples\.xlsx 외 4개 검증 결과/);
   await expect(summary).toContainText('검증 통과');
