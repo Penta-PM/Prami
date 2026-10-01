@@ -75,8 +75,9 @@ export function validateFile(input: Omit<UploadInput, 'kind'>): void {
     throw new AppError('VALIDATION', `지원하지 않는 파일 형식입니다 (${input.mimeType})`);
   }
   if (input.bytes.length === 0) throw new AppError('VALIDATION', '빈 파일입니다');
+  // 413 — 단일 파일 경로(route 사전 검사)와 품목 다중 파일 경로가 같은 코드·문구 (PRAMI-003 AC-373 ①, PR #21 I-9)
   if (input.bytes.length > MAX_IMPORT_FILE_BYTES) {
-    throw new AppError('VALIDATION', TOO_LARGE_FILE_MESSAGE);
+    throw new AppError('PAYLOAD_TOO_LARGE', TOO_LARGE_FILE_MESSAGE);
   }
 }
 
