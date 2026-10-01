@@ -138,18 +138,40 @@ export class XaiServerToolUsedError extends Error {
   }
 }
 
-function scanSse(body: ReadableStream<Uint8Array>, onDetect: () => void) {
+function dataUsedServerTool(data: string): boolean {
+  if (!data || data === '[DONE]') return false;
+  try {
+    return eventUsedServerTool(JSON.parse(data));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * SSE 응답 사후 검사 — 이벤트 단위로 판정한다(PR #22 QA I-18). SSE 규격상 한 이벤트의 `data:` 가 여러 줄이면 `\n` 으로 이어
+ * 붙인 값이 데이터다(빈 줄이 이벤트 끝, `\r\n` 허용). 한 줄짜리 data 는 줄이 끝나는 즉시 판정한다(텍스트 델타보다 먼저 끊기).
+ * 판정 실패(파싱 불가)는 통과 — 1차 요청 가드가 금지 파라미터를 이미 막았고, 이 검사는 2차 방어다.
+ */
+export function scanSse(body: ReadableStream<Uint8Array>, onDetect: () => void) {
   const decoder = new TextDecoder();
   let pending = '';
-  const detected = (line: string) => {
+  let dataLines: string[] = [];
+  const endEvent = () => {
+    const used = dataLines.length > 1 && dataUsedServerTool(dataLines.join('\n').trim());
+    dataLines = [];
+    return used;
+  };
+  const feed = (raw: string): boolean => {
+    const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+    if (line === '') return endEvent();
     if (!line.startsWith('data:')) return false;
-    const data = line.slice('data:'.length).trim();
-    if (!data || data === '[DONE]') return false;
-    try {
-      return eventUsedServerTool(JSON.parse(data));
-    } catch {
-      return false;
-    }
+    const value = line.slice('data:'.length);
+    dataLines.push(value.startsWith(' ') ? value.slice(1) : value);
+    return dataLines.length === 1 && dataUsedServerTool(value.trim());
+  };
+  const stop = (controller: TransformStreamDefaultController<Uint8Array>) => {
+    onDetect();
+    controller.error(new XaiServerToolUsedError());
   };
   return body.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
@@ -157,17 +179,12 @@ function scanSse(body: ReadableStream<Uint8Array>, onDetect: () => void) {
         pending += decoder.decode(chunk, { stream: true });
         const lines = pending.split('\n');
         pending = lines.pop() ?? '';
-        if (lines.some(detected)) {
-          onDetect();
-          controller.error(new XaiServerToolUsedError());
-          return;
-        }
+        if (lines.some(feed)) return stop(controller);
         controller.enqueue(chunk);
       },
       flush(controller) {
-        if (!detected(pending + decoder.decode())) return;
-        onDetect();
-        controller.error(new XaiServerToolUsedError());
+        const rest = pending + decoder.decode();
+        if ((rest !== '' && feed(rest)) || endEvent()) stop(controller);
       },
     }),
   );
