@@ -1,4 +1,4 @@
-import { isNetworkError } from './error-chain';
+import { isContextOverflowWrapper, isNetworkError } from './error-chain';
 import { requestGuardOf } from './request-guard';
 
 /**
@@ -98,8 +98,13 @@ function bodyCodesOf(error: ErrorLike & { errorDetails?: unknown }): string[] {
 /**
  * 컨텍스트 초과 (L-2 ①) → too_long("대화를 새로 시작해주세요"). OpenAI·xAI 는 400 + 본문 코드 `context_length_exceeded`
  * (설치 버전 @langchain/openai 1.6.0 은 CONTEXT_OVERFLOW 를 붙이지 않는다 — 전송 가로채기로 확인), Anthropic 은 `request_too_large`(413).
+ * (r3, PR #22 L-1) LangChain 이 오류를 `ContextOverflowError` 로 바꾼 경우(오류 문자열에 `context_length_exceeded`, 메시지에
+ * "maximum context length"·"exceeds the context window" — 원래 오류의 `status`·`lc_error_code` 가 사라진다)도 too_long.
+ * 이 판정은 상태 코드 판정보다 앞이다. 실제형 OpenAI 메시지와 xAI(`withXaiErrorBody` 가 본문을 `{error:{code}}` 로 바꿔
+ * 코드가 오류 문자열에 들어간다) 두 경로가 여기로 온다.
  */
-function isContextOverflow(error: ErrorLike, bodyCodes: readonly string[]): boolean {
+function isContextOverflow(raw: unknown, error: ErrorLike, bodyCodes: readonly string[]): boolean {
+  if (isContextOverflowWrapper(raw)) return true;
   if (error.lc_error_code === 'CONTEXT_OVERFLOW') return true;
   if (bodyCodes.includes('request_too_large')) return true;
   return error.status === 400 && bodyCodes.includes('context_length_exceeded');
@@ -116,7 +121,7 @@ export function normalizeLlmError(raw: unknown): LlmErrorCode {
   if (requestGuardOf(raw)) return 'llm_error';
   if (isTimeout(error)) return 'unavailable';
   const bodyCodes = bodyCodesOf(error);
-  if (isContextOverflow(error, bodyCodes)) return 'too_long';
+  if (isContextOverflow(raw, error, bodyCodes)) return 'too_long';
   if (typeof error.status === 'number') {
     const byStatus = fromStatus(error.status, bodyCodes);
     if (byStatus) return byStatus;

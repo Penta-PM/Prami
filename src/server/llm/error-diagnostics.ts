@@ -1,6 +1,6 @@
 import { dependencies } from '../../../package.json';
 
-import { causeChain, classNameOf, isNetworkError } from './error-chain';
+import { causeChain, classNameOf, CONTEXT_OVERFLOW_ERROR, isNetworkError } from './error-chain';
 import { requestGuardOf } from './request-guard';
 import { maskString } from '../log';
 
@@ -213,6 +213,15 @@ export function describeLlmError(raw: unknown, signals?: CallAbortState): LlmErr
   }
   const guard = requestGuardOf(raw);
   if (guard) return { source: 'local', sdkErrorName: guard.name, frame: guard.frame };
+  // LangChain 컨텍스트 초과 래퍼는 상태·본문을 잃는다 — 원래 SDK 오류(cause)로 진단한다 (L-1 r3: sdkErrorName = BadRequestError)
+  const unwrapped = (raw as ErrorShape & { cause?: unknown }).cause;
+  if (
+    classNameOf(raw as ErrorShape) === CONTEXT_OVERFLOW_ERROR &&
+    unwrapped &&
+    typeof unwrapped === 'object'
+  ) {
+    return describeLlmError(unwrapped, signals);
+  }
   const error = raw as ErrorShape;
   const body = error.error ?? {};
   const inner = body.error ?? {};
