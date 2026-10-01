@@ -10,6 +10,8 @@ import { FIXTURE_USER, loginAs } from './helpers';
 /**
  * PRAMI-003 PR-1c (QA-1c ⑦⑨): /settings#llm 회사 API 키 주의 문구 — 0개·1개 상태, 폼 힌트(접근성 설명), 렌더된 색 대비 ≥ 4.5:1,
  * 320px 가로 스크롤 0, xAI 카드 포함 4장 레이아웃. LLM_VENDOR_MODE=fake — 실벤더 호출 없음.
+ * 대비(AC-360 ① r3): axe 의존성 없이 렌더된 계산 색으로 WCAG 2.x 상대 휘도 공식을 직접 계산한다(PR #22 L-2 — Dev 구현 방식
+ * 수용). axe-core 교차 확인은 QA 가 임시 주입으로 하고, 저장소 axe 도입은 PR-4(AC-375)다.
  * 스크린샷은 SCREENSHOT_DIR(기본 test-results/prami-003-1c)에 라이트·다크(prefers-color-scheme) 두 장씩 남긴다.
  */
 const SCREENSHOT_DIR = process.env.SCREENSHOT_DIR ?? path.join('test-results', 'prami-003-1c');
@@ -43,7 +45,7 @@ test.afterAll(resetFixtureUser);
 const warning = (page: Page) =>
   page.getByRole('region', { name: 'LLM 연결' }).getByRole('note', { name: TITLE });
 
-/** WCAG 2.x 상대 휘도 대비 — 브라우저가 계산한 색(rgb()/color(srgb …))으로 */
+/** AC-360 ①: WCAG 2.x 상대 휘도 대비(axe 아님) — 브라우저가 계산한 색(rgb()/color(srgb …))으로 */
 /** 배경 = 글자 요소부터 위로 올라가며 처음 만나는 불투명 배경 (투명 배경을 검정으로 잘못 읽지 않게) */
 async function contrastOf(text: Locator): Promise<number> {
   const { fg, bg } = await text.evaluate((node) => {
@@ -110,7 +112,7 @@ async function shoot(page: Page, name: string, target?: Locator) {
   await page.emulateMedia({ colorScheme: 'light' });
 }
 
-test('자격 증명 0개: 상단 role=note 주의 문구·대비 ≥ 4.5, 미등록 문구에 xAI, 카드 4장', async ({
+test('자격 증명 0개: 상단 role=note 주의 문구·WCAG 상대 휘도 대비 ≥ 4.5(AC-360 ①), 미등록 문구에 xAI, 카드 4장', async ({
   page,
 }) => {
   await loginAs(page, FIXTURE_USER, '/settings');
@@ -145,6 +147,7 @@ test('xAI 등록 폼: 힌트가 입력란의 접근성 설명, 등록 후(1개) 
   await expect(input).toHaveAccessibleDescription(HINT);
   const hint = xaiCard.locator('#llm-key-hint-xai');
   await expect(hint).toHaveText(HINT);
+  // AC-360 ①: 폼 힌트도 같은 상대 휘도 공식(axe 미사용, r3)
   expect(await contrastOf(hint)).toBeGreaterThanOrEqual(4.5);
   await shoot(page, 'settings-llm-xai-form', xaiCard);
 
