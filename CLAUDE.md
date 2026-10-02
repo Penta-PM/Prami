@@ -1,4 +1,4 @@
-# Act AI Prami — Dev (개발)
+# Prami — Dev (개발)
 
 > **이 워크트리의 역할은 Dev 입니다.** 다른 역할의 지시를 이 파일에서 찾지 마세요.
 > 각 역할은 자기 워크트리의 CLAUDE.md만 따릅니다.
@@ -7,12 +7,12 @@
 
 | 역할 | 브랜치 | 경로 | Orca 워크트리 ID |
 |------|--------|------|------------------|
-| Main | `main` | `C:\Users\USER\OneDrive - Pentasecurity inc\바탕 화면\Act AI Prami` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/OneDrive - Pentasecurity inc/바탕 화면/Act AI Prami` |
-| Plan | `Plan` | `C:\Users\USER\orca\workspaces\Act AI Prami\Plan` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/Plan` |
-| **Dev** (현재) | `Dev` | `C:\Users\USER\orca\workspaces\Act AI Prami\Dev` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/Dev` |
-| QA | `QA` | `C:\Users\USER\orca\workspaces\Act AI Prami\QA` | `a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/QA` |
+| Main | `main` | `/home/plan1/Desktop/Prami` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/Desktop/Prami` |
+| Plan | `Plan` | `/home/plan1/orca/workspaces/Prami/Plan` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Plan` |
+| **Dev** (현재) | `Dev` | `/home/plan1/orca/workspaces/Prami/Dev` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Dev` |
+| QA | `QA` | `/home/plan1/orca/workspaces/Prami/QA` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/QA` |
 
-`$REPO` = `a717899a-bc90-4a01-ae64-d258e2174771` · 공용 Run: **`run_8fb8a89f0626`**
+`$REPO` = `b6875288-76f6-460f-a109-cec5f84eb966` · 공용 Run: **`run_8fb8ec4090f0`**
 
 ## 파이프라인
 
@@ -91,10 +91,10 @@ Agent({ subagent_type: "general-purpose", description: "Backend 구현",  prompt
 ## Orca 통신
 
 ```bash
-REPO=a717899a-bc90-4a01-ae64-d258e2174771
-MAIN="@worktree:a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/OneDrive - Pentasecurity inc/바탕 화면/Act AI Prami"
-PLAN="@worktree:a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/Plan"
-QA="@worktree:a717899a-bc90-4a01-ae64-d258e2174771::C:/Users/USER/orca/workspaces/Act AI Prami/QA"
+REPO=b6875288-76f6-460f-a109-cec5f84eb966
+MAIN="@worktree:b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/Desktop/Prami"
+PLAN="@worktree:b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Plan"
+QA="@worktree:b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/QA"
 ```
 
 ```bash
@@ -161,10 +161,10 @@ orca orchestration check --ack <deliveryId> --json
 메시지만 보내면 상대는 모릅니다 (상대는 폴링하지 않습니다). **반드시 2단계**로 보내세요:
 
 ```bash
-REPO=a717899a-bc90-4a01-ae64-d258e2174771
-TARGET="C:/Users/USER/orca/workspaces/Act AI Prami/<역할>"   # Plan | Dev | QA
+REPO=b6875288-76f6-460f-a109-cec5f84eb966
+TARGET="/home/plan1/orca/workspaces/Prami/<역할>"   # Plan | Dev | QA
 # Main 워크트리 경로는:
-# "C:/Users/USER/OneDrive - Pentasecurity inc/바탕 화면/Act AI Prami"
+# "/home/plan1/Desktop/Prami"
 
 # 1) 메일박스에 기록 (durable)
 orca orchestration send --to "@worktree:$REPO::$TARGET" \
@@ -173,7 +173,7 @@ orca orchestration send --to "@worktree:$REPO::$TARGET" \
 
 # 2) 상대 세션 깨우기
 H=$(orca terminal list --worktree "path:$TARGET" --json \
-    | python -c "import json,sys; ts=json.load(sys.stdin)['result']['terminals']; print(next((t['handle'] for t in ts if t.get('agentIdentity')=='claude'), ''))")
+    | python3 -c "import json,sys; ts=json.load(sys.stdin)['result']['terminals']; print(next((t['handle'] for t in ts if t.get('agentIdentity')=='claude'), ''))")
 orca terminal send --terminal "$H" --enter --json \
   --text "[메일 도착] orca orchestration check --format --json 로 확인하고 역할에 맞게 처리하세요."
 ```
