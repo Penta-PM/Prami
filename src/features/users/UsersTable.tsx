@@ -14,6 +14,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from '@/components/ui';
+import { Presence } from '@/components/motion/Presence';
 import { formatAuditTime } from '@/lib/audit-format';
 import type { ActionResult } from '@/lib/result';
 
@@ -144,17 +145,19 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
         </Table>
       </div>
 
-      {form ? (
-        <UserFormModal
-          mode={form}
-          error={error}
-          onClose={() => {
-            setForm(null);
-            setError(null);
-          }}
-          onDone={handleDone}
-        />
-      ) : null}
+      <Presence>
+        {form ? (
+          <UserFormModal
+            mode={form}
+            error={error}
+            onClose={() => {
+              setForm(null);
+              setError(null);
+            }}
+            onDone={handleDone}
+          />
+        ) : null}
+      </Presence>
 
       <Modal
         open={confirming !== null}

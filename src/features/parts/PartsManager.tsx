@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { Presence } from '@/components/motion/Presence';
 import { Button, Modal, Segmented } from '@/components/ui';
 import type { BatchOption } from '@/features/admin-policies/types';
 
@@ -142,28 +143,30 @@ export function PartsManager({ models, parts, mappings, batchOptions }: PartsMan
         />
       )}
       <PartsMappingTable mappings={mappings} onEdit={edit} onDelete={setDeleting} />
-      {deleting ? (
-        <Modal
-          open
-          onClose={() => setDeleting(null)}
-          title="매핑 삭제"
-          footer={
-            <>
-              <Button size="sm" onClick={() => setDeleting(null)}>
-                취소
-              </Button>
-              <Button size="sm" variant="danger" disabled={isPending} onClick={remove}>
-                삭제
-              </Button>
-            </>
-          }
-        >
-          <p className="m-0">
-            <strong className="text-ink-900">{deleting.modelName}</strong> 의 장착 가능 파츠{' '}
-            {deleting.parts.length}건을 모두 삭제합니다.
-          </p>
-        </Modal>
-      ) : null}
+      <Presence>
+        {deleting ? (
+          <Modal
+            open
+            onClose={() => setDeleting(null)}
+            title="매핑 삭제"
+            footer={
+              <>
+                <Button size="sm" onClick={() => setDeleting(null)}>
+                  취소
+                </Button>
+                <Button size="sm" variant="danger" disabled={isPending} onClick={remove}>
+                  삭제
+                </Button>
+              </>
+            }
+          >
+            <p className="m-0">
+              <strong className="text-ink-900">{deleting.modelName}</strong> 의 장착 가능 파츠{' '}
+              {deleting.parts.length}건을 모두 삭제합니다.
+            </p>
+          </Modal>
+        ) : null}
+      </Presence>
     </div>
   );
 }
