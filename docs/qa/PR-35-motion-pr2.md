@@ -1,6 +1,7 @@
 # QA 기록 — PR #35 Motion 도입 PR-2 오버레이
 
 - 대상: `feat/motion-pr2-overlays` @ `eb24dce` (base `origin/main` @ `079a1fa`)
+- 판정 (2차, 2026-10-02, 01aba95): **통과 / 셀프머지 승인** — 부모 닫힘 close() 161~164ms·opacity 0·9프레임, 단위 1749·E2E 66/66(애니메이션 끔·켬)
 - 판정 (1차, 2026-10-02): **반려 / CRITICAL 1건**
 - 스펙: `docs/specs/motion-interactions.md` §6 PR-2, §9.1, §9.2 (포커스 복원은 퇴장 시작 후 250ms 이내)
 
@@ -23,3 +24,6 @@
 5. 챗 패널 열기·닫기 후 포커스가 body 로 감 (PR 전과 동일)
 6. PolicyFormModal key 가 mode 문자열 — 열린 상태에서 mode 가 바뀌면 진입·퇴장이 겹칠 수 있음 (이론상)
 7. 드로어 axe 위반은 main 마크업 그대로
+8. (2차) 부모가 닫을 때 백드롭 페이드가 close() 시점에 잘림 — `data-closing` 이 패널 exit 보다 한 렌더 늦게 붙음
+9. (2차) 퇴장 취소 시 백드롭이 0.944 → 1 로 끊겨서 복귀
+10. (2차) `exitStartedRef` 초기화(settle·showModal)를 지켜 보는 테스트가 없음 (방어 코드, 모달이 멈추는 경로는 찾지 못함)
