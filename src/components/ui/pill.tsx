@@ -8,8 +8,8 @@ export type PillProps = HTMLAttributes<HTMLSpanElement> & { tone?: PillTone };
 
 const TONE_CLASSES: Record<PillTone, string> = {
   neutral: 'bg-gray-100 text-text-secondary',
-  positive: 'bg-green-600/12 text-green-600',
-  purple: 'bg-purple-500/12 text-purple-500',
+  positive: 'bg-green-600/12 text-green-700',
+  purple: 'bg-purple-500/12 text-purple-600',
   amber: 'bg-amber-500/15 text-amber-500',
   red: 'bg-red-500/12 text-red-500',
 };

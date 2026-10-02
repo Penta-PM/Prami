@@ -1,8 +1,10 @@
 import { releaseInfo } from './ops/release';
+import { contextRequestId } from './request-context';
 
 /**
  * 구조화 로그 (§4.8 관측): 한 줄 JSON (`level`, `event`, `requestId`, `time`, `release`, `env`, …) → Vercel 로그에서 필드로 검색된다.
- * `release`·`env` 는 모든 줄에 싣는다 (PRAMI-003 §4.3.8 — 어느 배포에서 난 로그인지).
+ * `release`·`env`·`requestId` 는 모든 줄에 싣는다 (PRAMI-003 §4.3.8, AC-363 — 어느 배포·어느 요청에서 난 로그인지).
+ * `requestId` 는 필드로 넘긴 값 → 요청 스코프(runAction·runRoute, `request-context.ts`) → null 순이다.
  * 외부 의존(pino) 없이 console 로 쓴다 — 서버리스 번들 크기를 늘리지 않기 위함. 비밀값은 키 이름·값 패턴 두 겹으로 가린다.
  */
 export type LogLevel = 'info' | 'warn' | 'error';
@@ -73,15 +75,19 @@ export type LogRecord = {
   time: string;
   release: string;
   env: string;
+  requestId: string | null;
 } & LogFields;
 
 export function formatLog(level: LogLevel, event: string, fields: LogFields = {}): LogRecord {
+  const masked = maskValue(fields) as LogFields;
+  const given = masked.requestId;
   return {
     level,
     event,
     time: new Date().toISOString(),
     ...releaseInfo(),
-    ...(maskValue(fields) as LogFields),
+    ...masked,
+    requestId: typeof given === 'string' && given !== '' ? given : contextRequestId(),
   };
 }
 

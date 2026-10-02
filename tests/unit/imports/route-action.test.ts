@@ -132,6 +132,22 @@ describe('POST /api/imports/{kind}', () => {
     expect(sales.status).toBe(413);
     expect((await sales.json()).error.message).toBe('파일은 10MB 이하만 업로드할 수 있습니다');
   });
+
+  it('AC-373 ① (PR #21 I-9): 품목 파일 하나가 10MB 초과(합계는 25MB 이하) → 413 PAYLOAD_TOO_LARGE, 단일 종류와 같은 문구', async () => {
+    state.sessionUserId = adminId;
+    const big = new Uint8Array(10 * 1024 * 1024 + 1);
+    const body = new FormData();
+    body.append('files', new File([big], 'items-big.xlsx', { type: XLSX_MIME }));
+    const response = await POST(
+      new Request('http://localhost/api/imports/items', { method: 'POST', body }),
+      { params: Promise.resolve({ kind: 'items' }) },
+    );
+    expect(response.status).toBe(413);
+    expect((await response.json()).error).toMatchObject({
+      code: 'PAYLOAD_TOO_LARGE',
+      message: '파일은 10MB 이하만 업로드할 수 있습니다',
+    });
+  });
 });
 
 describe('applyPolicyAction', () => {

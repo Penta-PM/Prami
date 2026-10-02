@@ -44,7 +44,7 @@ export function PartsMappingTable({ mappings, onEdit, onDelete }: PartsMappingTa
                   <button
                     type="button"
                     aria-label={`${mapping.modelName} 매핑 수정`}
-                    className={`${ACTION} text-purple-500`}
+                    className={`${ACTION} text-purple-600`}
                     onClick={() => onEdit(mapping)}
                   >
                     수정

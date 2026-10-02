@@ -164,7 +164,7 @@ export function ImportFileRow(props: ImportFileRowProps) {
           {existingId ? (
             <button
               type="button"
-              className="ml-2 border-0 bg-transparent p-0 text-[12px] font-semibold text-purple-500 underline"
+              className="ml-2 border-0 bg-transparent p-0 text-[12px] font-semibold text-purple-600 underline"
               onClick={() => onChange({ ...selection, mode: 'reuse', reuseId: existingId })}
             >
               기존 파일 선택

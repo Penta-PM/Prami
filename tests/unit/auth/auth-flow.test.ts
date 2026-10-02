@@ -148,6 +148,15 @@ const PREVIEW: Deployment = {
   },
 };
 
+/** 되돌리지 못한 콜백은 고정 호스트 자신의 오류 화면으로 302 — 500·Location 없음은 실패 (PR #25 QA L-5) */
+function expectErrorPageOnFixedHost(response: Response): void {
+  expect(response.status).toBe(302);
+  const location = new URL(response.headers.get('location') ?? 'about:blank');
+  expect(location.origin).toBe(new URL(FIXED_PREVIEW).origin);
+  expect(location.pathname).toBe('/login');
+  expect(location.searchParams.get('error')).toBe('Configuration');
+}
+
 describe('AC-342 preview 리다이렉트 프록시', () => {
   it('배포별 preview 호스트의 로그인 시작 → Google redirect_uri 는 고정 호스트 콜백, hd 파라미터 포함', async () => {
     stubGoogleDiscovery();
@@ -209,8 +218,7 @@ describe('AC-342 preview 리다이렉트 프록시', () => {
       ),
     );
 
-    const location = bounce.headers.get('location') ?? '';
-    expect(location.startsWith(BRANCH_PREVIEW)).toBe(false);
+    expectErrorPageOnFixedHost(bounce);
   });
 
   it('preview 에 AUTH_URL(고정 호스트)을 두면 배포별 origin 이 state 에 실리지 않아 고정 호스트가 되돌리지 못한다 — preview 는 AUTH_URL 미설정', async () => {
@@ -232,7 +240,7 @@ describe('AC-342 preview 리다이렉트 프록시', () => {
     );
 
     // 배포별 preview 로 돌아가지 않는다 (state·PKCE 쿠키는 배포별 호스트에 있어 로그인 실패)
-    expect((bounce.headers.get('location') ?? '').startsWith(BRANCH_PREVIEW)).toBe(false);
+    expectErrorPageOnFixedHost(bounce);
   });
 
   it('production 설정(AUTH_URL=운영 도메인, 프록시 없음) → redirect_uri 는 운영 도메인 콜백', async () => {

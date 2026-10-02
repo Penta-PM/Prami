@@ -54,11 +54,13 @@ type ResponseMetadata = {
   incomplete_details?: { reason?: unknown } | null;
   stop_reason?: unknown;
   finishReason?: unknown;
+  finish_reason?: unknown;
 };
 
 /**
  * 미완료 사유: OpenAI Responses·xAI `status:'incomplete'` + `incomplete_details.reason`,
- * Anthropic `stop_reason:'max_tokens'`(메타데이터 또는 스트리밍 kwargs), Gemini `finishReason:'MAX_TOKENS'`. 미완료가 아니면 null.
+ * Anthropic `stop_reason:'max_tokens'`(메타데이터 또는 스트리밍 kwargs), Gemini `finishReason:'MAX_TOKENS'`,
+ * Chat Completions(OpenRouter) `finish_reason:'length'`(AC-372 선택, PR #20 I-2). 미완료가 아니면 null.
  */
 function incompleteReason(message: AIMessage): unknown {
   const metadata = (message.response_metadata ?? {}) as ResponseMetadata;
@@ -68,6 +70,7 @@ function incompleteReason(message: AIMessage): unknown {
     return 'max_output_tokens';
   }
   if (metadata.finishReason === 'MAX_TOKENS') return 'max_output_tokens';
+  if (metadata.finish_reason === 'length') return 'max_output_tokens';
   return null;
 }
 

@@ -118,7 +118,7 @@ function CostApplyStats({ stats }: { stats: Stats }) {
       aria-label="원가 적용 완료"
       className="rounded-lg bg-surface-card p-3.5 shadow-(--hairline-default)"
     >
-      <p className="m-0 mb-2 text-[12px] font-semibold text-green-600">원가 적용 완료</p>
+      <p className="m-0 mb-2 text-[12px] font-semibold text-green-700">원가 적용 완료</p>
       <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-1 text-[12px] sm:grid-cols-4">
         {STAT_LABELS.map(([key, label]) => (
           <div key={String(key)} className="flex justify-between gap-3">

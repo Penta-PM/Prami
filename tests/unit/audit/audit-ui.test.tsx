@@ -98,6 +98,15 @@ describe('audit-format', () => {
     expect(csvCell('-1')).toBe("'-1");
     expect(csvCell('a,b')).toBe('"a,b"');
     expect(csvCell('plain')).toBe('plain');
+    // PRAMI-003 AC-373 ④ (PR #19 I-6): =·+·-·@·탭·CR 시작 셀 전부 — 품목 비고처럼 원문 저장된 값이 대상·사유 칸에 와도 같다
+    for (const lead of ['=', '+', '-', '@', '\t', '\r']) {
+      expect(csvCell(`${lead}1+1`).replace(/^"/, '').startsWith(`'${lead}`)).toBe(true);
+    }
+    const injected = toAuditCsv([
+      { ...ROW, targetType: null, targetLabel: '@SUM(A1)', reason: '+cmd' },
+    ]);
+    expect(injected).toContain(",'@SUM(A1),");
+    expect(injected).toContain(",'+cmd\r\n");
 
     const csv = toAuditCsv([{ ...ROW, reason: '사유' }]);
     expect(csv.charCodeAt(0)).toBe(0xfeff);

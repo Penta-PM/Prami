@@ -171,7 +171,7 @@ function ModelPicker({
                   {item.itemCode}
                 </span>
                 {mappedModels.has(item.itemCode) ? (
-                  <span className="ml-1.5 text-[10px] font-semibold text-purple-500">· 등록됨</span>
+                  <span className="ml-1.5 text-[10px] font-semibold text-purple-600">· 등록됨</span>
                 ) : null}
               </button>
             </li>

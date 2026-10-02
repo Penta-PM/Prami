@@ -5,6 +5,7 @@ import { env, proxyTrustMode } from '@/env';
 import { auth } from '@/server/auth/auth';
 import { logger } from '@/server/log';
 import { ipScopeFor, rateLimitedResponse, rateLimiters, rateLimitIpKey } from '@/server/rate-limit';
+import { isForbiddenForwardedHost } from '@/server/security/forwarded-host';
 import {
   buildCsp,
   createNonce,
@@ -111,6 +112,19 @@ async function limitByIp(
 export default auth(async (request) => {
   const context = securityContext(request);
   const { pathname, search } = request.nextUrl;
+  // preview 위조 X-Forwarded-Host 차단 (PR #25 QA L-3 — 로그인 state 에 공격자 origin 이 봉인되지 않게)
+  if (
+    isForbiddenForwardedHost(request.headers.get('x-forwarded-host'), request.headers.get('host'))
+  ) {
+    logger.warn('proxy.forwarded_host_rejected', { requestId: context.requestId });
+    return decorate(
+      NextResponse.json(
+        { ok: false, error: { code: 'VALIDATION', message: '허용되지 않은 호스트입니다' } },
+        { status: 400 },
+      ),
+      context,
+    );
+  }
   const limited = await limitByIp(request, context);
   if (limited) return limited;
   const user = request.auth?.user;

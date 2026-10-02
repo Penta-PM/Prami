@@ -230,6 +230,15 @@ describe('releaseInfo · 로그 필드 (§4.3.8)', () => {
     expect(releaseInfo({ APP_RELEASE: ' ' })).toEqual({ release: 'dev', env: 'local' });
   });
 
+  it('PR-4 리뷰 H1: 런타임 APP_RELEASE 가 없으면 빌드 때 고정한 값(커밋 SHA)이 Vercel SHA 보다 우선', () => {
+    expect(releaseInfo({ VERCEL_GIT_COMMIT_SHA: 'vercel-sha' }, 'build-sha')).toEqual({
+      release: 'build-sha',
+      env: 'local',
+    });
+    expect(releaseInfo({ APP_RELEASE: 'runtime' }, 'build-sha').release).toBe('runtime');
+    expect(releaseInfo({ VERCEL_GIT_COMMIT_SHA: 'vercel-sha' }, '').release).toBe('vercel-sha');
+  });
+
   it('모든 구조화 로그 줄에 release·env 가 있다', async () => {
     const { formatLog } = await import('@/server/log');
     expect(formatLog('info', 'x', { a: 1 })).toMatchObject({

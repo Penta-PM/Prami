@@ -2,7 +2,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { buildChatGraph } from '@/server/chat/graph/build';
-import { TOO_LONG_REPLY } from '@/server/chat/graph/messages';
+import { TOO_LONG_REPLY, TRUNCATED_OUTPUT_NOTICE } from '@/server/chat/graph/messages';
 import { streamChat } from '@/server/chat/graph/stream';
 import type { ChatReplyOut, ChatRuntime } from '@/server/chat/graph/types';
 import { normalizeLlmError } from '@/server/llm/errors';
@@ -91,10 +91,17 @@ function factory(vendor: Vendor, fetchImpl: FetchImpl) {
   };
 }
 
+/**
+ * 모델 호출 타임아웃 기본값. 단위 env 의 CHAT_LLM_TIMEOUT_MS(2초)는 재시도 백오프(무작위 약 1~2초)와 합쳐지면 부하에서 넘쳐
+ * 네트워크 오류가 timeout 으로 분류됐다(PR #24 QA I-3 — "anthropic 소켓 끊김" 간헐 실패). 재시도 경로를 보는 테스트는 넉넉히 둔다.
+ * 타임아웃 자체를 보는 테스트는 값을 직접 넘긴다.
+ */
+const RETRY_SAFE_TIMEOUT_MS = 20_000;
+
 async function runtimeFor(
   vendor: Vendor,
   fetchImpl: FetchImpl,
-  settings: { timeoutMs?: number } = {},
+  settings: { timeoutMs?: number } = { timeoutMs: RETRY_SAFE_TIMEOUT_MS },
 ): Promise<ChatRuntime> {
   if (vendor === 'google') vi.stubGlobal('fetch', fetchImpl);
   const modelId = defaultModelFor(vendor)!;
@@ -458,6 +465,8 @@ describe('AC-366 벤더별 진단 필드 (fake·전송 가로채기)', () => {
       {
         code: 'invalid_key',
         httpStatus: 400,
+        // AC-372 (PR #20 L-b): SDK 가 본문 status 를 노출하지 않아도 HTTP 상태에서 파생
+        vendorErrorType: 'INVALID_ARGUMENT',
         vendorErrorCode: 'API_KEY_INVALID',
         attempts: 1,
         adapter: '@langchain/google-genai@2.3.2',
@@ -507,5 +516,131 @@ describe('AC-366 벤더별 진단 필드 (fake·전송 가로채기)', () => {
     const [line] = logs();
     expect(line).toMatchObject({ code: 'unavailable', source: 'timeout', attempts: 1 });
     expect(line).not.toHaveProperty('httpStatus');
+  });
+});
+
+/** AC-373 ② (PR #22 I-13·I-16): 400·410·415·422 는 재시도하지 않는다 — 벤더 요청 1건, attempts 1. 429·5xx·네트워크만 재시도 */
+describe('AC-373 ② 4xx 재시도 없음 — 벤더 공통', () => {
+  const counting = (status: number, body: unknown) => {
+    const calls = { n: 0 };
+    const impl: FetchImpl = async () => {
+      calls.n += 1;
+      return Response.json(body, { status });
+    };
+    return { calls, impl };
+  };
+  const BODY = { error: { message: VENDOR_MESSAGE, type: 'invalid_request_error' } };
+
+  it.each(
+    (['openai', 'openrouter', 'anthropic', 'google'] as const).flatMap((vendor) =>
+      [400, 410, 415, 422].map((status) => [vendor, status] as const),
+    ),
+  )('%s %i → 요청 1건 · attempts 1', async (vendor, status) => {
+    const logs = captureLlmErrors();
+    const { calls, impl } = counting(status, BODY);
+    await ask(await runtimeFor(vendor, impl), 'Wapples-500 가격');
+    expect(calls.n).toBe(1);
+    expect(logs()[0]).toMatchObject({ httpStatus: status, attempts: 1 });
+  });
+
+  it.each([500, 503] as const)(
+    'openai %i 은 재시도 유지 → 요청 2건 · attempts 2',
+    async (status) => {
+      const logs = captureLlmErrors();
+      const { calls, impl } = counting(status, BODY);
+      await ask(await runtimeFor('openai', impl), 'Wapples-500 가격');
+      expect(calls.n).toBe(2);
+      expect(logs()[0]).toMatchObject({ httpStatus: status, attempts: 2 });
+    },
+  );
+
+  it('Gemini 403·404·429·503 도 상태에서 vendorErrorType 파생', async () => {
+    const expected: Record<number, string> = {
+      403: 'PERMISSION_DENIED',
+      404: 'NOT_FOUND',
+      429: 'RESOURCE_EXHAUSTED',
+      503: 'UNAVAILABLE',
+    };
+    for (const [status, type] of Object.entries(expected)) {
+      const logs = captureLlmErrors();
+      await ask(
+        await runtimeFor('google', json(Number(status), { error: { message: VENDOR_MESSAGE } })),
+        'Wapples-500 가격',
+      );
+      expect(logs().at(-1)).toMatchObject({ httpStatus: Number(status), vendorErrorType: type });
+      vi.restoreAllMocks();
+    }
+  });
+});
+
+/** AC-372 (PR #20 I-1): 200 잘린 JSON — SSE 경로의 sdkErrorName 이 JSON 경로와 같다 */
+describe('AC-372 응답 파싱 실패 sdkErrorName JSON = SSE', () => {
+  const broken: FetchImpl = async () =>
+    new Response(`{"broken": ${VENDOR_MESSAGE}`, {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+
+  const brokenSse: FetchImpl = async () =>
+    new Response(
+      `event: message_start
+data: {"broken": ${VENDOR_MESSAGE}
+
+`,
+      {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      },
+    );
+
+  it.each([
+    ['openai', 'SSE 데이터 줄이 잘린 JSON', brokenSse],
+    ['anthropic', 'SSE 데이터 줄이 잘린 JSON', brokenSse],
+    ['openai', '스트림 요청에 SSE 가 아닌 잘린 JSON 본문(이벤트 0개)', broken],
+    ['anthropic', '스트림 요청에 SSE 가 아닌 잘린 JSON 본문(이벤트 0개)', broken],
+  ] as const)('%s — %s', async (vendor, _label, streamBody) => {
+    const logs = captureLlmErrors();
+    await ask(await runtimeFor(vendor, broken), 'Wapples-500 가격');
+    await sse(await runtimeFor(vendor, streamBody));
+    const [json, stream] = logs();
+    expect(json).toMatchObject({ stream: false, sdkErrorName: 'SyntaxError' });
+    expect(stream).toMatchObject({ stream: true, sdkErrorName: json!.sdkErrorName });
+  });
+});
+
+/** AC-372 (선택, PR #20 I-2): OpenRouter(Chat Completions) `finish_reason:'length'` → truncated_output notice, JSON·SSE */
+describe('AC-372 OpenRouter finish_reason length', () => {
+  const TEXT = 'Wapples-500 판매가는 두 모델입니다.';
+  const completion: FetchImpl = async (_url, init) => {
+    const streaming = JSON.parse(String(init?.body ?? '{}')).stream === true;
+    if (!streaming) {
+      return Response.json({
+        id: 'gen-1',
+        object: 'chat.completion',
+        created: 1,
+        model: 'm',
+        choices: [
+          { index: 0, message: { role: 'assistant', content: TEXT }, finish_reason: 'length' },
+        ],
+      });
+    }
+    const chunk = (delta: unknown, finish: string | null) =>
+      `data: ${JSON.stringify({ id: 'gen-1', object: 'chat.completion.chunk', created: 1, model: 'm', choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`;
+    return new Response(
+      chunk({ role: 'assistant', content: TEXT }, null) + chunk({}, 'length') + 'data: [DONE]\n\n',
+      { status: 200, headers: { 'content-type': 'text/event-stream' } },
+    );
+  };
+
+  it.each(['json', 'sse'] as const)('%s', async (path) => {
+    const logs = captureLlmErrors();
+    const runtime = await runtimeFor('openrouter', completion);
+    const reply = path === 'json' ? await ask(runtime, 'Wapples-500 가격') : await sse(runtime);
+    expect(reply.mode).toBe('llm');
+    expect(reply.notice).toContain(TRUNCATED_OUTPUT_NOTICE);
+    expect(logs()[0]).toMatchObject({
+      vendor: 'openrouter',
+      vendorErrorType: 'incomplete_max_output_tokens',
+    });
   });
 });

@@ -25,8 +25,9 @@ export function forbiddenTraceEntries(trace: { files?: string[] }): string[] {
 export function bundledPgliteFiles(relativeFiles: readonly string[]): string[] {
   return relativeFiles.filter((file) => {
     const name = path.posix.basename(file.replaceAll('\\', '/'));
-    if (/\.(wasm|data)$|\.tar\.gz$/i.test(name)) return true;
-    return /\.js$/i.test(name) && /electric-sql[_+]pglite/i.test(name);
+    // PR #24 QA I-6: `.tgz`, `.mjs`·`.cjs` 청크, 하이픈 표기(`electric-sql-pglite`)도 잡는다
+    if (/\.(wasm|data|tgz)$|\.tar\.gz$/i.test(name)) return true;
+    return /\.[cm]?js$/i.test(name) && /electric-sql[_+-]pglite/i.test(name);
   });
 }
 

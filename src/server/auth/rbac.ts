@@ -15,6 +15,7 @@ import {
 } from '@/lib/result';
 import { AUDIT_ACTIONS, writeAudit } from '@/server/audit/log';
 import { currentRequestId, currentRequestMeta } from '@/server/audit/request-meta';
+import { inRequestScope } from '@/server/request-scope';
 import { logger } from '@/server/log';
 
 import { auth } from './auth';
@@ -123,7 +124,7 @@ export async function runAction<T>(
 ): Promise<ActionResult<T>> {
   try {
     const user = await requirePermission({ ...guard, target: `action:${guard.name}` });
-    return ok(await fn(user));
+    return ok(await inRequestScope(() => fn(user)));
   } catch (error) {
     const requestId = await logUnexpected(error, `action:${guard.name}`);
     return { ok: false, error: toActionError(error, requestId) };
@@ -137,7 +138,7 @@ export async function runRoute(
 ): Promise<Response> {
   try {
     const user = await requirePermission(guard);
-    return await fn(user);
+    return await inRequestScope(() => fn(user));
   } catch (error) {
     const requestId = await logUnexpected(error, guard.target);
     const body = { ok: false as const, error: toActionError(error, requestId) };

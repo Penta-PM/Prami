@@ -202,6 +202,8 @@ describe('AC-368 ④ 요청 가드 — 금지 키를 강제로 넣으면 전송 
         source: 'local',
         frame: 'xai_request_guard',
         vendor: 'xai',
+        // PR #26 L-b: 가드 차단은 재시도하지 않는다 — 시도 1회(전송은 0, 위 stub.requests)
+        attempts: 1,
       });
       expect(line?.level).toBe('error');
       vi.restoreAllMocks();

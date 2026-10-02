@@ -46,6 +46,10 @@ describe('bundledPgliteFiles (PR-2b QA L-N2: 트레이스 밖 번들 모드 회�
       'chunks/pg_trgm.tar.gz',
       'chunks/ssr/node_modules_@electric-sql_pglite_dist_index_0q1w2e._.js',
       'chunks/node_modules_.pnpm_@electric-sql+pglite@0.5.8_xyz._.js',
+      // PR #24 QA I-6: 이름 규칙 밖이던 형태
+      'chunks/node_modules_@electric-sql_pglite_dist_index_0q1w2e._.mjs',
+      'chunks/electric-sql-pglite_worker.cjs',
+      'chunks/pg_trgm.tgz',
     ];
     const allowed = [
       'chunks/src_db_pglite-unavailable_ts_0abc._.js',

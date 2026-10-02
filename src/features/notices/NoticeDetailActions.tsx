@@ -43,7 +43,7 @@ export function NoticeDetailActions({
         삭제
       </Button>
       {flash ? (
-        <span role="status" className="text-[12px] text-green-600">
+        <span role="status" className="text-[12px] text-green-700">
           {flash}
         </span>
       ) : null}

@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { FIXTURE_ADMIN, FIXTURE_USER, loginAs } from './helpers';
+import { FIXTURE_ADMIN, FIXTURE_USER, loginAs, signOutLocally } from './helpers';
 
 /**
  * PR-8 견적서 PDF · 공유 (AC-70~72, QA-08):
@@ -110,19 +110,19 @@ test('AC-70/72: 소유자 PDF 200(한글 텍스트·시각 스냅샷), 남의 �
   await viewer.close();
 
   // AC-72: ADMIN 이 저장한 견적을 USER 가 요청하면 403 (JSON 봉투)
-  await page.context().clearCookies();
+  await signOutLocally(page);
   await loginAs(page, FIXTURE_ADMIN, '/calculator');
   const adminQuoteNo = await saveFirstItemQuote(page);
   const adminHref = await page
     .getByRole('link', { name: `${adminQuoteNo} 견적서 출력` })
     .getAttribute('href');
-  await page.context().clearCookies();
+  await signOutLocally(page);
   await loginAs(page, FIXTURE_USER, '/calculator');
   const forbidden = await page.request.get(adminHref!);
   expect(forbidden.status()).toBe(403);
   expect(await forbidden.json()).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
   // ADMIN 은 남의 견적 PDF 도 200
-  await page.context().clearCookies();
+  await signOutLocally(page);
   await loginAs(page, FIXTURE_ADMIN, '/calculator');
   expect((await page.request.get(href!)).status()).toBe(200);
 });

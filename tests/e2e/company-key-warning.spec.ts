@@ -172,7 +172,7 @@ test('xAI 등록 폼: 힌트가 입력란의 접근성 설명, 등록 후(1개) 
 
 /**
  * 320px: 앱 셸은 반응형이 아니다(사이드바 250px 고정 — 기존 레이아웃, 이 PR 범위 밖). 그래서 ① 뷰포트 320px 에서 문서 가로
- * 스크롤 0 ② 본문 열이 320px 일 때(뷰포트 = 사이드바 + 320) 주의 블록이 줄바꿈되어 자기 폭을 넘지 않는지 둘로 본다.
+ * 스크롤 0 ② 본문 열이 320px 일 때(PR-4 이후 320px 뷰포트 = 본문 320px, 사이드바는 오버레이) 주의 블록이 줄바꿈되어 자기 폭을 넘지 않는지 둘로 본다.
  */
 test('320px: 문서 가로 스크롤 0, 본문 열 320px 에서 주의 문구가 줄바꿈되고 넘치지 않는다', async ({
   page,
@@ -186,9 +186,11 @@ test('320px: 문서 가로 스크롤 0, 본문 열 320px 에서 주의 문구가
   );
   expect(overflow).toBeLessThanOrEqual(0);
 
-  await page.setViewportSize({ width: 250 + 320, height: 900 });
+  // PRAMI-003 PR-4 (AC-375 ②): md 미만에서는 사이드바가 오버레이라 320px 뷰포트에서 본문 열이 곧 320px 이다
+  // (이전에는 사이드바 250px 을 더한 570px 뷰포트로 본문 320px 을 만들었다)
   const main = page.locator('main');
   expect((await main.boundingBox())!.width).toBeLessThanOrEqual(320);
+  expect((await main.boundingBox())!.width).toBeGreaterThanOrEqual(288);
   const note = warning(page);
   await note.scrollIntoViewIfNeeded();
   const fits = await note.evaluate((node) => node.scrollWidth <= node.clientWidth);

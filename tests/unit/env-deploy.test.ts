@@ -228,9 +228,48 @@ describe('ⓚ OAuth 운영화 — 리다이렉트 프록시 (PRAMI-003 §4.4.1)'
     ).toThrowError(/AUTH_REDIRECT_PROXY_URL NEXT_PUBLIC_APP_URL/);
   });
 
-  it('preview: 끝 슬래시는 허용한다', () => {
+  // PR #25 QA L-1: 파서가 정규화해 통과하지만 Auth.js 원문 redirect_uri 가 Google 등록값과 달라져 로그인이 깨지는 형태
+  it.each([
+    `${PROXY}/`,
+    'https://u:p@prami-preview.example.com/api/auth',
+    `${PROXY}#x`,
+    'https://prami-preview.example.com/api/./auth',
+    'https://prami-preview.example.com:443/api/auth',
+    'https://PRAMI-preview.example.com/api/auth',
+  ])('preview: 로그인을 깨는 프록시 형태 %s → 거부', (value) => {
+    expect(() => parseEnv({ ...VALID_PREVIEW, AUTH_REDIRECT_PROXY_URL: value })).toThrowError(
+      /preview k\].*AUTH_REDIRECT_PROXY_URL/,
+    );
+  });
+
+  // PR #25 QA L-2: 공백뿐인 값은 스키마에서 undefined 지만 Auth.js 가 원문을 truthy 로 읽는다
+  it('production: 공백뿐인 AUTH_REDIRECT_PROXY_URL 도 거부', () => {
+    expect(() => parseEnv({ ...VALID_PRODUCTION, AUTH_REDIRECT_PROXY_URL: ' ' })).toThrowError(
+      /production k\].*AUTH_REDIRECT_PROXY_URL/,
+    );
+  });
+
+  it('preview: 공백뿐인 AUTH_REDIRECT_PROXY_URL 은 형식 위반으로 거부', () => {
+    expect(() => parseEnv({ ...VALID_PREVIEW, AUTH_REDIRECT_PROXY_URL: ' ' })).toThrowError(
+      /preview k\].*AUTH_REDIRECT_PROXY_URL/,
+    );
+  });
+
+  it.each([
+    ['production', VALID_PRODUCTION],
+    ['preview', VALID_PREVIEW],
+  ] as const)(
+    '%s: NEXTAUTH_URL 이 있으면 거부 (AUTH_URL 처럼 origin 을 덮어쓴다)',
+    (target, base) => {
+      expect(() =>
+        parseEnv({ ...base, NEXTAUTH_URL: 'https://prami-preview.example.com' }),
+      ).toThrowError(new RegExp(`${target} k\].*NEXTAUTH_URL`));
+    },
+  );
+
+  it('빈 문자열 AUTH_REDIRECT_PROXY_URL·NEXTAUTH_URL 은 미설정으로 본다 (Auth.js 도 falsy)', () => {
     expect(() =>
-      parseEnv({ ...VALID_PREVIEW, AUTH_REDIRECT_PROXY_URL: `${PROXY}/` }, vi.fn()),
+      parseEnv({ ...VALID_PRODUCTION, AUTH_REDIRECT_PROXY_URL: '', NEXTAUTH_URL: '' }),
     ).not.toThrow();
   });
 

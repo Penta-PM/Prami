@@ -37,6 +37,21 @@ async function ask(page: Page, text: string) {
   return bubble;
 }
 
+/**
+ * PRAMI-003 AC-374 (PR #20 QA I-3 플레이크 원인): E2E 는 `next dev` 라 라우트를 처음 요청할 때 컴파일한다. 파일 이름 순서상
+ * 이 스펙이 `/api/chat`(LangGraph·LangChain 번들 — 가장 무거운 라우트)을 처음 부르므로, 첫 질문 말풍선 대기(15초)가 컴파일
+ * 시간까지 떠안아 부하에서 간헐 실패했다. 재시도 대신 화면 검사 전에 같은 세션으로 라우트를 한 번 불러 컴파일을 끝내 둔다.
+ */
+async function warmUpChatRoute(page: Page) {
+  const status = await page.request.get('/api/chat/status', { timeout: 120_000 });
+  expect(status.status()).toBe(200);
+  const warm = await page.request.post('/api/chat', {
+    data: { message: '워밍업', history: [] },
+    timeout: 120_000,
+  });
+  expect(warm.status()).toBe(200);
+}
+
 test.describe.configure({ mode: 'serial' });
 test.beforeAll(clearCredentials);
 test.afterAll(clearCredentials);
@@ -44,7 +59,9 @@ test.afterAll(clearCredentials);
 test('키 없음 → 배너·안내·규칙 답, 설정에서 fake 키 저장 → 새로고침 없이 LLM 경로', async ({
   page,
 }) => {
+  test.setTimeout(180_000);
   await loginAs(page, FIXTURE_USER, '/settings');
+  await warmUpChatRoute(page);
   await page.getByRole('button', { name: '챗봇', exact: true }).click();
   const panel = page.getByRole('complementary', { name: '가격정책 챗봇' });
   const banner = panel.getByRole('status', { name: 'LLM 연결 안내' });

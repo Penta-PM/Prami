@@ -84,8 +84,8 @@ function expectDiagnostics(line: string | undefined, stream: boolean) {
   });
   expect(typeof entry.latencyMs).toBe('number');
   for (const key of LEGACY_KEYS) expect(entry).not.toHaveProperty(key);
-  // 앱 요청 id 가 없는 런타임에서는 requestId 가 없다 (벤더 요청 id 로 채우지 않는다)
-  expect(entry).not.toHaveProperty('requestId');
+  // 앱 요청 id 가 없는 런타임에서는 requestId 가 null 이다 — 키는 항상 있다(AC-363), 벤더 요청 id 로 채우지 않는다
+  expect(entry.requestId).toBeNull();
   expectNoSecret(line!, KEY, 'chat.llm_error 로그');
   expect(line).not.toContain('FIXTURE-MESSAGE');
   expect(line).not.toContain('PRAMI003-QUESTION');

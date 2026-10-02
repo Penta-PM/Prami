@@ -33,7 +33,9 @@
     ".next-e2e/types/**/*.ts",
     ".next-e2e/dev/types/**/*.ts",
     ".next-e2e-real-login/types/**/*.ts",
-    ".next-e2e-real-login/dev/types/**/*.ts"
+    ".next-e2e-real-login/dev/types/**/*.ts",
+    ".next-smoke/types/**/*.ts",
+    ".next-smoke/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

@@ -25,7 +25,21 @@ const EXTENSION_TOKENS = [
     block: '@theme static',
   },
   { name: '--border-danger', value: 'var(--red-500)', block: '@theme static' },
+  // AC-375 ① AA 보조 텍스트·링크 (원본 --slate-700·--slate-600·--purple-500 은 그대로)
+  { name: '--slate-700-aa', value: '#656d78', block: '@theme static' },
+  { name: '--slate-600-aa', value: '#6c6b7d', block: '@theme static' },
+  { name: '--purple-600', value: '#6c55e0', block: '@theme static' },
+  { name: '--green-700', value: '#1e7353', block: '@theme static' },
 ] as const;
+
+/**
+ * PRAMI-003 AC-375 ① (PR #22 I-14): `text-text-secondary`·`text-text-tertiary` 유틸리티만 AA 확장 값으로 연결한다.
+ * 원본 변수 `--text-secondary`·`--text-tertiary` 는 원본 값 그대로(위 원본 검사), 유틸리티 별칭만 예외.
+ */
+const AA_TEXT_ALIASES: Record<string, string> = {
+  '--color-text-secondary': 'var(--slate-700-aa)',
+  '--color-text-tertiary': 'var(--slate-600-aa)',
+};
 
 const globalsCss = stripComments(
   readFileSync(path.join(ROOT, 'src', 'app', 'globals.css'), 'utf8'),
@@ -108,13 +122,14 @@ describe('디자인 토큰 이식 (globals.css ↔ 원본 토큰 파일)', () =>
     for (const { name } of EXTENSION_TOKENS) expect(original.has(name)).toBe(false);
   });
 
-  it('색상 팔레트에는 --color-* 별칭이 있다', () => {
+  it('색상 팔레트에는 --color-* 별칭이 있다 (AA 텍스트 별칭 2개는 확장 값으로 — AC-375 ①)', () => {
     const paletteNames = fixtureTokens
       .filter(({ file, name }) => file === 'colors.css' && !name.startsWith('--shadow-'))
       .map(({ name }) => name);
     for (const name of paletteNames) {
       const alias = `--color-${name.slice(2)}`;
-      expect(globalsDeclarations.get(alias)?.[0], `${alias} 별칭이 없습니다`).toBe(`var(${name})`);
+      const expected = AA_TEXT_ALIASES[alias] ?? `var(${name})`;
+      expect(globalsDeclarations.get(alias)?.[0], `${alias} 별칭이 없습니다`).toBe(expected);
     }
   });
 });

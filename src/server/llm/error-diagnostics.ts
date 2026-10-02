@@ -159,8 +159,19 @@ function vendorRequestIdOf(error: ErrorShape): string | undefined {
   ]).find((value) => REQUEST_ID_RE.test(value));
 }
 
+/**
+ * LangChain 이 스트림에서 해석 가능한 이벤트를 하나도 못 받았을 때 던지는 오류 (@langchain/core 1.2.13 chat_models.js).
+ * 200 본문이 잘리거나 SSE 가 아니면 SSE 경로는 파싱 대신 이 오류가 된다 — JSON 경로(`SyntaxError`)와 같은 "응답 파싱 실패"로
+ * 진단한다 (AC-372, PR #20 I-1).
+ */
+const EMPTY_STREAM_MESSAGE = 'Received empty response from chat model call.';
+const PARSE_FAILURE_NAME = 'SyntaxError';
+
 /** `cause` 체인에서 `Error` 가 아닌 첫 클래스 이름 (L-4: 래핑 후에도 BadRequestError·APIConnectionError) */
 function sdkErrorNameOf(raw: unknown): string | undefined {
+  if (raw instanceof Error && raw.constructor === Error && raw.message === EMPTY_STREAM_MESSAGE) {
+    return PARSE_FAILURE_NAME;
+  }
   const names = causeChain(raw).map(classNameOf);
   const found = names.find((name) => name && name !== 'Error') ?? names[0];
   return found && CLASS_NAME_RE.test(found) ? found : undefined;
@@ -203,6 +214,30 @@ function deprecationOf(raw: unknown): string | undefined {
   return messages.map(deprecationToken).find(Boolean);
 }
 
+/**
+ * (r3, PR #20 L-b) Gemini: `@langchain/google-genai` 오류는 본문 `error.status`(`INVALID_ARGUMENT` 등)를 노출하지 않는다 —
+ * 후보가 없으면 HTTP 상태에서 Google 표준 상태 이름을 파생한다(§4.5.1 r3). Gemini SDK 오류(`errorDetails` 보유)에만 적용한다.
+ */
+const GOOGLE_STATUS_TYPES: Readonly<Record<number, string>> = {
+  400: 'INVALID_ARGUMENT',
+  403: 'PERMISSION_DENIED',
+  404: 'NOT_FOUND',
+  429: 'RESOURCE_EXHAUSTED',
+  503: 'UNAVAILABLE',
+};
+
+function isGoogleSdkError(error: ErrorShape): boolean {
+  return 'errorDetails' in error || /^GoogleGenerativeAI/.test(classNameOf(error) ?? '');
+}
+
+function vendorErrorTypeOf(error: ErrorShape, body: Body, inner: Body): string | undefined {
+  const fromBody = allowlisted(
+    strings([error.type, inner.type, body.type, inner.status, body.status]),
+  );
+  if (fromBody || typeof error.status !== 'number' || !isGoogleSdkError(error)) return fromBody;
+  return GOOGLE_STATUS_TYPES[error.status];
+}
+
 function withoutUndefined<T extends object>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 }
@@ -233,9 +268,7 @@ export function describeLlmError(raw: unknown, signals?: CallAbortState): LlmErr
   return withoutUndefined<LlmErrorDiagnostics>({
     source,
     httpStatus: typeof error.status === 'number' ? error.status : undefined,
-    vendorErrorType: allowlisted(
-      strings([error.type, inner.type, body.type, inner.status, body.status]),
-    ),
+    vendorErrorType: vendorErrorTypeOf(error, body, inner),
     vendorErrorCode:
       deprecationOf(raw) ??
       allowlisted(

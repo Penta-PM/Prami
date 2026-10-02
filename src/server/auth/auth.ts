@@ -82,7 +82,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
    * (Auth.js 리다이렉트 프록시, PRAMI-003 §4.4.1). preview 전 배포가 같은 AUTH_SECRET 을 써야 하고, preview 에는 AUTH_URL 을 두지 않는다
    * (AUTH_URL 이 있으면 next-auth 가 모든 요청 origin 을 그 값으로 바꿔 배포별 쿠키·콜백이 어긋난다 — docs/deploy/oauth.md).
    */
-  redirectProxyUrl: env.AUTH_REDIRECT_PROXY_URL,
+  // 미설정이면 '' — Auth.js 가 process.env 원문(공백뿐인 값 포함)으로 대체하지 않게 막는다 (PR #25 QA L-2)
+  redirectProxyUrl: env.AUTH_REDIRECT_PROXY_URL ?? '',
   providers: buildProviders(env, authorizeTest),
   callbacks: {
     ...authConfig.callbacks,
