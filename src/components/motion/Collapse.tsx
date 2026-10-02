@@ -20,7 +20,9 @@ export function Collapse({ className, children, ...rest }: CollapseProps) {
       initial={VARIANT_KEYS.initial}
       animate={VARIANT_KEYS.animate}
       exit={VARIANT_KEYS.exit}
-      className={cn('overflow-hidden', className)}
+      // shrink-0: overflow:hidden 인 flex 아이템은 min-height 가 0 이 되어, 넘치는 flex 세로 폼(max-h + overflow-y-auto)
+      // 안에서 높이 0 으로 줄어 에러가 보이지 않았다 — 펼친 높이(auto)를 지키도록 줄어들지 않게 한다
+      className={cn('shrink-0 overflow-hidden', className)}
       {...rest}
     >
       {children}
