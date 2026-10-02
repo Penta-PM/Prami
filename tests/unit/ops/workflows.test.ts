@@ -320,7 +320,8 @@ describe.each(WORKFLOW_FILES)('%s 시크릿 취급 (AC-362)', (name) => {
  */
 describe('PR #26 S1-b 트리거 화이트리스트 · 시크릿 경계', () => {
   const ALLOWED_TRIGGERS: Record<string, string[]> = {
-    'ci.yml': ['pull_request', 'push'],
+    // CI 사용량 절감 PR-A (docs/specs/ci-usage-reduction.md §2-1): main push 실행 제거 — 트리거가 줄어드는 쪽(보안 강화 방향)
+    'ci.yml': ['pull_request'],
     'deploy-production.yml': ['workflow_dispatch'],
     'preview-migrate.yml': ['workflow_dispatch'],
     'preview-smoke.yml': ['repository_dispatch', 'workflow_dispatch'],
@@ -611,5 +612,112 @@ describe('preview 워크플로 (AC-362)', () => {
       expect(Object.keys(workflow.jobs)).toEqual(['smoke']);
       expect(workflow.permissions).toEqual({ contents: 'read' });
     });
+  });
+});
+
+/**
+ * CI 사용량 절감 PR-A (docs/specs/ci-usage-reduction.md §2): 라벨 게이트 · secret scan 항상 · 문서 전용 판정 · job 통합.
+ * Free 플랜 월 2,000분 한도 — 라벨 없는 PR 은 secret scan·판정만, `ci:run` 라벨이 있을 때만 무거운 단계가 돈다.
+ */
+describe('ci.yml 라벨 게이트·job 통합 (CI 사용량 절감 PR-A)', () => {
+  const workflow = load('ci.yml');
+  const quality = workflow.jobs.quality!;
+  const e2e = workflow.jobs.e2e!;
+  const pr = workflow.on.pull_request as {
+    types: string[];
+    'paths-ignore'?: unknown;
+    paths?: unknown;
+  };
+  const gate = quality.steps.find((step) => step.id === 'gate')! as Step & { id?: string };
+
+  it('pull_request types 는 opened·synchronize·reopened·labeled, 워크플로 단위 paths 필터 없음', () => {
+    expect(pr.types).toEqual(['opened', 'synchronize', 'reopened', 'labeled']);
+    expect(pr['paths-ignore']).toBeUndefined();
+    expect(pr.paths).toBeUndefined();
+  });
+
+  it('잡은 quality → e2e 두 개 (secret scan 은 quality, integration 은 e2e 안), 병렬화 없음', () => {
+    expect(Object.keys(workflow.jobs).sort()).toEqual(['e2e', 'quality']);
+    expect(needsOf(e2e)).toEqual(['quality']);
+    expect(quality.if).toBeUndefined();
+    expect(e2e.if).toBe("needs.quality.outputs.heavy == 'true'");
+    expect(e2e.steps.map((step) => step.run ?? '')).toContain('pnpm test:integration');
+    expect(e2e.steps.map((step) => step.run ?? '')).toContain('pnpm test:e2e');
+  });
+
+  it('secret scan 은 판정보다 먼저, 조건 없이 항상 돈다', () => {
+    const scan = indexOfStep(quality, 'Secret scan');
+    expect(scan).toBeGreaterThan(-1);
+    expect(quality.steps[scan]!.if).toBeUndefined();
+    expect(quality.steps[scan]!.run).toBe('pnpm check:secrets');
+    expect(quality.steps.indexOf(gate)).toBeGreaterThan(scan);
+  });
+
+  it('판정 이후의 무거운 단계는 전부 heavy 조건, 그 앞(설치·secret scan·판정)은 조건 없음', () => {
+    const gateIndex = quality.steps.indexOf(gate);
+    for (const step of quality.steps.slice(gateIndex + 1)) {
+      expect(step.if, step.name).toContain("steps.gate.outputs.heavy == 'true'");
+    }
+    for (const step of quality.steps.slice(0, gateIndex + 1))
+      expect(step.if, step.name).toBeUndefined();
+    expect((quality as Job & { outputs?: Record<string, string> }).outputs?.heavy).toBe(
+      '${{ steps.gate.outputs.heavy }}',
+    );
+  });
+
+  it('라벨은 ci:run 불리언만 env 로 받고, 라벨 이름·PR 제목 같은 사용자 입력을 run 에 넣지 않는다', () => {
+    expect(gate.env?.HAS_RUN_LABEL).toBe(
+      "${{ contains(github.event.pull_request.labels.*.name, 'ci:run') }}",
+    );
+    for (const step of [...quality.steps, ...e2e.steps]) {
+      expect(step.run ?? '', step.name).not.toMatch(/\$\{\{\s*github\.event\./);
+    }
+  });
+
+  it('문서 전용 생략 대상은 CLAUDE.md·README.md·docs/specs/**·docs/qa/** 뿐 (docs/** 전체 아님), git diff 셸로 판정', () => {
+    // 셸 주석 줄은 빼고 본다 (설명 문장의 'docs/**' 는 판정 대상이 아니다)
+    const run = (gate.run ?? '').replace(/^\s*#.*$/gm, '');
+    expect(run).toContain('git diff --name-only HEAD^1 HEAD');
+    expect(run).toContain("grep -Ev '^(CLAUDE\\.md|README\\.md|docs/specs/.*|docs/qa/.*)$'");
+    expect(run).not.toMatch(/\bdocs\/\.\*|docs\/\*\*/);
+    expect(run).not.toMatch(/\bgh\b|curl|api\.github/);
+    // 판정 값 3종을 Job Summary 에 남긴다
+    for (const verdict of ['문서 전용: secret scan만', 'ci:run 없음: 경량', '전체'])
+      expect(run).toContain(verdict);
+    expect(run).toContain('$GITHUB_STEP_SUMMARY');
+  });
+
+  it('문서 전용 판정 셸: 생략 대상만 바뀌면 문서 전용, docs/ops 등은 코드로 센다', () => {
+    const pattern = /^(CLAUDE\.md|README\.md|docs\/specs\/.*|docs\/qa\/.*)$/;
+    const docsOnly = (files: string[]) => files.every((file) => pattern.test(file));
+    expect(docsOnly(['CLAUDE.md', 'docs/specs/a.md', 'docs/qa/PR-1.md', 'README.md'])).toBe(true);
+    expect(docsOnly(['docs/ops/runbook.md'])).toBe(false);
+    expect(docsOnly(['docs/deploy/vercel.md'])).toBe(false);
+    expect(docsOnly(['src/app/page.tsx', 'CLAUDE.md'])).toBe(false);
+    // 셸의 정규식이 위 패턴과 같은 문자열인지 (단일 원본)
+    expect(gate.run).toContain(`'${pattern.source.replace(/\\\//g, '/')}'`);
+  });
+
+  it('체크아웃은 판정용 fetch-depth 2 만 (quality), 자격 증명은 남기지 않는다', () => {
+    const checkout = quality.steps.find((step) => step.uses?.startsWith('actions/checkout@'))!;
+    expect(checkout.with).toEqual({ 'persist-credentials': false, 'fetch-depth': 2 });
+  });
+
+  it('concurrency: ci:run 이 아닌 라벨로 생긴 실행은 다른 그룹 (진행 중인 ci:run 실행을 취소하지 않음)', () => {
+    expect(workflow.concurrency?.['cancel-in-progress']).toBe(true);
+    expect(workflow.concurrency?.group).toContain("github.event.label.name != 'ci:run'");
+  });
+
+  it('integration 과 E2E 는 같은 Postgres 서비스에서 DB 이름만 다르다', () => {
+    const migrate = stepNamed(e2e, 'Migrate (drizzle/*.sql → Postgres, integration DB)')!;
+    expect(migrate.env?.DATABASE_URL).toBe('postgres://prami:prami@localhost:5432/prami');
+    expect(e2e.env?.E2E_DATABASE_URL).toBe('postgres://prami:prami@localhost:5432/prami_e2e');
+    const createDb = indexOfStep(e2e, 'E2E DB 생성 (integration 과 분리)');
+    expect(createDb).toBeGreaterThan(
+      indexOfStep(e2e, 'Integration tests (schema snapshot · seed)'),
+    );
+    expect(createDb).toBeLessThan(
+      indexOfStep(e2e, 'E2E (globalSetup 이 db:migrate → seed 후 next dev 기동)'),
+    );
   });
 });

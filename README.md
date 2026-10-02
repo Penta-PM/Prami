@@ -121,9 +121,11 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 | `pnpm credentials:rewrap` | LLM 키 DEK 를 활성 KEK 로 다시 감싼다 (KEK 회전, PRAMI-002). `--yes` 없으면 대상·건수만 출력                                                                                                                                     |
 | `pnpm check`              | lint + typecheck + format:check + test 일괄                                                                                                                                                                                      |
 
-CI(`.github/workflows/ci.yml`)는 PR 마다 lint → typecheck → format → 단위(커버리지, PGlite) → build,
-이어서 PostgreSQL 16 service container 에서 `db:migrate` → `seed` → 통합 테스트, 그리고 같은 service container 와
-`AUTH_TEST_MODE` 로 Playwright E2E(로그인·권한·감사 로그)를 실행합니다.
+CI(`.github/workflows/ci.yml`)는 PR 에서만 돕니다(main push 실행 없음). secret scan 은 항상 돌고, 무거운 단계는 PR 에
+`ci:run` 라벨이 있을 때만 돕니다: lint → typecheck → format → 단위(커버리지, PGlite) → build, 이어서 PostgreSQL 16 service
+container 에서 `db:migrate` → `seed` → 통합 테스트, 같은 container(DB 이름만 분리)와 `AUTH_TEST_MODE` 로 Playwright E2E.
+`CLAUDE.md`·`README.md`·`docs/specs/**`·`docs/qa/**` 만 바꾼 PR 은 라벨이 있어도 secret scan 만 돕니다.
+라벨은 QA 통과 후 머지 직전에 붙여 1회 돌립니다.
 
 E2E 를 로컬에서 처음 돌릴 때는 E2E 전용 DB 를 한 번 만듭니다:
 `docker exec prami-postgres-1 psql -U prami -d prami -c "create database prami_e2e"`.
