@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -171,8 +171,11 @@ describe('NoticeDetailActions', () => {
     const confirm = screen.getByRole('dialog', { name: '공지 삭제' });
     await userEvent.click(within(confirm).getByRole('button', { name: '삭제' }));
     expect(await within(confirm).findByRole('alert')).toHaveTextContent('권한 없음');
-    await userEvent.click(within(confirm).getByRole('button', { name: '삭제' }));
-    await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/notices'));
+    // alert 는 transition 이 끝나기 전에 그려질 수 있다 — 삭제 버튼이 다시 활성화된 뒤 누른다(CI 부하에서 비활성 버튼 클릭 경합)
+    const removeButton = within(confirm).getByRole('button', { name: '삭제' });
+    await waitFor(() => expect(removeButton).toBeEnabled());
+    await userEvent.click(removeButton);
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/notices'));
   });
 });
 
