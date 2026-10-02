@@ -1,7 +1,7 @@
 # QA 기록 — PR #37 CI 사용량 절감 PR-A (ci.yml 라벨 게이트)
 
 - 대상: `ci/usage-reduction` @ `8c79d71` (base `origin/main` @ `ae16940`)
-- 판정 (2026-10-02): **통과 / 셀프머지 승인** — 검증 SHA: 8c79d71
+- 판정 (2026-10-02): **통과 / 셀프머지 승인** — 검증 SHA: 858eb23 (처음 8c79d71로 승인했으나, docs/pipeline/** 추가 변경을 재확인해 대체)
 - 스펙: `docs/specs/ci-usage-reduction.md` §2 PR-A, §5 PR-A
 
 ## 검증 방법
@@ -15,3 +15,8 @@
 3. 비 ASCII 파일명은 문서 전용으로 인정되지 않음 (quotePath, 보수적 방향)
 4. README.md:103·:357 "CI `secret scan` 잡" 표현이 남아 있음
 5. main push CI 가 없어져 머지 전 확인은 PR-B 규칙에 의존 — PR-B 조기 머지 권장
+
+## 858eb23 재확인 (Plan §2-4 A안: docs/pipeline/** 생략 대상 추가)
+- docs/pipeline 을 읽는 코드·테스트 0건. workflows.test 80/80(목록 고정 단언 포함), actionlint 0
+- 판정 시뮬레이션 6가지 정상 (docs/pipelineX 같은 접두어 오인 없음)
+- 858eb23 의 ci:run run 37000910910 은 확인 시점에 진행 중 — 머지 전 녹색 확인은 Dev 몫(규칙 3.3)
