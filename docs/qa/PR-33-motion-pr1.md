@@ -35,3 +35,8 @@
 5. 플래그를 지정하지 않은 빌드에서는 `NEXT_PUBLIC_MOTION_DISABLED` 가 인라인되지 않고 런타임 `process.env` shim 으로 읽힌다. 결과(false)는 맞으므로 동작 문제는 아니다.
 6. 번들 +117,738 B(+9.0%, motion chunk). 스펙의 domMax 예상 범위다.
 7. `/share/quotes/<잘못된 토큰>` 이 Next 기본 404 페이지를 보여준다. main 에서도 같음, 범위 밖.
+
+## rebase 후 재확인 (2026-10-02, 656eb14 on main a102e15)
+- PR 변경 줄이 승인본(cc211ea)과 같음 (range-diff, 줄 단위 비교). playwright.config.ts 에 #34 설정과 함께 병합됨
+- typecheck 0, lint 경고 0, 단위 1733 통과, 격리 DB E2E 66/66 (#34 하이드레이션 카나리가 켜진 상태에서 실패 0)
+- 판정: **승인 유지**
