@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { MotionGlobalConfig } from 'motion/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MotionProvider } from '@/components/motion/MotionProvider';
 import { Presence } from '@/components/motion/Presence';
@@ -316,5 +317,76 @@ describe('Drawer 퇴장 (Motion 도입 스펙 §3.3)', () => {
     expect(panel).toHaveAttribute('inert');
     expect(panel).not.toContainElement(document.activeElement as HTMLElement);
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+});
+
+/**
+ * 실제 애니메이션 경로 (QA #35 CRITICAL): setup.ts 의 skipAnimations 를 끄고, 부모 open=false 닫힘이 안전장치(즉시 닫기)가
+ * 아니라 퇴장 애니메이션 완료(onAnimationComplete('exit'))로 닫히는지 본다. 퇴장 160ms 동안은 dialog 가 열려 있어야 한다.
+ */
+describe('Modal 퇴장 — 실제 애니메이션 (skipAnimations 끔)', () => {
+  beforeEach(() => {
+    MotionGlobalConfig.skipAnimations = false;
+  });
+  afterEach(() => {
+    MotionGlobalConfig.skipAnimations = true;
+  });
+
+  async function openThenParentClose(title: string) {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <Modal open onClose={onClose} title={title}>
+        내용
+      </Modal>,
+      withMotion,
+    );
+    const dialog = screen.getByRole('dialog');
+    await new Promise((resolve) => setTimeout(resolve, 320)); // 진입 240ms 완료
+    rerender(
+      <Modal open={false} onClose={onClose} title={title}>
+        내용
+      </Modal>,
+    );
+    return { dialog, onClose, rerender };
+  }
+
+  it('부모 open=false 는 퇴장(160ms) 동안 열려 있다가 퇴장이 끝난 뒤 닫힌다 — onClose 미호출', async () => {
+    const { dialog, onClose } = await openThenParentClose('부모 실제');
+    expect(dialog).toHaveAttribute('data-closing');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(dialog).toHaveAttribute('open');
+    await waitFor(() => expect(dialog).not.toHaveAttribute('open'), { timeout: 1000 });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('부모가 닫는 퇴장 도중 다시 열면 취소되어 열린 채 남는다 (§9.1 Q2, 실제 애니메이션)', async () => {
+    const { dialog, onClose, rerender } = await openThenParentClose('재열기 실제');
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    rerender(
+      <Modal open onClose={onClose} title="재열기 실제">
+        내용
+      </Modal>,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(dialog).toHaveAttribute('open');
+    expect(dialog).not.toHaveAttribute('data-closing');
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('Esc 는 퇴장 동안 열려 있다가 닫히고 onClose 1회', async () => {
+    const onClose = vi.fn();
+    render(
+      <Modal open onClose={onClose} title="Esc 실제">
+        내용
+      </Modal>,
+      withMotion,
+    );
+    const dialog = screen.getByRole('dialog');
+    await new Promise((resolve) => setTimeout(resolve, 320));
+    fireEvent(dialog, new Event('cancel', { cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(dialog).toHaveAttribute('open');
+    await waitFor(() => expect(dialog).not.toHaveAttribute('open'), { timeout: 1000 });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

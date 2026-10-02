@@ -78,7 +78,8 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
       if (closingRef.current) return; // 퇴장 중 중복 요청(Esc 연타 등)은 무시
       closingRef.current = true;
       reasonRef.current = reason;
-      exitStartedRef.current = false;
+      // exitStartedRef 는 여기서 지우지 않는다 — 부모가 open=false 로 닫으면 이 호출보다 먼저 패널이 'exit' 를 시작하는데
+      // (open=false 렌더), 지우면 같은 목표('exit')라 시작 콜백이 다시 오지 않아 안전장치가 즉시 닫아 버린다 (QA #35 CRITICAL)
       restoreFocus();
       setClosing(true);
     },
@@ -89,6 +90,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
   const settle = useCallback(() => {
     closingRef.current = false;
     reasonRef.current = null;
+    exitStartedRef.current = false;
     setClosing(false);
     if (!isPresentRef.current) safeToRemoveRef.current?.();
   }, []);
@@ -119,6 +121,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
       triggerRef.current =
         document.activeElement instanceof HTMLElement ? document.activeElement : null;
       notifiedRef.current = false;
+      exitStartedRef.current = false;
       dialog.showModal();
     }
     // 부모가 닫는 퇴장 도중 다시 열리면 퇴장을 취소하고 열린 상태로 되돌린다 — onClose 는 부르지 않는다
@@ -156,11 +159,9 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
     restoreFocus();
   };
 
-  const panelState = closing
-    ? VARIANT_KEYS.exit
-    : open
-      ? VARIANT_KEYS.animate
-      : VARIANT_KEYS.initial;
+  // 닫혀 가는 동안(사용자 닫기 closing, 또는 부모 open=false) 은 항상 'exit'. open=false 렌더에서 'initial' 로 바뀌면
+  // 같은 값의 애니메이션이 먼저 시작돼 'exit' 시작 콜백이 오지 않았다 (QA #35 CRITICAL)
+  const panelState = open && !closing ? VARIANT_KEYS.animate : VARIANT_KEYS.exit;
 
   return (
     <dialog
