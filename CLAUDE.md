@@ -12,7 +12,7 @@
 | **Dev** (현재) | `Dev` | `/home/plan1/orca/workspaces/Prami/Dev` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Dev` |
 | QA | `QA` | `/home/plan1/orca/workspaces/Prami/QA` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/QA` |
 
-`$REPO` = `b6875288-76f6-460f-a109-cec5f84eb966` · 공용 Run: **`run_8fb8ec4090f0`**
+`$REPO` = `b6875288-76f6-460f-a109-cec5f84eb966` · Main Run: **`run_8fb8ec4090f0`** (Main 전용 — 역할 세션은 바인딩하지 않음)
 
 ## 파이프라인
 
@@ -141,6 +141,18 @@ gh pr merge --squash            # QA 승인 후에만
 > 실패합니다. 머지는 `gh pr merge --squash` 로 원격에서 처리하고, 로컬 `main` 갱신이
 > 필요하면 Main 워크트리에서 `git pull` 하도록 요청하세요.
 > 셀프머지 후 `--delete-branch` 는 쓰지 마세요 — `Dev` 브랜치는 워크트리가 상시 점유합니다.
+
+### 세션 시작 — 내 수신함 Run 만들기
+
+`@worktree:<id>` 로 보낸 메일은 **그 워크트리에서 Run 코디네이터인 터미널**에만 도착합니다.
+그래서 세션을 새로 열 때마다 이 세션 전용 수신함 Run을 한 번 만듭니다:
+
+```bash
+orca orchestration run-create --objective "Prami Dev inbox" --json
+```
+
+- ❌ `orca orchestration run-use --id run_8fb8ec4090f0` 는 **실행하지 않습니다.** 실행한 터미널이 그 Run의 코디네이터를 가져가서 Main이 메일을 못 받게 됩니다.
+- 메일이 오면 Orca가 `You have N orchestration message...` 알림을 넣어 주기도 합니다. 발신자의 `[메일 도착]` 깨우기와 겹칠 수 있으니, 이미 처리한 배치면 메일함이 비어 있는 게 정상입니다.
 
 ### 수신 — 폴링하지 않습니다
 
