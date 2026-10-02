@@ -23,6 +23,13 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
   md: 'h-10 px-4 text-[14px]',
 };
 
+/**
+ * press 피드백 (Motion 도입 스펙 §3.3 P1): CSS 로만 scale 0.98 — Motion 을 쓰지 않아 서버 컴포넌트에서도 렌더된다
+ * ("use client" 금지). Tailwind 4 의 scale-* 는 `scale` 속성이라 transition 대상·모션 감소 해제도 `scale` 로 맞춘다.
+ */
+export const PRESS_CLASSES =
+  'transition-[color,background-color,border-color,opacity,scale] duration-120 active:scale-[0.98] motion-reduce:active:scale-100';
+
 /** 디자인 시스템 버튼. 기본은 secondary(회색 hairline), 주요 행동은 primary(lime) */
 export function Button({
   variant = 'secondary',
@@ -35,7 +42,8 @@ export function Button({
     <button
       type={type}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-lg border-0 font-semibold whitespace-nowrap transition-colors',
+        'inline-flex items-center justify-center gap-2 rounded-lg border-0 font-semibold whitespace-nowrap',
+        PRESS_CLASSES,
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500',
         'disabled:cursor-not-allowed disabled:opacity-50',
         VARIANT_CLASSES[variant],

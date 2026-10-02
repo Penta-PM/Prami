@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { connection } from 'next/server';
 import type { ReactNode } from 'react';
 
+import { MotionProvider } from '@/components/motion/MotionProvider';
+
 import './globals.css';
 
 /**
@@ -38,7 +40,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           crossOrigin="anonymous"
         />
       </head>
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        {/* 모션 Provider 는 루트에 둬 (app) 밖의 /login·/share 에도 적용한다 (Motion 도입 스펙 §3.2) */}
+        <MotionProvider>{children}</MotionProvider>
+      </body>
     </html>
   );
 }
