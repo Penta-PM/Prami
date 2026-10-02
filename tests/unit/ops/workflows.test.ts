@@ -674,11 +674,18 @@ describe('ci.yml 라벨 게이트·job 통합 (CI 사용량 절감 PR-A)', () =>
     }
   });
 
-  it('문서 전용 생략 대상은 CLAUDE.md·README.md·docs/specs/**·docs/qa/** 뿐 (docs/** 전체 아님), git diff 셸로 판정', () => {
+  it('문서 전용 생략 대상은 CLAUDE.md·README.md·docs/specs/**·docs/qa/**·docs/pipeline/** 뿐 (docs/** 전체 아님), git diff 셸로 판정', () => {
     // 셸 주석 줄은 빼고 본다 (설명 문장의 'docs/**' 는 판정 대상이 아니다)
     const run = (gate.run ?? '').replace(/^\s*#.*$/gm, '');
     expect(run).toContain('git diff --name-only HEAD^1 HEAD');
-    expect(run).toContain("grep -Ev '^(CLAUDE\\.md|README\\.md|docs/specs/.*|docs/qa/.*)$'");
+    // 목록을 정확히 고정한다 — 넓어지면 실패 (Plan §2-4 보호 장치 ②)
+    expect(run).toContain(
+      "grep -Ev '^(CLAUDE\\.md|README\\.md|docs/specs/.*|docs/qa/.*|docs/pipeline/.*)$'",
+    );
+    expect((gate.run ?? '').match(/grep -Ev '[^']*'/g)).toEqual([
+      "grep -Ev '^(CLAUDE\\.md|README\\.md|docs/specs/.*|docs/qa/.*|docs/pipeline/.*)$'",
+    ]);
+    expect(gate.run).toContain('이 목록의 경로를 읽는 테스트가 생기면 목록에서 뺄 것');
     expect(run).not.toMatch(/\bdocs\/\.\*|docs\/\*\*/);
     expect(run).not.toMatch(/\bgh\b|curl|api\.github/);
     // 판정 값 3종을 Job Summary 에 남긴다
@@ -690,9 +697,10 @@ describe('ci.yml 라벨 게이트·job 통합 (CI 사용량 절감 PR-A)', () =>
   });
 
   it('문서 전용 판정 셸: 생략 대상만 바뀌면 문서 전용, docs/ops 등은 코드로 센다', () => {
-    const pattern = /^(CLAUDE\.md|README\.md|docs\/specs\/.*|docs\/qa\/.*)$/;
+    const pattern = /^(CLAUDE\.md|README\.md|docs\/specs\/.*|docs\/qa\/.*|docs\/pipeline\/.*)$/;
     const docsOnly = (files: string[]) => files.every((file) => pattern.test(file));
     expect(docsOnly(['CLAUDE.md', 'docs/specs/a.md', 'docs/qa/PR-1.md', 'README.md'])).toBe(true);
+    expect(docsOnly(['docs/pipeline/verification.md'])).toBe(true);
     expect(docsOnly(['docs/ops/runbook.md'])).toBe(false);
     expect(docsOnly(['docs/deploy/vercel.md'])).toBe(false);
     expect(docsOnly(['src/app/page.tsx', 'CLAUDE.md'])).toBe(false);
