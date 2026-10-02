@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button, Modal } from '@/components/ui';
 import { formatAuditTime } from '@/lib/audit-format';
 
@@ -80,18 +82,21 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
           링크를 아는 사람은 로그인 없이 견적서를 읽을 수 있습니다(원가 없음). 만료되거나 폐기하면
           링크는 404 로 닫힙니다.
         </p>
-        {flash ? (
-          <p
-            role={flash.tone === 'error' ? 'alert' : 'status'}
-            className={
-              flash.tone === 'error'
-                ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
-                : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
-            }
-          >
-            {flash.text}
-          </p>
-        ) : null}
+        <Presence>
+          {flash ? (
+            <Collapse key="flash" role={flash.tone === 'error' ? 'alert' : 'status'}>
+              <p
+                className={
+                  flash.tone === 'error'
+                    ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
+                    : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
+                }
+              >
+                {flash.text}
+              </p>
+            </Collapse>
+          ) : null}
+        </Presence>
         <form
           className="flex flex-wrap items-end gap-3"
           onSubmit={(event) => {

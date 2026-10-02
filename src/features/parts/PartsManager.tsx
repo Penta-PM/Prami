@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Button, Modal, Segmented } from '@/components/ui';
 import type { BatchOption } from '@/features/admin-policies/types';
@@ -101,18 +102,21 @@ export function PartsManager({ models, parts, mappings, batchOptions }: PartsMan
         onChange={(next: PartsMode) => setMode(next)}
         className="w-fit"
       />
-      {flash ? (
-        <p
-          role={flash.tone === 'error' ? 'alert' : 'status'}
-          className={
-            flash.tone === 'error'
-              ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
-              : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
-          }
-        >
-          {flash.text}
-        </p>
-      ) : null}
+      <Presence>
+        {flash ? (
+          <Collapse key="flash" role={flash.tone === 'error' ? 'alert' : 'status'}>
+            <p
+              className={
+                flash.tone === 'error'
+                  ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
+                  : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
+              }
+            >
+              {flash.text}
+            </p>
+          </Collapse>
+        ) : null}
+      </Presence>
       {mode === 'manual' ? (
         <PartsEditor
           models={models}

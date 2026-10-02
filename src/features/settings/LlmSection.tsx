@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { WarningIcon } from '@/features/shell/icons';
 import type { ChatDefaultsView, VendorView } from '@/server/llm/credentials/settings';
 import type { CredentialView } from '@/server/llm/credentials/view';
@@ -132,31 +134,34 @@ export function LlmSection({
         {credentials.length === 0 ? (
           <p className="m-0 text-[13px] text-text-secondary">{NO_CREDENTIAL_NOTICE}</p>
         ) : null}
-        {flash ? (
-          <p
-            role={flash.tone === 'error' ? 'alert' : 'status'}
-            className={
-              flash.tone === 'error'
-                ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
-                : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
-            }
-          >
-            {flash.text}
-            {flash.link ? (
-              <>
-                {' '}
-                <a
-                  href={flash.link.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-semibold underline"
-                >
-                  {flash.link.label}
-                </a>
-              </>
-            ) : null}
-          </p>
-        ) : null}
+        <Presence>
+          {flash ? (
+            <Collapse key="flash" role={flash.tone === 'error' ? 'alert' : 'status'}>
+              <p
+                className={
+                  flash.tone === 'error'
+                    ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
+                    : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
+                }
+              >
+                {flash.text}
+                {flash.link ? (
+                  <>
+                    {' '}
+                    <a
+                      href={flash.link.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold underline"
+                    >
+                      {flash.link.label}
+                    </a>
+                  </>
+                ) : null}
+              </p>
+            </Collapse>
+          ) : null}
+        </Presence>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           {[
             ...vendors,

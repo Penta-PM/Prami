@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 
@@ -59,19 +60,21 @@ function usePolicyEditing() {
   return { form, setForm, deleting, setDeleting, flash, openCreate, openFromRow, done };
 }
 
+/** 등록·수정·삭제 결과 배너 — `Presence` 안에서 `Collapse` 로 펼쳐지고 접힌다 (Motion 도입 스펙 §3.3 인라인 피드백) */
 function FlashMessage({ flash }: { flash: Flash }) {
   const error = flash.tone === 'error';
   return (
-    <p
-      role={error ? 'alert' : 'status'}
-      className={
-        error
-          ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
-          : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
-      }
-    >
-      {flash.text}
-    </p>
+    <Collapse role={error ? 'alert' : 'status'}>
+      <p
+        className={
+          error
+            ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
+            : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
+        }
+      >
+        {flash.text}
+      </p>
+    </Collapse>
   );
 }
 
@@ -122,7 +125,9 @@ export function PricingBrowser({ mode, rows }: { mode: TableMode; rows: readonly
           </Button>
         </div>
       ) : null}
-      {editing.flash ? <FlashMessage flash={editing.flash} /> : null}
+      <Presence>
+        {editing.flash ? <FlashMessage key="flash" flash={editing.flash} /> : null}
+      </Presence>
       <PriceTable
         mode={mode}
         rows={rows}

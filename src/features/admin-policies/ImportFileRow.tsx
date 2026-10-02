@@ -2,6 +2,8 @@
 
 import { useRef, useState, type ReactNode } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button, Segmented, Select } from '@/components/ui';
 import { checkUploadFiles, PLATFORM_TOO_LARGE_MESSAGE } from '@/lib/constants/upload-limits';
 import { formatDate } from '@/lib/date-format';
@@ -160,30 +162,34 @@ export function ImportFileRow(props: ImportFileRowProps) {
         )}
         {note}
       </div>
-      {message ? (
-        <p role="alert" className="m-0 text-[12px] text-red-500">
-          {message}
-          {existingId ? (
-            <button
-              type="button"
-              className="ml-2 border-0 bg-transparent p-0 text-[12px] font-semibold text-purple-600 underline"
-              onClick={() => onChange({ ...selection, mode: 'reuse', reuseId: existingId })}
-            >
-              기존 파일 선택
-            </button>
-          ) : null}
-          {fileErrors.length > 0 ? (
-            <span className="mt-1 block">
-              {fileErrors.slice(0, 10).map((error, index) => (
-                <span key={index} className="block">
-                  {error.file ? `${error.file} · ` : ''}
-                  {error.message}
+      <Presence>
+        {message ? (
+          <Collapse key="message" role="alert">
+            <p className="m-0 text-[12px] text-red-500">
+              {message}
+              {existingId ? (
+                <button
+                  type="button"
+                  className="ml-2 border-0 bg-transparent p-0 text-[12px] font-semibold text-purple-600 underline"
+                  onClick={() => onChange({ ...selection, mode: 'reuse', reuseId: existingId })}
+                >
+                  기존 파일 선택
+                </button>
+              ) : null}
+              {fileErrors.length > 0 ? (
+                <span className="mt-1 block">
+                  {fileErrors.slice(0, 10).map((error, index) => (
+                    <span key={index} className="block">
+                      {error.file ? `${error.file} · ` : ''}
+                      {error.message}
+                    </span>
+                  ))}
                 </span>
-              ))}
-            </span>
-          ) : null}
-        </p>
-      ) : null}
+              ) : null}
+            </p>
+          </Collapse>
+        ) : null}
+      </Presence>
       {selection.mode === 'new' && selection.upload ? (
         <UploadSummary kind={kind} data={selection.upload} />
       ) : null}

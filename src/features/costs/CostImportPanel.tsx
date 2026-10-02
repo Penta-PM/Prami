@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import { DuplicateWarningLists } from '@/features/admin-policies/DuplicateWarningLists';
 import { ImportFileRow } from '@/features/admin-policies/ImportFileRow';
@@ -89,24 +91,25 @@ export function CostImportPanel({ options, currentBatchId }: CostImportPanelProp
           {isPending ? '적용 중…' : '원가 적용'}
         </Button>
       </div>
-      {outcome?.ok === false ? (
-        <p
-          role="alert"
-          className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500"
-        >
-          {outcome.message}
-        </p>
-      ) : null}
-      {outcome?.ok ? (
-        <>
-          <CostApplyStats stats={outcome.result.stats} />
-          <DuplicateWarningLists
-            warnings={outcome.result.warnings}
-            stage="applied"
-            headerRowIndex={outcome.result.headerRowIndex}
-          />
-        </>
-      ) : null}
+      <Presence>
+        {outcome?.ok === false ? (
+          <Collapse key="error" role="alert">
+            <p className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500">
+              {outcome.message}
+            </p>
+          </Collapse>
+        ) : null}
+        {outcome?.ok ? (
+          <Collapse key="applied" className="flex flex-col gap-2.5">
+            <CostApplyStats stats={outcome.result.stats} />
+            <DuplicateWarningLists
+              warnings={outcome.result.warnings}
+              stage="applied"
+              headerRowIndex={outcome.result.headerRowIndex}
+            />
+          </Collapse>
+        ) : null}
+      </Presence>
     </section>
   );
 }

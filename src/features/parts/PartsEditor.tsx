@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button, Input } from '@/components/ui';
 import { Icon } from '@/features/shell/icons';
 import { cn } from '@/lib/cn';
@@ -88,15 +90,16 @@ export function PartsEditor(props: PartsEditorProps) {
               <span className="text-[12px] text-text-tertiary">선택된 파츠가 없습니다.</span>
             ) : null}
           </div>
-          {duplicate ? (
-            <p
-              role="alert"
-              className="m-0 mt-2.5 rounded-lg bg-amber-500/15 px-3 py-2.5 text-[12px] font-medium text-amber-500"
-            >
-              이미 등록된 모델입니다. 기존 파츠를 체크 상태로 불러왔으며, 저장하면 현재 선택으로
-              전체 교체됩니다.
-            </p>
-          ) : null}
+          <Presence>
+            {duplicate ? (
+              <Collapse key="duplicate" role="alert">
+                <p className="m-0 mt-2.5 rounded-lg bg-amber-500/15 px-3 py-2.5 text-[12px] font-medium text-amber-500">
+                  이미 등록된 모델입니다. 기존 파츠를 체크 상태로 불러왔으며, 저장하면 현재 선택으로
+                  전체 교체됩니다.
+                </p>
+              </Collapse>
+            ) : null}
+          </Presence>
         </div>
       ) : null}
       <div className="flex gap-2">

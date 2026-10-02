@@ -2,6 +2,8 @@
 
 import { useState, useTransition, type FormEvent } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button, Input, Modal, Select } from '@/components/ui';
 import type { ActionResult } from '@/lib/result';
 
@@ -70,14 +72,15 @@ export function UserFormModal({ mode, error, onClose, onDone }: UserFormModalPro
       }
     >
       <form id={formId} onSubmit={submit} className="flex flex-col gap-3.5">
-        {error ? (
-          <p
-            role="alert"
-            className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-500"
-          >
-            {error}
-          </p>
-        ) : null}
+        <Presence>
+          {error ? (
+            <Collapse key="error" role="alert">
+              <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-500">
+                {error}
+              </p>
+            </Collapse>
+          ) : null}
+        </Presence>
         <Field label="이메일" error={fieldErrors.email}>
           <Input
             name="email"

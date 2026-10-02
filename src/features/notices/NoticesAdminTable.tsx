@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import {
   Button,
   Table,
@@ -13,7 +15,6 @@ import {
   TableHeaderCell,
   TableRow,
 } from '@/components/ui';
-import { Presence } from '@/components/motion/Presence';
 import type { ActionResult } from '@/lib/result';
 
 import { NoticeDeleteModal } from './NoticeDeleteModal';
@@ -50,14 +51,15 @@ export function NoticesAdminTable({ notices, defaultAuthor }: NoticesAdminTableP
           + 공지 등록
         </Button>
       </div>
-      {flash ? (
-        <p
-          role="status"
-          className="m-0 mb-4 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700"
-        >
-          {flash}
-        </p>
-      ) : null}
+      <Presence>
+        {flash ? (
+          <Collapse key="flash" role="status">
+            <p className="m-0 mb-4 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700">
+              {flash}
+            </p>
+          </Collapse>
+        ) : null}
+      </Presence>
       <div className="rounded-xl bg-surface-card shadow-(--hairline-default)">
         <Table aria-label="공지 관리 표">
           <TableHead className="bg-gray-75">

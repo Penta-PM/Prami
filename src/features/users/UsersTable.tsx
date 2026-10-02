@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import {
   Button,
   Modal,
@@ -14,7 +16,6 @@ import {
   TableHeaderCell,
   TableRow,
 } from '@/components/ui';
-import { Presence } from '@/components/motion/Presence';
 import { formatAuditTime } from '@/lib/audit-format';
 import type { ActionResult } from '@/lib/result';
 
@@ -70,14 +71,15 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
         </Button>
       </div>
 
-      {error && !form ? (
-        <p
-          role="alert"
-          className="m-0 mb-4 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500"
-        >
-          {error}
-        </p>
-      ) : null}
+      <Presence>
+        {error && !form ? (
+          <Collapse key="error" role="alert">
+            <p className="m-0 mb-4 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500">
+              {error}
+            </p>
+          </Collapse>
+        ) : null}
+      </Presence>
 
       <div className="overflow-hidden rounded-[10px] bg-surface-card shadow-(--hairline-default)">
         <Table aria-label="사용자 목록">

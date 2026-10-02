@@ -3,9 +3,12 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { m } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Presence } from '@/components/motion/Presence';
 import { cn } from '@/lib/cn';
+import { transition } from '@/lib/motion/tokens';
 
 import { Icon } from './icons';
 import { NAV_ADMIN, NAV_MAIN, isNavActive, type NavItem } from './nav';
@@ -17,6 +20,10 @@ import { NAV_ADMIN, NAV_MAIN, isNavActive, type NavItem } from './nav';
  * 좁은 화면(md 미만, PRAMI-003 AC-375 ② — 320px 에서 본문 폭 확보)은 레이아웃 폭을 차지하지 않는 오버레이다:
  * 기본은 화면 밖(보이지 않고 탭 이동에서도 빠짐), [메뉴] 버튼으로 열고 메뉴 선택·바깥 누름·Esc 로 닫는다.
  * 열면 첫 메뉴로, Esc·바깥 누름으로 닫으면 [메뉴] 버튼으로 포커스를 옮긴다(메뉴 선택은 이동한 화면에 둔다).
+ *
+ * 모션 (Motion 도입 스펙 §3.3 사이드바): 폭 전환·모바일 translate 는 CSS transition 그대로 두고(E2E 가 boundingBox 를 단언),
+ * 접기/펼치기 때 라벨 텍스트와 "관리자" 헤더만 `Presence` + fade(`transition.fast`) 로 등장·퇴장한다.
+ * 서버 렌더 요소라 숨김 initial 은 `Presence initial={false}` 가 첫 마운트에서 무시한다. Motion `layout` 은 쓰지 않는다.
  */
 export function Sidebar({ showAdminNav = false }: { showAdminNav?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -68,7 +75,7 @@ export function Sidebar({ showAdminNav = false }: { showAdminNav?: boolean }) {
           tabIndex={-1}
           aria-label="메뉴 닫기"
           onClick={dismissMobile}
-          className="fixed inset-0 z-30 border-0 bg-ink-900/30 md:hidden"
+          className="fixed inset-0 z-30 border-0 bg-ink-900/30 transition-opacity duration-200 motion-reduce:transition-none md:hidden starting:opacity-0"
         />
       ) : null}
       <aside
@@ -101,13 +108,23 @@ export function Sidebar({ showAdminNav = false }: { showAdminNav?: boolean }) {
 
           {showAdminNav ? (
             <>
-              {isExpanded ? (
-                <div className="mx-2 mt-5 mb-2 text-[11px] font-semibold tracking-[0.04em] text-text-tertiary">
-                  관리자
-                </div>
-              ) : (
-                <div aria-hidden="true" className="my-3 border-t border-border-subtle" />
-              )}
+              <Presence>
+                {isExpanded ? (
+                  <m.div
+                    key="admin-heading"
+                    {...LABEL_FADE}
+                    className="mx-2 mt-5 mb-2 text-[11px] font-semibold tracking-[0.04em] text-text-tertiary"
+                  >
+                    관리자
+                  </m.div>
+                ) : (
+                  <div
+                    key="admin-divider"
+                    aria-hidden="true"
+                    className="my-3 border-t border-border-subtle"
+                  />
+                )}
+              </Presence>
               {NAV_ADMIN.map((item) => (
                 <SidebarLink
                   key={item.key}
@@ -137,6 +154,14 @@ export function Sidebar({ showAdminNav = false }: { showAdminNav?: boolean }) {
   );
 }
 
+/** 라벨 fade (스펙 §3.3 사이드바): `fade` 프리셋의 opacity 조합 + `transition.fast`. 색은 CSS transition-colors 가 맡는다 */
+const LABEL_FADE = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: transition.fast,
+} as const;
+
 function SidebarLogo({ isExpanded }: { isExpanded: boolean }) {
   return (
     <div className={cn('flex items-center gap-2.5', isExpanded ? 'px-2' : 'justify-center')}>
@@ -164,7 +189,7 @@ function SidebarLink({ item, isActive, isExpanded }: SidebarLinkProps) {
       title={item.label}
       aria-current={isActive ? 'page' : undefined}
       className={cn(
-        '-mx-1 flex items-center gap-3 rounded-lg py-[11px] text-[14px] no-underline transition-colors hover:no-underline',
+        '-mx-1 flex items-center gap-3 overflow-hidden rounded-lg py-[11px] text-[14px] no-underline transition-colors hover:no-underline',
         isExpanded ? 'justify-start px-3' : 'justify-center px-0',
         isActive
           ? 'bg-lime-500 font-semibold text-ink-900 hover:text-ink-900'
@@ -175,7 +200,13 @@ function SidebarLink({ item, isActive, isExpanded }: SidebarLinkProps) {
         name={item.icon}
         className={cn('size-[18px] shrink-0', isActive ? 'text-ink-900' : 'text-text-tertiary')}
       />
-      {isExpanded ? <span className="whitespace-nowrap">{item.label}</span> : null}
+      <Presence>
+        {isExpanded ? (
+          <m.span key="label" {...LABEL_FADE} className="whitespace-nowrap">
+            {item.label}
+          </m.span>
+        ) : null}
+      </Presence>
     </Link>
   );
 }
