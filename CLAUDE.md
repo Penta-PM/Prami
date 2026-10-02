@@ -65,6 +65,23 @@
 
 경계가 애매하면: **수용 기준을 못 지키면 CRITICAL**, 수용 기준은 지켰는데 아쉬우면 비블로킹입니다.
 
+## 검증 규칙 — 단일 원본은 main 의 `docs/pipeline/verification.md`
+
+> 원문: **`/home/plan1/Desktop/Prami/docs/pipeline/verification.md`** (Main 워크트리, main)
+> 또는 `git fetch origin && git show origin/main:docs/pipeline/verification.md` — 원문과 다르면 **원문**을 따른다.
+> (CI 사용량 절감 스펙 §3, PR #37·#39)
+
+- [ ] 스펙 수용 기준으로 실제 검증 + **E2E 전체 1회**(새 DB, PR head SHA)
+- [ ] Dev 와 E2E 를 **동시에 돌리지 않는다**(4코어). 로컬 vitest 는 `--maxWorkers=2` 이하
+- [ ] 반복 실행은 실패 1회가 main 에서 재현되지 않을 때만, **해당 스펙만** `--repeat-each=3`
+      (전체 반복 금지. 스펙에 "연속 N회"가 있으면 그 지시를 따른다)
+- [ ] Dev 결과를 믿지 않고 직접 다시 돌리는 조건:
+      Dev 기록에 SHA·DB 가 없거나 PR head 와 다를 때 /
+      `playwright.config.ts`·`src/proxy.ts`·auth/session·`drizzle/**`·`src/components/ui/**` 중 하나가 바뀌었을 때
+- [ ] CI(`ci:run`)는 Dev 가 QA 통과 후에 돌린다. **QA 는 검증용으로 CI 를 돌리지 않는다**(사용량 절감).
+      필요하면 이미 있는 run 을 `gh api`·`gh run view --log` 로 대조한다
+- [ ] 승인서에 `검증 SHA` 와 `SHA 대조` 두 줄을 넣는다(아래 승인 형식)
+
 ## 내부 구조: 오케스트레이터 + 서브에이전트 2개
 
 QA 세션 자신이 **오케스트레이터**입니다. 검증 요청을 받으면 Claude Code의 **`Agent` 툴**로
@@ -210,6 +227,9 @@ orca terminal send --terminal "$H" --enter --json \
 ```
 [통과 / 셀프머지 승인] PR #N — <제목>
 
+검증 SHA: <sha>
+SHA 대조: 검증 SHA = 머지 head SHA = ci:run 녹색 run 의 head SHA  (rebase 로만 달라졌으면 그 사실과 diff 동일 여부)
+
 ## 검증한 내용 (실제 실행 기준)
 Frontend:
   - 실행: <어떻게 띄웠는지>
@@ -239,3 +259,4 @@ Backend:
 - 실행 검증을 위해 Dev 코드가 필요하면 **QA 브랜치를 오염시키지 말고**
   `git switch --detach Dev` 로 분리 HEAD에서 확인한 뒤 `git switch QA` 로 복귀합니다.
 - **QA는 제품 코드를 커밋하지 않습니다.** 검증 기록/백로그는 `docs/qa/` 아래에만 커밋합니다.
+  (예외: 이 역할 정의 파일 `CLAUDE.md` 는 Plan 지시가 있을 때 QA 가 QA 브랜치에 커밋합니다 — 예: CI 사용량 절감 스펙 §2 PR-B)
