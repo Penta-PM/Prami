@@ -20,3 +20,8 @@
 5. UploadSummary ErrorList 는 모션 대상에서 빠짐 (범위 판단)
 6. ImportFileRow "기존 파일 선택" 포커스 링이 Collapse overflow-hidden 에 잘릴 가능성 (미실측)
 7. 배너가 접히는 동작은 화면에서 재현 경로가 없어 단위 테스트로만 확인
+
+## 승인 후 변경 재확인 (2026-10-02, edb1c65)
+- 변경: `tests/unit/notices/ui.test.tsx` 1개 파일만 (CI 경합 대응으로 버튼 활성화를 기다림), src diff 0
+- lint 0, typecheck 0, 해당 테스트 순서 섞어 5회와 CPU 부하 3회 모두 9/9
+- 판정: **승인 유지**
