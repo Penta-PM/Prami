@@ -32,6 +32,10 @@ export const E2E_ENV = {
   LLM_CREDENTIALS_KEKS: `1:${Buffer.alloc(32, 'test-kek-e2e').toString('base64')}`,
   LLM_CREDENTIALS_ACTIVE_KEK: '1',
   LLM_VENDOR_MODE: 'fake',
+  // 키 검증 리미터(사용자별 분당, 메모리)는 dev 서버 한 프로세스에서 스펙 간에 누적된다 — 여러 스펙이 같은 픽스처 사용자로
+  // 1분 안에 키를 저장하면 RATE_LIMITED 로 실패한다. unit env 와 같은 관례로 E2E 에서는 넉넉히 둔다(리미터 동작은 단위 테스트가 검증).
+  // 운영 기본값(src/env.ts 5)은 그대로 (Linux 하이드레이션 수정 스펙 §8)
+  LLM_VERIFY_PER_MIN: '1000',
   E2E_SERVER_LOG: '.e2e-logs/next-dev.log',
 } as const;
 
