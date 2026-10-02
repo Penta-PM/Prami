@@ -20,6 +20,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }
 
 const { ImportPanel } = await import('@/features/admin-policies/ImportPanel');
 const { ApplyStatsView } = await import('@/features/admin-policies/ApplyStatsView');
+const { ImportFileRow } = await import('@/features/admin-policies/ImportFileRow');
 
 const SALES_BATCH: BatchOption = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -360,5 +361,23 @@ describe('ApplyStatsView', () => {
     render(<ApplyStatsView title="적용 완료" stats={STATS} />);
     expect(screen.getByText('폐기로 미사용 처리')).toBeInTheDocument();
     expect(screen.getByText('3,808')).toBeInTheDocument();
+  });
+});
+
+describe('ImportFileRow 기존 파일 목록 (Linux 하이드레이션 수정 §3.3)', () => {
+  it('업로드일은 KST 기준 날짜 — UTC 20시 업로드가 전날로 표시되지 않는다', () => {
+    render(
+      <ImportFileRow
+        kind="sales"
+        label="판매단가 파일"
+        uploadLabel="판매단가 업로드"
+        options={[{ ...SALES_BATCH, createdAt: '2026-10-01T20:00:00Z' }]}
+        selection={{ mode: 'reuse', upload: null, reuseId: SALES_BATCH.id }}
+        onChange={() => {}}
+      />,
+    );
+    const option = screen.getByRole('option', { name: /병합_가격_raw\.xlsx/ });
+    expect(option).toHaveTextContent('2026-10-02');
+    expect(option).not.toHaveTextContent('2026-10-01');
   });
 });

@@ -125,12 +125,3 @@ export const DELETE_DONE_MESSAGE =
 
 export const KEYRING_MISSING_NOTICE =
   '서버에 암호화 키가 설정되지 않았습니다(관리자 문의). 키를 등록할 수 없습니다.';
-
-export function formatDateTime(iso: string | null): string {
-  if (!iso) return '—';
-  return new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(iso));
-}

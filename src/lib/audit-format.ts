@@ -1,5 +1,7 @@
 /** 감사 로그 표시·CSV 공통 포맷 (서버·클라이언트 모두 사용) */
 
+import { formatDateTimeSeconds } from '@/lib/date-format';
+
 export type AuditDisplayRow = {
   id: number;
   createdAt: Date;
@@ -21,20 +23,9 @@ export const AUDIT_RESULT_LABELS: Record<AuditDisplayRow['result'], string> = {
   error: '오류',
 };
 
-const dateTimeFormat = new Intl.DateTimeFormat('sv-SE', {
-  timeZone: 'Asia/Seoul',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hour12: false,
-});
-
-/** 한국 시간 `YYYY-MM-DD HH:mm:ss` */
+/** 한국 시간 `YYYY-MM-DD HH:mm:ss` — 공용 포맷(src/lib/date-format.ts)에 위임, 출력 불변 */
 export function formatAuditTime(value: Date): string {
-  return dateTimeFormat.format(value);
+  return formatDateTimeSeconds(value);
 }
 
 /** jsonb 값을 `key: value, …` 한 줄로 요약한다 */

@@ -67,6 +67,10 @@ pnpm dev            # http://localhost:3000 (127.0.0.1 에만 바인드)
 > `AUTH_TEST_PASSWORD` 로 누구나 ADMIN 픽스처 계정에 로그인할 수 있습니다. 2차 방어로 테스트 로그인은 `AUTH_TEST_ALLOWED_HOSTS`
 > (기본 `localhost,127.0.0.1`) 밖의 Host 에서 거부되고 감사 `auth.denied_test_mode` 가 남으며, `VERCEL_ENV` 가 있는 환경에서는
 > 기동 자체가 거부됩니다. 테스트 모드가 켜지면 로그인 화면·헤더에 **TEST MODE** 배너가 보입니다.
+>
+> 내부망 전용 호스트에서 **의도적으로** 테스트 모드를 켠 채 LAN 에 열어야 한다면(팀 내 검증 등) `pnpm dev:lan` 으로 띄우고,
+> `.env.local` 에 `NEXT_DEV_ALLOWED_ORIGINS=<서버 주소 hostname>` 과 `AUTH_TEST_ALLOWED_HOSTS` 에 LAN 주소를 추가하며, 강한
+> `AUTH_TEST_PASSWORD` 를 쓰세요. 절차와 미설정 시 증상은 [`docs/deploy/local.md` §6](docs/deploy/local.md) 에 있습니다.
 
 모든 화면은 로그인이 필요합니다(비로그인은 `/login` 으로 이동). `AUTH_TEST_MODE=true` 이면 로그인 화면의
 **테스트 모드** 폼에서 픽스처 계정(`fixture-admin@pentasecurity.com` = ADMIN, `fixture-user@pentasecurity.com`
@@ -95,6 +99,7 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 | 명령                      | 설명                                                                                                                                                                                                                             |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm dev`                | 개발 서버 (`127.0.0.1` 바인드, LAN 노출은 `-H 0.0.0.0` 명시 + 테스트 모드 끄기)                                                                                                                                                  |
+| `pnpm dev:lan`            | 개발 서버를 `0.0.0.0` 에 바인드 (LAN). `.env.local` 의 `NEXT_DEV_ALLOWED_ORIGINS`·`AUTH_TEST_ALLOWED_HOSTS` 필요 — `docs/deploy/local.md` §6                                                                                     |
 | `pnpm check:secrets`      | 추적 파일 비밀값 검사 (원격 DB 자격 증명·`AUTH_SECRET=` 값·OAuth 시크릿·LLM 벤더 키·KEK 값, CI `secret scan` 잡, AC-96·211)                                                                                                      |
 | `pnpm build`              | 프로덕션 빌드 (빌드 전 `src/env.ts` 가 환경변수를 검증)                                                                                                                                                                          |
 | `pnpm start`              | 빌드 결과 실행                                                                                                                                                                                                                   |

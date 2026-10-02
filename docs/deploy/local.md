@@ -149,3 +149,23 @@ DB 를 바꾸지 않는다. 관리자가 시트 2 로 검수하고 필요한 행
 | 대체 검증 SQL | items_master 2511 · items_stub 0 · sales_rows 5885 · sales_operating 2428 · sales_unused 3457 · costs_rows 487 · fixture_users 0 · notices 0 · quotes 0 · solution_groups 0 · part_mappings 0 · seed_audit 0 — `data:verify` 와 동일 |
 | 8) 임시 덤프 삭제 | 성공 |
 | 복원 | 드롭·재생성 → `pg_restore --no-owner` → items 2511 · audit_logs 8 · users 2 · notices 3(사전 상태와 동일) |
+
+## 6. LAN 에서 dev 서버 열기 (Linux 하이드레이션 수정 스펙 §3.2·§3.4)
+
+다른 PC 에서 `http://<서버 주소>:3000` 으로 dev 서버에 접속하려면 바인드 주소와 **허용 dev origin** 두 가지를 함께 설정한다.
+`pnpm dev` 는 `127.0.0.1` 에만 바인드하므로 LAN 노출은 항상 명시적이다. README 의 테스트 모드 LAN 경고는 그대로 유효하다 —
+내부망 전용 호스트에서 의도적으로 켤 때만 아래 보완 절차를 따른다.
+
+```bash
+# .env.local (저장소에 커밋하지 않는다)
+NEXT_DEV_ALLOWED_ORIGINS=192.168.1.156          # 브라우저가 접속하는 "서버 주소의 hostname" (접속자 IP 아님). 여러 개면 쉼표
+AUTH_TEST_ALLOWED_HOSTS=localhost,127.0.0.1,192.168.1.156   # 테스트 로그인을 받을 Host (기본 localhost,127.0.0.1)
+AUTH_TEST_PASSWORD=<강한 비밀번호>              # LAN 에 열면 같은 망의 누구나 시도할 수 있다
+
+pnpm dev:lan                                    # next dev --hostname 0.0.0.0
+```
+
+- `NEXT_DEV_ALLOWED_ORIGINS` 는 `next.config.ts` 의 `allowedDevOrigins` 로 들어간다. dev 전용 설정이라 `src/env.ts` 스키마·`.env.example`·`docs/deploy/vercel.md` 표에는 두지 않는다(`NEXT_DIST_DIR` 과 같은 취급). `next build`/`next start` 에는 영향이 없다.
+- 미설정 시 증상: 서버 로그에 `Blocked cross-origin request to Next.js dev resource …`, 브라우저 콘솔에 HMR 웹소켓 오류, dev 오류 오버레이의 스택프레임 요청이 403. 페이지 자체는 렌더되지만 수정 사항이 자동 반영되지 않는다.
+- `src/proxy.ts` matcher 는 손대지 않는다 — HMR 업그레이드(`/_next/hmr`)와 `/__nextjs_*` 는 Next 가 proxy 이전에 처리하므로 제외할 필요가 없다.
+- 확인: 네트워크 탭 `/_next/hmr` 가 101 Switching Protocols, 콘솔 `[HMR] connected`, 서버 로그에 `Blocked cross-origin request` 0건 (localhost·LAN 양쪽).

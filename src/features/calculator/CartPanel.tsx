@@ -12,7 +12,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from '@/components/ui';
-import { formatAuditTime } from '@/lib/audit-format';
+import { formatDate } from '@/lib/date-format';
 import { priceLabel } from '@/lib/pricing/format';
 import { cartTotals } from '@/lib/pricing/quote';
 
@@ -280,7 +280,7 @@ function SavedQuotesModal({
                   {quote.quoteNo}
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-text-tertiary">
-                  {formatAuditTime(new Date(quote.createdAt)).slice(0, 10)}
+                  {formatDate(quote.createdAt)}
                 </TableCell>
                 <TableCell className="font-semibold whitespace-nowrap">
                   {quote.productFamily}
