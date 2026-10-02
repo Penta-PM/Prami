@@ -1,6 +1,7 @@
 # QA 기록 — PR #34 Linux 하이드레이션 실패 2건 정식 수정
 
 - 대상: `fix/linux-hydration` @ `7da54a2` (base `origin/main` @ `90ffb86`)
+- 판정 (2차, 2026-10-02, 53094ff): **통과 / 셀프머지 승인** — lint 경고 0 확인 (eslint warnings 0 · errors 0, wording-consistency 20/20, typecheck 0)
 - 판정 (1차, 2026-10-02): **반려 / CRITICAL 1건** — 수용 기준 §6 공통 "pnpm lint 경고 0" 미충족
   - 경고 1건 `tests/unit/chat/wording-consistency.test.ts` 2:53 미사용 `vi`. main 에도 같은 경고가 있다 (PR 이 새로 만든 경고 아님)
   - 해소: (a) 미사용 import 제거, 또는 (b) Plan 이 "새 경고 0"이 의도라고 확인. 그 외 항목은 모두 실측으로 통과
