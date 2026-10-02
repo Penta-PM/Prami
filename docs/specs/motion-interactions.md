@@ -173,3 +173,10 @@
 
 - Main 워크트리 dev 서버가 `0.0.0.0:3000` 사용 중 → Dev/QA는 다른 포트(`PORT=3001`, `3002`)로 띄운다.
 - 이 Linux 호스트에서 dev 서버 hydration이 실패하면 `src/proxy.ts` matcher가 `/_next/hmr`를 제외하지 않는 별건 이슈 때문이다. **이 PR에서 고치지 말고** 검증은 `pnpm build && pnpm start`(프로덕션 빌드)로 하거나 Main의 임시 수정을 로컬에서만 적용(커밋 금지)한다.
+
+## 9. 구현 중 확정된 결정 (Dev 보고 → Plan 승인, 2026-10-02)
+
+- `NEXT_PUBLIC_MOTION_DISABLED`는 E2E 전용 빌드 플래그이므로 `src/env.ts` 스키마·`.env.example`·`docs/deploy/vercel.md`에 넣지 않는다. Provider가 `process.env`를 직접 읽는다.
+- PR 브랜치는 `feat/motion-pr{1..4}-*` (Dev 브랜치 → main PR은 CLAUDE.md 충돌). PR-2·3은 PR-1 위에 스택, PR-1 머지 후 rebase.
+- 버튼 press 해제: Tailwind 4의 `scale-*`는 `scale` 속성이라 `motion-reduce:transform-none`이 안 먹음 → `motion-reduce:active:scale-100`으로 구현. 3.3 표의 해당 문구는 이걸로 대체.
+- 챗 ChipRow·FAB press는 파일 겹침으로 PR-2에서 적용.
