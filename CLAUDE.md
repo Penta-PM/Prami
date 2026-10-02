@@ -109,27 +109,53 @@ orca orchestration send --to "$QA" --type status --subject "[검증 요청] PR #
 orca orchestration send --to "$MAIN" --type merge_ready --subject "[완료] <제목>" --body "<형식>" --json
 ```
 
+## 검증 규칙 — 단일 원본은 main 의 `docs/pipeline/verification.md`
+
+> 규칙 원문: **`/home/plan1/Desktop/Prami/docs/pipeline/verification.md`** (Main 워크트리, main 체크아웃)
+> 또는 어느 브랜치에서든 `git fetch origin && git show origin/main:docs/pipeline/verification.md`.
+> 이 절은 요약입니다. 원문과 다르면 **원문**을 따릅니다. (CI 사용량 절감 스펙 §3, PR #37·#39)
+
+CI 는 PR 에서만 돌고, 무거운 단계는 **`ci:run` 라벨이 있을 때만** 돕니다(Free 플랜 월 2,000분). 필수 검사가 없으므로
+CI 통과는 이 규칙으로만 강제됩니다.
+
+**Dev 게이트 (PR 올리기 전, 로컬)** — 새 격리 DB 에서:
+- [ ] `pnpm check` · `pnpm test:coverage` · `pnpm build` · `pnpm check:prerender` · `pnpm check:trace` · `pnpm check:secrets`
+- [ ] integration (`DB_DRIVER=pg DATABASE_URL=<격리 DB> pnpm db:migrate && pnpm seed && pnpm test:integration`, `PRAMI_ALLOW_SEED=1`)
+- [ ] **영향받는 E2E 스펙만** (E2E 전체는 QA 몫 — Dev 가 돌리지 않음. QA 와 동시에 E2E 금지)
+- [ ] 로컬 vitest 는 `--maxWorkers=2` 이하
+- [ ] PR 본문 `## 로컬 검증`: 커밋 SHA · DB(새로/기존, 이름) · 명령별 passed/failed · 실패 시 main 대조
+- [ ] PR 은 **라벨 없이** 올린다 (CI 는 secret scan·판정만, 약 1분)
+
+**머지 전 3조건 (모두 참이어야 `gh pr merge --squash`)**
+1. `git fetch origin && git merge-base --is-ancestor origin/main origin/<branch>` 참 — 거짓이면 rebase 후 2·3 다시
+2. QA 통과 후 `ci:run` 라벨을 붙여 1회 → **머지할 head SHA 의 run 이 녹색** (문서 전용 PR 은 head SHA 의 문서 전용 판정 run 녹색)
+3. head SHA = QA 승인서의 `검증 SHA` (rebase 로만 달라졌으면 `git range-diff` 로 diff 동일 확인 + 기록)
+- 연속 머지(PR-2→3→4 등)는 앞 PR 머지마다 뒤 PR 의 1번을 다시 확인
+- CI 실패: 실제 버그 → 수정·QA 재검증 / flake → rerun **1회까지** + PR 기록 + QA 백로그 / 원인 불명 환경 차이 → Plan 에 되묻기
+
 ## 작업 흐름
 
 ```
 1. Plan에게서 스펙 + 태스크 수신
 2. 스펙에 구멍 있으면 → Plan에 ask (구현 시작 전에)
 3. API 계약 확정 → FE/BE 서브에이전트 병렬 호출
-4. 결과 통합 + 직접 검토 + 로컬에서 실제 실행 확인
-5. 커밋 → 푸시 → gh pr create
-6. QA에 검증 요청 (PR 링크 + 수용 기준 첨부)
+4. 결과 통합 + 직접 검토 + 로컬에서 실제 실행 확인 + Dev 게이트(위 "검증 규칙")
+5. 커밋 → feat/* 브랜치 푸시 → gh pr create (라벨 없이, 본문에 ## 로컬 검증)
+6. QA에 검증 요청 (PR 링크 + 수용 기준 + 로컬 검증 SHA 첨부)
 7. 반려면 → 4로 / 통과면 → 8
-8. gh pr merge (셀프머지)
-9. Main에 완료 보고
+8. ci:run 라벨 → head SHA run 녹색 → 머지 전 3조건 확인 → gh pr merge --squash (셀프머지)
+9. Main에 완료 보고 (머지 SHA + ci:run run URL)
 ```
 
 ## Git / PR
 
 ```bash
+git fetch origin && git switch -c feat/<작업> origin/main   # 작업 브랜치는 main 에서 (Plan 승인 — Dev 브랜치 → main PR 은 CLAUDE.md 충돌)
 git add -A && git commit -m "feat: ..."
-git push -u origin Dev
-gh pr create --base main --head Dev --title "..." --body "..."
-gh pr merge --squash            # QA 승인 후에만
+git push -u origin feat/<작업>
+gh pr create --base main --head feat/<작업> --title "..." --body "..."   # 라벨 없이
+gh pr edit <N> --add-label ci:run                                        # QA 통과 후, 머지 직전 1회
+gh pr merge <N> --squash                                                 # 머지 전 3조건 확인 후에만
 ```
 
 **커밋 메시지 형식:** `<type>: <설명>` — `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `ci`
@@ -203,6 +229,8 @@ PR: <링크 또는 브랜치 diff 명령>
   - [ ] (Plan이 준 기준 그대로 복사)
 변경 범위: 건드린 파일/영역
 실행 방법: 로컬에서 어떻게 띄우는지 (포트, 시드 데이터, 계정 등)
+로컬 검증: Dev 게이트 SHA · DB · 명령별 결과 (PR 본문 ## 로컬 검증 과 같게)
+운영 제약: (Plan 이 준 제약 그대로 — PID/포트로만 종료, :3000·공용 DB 보호)
 알려진 제약: (있다면)
 ```
 
@@ -210,7 +238,8 @@ PR: <링크 또는 브랜치 diff 명령>
 
 ```
 [완료] <제목>
-- PR #N 머지 완료 (Dev → main)
+- PR #N 머지 완료 (feat/<작업> → main, 머지 SHA <sha>)
+- 머지 전 3조건: ① 최신 main 포함 ② ci:run run <URL> 녹색 ③ 검증 SHA = head SHA
 - 구현 내용: ...
 - QA 검증 결과: ...
 - 백로그로 넘긴 이슈: (QA가 비블로킹으로 남긴 것)
