@@ -1,7 +1,7 @@
 # QA 기록 — PR #37 CI 사용량 절감 PR-A (ci.yml 라벨 게이트)
 
 - 대상: `ci/usage-reduction` @ `8c79d71` (base `origin/main` @ `ae16940`)
-- 판정 (2026-10-02): **통과 / 셀프머지 승인** — 검증 SHA: 858eb23 (처음 8c79d71로 승인했으나, docs/pipeline/** 추가 변경을 재확인해 대체)
+- 판정 (2026-10-02): **통과 / 셀프머지 승인** — 검증 SHA: 911c72b (8c79d71 → 858eb23 → 911c72b 순으로 HEAD 변경, 매번 재확인 후 최종 SHA로 대체)
 - 스펙: `docs/specs/ci-usage-reduction.md` §2 PR-A, §5 PR-A
 
 ## 검증 방법
@@ -20,3 +20,8 @@
 - docs/pipeline 을 읽는 코드·테스트 0건. workflows.test 80/80(목록 고정 단언 포함), actionlint 0
 - 판정 시뮬레이션 6가지 정상 (docs/pipelineX 같은 접두어 오인 없음)
 - 858eb23 의 ci:run run 37000910910 은 확인 시점에 진행 중 — 머지 전 녹색 확인은 Dev 몫(규칙 3.3)
+
+## 911c72b 재확인 (QA 백로그 1~4 반영)
+- `--no-renames`, `core.quotePath=false`, 다른 라벨 이벤트는 "다른 라벨 추가: 경량", README 문구 수정
+- workflows.test 81/81, actionlint 0. 시뮬레이션 11가지에서 백로그 1~3 해소 확인 (rename 우회 → 전체, 한글 docs/qa → 문서 전용, 다른 라벨 → 경량)
+- 남은 백로그: PR-B 조기 머지(main push CI 없음), README 8행 깨진 링크(범위 밖)
