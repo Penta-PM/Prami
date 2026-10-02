@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { m } from 'motion/react';
+import { m, type Variants } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import { PRESS_CLASSES } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
-import { slideRight, VARIANT_KEYS } from '@/lib/motion/tokens';
+import { slideRight, transition, VARIANT_KEYS } from '@/lib/motion/tokens';
 
 import { useChatPanel } from './ChatContext';
 import { BillingNotice, SetupBanner, SetupLink } from './SetupBanner';
@@ -28,6 +28,16 @@ export const EXAMPLE_QUESTIONS = [
   '견적 뽑아줘',
 ] as const;
 export { askChat, GREETING } from './useChatConversation';
+
+/**
+ * 새 메시지 버블·"답변을 찾는 중…" 진입 (Motion 도입 스펙 §3.3 챗 메시지): 아래에서 8px 올라오며 fade, `transition.base`.
+ * 프리셋 `fadeUp` 은 6px 이라 같은 토큰으로 8px 만 바꿔 조합한다. 퇴장은 두지 않는다(즉시 제거).
+ * `layout` 은 쓰지 않는다 — 스트리밍 토큰마다 레이아웃을 다시 재므로 금지(§3.4-3).
+ */
+const bubbleEnter: Variants = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: transition.base },
+};
 
 export function ChatPanel() {
   const { isOpen, close, launcherRef, statusEndpoint } = useChatPanel();
@@ -80,7 +90,8 @@ export function ChatPanel() {
   const askedByUser = messages.some((message) => message.from === 'user');
 
   // 패널은 slideRight(x 24 + fade) 로 진입·퇴장한다 (Motion 도입 스펙 §3.3 챗 패널). 대화 상태는 이 컴포넌트에 남으므로
-  // 패널을 닫았다 열어도 메시지는 유지되고, 메시지 버블 자체에는 모션을 넣지 않는다 (PR-4 범위)
+  // 패널을 닫았다 열어도 메시지는 유지된다. 버블은 패널과 함께 마운트되는 Presence(initial={false}) 안에 있어
+  // 패널을 다시 열 때 기존 메시지는 애니메이션 없이 최종 상태로, 열린 뒤 추가된 버블만 1회 fadeUp 한다 (§3.3 챗 메시지)
   return (
     <Presence>
       {isOpen ? (
@@ -118,13 +129,23 @@ export function ChatPanel() {
             aria-live="polite"
             className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4"
           >
-            {messages.map((message) => (
-              <Bubble key={message.id} message={message} />
-            ))}
+            <Presence>
+              {messages.map((message) => (
+                <Bubble key={message.id} message={message} />
+              ))}
+            </Presence>
+            {/* Presence 밖에 두어 isSending=false 와 같은 커밋에서 즉시 사라진다 — 퇴장 fade 를 두면 그동안 새 답변 버블
+                아래에 남아 칩 행이 160ms 뒤에 한 번 더 밀려 올라간다(떨림). 등장만 버블과 같은 fadeUp */}
             {isSending ? (
-              <p role="status" className="m-0 text-[11px] text-text-tertiary">
+              <m.p
+                role="status"
+                variants={bubbleEnter}
+                initial={VARIANT_KEYS.initial}
+                animate={VARIANT_KEYS.animate}
+                className="m-0 text-[11px] text-text-tertiary"
+              >
                 답변을 찾는 중…
-              </p>
+              </m.p>
             ) : null}
             {!askedByUser ? (
               <ChipRow
@@ -177,8 +198,15 @@ export function ChatPanel() {
 
 function Bubble({ message }: { message: ChatMessage }) {
   const isUser = message.from === 'user';
+  // key=message.id 는 스트리밍 내내 같다(push 시 발급, patch 는 id 유지) — 글자가 늘어도 재마운트·재진입하지 않는다.
+  // animate 값이 바뀌지 않으므로 리렌더돼도 다시 재생되지 않는다
   return (
-    <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
+    <m.div
+      variants={bubbleEnter}
+      initial={VARIANT_KEYS.initial}
+      animate={VARIANT_KEYS.animate}
+      className={isUser ? 'flex justify-end' : 'flex justify-start'}
+    >
       <div
         data-from={message.from}
         className={
@@ -224,7 +252,7 @@ function Bubble({ message }: { message: ChatMessage }) {
           </Link>
         ) : null}
       </div>
-    </div>
+    </m.div>
   );
 }
 
