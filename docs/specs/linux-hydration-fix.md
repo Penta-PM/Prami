@@ -95,3 +95,9 @@ allowedDevOrigins: (process.env.NEXT_DEV_ALLOWED_ORIGINS ?? '')
 2. **[커밋 2]** `src/lib/date-format.ts` 신설, `audit-format.ts` 위임, `labels.ts` 포맷터 삭제, `ImportFileRow` KST, `.slice(0,10)` 치환, 단위 테스트·가드 테스트·settings 텍스트 단언, E2E 하이드레이션 카나리.
 3. **[검증]** 6절 검증 프로토콜 수행 후 PR 본문에 결과(localhost·LAN, `rm -rf .next` 후) 기록. QA 검증 요청.
 의존 관계: 1·2 독립, 3은 1·2 이후. PR 1개.
+
+## 8. 구현 중 결정 (Dev 되묻기 `msg_aaad51a8a746` → Plan 결정, 2026-10-02)
+
+- **E2E 리미터 격리**: 세 스펙을 연달아 돌리면 `FIXTURE_USER` 키 검증이 메모리 리미터 `LLM_VERIFY_PER_MIN`(기본 5/분)을 넘겨 `settings-llm.spec.ts:154`가 실패한다. main에서는 hydration 실패에 가려져 있던 기존 문제. → **A안 채택**: `playwright.config.ts` `E2E_ENV`에 `LLM_VERIFY_PER_MIN: '1000'` 추가 (vitest unit env와 같은 관례, 리미터 동작은 단위 테스트가 검증). 이 PR의 커밋 3(`test(e2e): LLM 검증 리미터 E2E 격리`)으로 넣는다.
+- 수용 기준 "세 스펙 연속 3회 통과"는 **완화하지 않는다**.
+- `playwright.config.ts`는 Motion #33도 수정하는 파일이므로 이 PR 머지 후 #33 rebase 시 충돌 해소가 필요하다(Dev 처리).
