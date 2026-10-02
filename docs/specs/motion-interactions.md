@@ -73,7 +73,7 @@
 | 클라이언트 목록 추가·삭제 | `calculator/CartPanel.tsx` lines, `parts/PartsEditor.tsx` 선택 목록, `calculator/QuoteSteps.tsx` 칩 | `Presence` + `m.li layout` + `listItem` variants, `duration.layout` | P2 |
 | `FamilyTabs` 밑줄 인디케이터 | `parts/FamilyTabs.tsx` (RSC) | 인디케이터만 작은 client 컴포넌트로 분리해 `layoutId`. 링크·데이터 흐름은 RSC 유지 | P3 |
 | 카드 hover | `home/ProductCards.tsx` | 기존 shadow 유지 + CSS `hover:-translate-y-0.5` | P3 |
-| `GroupsManager` 그룹 목록 | `GroupsManager.tsx` | 신규·삭제 항목 fade만 | P3 |
+| `GroupsManager` 그룹 목록 | `GroupsManager.tsx` | 신규·삭제 항목 fade + `m.li layout`(`duration.layout`) 재배치 (9.4절) | P3 |
 
 ### 3.4 금지 규칙 (Dev·QA 공통)
 
@@ -158,7 +158,8 @@
 
 ### PR-4 목록·메시지
 - [ ] 챗에서 새 메시지 버블이 fade-up 으로 나타나고, 스트리밍 중 글자가 추가될 때 버블·주변 요소가 떨리거나 재배치되지 않는다.
-- [ ] `CartPanel` 항목 추가/삭제, `PartsEditor` 선택 추가/삭제, `QuoteSteps` 칩 추가/삭제 시 나머지 항목이 부드럽게 재배치되고 삭제 항목은 height 접힘으로 사라진다.
+- [ ] `CartPanel` 항목 추가/삭제, `PartsEditor` 선택 추가/삭제, `QuoteSteps` 칩 추가/삭제 시 나머지 항목이 layout(`duration.layout`)으로 부드럽게 재배치된다. 삭제 항목은 **세로 목록(`CartPanel`)은 height 접힘, 가로 칩(`PartsEditor`·`QuoteSteps`)은 `scaleIn` 축소+fade**로 사라진다. (정정 9.4절)
+- [ ] `GroupsManager` 그룹 카드 삭제 시 삭제 카드는 fade로 사라지고 아래 카드는 layout으로 미끄러져 올라온다(한 번에 튀지 않음).
 - [ ] 가격·원가·감사 표의 `<tr>`에 Motion 속성이 없다.
 
 ## 7. 태스크
@@ -199,3 +200,9 @@
 - 접을 때 라벨이 120ms 퇴장 fade로 자리를 차지하면 `justify-center` 묶음 정렬 때문에 폭 transition(CSS 200ms) 동안 아이콘이 링크 밖(음수 x)으로 밀렸다가 라벨 제거 시 튄다(실측 x 24→70.5→…→−14.9→28). "관리자" 헤더 퇴장과 구분선 진입이 겹쳐 아래 메뉴가 밀리는 현상도 같은 원인.
 - 결정 **A**: 라벨과 "관리자" 헤더는 **펼칠 때만 fade-in**, 접을 때는 즉시 제거. 링크의 `overflow-hidden`은 되돌린다. 아이콘 궤적이 main과 같아야 한다.
 - 추가 수용 기준(PR-3): 사이드바 접기 중 rAF 샘플링에서 아이콘 x가 음수가 되거나 튀지 않는다(단조 변화). 펼칠 때 라벨이 fade-in 된다.
+
+### 9.4 PR-4 목록 판단 (Dev 되묻기 `msg_027db3a7ae64` → Plan 결정, 2026-10-02)
+
+- **가로 칩 퇴장 (A)**: `PartsEditor` 선택 칩, `QuoteSteps` 중·소분류 칩은 가로 flex-wrap 알약이라 height 접힘이 어색하다. 퇴장은 `scaleIn`(0.96↔1 + fade, 160ms), 나머지 칩은 layout 재배치. 세로 목록(`CartPanel`)은 height 접힘 + layout 유지.
+- **GroupsManager 튐 (A)**: fade만 두면 퇴장 160ms 후 아래 카드가 한 번에 튄다(PR-3 사이드바와 같은 종류). fade + `m.li layout`(`duration.layout`)으로 미끄러지게 한다.
+- 허용(보고만): 마지막 항목 삭제 시 퇴장 160ms 동안 빈 목록 안내가 함께 보임, `QuoteSteps` 제품군 변경 시 이전·새 칩이 160ms 겹침 — `mode="wait"` 금지(입력 지연 방지)의 결과로 수용한다.
