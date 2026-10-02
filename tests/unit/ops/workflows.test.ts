@@ -677,7 +677,8 @@ describe('ci.yml 라벨 게이트·job 통합 (CI 사용량 절감 PR-A)', () =>
   it('문서 전용 생략 대상은 CLAUDE.md·README.md·docs/specs/**·docs/qa/**·docs/pipeline/** 뿐 (docs/** 전체 아님), git diff 셸로 판정', () => {
     // 셸 주석 줄은 빼고 본다 (설명 문장의 'docs/**' 는 판정 대상이 아니다)
     const run = (gate.run ?? '').replace(/^\s*#.*$/gm, '');
-    expect(run).toContain('git diff --name-only HEAD^1 HEAD');
+    // QA #37 백로그 1·3: 이름 바꾸기는 옛 경로까지 센다(우회 차단), 비 ASCII 파일명은 따옴표 없이
+    expect(run).toContain('git -c core.quotePath=false diff --no-renames --name-only HEAD^1 HEAD');
     // 목록을 정확히 고정한다 — 넓어지면 실패 (Plan §2-4 보호 장치 ②)
     expect(run).toContain(
       "grep -Ev '^(CLAUDE\\.md|README\\.md|docs/specs/.*|docs/qa/.*|docs/pipeline/.*)$'",
@@ -711,6 +712,24 @@ describe('ci.yml 라벨 게이트·job 통합 (CI 사용량 절감 PR-A)', () =>
   it('체크아웃은 판정용 fetch-depth 2 만 (quality), 자격 증명은 남기지 않는다', () => {
     const checkout = quality.steps.find((step) => step.uses?.startsWith('actions/checkout@'))!;
     expect(checkout.with).toEqual({ 'persist-credentials': false, 'fetch-depth': 2 });
+  });
+
+  it('QA #37 백로그 2: 다른 라벨을 붙인 labeled 이벤트는 경량 (ci:run 이 있어도 전체를 다시 돌리지 않음)', () => {
+    expect(gate.env?.RUN_LABEL_EVENT).toBe(
+      "${{ github.event.action != 'labeled' || github.event.label.name == 'ci:run' }}",
+    );
+    const run = gate.run ?? '';
+    expect(run).toContain('"$RUN_LABEL_EVENT" != \'true\'');
+    expect(run).toContain('다른 라벨 추가: 경량');
+    // 판정 순서: 문서 전용 → ci:run 없음 → 다른 라벨 이벤트 → 전체
+    const order = [
+      '문서 전용: secret scan만',
+      'ci:run 없음: 경량',
+      '다른 라벨 추가: 경량',
+      "verdict='전체'",
+    ].map((text) => run.indexOf(text));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
   it('concurrency: ci:run 이 아닌 라벨로 생긴 실행은 다른 그룹 (진행 중인 ci:run 실행을 취소하지 않음)', () => {

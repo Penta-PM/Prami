@@ -100,7 +100,7 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm dev`                | 개발 서버 (`127.0.0.1` 바인드, LAN 노출은 `-H 0.0.0.0` 명시 + 테스트 모드 끄기)                                                                                                                                                  |
 | `pnpm dev:lan`            | 개발 서버를 `0.0.0.0` 에 바인드 (LAN). `.env.local` 의 `NEXT_DEV_ALLOWED_ORIGINS`·`AUTH_TEST_ALLOWED_HOSTS` 필요 — `docs/deploy/local.md` §6                                                                                     |
-| `pnpm check:secrets`      | 추적 파일 비밀값 검사 (원격 DB 자격 증명·`AUTH_SECRET=` 값·OAuth 시크릿·LLM 벤더 키·KEK 값, CI `secret scan` 잡, AC-96·211)                                                                                                      |
+| `pnpm check:secrets`      | 추적 파일 비밀값 검사 (원격 DB 자격 증명·`AUTH_SECRET=` 값·OAuth 시크릿·LLM 벤더 키·KEK 값, CI quality 잡의 `Secret scan` 단계(라벨과 무관하게 항상), AC-96·211)                                                                 |
 | `pnpm build`              | 프로덕션 빌드 (빌드 전 `src/env.ts` 가 환경변수를 검증)                                                                                                                                                                          |
 | `pnpm start`              | 빌드 결과 실행                                                                                                                                                                                                                   |
 | `pnpm lint`               | ESLint                                                                                                                                                                                                                           |
@@ -354,7 +354,7 @@ QA 는 `IMPORT_FAULT_INJECTION=<단계>`(개발·테스트 전용)로 적용 중
 - **로그**: `src/server/log.ts` — 한 줄 JSON(`level`·`event`·`time`·`requestId`…), 비밀 키 이름(password·secret·token·cookie·
   database_url…)과 값 속 URL userinfo·Bearer 토큰을 `[REDACTED]` 로 가린다. 예상 밖 오류는 `request.failed` 로 남고 응답 봉투에는
   `details.requestId` 만 준다. 외부 의존(pino)은 번들 크기 때문에 쓰지 않았다.
-- **비밀값 검사 (AC-96)**: `pnpm check:secrets` (CI `secret scan` 잡). 로컬 docker 기본값(`prami:prami@localhost`)·가짜 비밀번호
+- **비밀값 검사 (AC-96)**: `pnpm check:secrets` (CI quality 잡의 `Secret scan` 단계(라벨과 무관하게 항상)). 로컬 docker 기본값(`prami:prami@localhost`)·가짜 비밀번호
   픽스처(`user:pw@…`)·빈 값·`$(…)`/`<…>` 자리표시자는 허용한다.
 
 ## 사용자 설정 · LLM 키 (PRAMI-002 PR-A)
