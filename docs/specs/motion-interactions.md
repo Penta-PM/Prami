@@ -64,7 +64,7 @@
 | 드로어 | `ui/drawer.tsx`, `pricing/RowDetailDrawer.tsx` | `open` prop 유지. 패널 `slideRight`(x 100% → 0, enter/exit), 오버레이 fade. `useRestoreFocus`는 언마운트가 아니라 **퇴장 시작** 시점에 포커스를 복원하도록 변경. 퇴장 중 `inert` | P1 |
 | 챗 패널 + FAB | `chat/ChatPanel.tsx`, `chat/ChatDock.tsx` | `Presence`로 패널 x 24px + fade 진입·퇴장, FAB scale/fade 교대. 패널 재오픈 시 기존 메시지는 애니메이션 없음 (`initial={false}`) | P1 |
 | 모바일 사이드바 오버레이 | `shell/Sidebar.tsx` | **CSS transition 유지** (기존 translate). 백드롭 fade만 CSS로 추가. `max-md:invisible` 동작 유지 (`a11y-responsive.spec.ts` `toBeHidden`) | P2 |
-| 사이드바 접기/펼치기 | `shell/Sidebar.tsx` | 폭은 **CSS `transition-[width]` 유지** (200ms, 변경 금지 — `shell.spec.ts:29-35` boundingBox 단언). 라벨·"관리자" 헤더만 `Presence` + fade(`fast`). Motion `layout` 금지 | P2 |
+| 사이드바 접기/펼치기 | `shell/Sidebar.tsx` | 폭은 **CSS `transition-[width]` 유지** (200ms, 변경 금지 — `shell.spec.ts:29-35` boundingBox 단언). 라벨·"관리자" 헤더는 **펼칠 때만 fade-in(`fast`), 접을 때는 즉시 제거**(main과 같은 동작, 9.3절). 링크에 `overflow-hidden` 추가 금지. Motion `layout` 금지 | P2 |
 | 세그먼트 탭 | `ui/segmented.tsx` | 활성 pill을 `layoutId` + `spring.layout`으로 슬라이드. 색은 CSS 유지 | P2 |
 | 탭 콘텐츠 | `calculator/CalculatorTabs.tsx` | 새 콘텐츠 `fadeUp`(y 4px, `base`) 진입만. `mode="wait"` 금지 (입력 지연) | P2 |
 | 인라인 성공·에러 배너 (토스트 대체) | `GroupsManager.tsx`, `NoticesAdminTable.tsx`, `UsersTable.tsx`, `LlmSection.tsx`, `ImportPanel.tsx` 등 `role="status|alert"` | `Presence` + `listItem`(height auto + fade, `base`). `aria-live` 속성 유지. shake 금지 | P2 |
@@ -149,7 +149,7 @@
 - [ ] 모달 호출부 전부(약 15곳)가 `<Presence>`로 감싸졌다 (grep으로 `? <` + `Modal` 패턴에 Presence 누락 0).
 
 ### PR-3 전환·피드백
-- [ ] 사이드바 접기/펼치기 시 폭 transition은 기존 200ms CSS 그대로이고(`shell.spec.ts` 통과), 라벨이 fade 된다.
+- [ ] 사이드바 접기/펼치기 시 폭 transition은 기존 200ms CSS 그대로이고(`shell.spec.ts` 통과), 펼칠 때 라벨이 fade-in 되며 접을 때는 즉시 사라진다. 접는 동안 아이콘 x가 음수가 되거나 튀지 않는다(9.3절).
 - [ ] 모바일(<768px)에서 사이드바 닫힘 후 `toBeHidden`(`a11y-responsive.spec.ts`)이 통과한다.
 - [ ] `Segmented` 활성 pill이 탭 간 슬라이드 이동한다 (바운스 없음).
 - [ ] `CalculatorTabs` 전환 시 새 콘텐츠가 fade-up 되고 이전 콘텐츠의 퇴장 대기가 없다 (클릭 즉시 새 탭 상호작용 가능).
@@ -193,3 +193,9 @@
 - 9.1의 "≤160ms"는 퇴장 tween 길이를 그대로 상한으로 쓴 표현 오류다. `close()`는 tween이 끝난 다음 프레임의 완료 콜백에서 호출되므로 실측은 160ms + 1~2프레임 + dev 오버헤드다 (PR #35, dev 서버 rAF 샘플링 168 / 194 / 197 / 201 / 219ms).
 - 기준: **"퇴장 애니메이션이 끝나는 시점(`close()`)에 복원, 퇴장 시작 후 250ms 이내"**. 250ms = 160ms + 약 5프레임 여유. 구현 변경 없음.
 - 측정 환경: dev 서버(프로덕션 빌드는 테스트 로그인이 거부되어 측정 불가). QA도 같은 방식으로 측정한다.
+
+### 9.3 PR-3 사이드바 라벨 퇴장 (Dev 되묻기 `msg_e50a394ad29b` → Plan 결정, 2026-10-02)
+
+- 접을 때 라벨이 120ms 퇴장 fade로 자리를 차지하면 `justify-center` 묶음 정렬 때문에 폭 transition(CSS 200ms) 동안 아이콘이 링크 밖(음수 x)으로 밀렸다가 라벨 제거 시 튄다(실측 x 24→70.5→…→−14.9→28). "관리자" 헤더 퇴장과 구분선 진입이 겹쳐 아래 메뉴가 밀리는 현상도 같은 원인.
+- 결정 **A**: 라벨과 "관리자" 헤더는 **펼칠 때만 fade-in**, 접을 때는 즉시 제거. 링크의 `overflow-hidden`은 되돌린다. 아이콘 궤적이 main과 같아야 한다.
+- 추가 수용 기준(PR-3): 사이드바 접기 중 rAF 샘플링에서 아이콘 x가 음수가 되거나 튀지 않는다(단조 변화). 펼칠 때 라벨이 fade-in 된다.
