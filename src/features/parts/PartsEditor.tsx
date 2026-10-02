@@ -1,5 +1,6 @@
 'use client';
 
+import { m } from 'motion/react';
 import { useState } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
@@ -7,6 +8,7 @@ import { Presence } from '@/components/motion/Presence';
 import { Button, Input } from '@/components/ui';
 import { Icon } from '@/features/shell/icons';
 import { cn } from '@/lib/cn';
+import { VARIANT_KEYS, scaleIn, transition } from '@/lib/motion/tokens';
 
 import type { CatalogItemView } from './types';
 
@@ -70,22 +72,33 @@ export function PartsEditor(props: PartsEditorProps) {
             선택된 파츠 ({selected.length})
           </p>
           <div className="flex flex-wrap gap-1.5" aria-label="선택된 파츠">
-            {selected.map((item) => (
-              <span
-                key={item.itemCode}
-                className="inline-flex items-center gap-1.5 rounded-pill bg-gray-100 py-1 pr-1.5 pl-3 text-[12px] font-medium"
-              >
-                {item.itemName}
-                <button
-                  type="button"
-                  aria-label={`${item.itemName} 선택 해제`}
-                  className="border-0 bg-transparent px-1 text-text-tertiary hover:text-ink-900"
-                  onClick={() => props.onToggle(item.itemCode, false)}
+            {/* 선택 칩 추가·해제 (Motion 도입 스펙 §3.3 클라이언트 목록). 가로 flex-wrap 칩이라 height 접힘 대신
+                scaleIn(0.96↔1 + fade)으로 나타나고 사라지며, 나머지 칩은 layout 으로 재배치된다.
+                Presence initial={false} 라 모델을 고를 때 이미 체크된 칩은 애니메이션 없이 최종 상태 */}
+            <Presence>
+              {selected.map((item) => (
+                <m.span
+                  key={item.itemCode}
+                  layout
+                  variants={scaleIn}
+                  initial={VARIANT_KEYS.initial}
+                  animate={VARIANT_KEYS.animate}
+                  exit={VARIANT_KEYS.exit}
+                  transition={{ layout: transition.layout }}
+                  className="inline-flex items-center gap-1.5 rounded-pill bg-gray-100 py-1 pr-1.5 pl-3 text-[12px] font-medium"
                 >
-                  ×
-                </button>
-              </span>
-            ))}
+                  {item.itemName}
+                  <button
+                    type="button"
+                    aria-label={`${item.itemName} 선택 해제`}
+                    className="border-0 bg-transparent px-1 text-text-tertiary hover:text-ink-900"
+                    onClick={() => props.onToggle(item.itemCode, false)}
+                  >
+                    ×
+                  </button>
+                </m.span>
+              ))}
+            </Presence>
             {selected.length === 0 ? (
               <span className="text-[12px] text-text-tertiary">선택된 파츠가 없습니다.</span>
             ) : null}

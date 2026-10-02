@@ -1,6 +1,11 @@
 'use client';
 
+import { m } from 'motion/react';
+import type { ReactNode } from 'react';
+
+import { Presence } from '@/components/motion/Presence';
 import { Input } from '@/components/ui';
+import { VARIANT_KEYS, scaleIn, transition } from '@/lib/motion/tokens';
 import { formatAmount, priceLabel } from '@/lib/pricing/format';
 import { rateFromTarget } from '@/lib/pricing/quote';
 
@@ -69,15 +74,15 @@ export function StepCategory({
         </ChipRow>
         {chips.hasMaster ? (
           <ChipRow label="중분류">
-            {chips.mids.map((entry) => (
-              <Chip
-                key={entry}
-                active={mid === entry}
-                onClick={() => onMid(mid === entry ? null : entry)}
-              >
-                {entry}
-              </Chip>
-            ))}
+            <Presence>
+              {chips.mids.map((entry) => (
+                <ChipMotion key={entry}>
+                  <Chip active={mid === entry} onClick={() => onMid(mid === entry ? null : entry)}>
+                    {entry}
+                  </Chip>
+                </ChipMotion>
+              ))}
+            </Presence>
           </ChipRow>
         ) : (
           <p className="m-0 text-[11px] text-text-tertiary">
@@ -86,19 +91,43 @@ export function StepCategory({
         )}
         {chips.hasMaster && mid && chips.minors.length > 0 ? (
           <ChipRow label="소분류">
-            {chips.minors.map((entry) => (
-              <Chip
-                key={entry}
-                active={minor === entry}
-                onClick={() => onMinor(minor === entry ? null : entry)}
-              >
-                {entry}
-              </Chip>
-            ))}
+            <Presence>
+              {chips.minors.map((entry) => (
+                <ChipMotion key={entry}>
+                  <Chip
+                    active={minor === entry}
+                    onClick={() => onMinor(minor === entry ? null : entry)}
+                  >
+                    {entry}
+                  </Chip>
+                </ChipMotion>
+              ))}
+            </Presence>
           </ChipRow>
         ) : null}
       </div>
     </StepCard>
+  );
+}
+
+/**
+ * 제품군을 바꾸면 바뀌는 중·소분류 칩 래퍼 (Motion 도입 스펙 §3.3 클라이언트 목록). 가로 flex-wrap 칩이라 height 접힘 대신
+ * scaleIn(0.96↔1 + fade)으로 나타나고 사라지며, 남은 칩은 layout 으로 재배치된다. `Presence` 안에서만 쓴다 —
+ * initial={false} 라 처음 렌더(페이지 로드·소분류 줄 첫 표시)의 칩은 애니메이션 없이 최종 상태.
+ * 사용자 조작으로 바뀌지 않는 대분류(활성 표시) 칩은 감싸지 않는다.
+ */
+function ChipMotion({ children }: { children: ReactNode }) {
+  return (
+    <m.div
+      layout
+      variants={scaleIn}
+      initial={VARIANT_KEYS.initial}
+      animate={VARIANT_KEYS.animate}
+      exit={VARIANT_KEYS.exit}
+      transition={{ layout: transition.layout }}
+    >
+      {children}
+    </m.div>
   );
 }
 
