@@ -74,6 +74,8 @@ jobs:
             verdict='전체'; heavy=true
           fi
           echo "heavy=$heavy" >> "$GITHUB_OUTPUT"
+          # 로그에도 남긴다 — Job Summary 는 API 로 읽을 수 없어 gh run view --log 로 판정을 확인한다
+          echo "CI 판정: $verdict (heavy=$heavy, ci:run=$HAS_RUN_LABEL)"
           {
             echo "### CI 판정: $verdict"
             echo

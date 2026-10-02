@@ -685,6 +685,8 @@ describe('ci.yml 라벨 게이트·job 통합 (CI 사용량 절감 PR-A)', () =>
     for (const verdict of ['문서 전용: secret scan만', 'ci:run 없음: 경량', '전체'])
       expect(run).toContain(verdict);
     expect(run).toContain('$GITHUB_STEP_SUMMARY');
+    // 로그에도 판정을 남긴다 (Job Summary 는 API 로 읽히지 않음)
+    expect(run).toContain('echo "CI 판정: $verdict');
   });
 
   it('문서 전용 판정 셸: 생략 대상만 바뀌면 문서 전용, docs/ops 등은 코드로 센다', () => {
