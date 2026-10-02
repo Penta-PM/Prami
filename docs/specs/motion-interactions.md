@@ -185,7 +185,7 @@
 ### 9.1 PR-2 구현 중 결정 (Dev 되묻기 `msg_c58834860527` → Plan 결정, 2026-10-02)
 
 - **모달 포커스 복원 시점 정정 (A안)**: `showModal()`로 열린 dialog가 top layer에 있는 동안 브라우저가 바깥 요소를 inert로 만들어 트리거 `focus()`가 무시된다. 따라서 "닫히는 즉시 복원"은 결정 5(dialog 내부 `m.div` 퇴장, dialog는 modal 유지)와 함께 실제 브라우저에서 성립하지 않는다. 기준을 **"퇴장 완료 시(`close()`, ≤160ms) 복원, 퇴장 중 모달 내부는 `pointer-events:none`으로 무반응"**으로 정정한다. 드로어는 dialog가 아니므로 기존 기준(퇴장 시작 즉시 복원) 유지. 3.3 표의 모달 행 "포커스를 트리거로 즉시 복원" 문구도 이 정정으로 대체한다.
-- **퇴장 중 다시 열기 (신규 엣지케이스)**: 퇴장 중 `open=true`가 오면 퇴장을 취소하고 `animate` 상태로 되돌린다. `onClose`는 호출하지 않는다. 항상 마운트되는 `<Modal open={bool}>` 4곳(`UsersTable`, `LlmCredentialCard`, `GroupsManager`, `PartsManager`)이 대상이다. 단위 테스트 1건 추가.
+- **퇴장 중 다시 열기 (신규 엣지케이스)**: 퇴장 중 `open=true`가 오면 퇴장을 취소하고 `animate` 상태로 되돌린다. `onClose`는 호출하지 않는다. 항상 마운트되는 `<Modal open={bool}>` 4곳(`UsersTable` 비활성화 확인, `LlmCredentialCard`, `ImportPanel`의 `ReplaceConfirmModal`, `ItemMergeChoice`)이 대상이다. (정정 2026-10-02, Dev `msg_127ef574f235` — `GroupsManager`·`PartsManager`는 `{deleting ? <Modal open> : null}` 조건부 마운트라 `<Presence>` 대상) 단위 테스트 1건 추가.
 - **PR 순서 변경**: PR-2와 PR-3이 같은 파일 8개를 수정하고 그중 6개가 충돌하므로 병렬 대신 **PR-2 → 머지 → PR-3 rebase → 머지 → PR-4** 순차 진행한다. (7절 의존 관계 "2·3 병렬 가능"을 대체)
 
 ### 9.2 포커스 복원 허용 오차 (Dev 확인 요청 `msg_31038979435c` → Plan 결정, 2026-10-02)
