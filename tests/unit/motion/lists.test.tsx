@@ -217,7 +217,7 @@ describe('GroupsManager 그룹 목록 (Motion 도입 스펙 §3.3 P3 — fade �
     expect(html).not.toMatch(/opacity:\s*0[;"]/);
   });
 
-  it('신규 카드가 생기고 삭제된 카드만 제거된다. height·layout 없이 fade 만 쓴다', async () => {
+  it('신규 카드가 생기고 삭제된 카드만 제거된다. height 없이 fade + layout 재배치 (Plan §9.4 Q2)', async () => {
     const { rerender } = render(
       <GroupsManager family="WAPPLES" groups={[group('g1', '그룹 하나')]} candidates={[]} />,
       withMotion,
@@ -278,6 +278,60 @@ describe('클라이언트 목록 — 실제 애니메이션 (skipAnimations 끔)
       timeout: 1000,
     });
     expect(selectedChip('파츠 둘')).toBeInTheDocument();
+  });
+
+  it('GroupsManager: 퇴장 중에는 아래 카드가 점프하지 않고, 제거 순간 layout 으로 미끄러져 올라온다 (Plan §9.4 Q2)', async () => {
+    // jsdom 은 레이아웃을 계산하지 않으므로 카드 위치를 흉내 낸다 — 그룹 하나(높이 100)가 DOM 에 있는 동안 그룹 둘은 top 114
+    // (gap-3.5 = 14px), 제거된 뒤에는 top 0. Motion layout 은 이 차이를 transform 으로 보정하며 0.28s 동안 미끄러뜨린다.
+    const rect = (top: number) =>
+      ({
+        top,
+        bottom: top + 100,
+        left: 0,
+        right: 300,
+        width: 300,
+        height: 100,
+        x: 0,
+        y: top,
+      }) as DOMRect;
+    const spy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.tagName !== 'LI') return rect(0);
+        if (this.textContent?.includes('그룹 둘')) return rect(groupCard('그룹 하나') ? 114 : 0);
+        return rect(0);
+      });
+    try {
+      const { rerender } = render(
+        <GroupsManager
+          family="WAPPLES"
+          groups={[group('g1', '그룹 하나'), group('g2', '그룹 둘')]}
+          candidates={[]}
+        />,
+        withMotion,
+      );
+      rerender(
+        <GroupsManager family="WAPPLES" groups={[group('g2', '그룹 둘')]} candidates={[]} />,
+      );
+      await wait(60);
+      // 퇴장 중: 삭제 카드가 자리를 지키고 있어 그룹 둘은 이동(transform) 없이 제자리
+      expect(groupCard('그룹 하나')).toBeInTheDocument();
+      expect(groupCard('그룹 둘')!.style.transform).toMatch(/^(none)?$/);
+      // 제거 순간: 그룹 둘이 이전 위치(+114px)에서 출발하는 transform 이 걸린다 = 한 번에 튀지 않음
+      await waitFor(() => expect(groupCard('그룹 하나')).toBeNull(), { timeout: 1000 });
+      await waitFor(
+        () => expect(groupCard('그룹 둘')!.style.transform).toMatch(/translate3d\(0px, [1-9]/),
+        {
+          timeout: 1000,
+        },
+      );
+      // 재배치가 끝나면 transform 이 풀린다
+      await waitFor(() => expect(groupCard('그룹 둘')!.style.transform).toMatch(/^(none)?$/), {
+        timeout: 1000,
+      });
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('GroupsManager: 삭제된 카드는 fade 퇴장 동안 남았다가 제거되고, 신규 카드만 opacity 0 에서 진입한다', async () => {
