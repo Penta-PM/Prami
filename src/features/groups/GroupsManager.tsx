@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Button, Modal } from '@/components/ui';
 import type { ActionResult } from '@/lib/result';
@@ -47,14 +48,15 @@ export function GroupsManager({ family, groups, candidates }: GroupsManagerProps
           + 그룹 생성
         </Button>
       </div>
-      {flash ? (
-        <p
-          role="status"
-          className="m-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700"
-        >
-          {flash}
-        </p>
-      ) : null}
+      <Presence>
+        {flash ? (
+          <Collapse key="flash" role="status">
+            <p className="m-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700">
+              {flash}
+            </p>
+          </Collapse>
+        ) : null}
+      </Presence>
       <ul aria-label="솔루션 그룹 목록" className="m-0 flex list-none flex-col gap-3.5 p-0">
         {groups.map((group) => (
           <li

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -198,7 +198,8 @@ describe('CostBrowser', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: '저장' }));
     expect(await screen.findByRole('status')).toHaveTextContent('수정했습니다. 상태: 운영중');
     expect(mocks.refresh).toHaveBeenCalled();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // 모달은 <Presence> 퇴장을 거쳐 제거된다(Motion 도입 스펙 §3.6) — 사라짐은 기다려서 단언한다
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
   it('+ 등록 → 원가 등록 모달: 같은 계열·적용시작일 필드 오류 → 성공 시 status (AC-40 ⑦)', async () => {

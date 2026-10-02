@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import { OperationStatus } from '@/features/pricing/cells';
@@ -50,19 +51,22 @@ export function CostBrowser({ rows }: { rows: readonly CostRowView[] }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {flash ? (
-        <p
-          role={flash.tone === 'error' ? 'alert' : 'status'}
-          className={cn(
-            'm-0 rounded-lg px-3.5 py-2.5 text-[13px]',
-            flash.tone === 'error'
-              ? 'bg-red-500/10 text-red-500'
-              : 'bg-green-600/12 text-green-700',
-          )}
-        >
-          {flash.text}
-        </p>
-      ) : null}
+      <Presence>
+        {flash ? (
+          <Collapse key="flash" role={flash.tone === 'error' ? 'alert' : 'status'}>
+            <p
+              className={cn(
+                'm-0 rounded-lg px-3.5 py-2.5 text-[13px]',
+                flash.tone === 'error'
+                  ? 'bg-red-500/10 text-red-500'
+                  : 'bg-green-600/12 text-green-700',
+              )}
+            >
+              {flash.text}
+            </p>
+          </Collapse>
+        ) : null}
+      </Presence>
       <div className="flex justify-end">
         <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
           + 등록

@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import type { PolicyApplyStats } from '@/db/schema';
 
@@ -165,15 +167,20 @@ export function ImportPanel({
           {isPending ? '적용 중…' : '가격정책 적용'}
         </Button>
       </div>
-      {outcome?.ok === false ? (
-        <p
-          role="alert"
-          className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500"
-        >
-          {outcome.message}
-        </p>
-      ) : null}
-      {outcome?.ok ? <ApplyStatsView title="적용 완료" stats={outcome.stats} /> : null}
+      <Presence>
+        {outcome?.ok === false ? (
+          <Collapse key="error" role="alert">
+            <p className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500">
+              {outcome.message}
+            </p>
+          </Collapse>
+        ) : null}
+        {outcome?.ok ? (
+          <Collapse key="applied">
+            <ApplyStatsView title="적용 완료" stats={outcome.stats} />
+          </Collapse>
+        ) : null}
+      </Presence>
     </section>
   );
 }

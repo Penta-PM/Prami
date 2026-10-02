@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import { ImportFileRow } from '@/features/admin-policies/ImportFileRow';
 import {
@@ -79,24 +81,23 @@ export function PartsExcelPanel({ options, onApplied }: PartsExcelPanelProps) {
           {isPending ? '적용 중…' : '매핑 적용'}
         </Button>
       </div>
-      {error ? (
-        <p
-          role="alert"
-          className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500"
-        >
-          {error}
-        </p>
-      ) : null}
-      {stats ? (
-        <p
-          role="status"
-          aria-label="매핑 적용 완료"
-          className="m-0 text-[12px] font-semibold text-green-700"
-        >
-          적용 완료 — 모델 {stats.models}개 · 매핑 {stats.mappings}건 · 덮어쓴 모델{' '}
-          {stats.replacedModels}개
-        </p>
-      ) : null}
+      <Presence>
+        {error ? (
+          <Collapse key="error" role="alert">
+            <p className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500">
+              {error}
+            </p>
+          </Collapse>
+        ) : null}
+        {stats ? (
+          <Collapse key="stats" role="status" aria-label="매핑 적용 완료">
+            <p className="m-0 text-[12px] font-semibold text-green-700">
+              적용 완료 — 모델 {stats.models}개 · 매핑 {stats.mappings}건 · 덮어쓴 모델{' '}
+              {stats.replacedModels}개
+            </p>
+          </Collapse>
+        ) : null}
+      </Presence>
     </section>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Pill } from '@/components/ui';
 import { computeLine, rateFromTarget, roundRate } from '@/lib/pricing/quote';
@@ -278,18 +279,21 @@ export function QuoteCalculator({ preload, savedQuotes, initial }: QuoteCalculat
           제품과 옵션을 선택해 장바구니에 담으면, 여러 품목을 함께 견적으로 계산할 수 있습니다.
         </p>
       </div>
-      {flash ? (
-        <p
-          role={flash.tone === 'error' ? 'alert' : 'status'}
-          className={
-            flash.tone === 'error'
-              ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
-              : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
-          }
-        >
-          {flash.text}
-        </p>
-      ) : null}
+      <Presence>
+        {flash ? (
+          <Collapse key="flash" role={flash.tone === 'error' ? 'alert' : 'status'}>
+            <p
+              className={
+                flash.tone === 'error'
+                  ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
+                  : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
+              }
+            >
+              {flash.text}
+            </p>
+          </Collapse>
+        ) : null}
+      </Presence>
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col gap-6">
           <section

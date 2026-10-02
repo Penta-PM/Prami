@@ -1,10 +1,12 @@
 'use client';
 
+import { m } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
+import { fade } from '@/lib/motion/tokens';
 import type { ActionResult } from '@/lib/result';
 
 import { NoticeDeleteModal } from './NoticeDeleteModal';
@@ -43,11 +45,21 @@ export function NoticeDetailActions({
       <Button size="sm" variant="danger" onClick={() => setDeleting(true)}>
         삭제
       </Button>
-      {flash ? (
-        <span role="status" className="text-[12px] text-green-700">
-          {flash}
-        </span>
-      ) : null}
+      <Presence>
+        {flash ? (
+          <m.span
+            key="flash"
+            role="status"
+            variants={fade}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="text-[12px] text-green-700"
+          >
+            {flash}
+          </m.span>
+        ) : null}
+      </Presence>
       <Presence>
         {editing ? (
           <NoticeFormModal
