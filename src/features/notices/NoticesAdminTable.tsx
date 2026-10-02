@@ -13,6 +13,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from '@/components/ui';
+import { Presence } from '@/components/motion/Presence';
 import type { ActionResult } from '@/lib/result';
 
 import { NoticeDeleteModal } from './NoticeDeleteModal';
@@ -113,21 +114,25 @@ export function NoticesAdminTable({ notices, defaultAuthor }: NoticesAdminTableP
           </p>
         ) : null}
       </div>
-      {form ? (
-        <NoticeFormModal
-          mode={form}
-          defaultAuthor={defaultAuthor}
-          onClose={() => setForm(null)}
-          onDone={done(form.kind === 'edit' ? '수정' : '등록')}
-        />
-      ) : null}
-      {deleting ? (
-        <NoticeDeleteModal
-          notice={deleting}
-          onClose={() => setDeleting(null)}
-          onDone={done('삭제')}
-        />
-      ) : null}
+      <Presence>
+        {form ? (
+          <NoticeFormModal
+            mode={form}
+            defaultAuthor={defaultAuthor}
+            onClose={() => setForm(null)}
+            onDone={done(form.kind === 'edit' ? '수정' : '등록')}
+          />
+        ) : null}
+      </Presence>
+      <Presence>
+        {deleting ? (
+          <NoticeDeleteModal
+            notice={deleting}
+            onClose={() => setDeleting(null)}
+            onDone={done('삭제')}
+          />
+        ) : null}
+      </Presence>
     </>
   );
 }

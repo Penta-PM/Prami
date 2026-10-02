@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import type { ActionResult } from '@/lib/result';
 
@@ -47,17 +48,25 @@ export function NoticeDetailActions({
           {flash}
         </span>
       ) : null}
-      {editing ? (
-        <NoticeFormModal
-          mode={{ kind: 'edit', notice }}
-          defaultAuthor={defaultAuthor}
-          onClose={() => setEditing(false)}
-          onDone={onEdited}
-        />
-      ) : null}
-      {deleting ? (
-        <NoticeDeleteModal notice={notice} onClose={() => setDeleting(false)} onDone={onDeleted} />
-      ) : null}
+      <Presence>
+        {editing ? (
+          <NoticeFormModal
+            mode={{ kind: 'edit', notice }}
+            defaultAuthor={defaultAuthor}
+            onClose={() => setEditing(false)}
+            onDone={onEdited}
+          />
+        ) : null}
+      </Presence>
+      <Presence>
+        {deleting ? (
+          <NoticeDeleteModal
+            notice={notice}
+            onClose={() => setDeleting(false)}
+            onDone={onDeleted}
+          />
+        ) : null}
+      </Presence>
     </div>
   );
 }

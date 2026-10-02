@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 
 import { getPriceRowDetailAction } from './actions';
@@ -140,23 +141,27 @@ export function PricingBrowser({ mode, rows }: { mode: TableMode; rows: readonly
         }
       />
       <RowDetailDrawer rowId={detailId} onClose={() => setDetailId(null)} />
-      {editing.form ? (
-        <PolicyFormModal
-          key={JSON.stringify(editing.form.mode)}
-          mode={editing.form.mode}
-          initial={editing.form.initial}
-          initialItemStatus={editing.form.itemStatus}
-          onClose={() => editing.setForm(null)}
-          onSaved={editing.done}
-        />
-      ) : null}
-      {editing.deleting ? (
-        <DeletePolicyModal
-          row={editing.deleting}
-          onClose={() => editing.setDeleting(null)}
-          onDeleted={editing.done}
-        />
-      ) : null}
+      <Presence>
+        {editing.form ? (
+          <PolicyFormModal
+            key={JSON.stringify(editing.form.mode)}
+            mode={editing.form.mode}
+            initial={editing.form.initial}
+            initialItemStatus={editing.form.itemStatus}
+            onClose={() => editing.setForm(null)}
+            onSaved={editing.done}
+          />
+        ) : null}
+      </Presence>
+      <Presence>
+        {editing.deleting ? (
+          <DeletePolicyModal
+            row={editing.deleting}
+            onClose={() => editing.setDeleting(null)}
+            onDeleted={editing.done}
+          />
+        ) : null}
+      </Presence>
     </div>
   );
 }

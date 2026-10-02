@@ -1,9 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { m } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
+import { PRESS_CLASSES } from '@/components/ui/button';
+import { cn } from '@/lib/cn';
+import { slideRight, VARIANT_KEYS } from '@/lib/motion/tokens';
 
 import { useChatPanel } from './ChatContext';
 import { BillingNotice, SetupBanner, SetupLink } from './SetupBanner';
@@ -45,8 +50,6 @@ export function ChatPanel() {
     logRef.current?.scrollTo?.({ top: logRef.current.scrollHeight });
   }, [messages]);
 
-  if (!isOpen) return null;
-
   const send = async (raw: string) => {
     const text = raw.trim();
     if (!text || isSending) return;
@@ -58,88 +61,99 @@ export function ChatPanel() {
 
   const askedByUser = messages.some((message) => message.from === 'user');
 
+  // 패널은 slideRight(x 24 + fade) 로 진입·퇴장한다 (Motion 도입 스펙 §3.3 챗 패널). 대화 상태는 이 컴포넌트에 남으므로
+  // 패널을 닫았다 열어도 메시지는 유지되고, 메시지 버블 자체에는 모션을 넣지 않는다 (PR-4 범위)
   return (
-    <aside
-      aria-label="가격정책 챗봇"
-      className="fixed top-0 right-0 z-30 flex h-screen w-[min(400px,100vw)] flex-col border-l border-border-subtle bg-surface-page shadow-(--shadow-elevated)"
-    >
-      <header className="flex items-start justify-between gap-3 border-b border-border-subtle px-5 py-4">
-        <div>
-          <h2 className="m-0 text-[14px] font-semibold">가격정책 챗봇</h2>
-          <p className="m-0 text-[11px] text-text-tertiary">원가 데이터는 표시되지 않습니다</p>
-        </div>
-        <button
-          type="button"
-          aria-label="챗봇 닫기"
-          onClick={close}
-          className="border-0 bg-transparent text-[16px] font-semibold text-text-tertiary hover:text-ink-900"
+    <Presence>
+      {isOpen ? (
+        <m.aside
+          key="chat-panel"
+          aria-label="가격정책 챗봇"
+          variants={slideRight}
+          initial={VARIANT_KEYS.initial}
+          animate={VARIANT_KEYS.animate}
+          exit={VARIANT_KEYS.exit}
+          className="fixed top-0 right-0 z-30 flex h-screen w-[min(400px,100vw)] flex-col border-l border-border-subtle bg-surface-page shadow-(--shadow-elevated)"
         >
-          ×
-        </button>
-      </header>
-      {status?.setup ? <SetupBanner setup={status.setup} /> : null}
-      {status?.llm.status === 'ready' && !billingDismissed ? (
-        <BillingNotice onClose={() => setBillingDismissed(true)} />
+          <header className="flex items-start justify-between gap-3 border-b border-border-subtle px-5 py-4">
+            <div>
+              <h2 className="m-0 text-[14px] font-semibold">가격정책 챗봇</h2>
+              <p className="m-0 text-[11px] text-text-tertiary">원가 데이터는 표시되지 않습니다</p>
+            </div>
+            <button
+              type="button"
+              aria-label="챗봇 닫기"
+              onClick={close}
+              className="border-0 bg-transparent text-[16px] font-semibold text-text-tertiary hover:text-ink-900"
+            >
+              ×
+            </button>
+          </header>
+          {status?.setup ? <SetupBanner setup={status.setup} /> : null}
+          {status?.llm.status === 'ready' && !billingDismissed ? (
+            <BillingNotice onClose={() => setBillingDismissed(true)} />
+          ) : null}
+          <div
+            ref={logRef}
+            role="log"
+            aria-label="대화"
+            aria-live="polite"
+            className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4"
+          >
+            {messages.map((message) => (
+              <Bubble key={message.id} message={message} />
+            ))}
+            {isSending ? (
+              <p role="status" className="m-0 text-[11px] text-text-tertiary">
+                답변을 찾는 중…
+              </p>
+            ) : null}
+            {!askedByUser ? (
+              <ChipRow
+                label="예시 질문"
+                chips={[...EXAMPLE_QUESTIONS]}
+                onPick={(chip) => void send(chip)}
+              />
+            ) : null}
+            {showProductChips ? (
+              <ChipRow
+                label="제품 선택"
+                chips={[...PRODUCT_CHIPS]}
+                onPick={(chip) => void send(`${chip} 견적`)}
+              />
+            ) : null}
+            {candidates.length > 0 ? (
+              <ChipRow
+                label="후보 품목"
+                chips={candidates.map(
+                  (candidate) => `${candidate.itemName.trim()} (${candidate.itemCode})`,
+                )}
+                onPick={(chip) => void send(chip.replace(/^.*\(([^)]+)\)$/, '$1'))}
+              />
+            ) : null}
+          </div>
+          <form
+            className="flex gap-2 border-t border-border-subtle px-4 py-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void send(input);
+            }}
+          >
+            <input
+              aria-label="질문 입력"
+              value={input}
+              maxLength={200}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="예: SA-500 가격이 얼마야?"
+              className="flex-1 rounded-xl border-0 bg-surface-card px-3.5 py-2.5 text-[12px] shadow-(--hairline-default) outline-none"
+            />
+            <Button type="submit" variant="primary" disabled={isSending || input.trim() === ''}>
+              보내기
+            </Button>
+          </form>
+        </m.aside>
       ) : null}
-      <div
-        ref={logRef}
-        role="log"
-        aria-label="대화"
-        aria-live="polite"
-        className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4"
-      >
-        {messages.map((message) => (
-          <Bubble key={message.id} message={message} />
-        ))}
-        {isSending ? (
-          <p role="status" className="m-0 text-[11px] text-text-tertiary">
-            답변을 찾는 중…
-          </p>
-        ) : null}
-        {!askedByUser ? (
-          <ChipRow
-            label="예시 질문"
-            chips={[...EXAMPLE_QUESTIONS]}
-            onPick={(chip) => void send(chip)}
-          />
-        ) : null}
-        {showProductChips ? (
-          <ChipRow
-            label="제품 선택"
-            chips={[...PRODUCT_CHIPS]}
-            onPick={(chip) => void send(`${chip} 견적`)}
-          />
-        ) : null}
-        {candidates.length > 0 ? (
-          <ChipRow
-            label="후보 품목"
-            chips={candidates.map(
-              (candidate) => `${candidate.itemName.trim()} (${candidate.itemCode})`,
-            )}
-            onPick={(chip) => void send(chip.replace(/^.*\(([^)]+)\)$/, '$1'))}
-          />
-        ) : null}
-      </div>
-      <form
-        className="flex gap-2 border-t border-border-subtle px-4 py-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send(input);
-        }}
-      >
-        <input
-          aria-label="질문 입력"
-          value={input}
-          maxLength={200}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="예: SA-500 가격이 얼마야?"
-          className="flex-1 rounded-xl border-0 bg-surface-card px-3.5 py-2.5 text-[12px] shadow-(--hairline-default) outline-none"
-        />
-        <Button type="submit" variant="primary" disabled={isSending || input.trim() === ''}>
-          보내기
-        </Button>
-      </form>
-    </aside>
+    </Presence>
   );
 }
 
@@ -212,7 +226,10 @@ function ChipRow({
           key={chip}
           type="button"
           onClick={() => onPick(chip)}
-          className="rounded-pill border border-border-subtle bg-surface-card px-3 py-1.5 text-[12px] font-semibold text-text-secondary hover:text-ink-900"
+          className={cn(
+            'rounded-pill border border-border-subtle bg-surface-card px-3 py-1.5 text-[12px] font-semibold text-text-secondary hover:text-ink-900',
+            PRESS_CLASSES,
+          )}
         >
           {chip}
         </button>

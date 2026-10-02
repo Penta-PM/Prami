@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import { OperationStatus } from '@/features/pricing/cells';
 import { cn } from '@/lib/cn';
@@ -68,13 +69,19 @@ export function CostBrowser({ rows }: { rows: readonly CostRowView[] }) {
         </Button>
       </div>
       <CostTable rows={rows} onEdit={setEditing} onDelete={setDeleting} />
-      {creating ? <CostCreateModal onClose={() => setCreating(false)} onSaved={done} /> : null}
-      {editing ? (
-        <CostEditModal row={editing} onClose={() => setEditing(null)} onSaved={done} />
-      ) : null}
-      {deleting ? (
-        <CostDeleteModal row={deleting} onClose={() => setDeleting(null)} onDeleted={done} />
-      ) : null}
+      <Presence>
+        {creating ? <CostCreateModal onClose={() => setCreating(false)} onSaved={done} /> : null}
+      </Presence>
+      <Presence>
+        {editing ? (
+          <CostEditModal row={editing} onClose={() => setEditing(null)} onSaved={done} />
+        ) : null}
+      </Presence>
+      <Presence>
+        {deleting ? (
+          <CostDeleteModal row={deleting} onClose={() => setDeleting(null)} onDeleted={done} />
+        ) : null}
+      </Presence>
     </div>
   );
 }

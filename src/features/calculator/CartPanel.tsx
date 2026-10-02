@@ -12,6 +12,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from '@/components/ui';
+import { Presence } from '@/components/motion/Presence';
 import { formatDate } from '@/lib/date-format';
 import { priceLabel } from '@/lib/pricing/format';
 import { cartTotals } from '@/lib/pricing/quote';
@@ -225,18 +226,20 @@ export function CartPanel(props: CartPanelProps) {
         </div>
       </section>
 
-      {listOpen ? (
-        <SavedQuotesModal
-          saved={saved}
-          onClose={() => setListOpen(false)}
-          onReload={props.onReload}
-          onDelete={props.onDelete}
-          onShare={(quote) => {
-            setListOpen(false);
-            props.onShare(quote);
-          }}
-        />
-      ) : null}
+      <Presence>
+        {listOpen ? (
+          <SavedQuotesModal
+            saved={saved}
+            onClose={() => setListOpen(false)}
+            onReload={props.onReload}
+            onDelete={props.onDelete}
+            onShare={(quote) => {
+              setListOpen(false);
+              props.onShare(quote);
+            }}
+          />
+        ) : null}
+      </Presence>
     </div>
   );
 }

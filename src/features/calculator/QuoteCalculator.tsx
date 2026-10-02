@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
 
+import { Presence } from '@/components/motion/Presence';
 import { Pill } from '@/components/ui';
 import { computeLine, rateFromTarget, roundRate } from '@/lib/pricing/quote';
 
@@ -401,7 +402,9 @@ export function QuoteCalculator({ preload, savedQuotes, initial }: QuoteCalculat
           onShare={setSharing}
         />
       </div>
-      {sharing ? <ShareModal quote={sharing} onClose={() => setSharing(null)} /> : null}
+      <Presence>
+        {sharing ? <ShareModal quote={sharing} onClose={() => setSharing(null)} /> : null}
+      </Presence>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { Presence } from '@/components/motion/Presence';
 import { Button, Modal } from '@/components/ui';
 import type { ActionResult } from '@/lib/result';
 import { priceLabel } from '@/lib/pricing/format';
@@ -105,37 +106,41 @@ export function GroupsManager({ family, groups, candidates }: GroupsManagerProps
           </li>
         ) : null}
       </ul>
-      {form ? (
-        <GroupFormModal
-          mode={form}
-          family={family}
-          candidates={candidates}
-          onClose={() => setForm(null)}
-          onDone={done(form.kind === 'edit' ? '수정' : '생성')}
-        />
-      ) : null}
-      {deleting ? (
-        <Modal
-          open
-          onClose={() => setDeleting(null)}
-          title="그룹 삭제"
-          footer={
-            <>
-              <Button size="sm" onClick={() => setDeleting(null)}>
-                취소
-              </Button>
-              <Button size="sm" variant="danger" disabled={isPending} onClick={remove}>
-                삭제
-              </Button>
-            </>
-          }
-        >
-          <p className="m-0">
-            <strong className="text-ink-900">{deleting.name}</strong> 그룹을 삭제합니다. 견적
-            계산기의 그룹 칩에서 사라지며 감사 로그에 남습니다.
-          </p>
-        </Modal>
-      ) : null}
+      <Presence>
+        {form ? (
+          <GroupFormModal
+            mode={form}
+            family={family}
+            candidates={candidates}
+            onClose={() => setForm(null)}
+            onDone={done(form.kind === 'edit' ? '수정' : '생성')}
+          />
+        ) : null}
+      </Presence>
+      <Presence>
+        {deleting ? (
+          <Modal
+            open
+            onClose={() => setDeleting(null)}
+            title="그룹 삭제"
+            footer={
+              <>
+                <Button size="sm" onClick={() => setDeleting(null)}>
+                  취소
+                </Button>
+                <Button size="sm" variant="danger" disabled={isPending} onClick={remove}>
+                  삭제
+                </Button>
+              </>
+            }
+          >
+            <p className="m-0">
+              <strong className="text-ink-900">{deleting.name}</strong> 그룹을 삭제합니다. 견적
+              계산기의 그룹 칩에서 사라지며 감사 로그에 남습니다.
+            </p>
+          </Modal>
+        ) : null}
+      </Presence>
     </div>
   );
 }
