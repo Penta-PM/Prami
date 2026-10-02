@@ -12,7 +12,7 @@ PRAMI-001 PR-11a 문서를 PRAMI-003 스펙 §4.3(운영 하드닝)·§4.9(실�
 ## 1. 대상 구성 (§4.3.1)
 
 ```
-GitHub (main) ──CI(lint·typecheck·unit·integration·e2e·secret scan)
+GitHub PR ──CI(secret scan 항상 · `ci:run` 라벨이면 lint·typecheck·unit·build → integration·e2e)
     ├─ PR → Vercel Preview (Git 연동, 자동) — DB: Neon `preview` 브랜치(고정 1개)
     └─ main 머지 → 운영자가 Actions `deploy-production` 수동 실행(PR-4): 점검 판정 → 마이그레이션 → vercel deploy --prebuilt --prod → 스모크
 Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
@@ -209,7 +209,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
   - Free(현재): Environment·reviewers·브랜치 보호를 쓸 수 없다 → 시크릿은 저장소 시크릿, write 권한자를 운영 비밀값 보유자로 한정, `main` 직접 push 금지·
     배포 실행자 한정은 운영 규칙. write 권한자가 자기 브랜치에 워크플로를 추가하면 저장소 시크릿을 받을 수 있다 — YAML 로 막을 수 없는 **남는 위험**이다.
   - Team: Environment `production`·`production-rollback`·`preview`(Deployment branches `main` 만)로 시크릿을 옮기고 같은 이름 저장소 시크릿 삭제,
-    `main` 브랜치 보호(CI 4잡 통과 필수 — `deploy-production` 은 CI 결과를 다시 확인하지 않는다, 보안 리뷰 L-1)·CODEOWNERS.
+    `main` 브랜치 보호(CI 2잡 quality·e2e 통과 필수 — `deploy-production` 은 CI 결과를 다시 확인하지 않는다, 보안 리뷰 L-1)·CODEOWNERS.
   - Enterprise Cloud: Team + `production`·`preview` Required reviewers ≥ 1·Prevent self-review(`production-rollback` 은 reviewers 없음).
 - **우회 시크릿 수용 (L2-11)**: `VERCEL_AUTOMATION_BYPASS_SECRET` 은 Vercel 이 모든 배포의 빌드·런타임 system env 로 넣으므로 PR 코드에는 원래 비밀이 아니다
   (영향: preview 배포 보호 우회만). 저장소 시크릿으로 두는 것을 수용하고, 유출이 의심되면 재생성 → preview 재배포(런북 R-5). reviewers 를 쓰게 되더라도

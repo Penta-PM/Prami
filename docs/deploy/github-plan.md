@@ -15,11 +15,11 @@
 | Deployment branches(Environment 를 `main` 에서만) | 불가 | 가능 | 가능 | 다른 브랜치 워크플로가 Environment 시크릿을 못 받게 |
 | Required reviewers · Prevent self-review | 불가 | **불가**(public 만) | 가능 | 운영 배포 승인 |
 | Wait timer | 불가 | 불가(public 만) | 가능 | (쓰지 않음) |
-| 브랜치 보호 · rulesets | 불가 | 가능 | 가능 | `main` 직접 push 금지 · CI 4잡 통과 필수 |
+| 브랜치 보호 · rulesets | 불가 | 가능 | 가능 | `main` 직접 push 금지 · CI 2잡(quality·e2e) 통과 필수 |
 | CODEOWNERS | 불가 | 가능 | 가능 | `.github/workflows/`·`drizzle/` 변경에 지정 리뷰어 |
 | 조직 시크릿을 private 저장소에서 사용 | 불가 | 가능 | 가능 | (쓰지 않음) |
 | 저장소 시크릿 | 가능 | 가능 | 가능 | Free 에서는 여기에만 둘 수 있다 |
-| GitHub-hosted 러너 포함 분(private) | 월 2,000분 | 플랜 문서 | 플랜 문서 | CI 4잡 · 배포 워크플로 |
+| GitHub-hosted 러너 포함 분(private) | 월 2,000분 | 플랜 문서 | 플랜 문서 | CI 2잡(무거운 단계는 `ci:run` 라벨 PR 만) · 배포 워크플로 |
 
 "불가" 는 private 저장소 기준이다(public 은 모든 플랜에서 대부분 가능). 근거는 §6.
 
@@ -27,7 +27,7 @@
 
 | 워크플로 | 트리거 | 실행되는 YAML · 코드 | 쓰는 시크릿 |
 | --- | --- | --- | --- |
-| `ci.yml` | `push`(main) · `pull_request` | PR 머지 커밋 | **없음**(`secrets.*`·`github.token` 0 — 정적 테스트) |
+| `ci.yml` | `pull_request`(opened·synchronize·reopened·labeled) | PR 머지 커밋 | **없음**(`secrets.*`·`github.token` 0 — 정적 테스트) |
 | `deploy-production.yml` | `workflow_dispatch` 만 | 기본 브랜치(`main`)에서 실행할 때만 잡이 돈다 | `DATABASE_URL_UNPOOLED`·`VERCEL_TOKEN`·`VERCEL_ORG_ID`·`VERCEL_PROJECT_ID` |
 | `preview-migrate.yml` | `workflow_dispatch` 만(PR 번호 + 검토한 head SHA) | 기본 브랜치 코드 + PR 의 `drizzle/` 파일만 | `PREVIEW_DATABASE_URL_UNPOOLED` |
 | `preview-smoke.yml` | `repository_dispatch`(`vercel.deployment.success`) · `workflow_dispatch` | 기본 브랜치 | `VERCEL_AUTOMATION_BYPASS_SECRET` |
@@ -82,7 +82,8 @@
    `production`(시크릿 `DATABASE_URL_UNPOOLED`·`VERCEL_TOKEN`·`VERCEL_ORG_ID`·`VERCEL_PROJECT_ID`) · `production-rollback`(`VERCEL_TOKEN`·`VERCEL_ORG_ID`·`VERCEL_PROJECT_ID`) ·
    `preview`(`PREVIEW_DATABASE_URL_UNPOOLED`).
 3. 같은 이름의 **저장소 시크릿을 삭제**한다(남겨 두면 다른 브랜치 워크플로가 계속 받는다). `VERCEL_AUTOMATION_BYPASS_SECRET` 은 저장소 시크릿으로 둬도 된다(§2).
-4. `main` 브랜치 보호(또는 ruleset): PR 필수 · CI 4잡(secret scan·quality·integration·e2e) 통과 필수 · 직접 push 금지 · 강제 push 금지.
+4. `main` 브랜치 보호(또는 ruleset): PR 필수 · CI 2잡(quality: secret scan → `ci:run` 라벨이면 lint·typecheck·format·unit·build / e2e: integration + E2E) 통과 필수 · 직접 push 금지 · 강제 push 금지.
+   필수 검사로 걸 때는 라벨 게이트 때문에 라벨 없는 PR 의 e2e 가 skipped 로 끝난다 — skipped 를 통과로 볼지 Team 전환 시 정한다(워크플로 `paths-ignore` 를 쓰지 않는 이유와 같음, `docs/specs/ci-usage-reduction.md` §2-6).
 5. `.github/CODEOWNERS` 에 `/.github/workflows/`·`/drizzle/` 담당자를 두고 "Require review from Code Owners" 를 켠다.
 6. C-3 로 설정을 확인하고 PR-5 에 기록한다. 남는 위험: F-R3(승인 없는 실행 — Team 은 reviewers 불가)은 `main` 보호 + 실행자 운영 규칙으로 줄인다.
    F-R1 은 Environment 시크릿 + 배포 브랜치 `main` 으로 닫힌다(브랜치 워크플로가 Environment 를 참조하면 거부).
