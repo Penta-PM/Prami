@@ -212,3 +212,14 @@ UI/UX 요구: (화면, 상태, 라이트·다크)
 - Plan 워크트리는 `Plan` 브랜치입니다.
 - 스펙 문서는 `docs/specs/` 아래에 두고 이 브랜치에 커밋합니다.
 - **제품 코드는 커밋하지 않습니다.**
+
+## 수용 기준 표준 문구 (2026-10-02, CI 사용량 절감 스펙 §3.5)
+
+스펙의 공통 수용 기준에는 "단위·E2E 전부 통과" 대신 아래 문구를 씁니다(중복 실행 방지):
+
+- [ ] Dev 게이트 기록(`docs/pipeline/verification.md` §3.1) + QA E2E 전체 1회(§3.2) + 머지 head SHA의 `ci:run` 녹색(§3.3)
+
+## 통신 실무 메모
+
+- `orca orchestration ask` 는 이 세션이 supervised Dispatch 가 아니라 `dispatch_inactive` 로 거부됩니다. Main 되묻기는 요구사항 메시지에 `reply` + 깨우기로 보냅니다.
+- 다른 역할이 Plan **터미널 핸들로 직접** 보낸 메일은 `check --run <Plan 수신함 Run>` 에 안 잡힙니다. 깨워졌는데 수신함이 비면 `orca orchestration inbox --json` 에서 `to_handle` 이 Plan 터미널이고 `read=0` 인 메시지를 확인합니다.
