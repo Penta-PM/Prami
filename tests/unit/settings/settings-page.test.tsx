@@ -217,6 +217,22 @@ describe('ChatDefaultsForm 모델 선택 (AC-208, r2)', () => {
     expect(screen.getByTestId('legacy-badge')).toHaveTextContent('레거시');
   });
 
+  it('마지막 검증 시각은 KST YYYY-MM-DD HH:mm 로, 영문 AM/PM 없이 표시된다 (Linux 하이드레이션 수정 §3.3)', () => {
+    render(
+      <LlmSection
+        vendors={VENDOR_VIEWS}
+        initialCredentials={[view('anthropic', null)]}
+        initialDefaults={emptyDefaults}
+        keyringReady
+      />,
+    );
+    const card = screen.getByRole('article', { name: 'Anthropic (Claude) 연결' });
+    expect(within(card).getByText('마지막 검증')).toBeInTheDocument();
+    expect(within(card).getByText('2026-09-30 10:00')).toBeInTheDocument();
+    expect(within(card).getByText('마지막 사용').nextElementSibling).toHaveTextContent('—');
+    expect(card.textContent).not.toMatch(/AM|PM|오전|오후/);
+  });
+
   it('available_models 가 NULL(미확인)이면 상수 전체 선택 가능, 저장값이 사라졌으면 대체 안내', () => {
     render(
       <LlmSection

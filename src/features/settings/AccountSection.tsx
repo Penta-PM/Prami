@@ -1,8 +1,8 @@
 import { Button, Pill } from '@/components/ui';
+import { formatNullableDateTime } from '@/lib/date-format';
 import type { AccountView } from '@/server/llm/credentials/settings';
 
 import { reloginWithGoogleAction } from './actions';
-import { formatDateTime } from './labels';
 
 /**
  * 계정 연결 (PRAMI-002 §4.6.1 ①, "OAuth" 해석 (a), AC-209). Google 연결 여부는 boolean 으로만 — `google_sub` 값은 내려오지 않는다.
@@ -38,7 +38,7 @@ export function AccountSection({
         <Field label="로그인 방식" value={PROVIDER_LABELS[account.provider]} />
         <Field label="이메일" value={account.email} />
         <Field label="이름" value={account.name} />
-        <Field label="마지막 로그인" value={formatDateTime(account.lastLoginAt)} />
+        <Field label="마지막 로그인" value={formatNullableDateTime(account.lastLoginAt)} />
       </dl>
       <form action={reloginWithGoogleAction} className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={!googleReady}>

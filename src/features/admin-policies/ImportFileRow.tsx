@@ -4,6 +4,7 @@ import { useRef, useState, type ReactNode } from 'react';
 
 import { Button, Segmented, Select } from '@/components/ui';
 import { checkUploadFiles, PLATFORM_TOO_LARGE_MESSAGE } from '@/lib/constants/upload-limits';
+import { formatDate } from '@/lib/date-format';
 
 import type {
   BatchOption,
@@ -65,7 +66,8 @@ async function readUploadResponse(response: Response): Promise<UploadResponse> {
 }
 
 function optionLabel(option: BatchOption): string {
-  const date = option.createdAt.slice(0, 10);
+  // 업로드일은 한국 시간 기준 (UTC 문자열 slice 는 KST 00~09시 업로드를 전날로 표시했다 — Linux 하이드레이션 수정 스펙 §3.3)
+  const date = formatDate(option.createdAt);
   return `${option.fileName} · ${date} · ${option.rowCount.toLocaleString('ko-KR')}행 · ${STATUS_LABELS[option.status]}`;
 }
 
