@@ -4,6 +4,8 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 
 import { cn } from '@/lib/cn';
 
+import { PRESS_CLASSES } from './button';
+
 export type ModalProps = {
   open: boolean;
   onClose: () => void;
@@ -73,7 +75,10 @@ export function CloseButton({ onClick }: { onClick: () => void }) {
       type="button"
       aria-label="닫기"
       onClick={onClick}
-      className="flex size-8 items-center justify-center rounded-pill border-0 bg-gray-75 text-[16px] leading-none text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900"
+      className={cn(
+        'flex size-8 items-center justify-center rounded-pill border-0 bg-gray-75 text-[16px] leading-none text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900',
+        PRESS_CLASSES,
+      )}
     >
       ×
     </button>

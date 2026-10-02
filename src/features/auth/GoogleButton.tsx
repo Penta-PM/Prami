@@ -1,10 +1,16 @@
+import { PRESS_CLASSES } from '@/components/ui/button';
+import { cn } from '@/lib/cn';
+
 /** Google 로그인 버튼 (Google 브랜드 가이드의 흰 배경 + 컬러 G 로고) */
 export function GoogleButton({ disabled }: { disabled?: boolean }) {
   return (
     <button
       type="submit"
       disabled={disabled}
-      className="flex h-11 w-full items-center justify-center gap-3 rounded-lg border-0 bg-white text-[14px] font-semibold text-ink-900 shadow-(--hairline-default) transition-colors hover:bg-gray-75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+      className={cn(
+        PRESS_CLASSES,
+        'flex h-11 w-full items-center justify-center gap-3 rounded-lg border-0 bg-white text-[14px] font-semibold text-ink-900 shadow-(--hairline-default) hover:bg-gray-75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500 disabled:cursor-not-allowed disabled:opacity-50',
+      )}
     >
       <svg aria-hidden="true" viewBox="0 0 48 48" className="size-[18px]">
         <path
