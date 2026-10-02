@@ -136,3 +136,7 @@
 - 문서 전용 PR의 머지 규칙 3.3-②는 "head SHA에서 문서 전용 판정 run(secret scan) 녹색"으로 충족한다.
 - (Dev 공유 `msg_a505295da157`) 판정 값 "다른 라벨 추가: 경량" 추가. 함께 반영: `git diff --no-renames`(rename으로 생략 판정 우회 차단), 비 ASCII 파일명 `core.quotePath=false`, README 문구.
 - 주의: concurrency `cancel-in-progress`가 같은 PR의 진행 중인 전체 run을 다른 라벨 추가 이벤트로 취소하지 않아야 한다. 취소되면 머지 규칙 3.3-②의 녹색 run이 사라진다. 경량 판정 run이 전체 run을 취소하지 않는지 확인한다.
+- (Dev 공유 `msg_1a83f76104f4`, PR-B #39 머지 `d40d59d` 후 백로그 판단)
+  - `docs/pipeline/verification.md` §0 판정 값 목록에 "다른 라벨 추가: 경량"을 추가하는 정정은 **PR-C에 함께 넣는다**. 문서만 고치는 PR을 따로 열면 QA 왕복이 한 번 더 생긴다.
+  - 문서 §2에 **"문서 전용 PR(생략 대상 경로만 바뀐 PR)은 QA E2E 전체 1회를 생략한다"**를 명시한다. 이 경우 QA는 문서 검토와 secret scan 녹색만 확인한다. 생략 대상 밖의 경로가 하나라도 바뀌면 일반 규칙을 따른다.
+  - 순서는 Motion PR-4(새 규칙 첫 적용) → PR-C로 확인했다.
