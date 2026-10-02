@@ -29,7 +29,7 @@
    - quality → e2e의 `needs`는 유지합니다. 병렬화하지 않습니다.
 4. **문서 전용 변경 감지**
    - `git diff --name-only <base>...<head>` 셸 단계로 판정합니다. 토큰, API, 외부 action은 쓰지 않습니다.
-   - 생략 대상은 `CLAUDE.md`, `README.md`, `docs/specs/**`, `docs/qa/**`뿐입니다. 이 파일만 바뀐 PR은 secret scan만 돌립니다.
+   - 생략 대상은 `CLAUDE.md`, `README.md`, `docs/specs/**`, `docs/qa/**`, `docs/pipeline/**`뿐입니다(`docs/pipeline/**`는 §7 결정으로 추가). 이 파일만 바뀐 PR은 secret scan만 돌립니다.
    - `docs/**` 전체는 생략 대상이 아닙니다. 단위 테스트가 `docs/ops`, `docs/deploy`, `docs/chat`, `vercel.md`를 직접 읽기 때문입니다.
 5. **요약 단계**: 항상 실행되는 job 1개(또는 단계)가 `$GITHUB_STEP_SUMMARY`에 판정을 기록합니다. 판정 값은 "문서 전용: secret scan만", "ci:run 없음: 경량", "전체" 중 하나입니다.
 6. 워크플로 단위 `paths-ignore`는 쓰지 않습니다. 나중에 Team 플랜으로 바꾸면 필수 검사가 영구 대기에 걸리기 때문입니다.
@@ -104,7 +104,7 @@
 - [ ] `ci.yml` 트리거가 `pull_request`만이고, `pull_request_target`이 없다. `workflows.test.ts` 통과(트리거 고정값 `['pull_request']`, `contents: read`, `github.token` 금지 유지).
 - [ ] 라벨 없는 PR: secret scan과 요약만 돌고 나머지는 skip된다. 해당 run의 과금 분이 2분 이하다.
 - [ ] `ci:run` 라벨을 붙이면 quality·e2e(integration 포함)가 1회 돈다. 라벨이 붙은 상태에서 push하면 다시 돈다.
-- [ ] `CLAUDE.md`·`docs/specs/**`·`docs/qa/**`·`README.md`만 바뀐 PR은 라벨이 있어도 secret scan만 돈다. `docs/ops/**`가 바뀐 PR은 라벨이 있을 때 quality가 돈다.
+- [ ] `CLAUDE.md`·`docs/specs/**`·`docs/qa/**`·`docs/pipeline/**`·`README.md`만 바뀐 PR은 라벨이 있어도 secret scan만 돈다. `docs/ops/**`가 바뀐 PR은 라벨이 있을 때 quality가 돈다.
 - [ ] Job Summary에 판정(문서 전용 / 경량 / 전체)이 기록된다.
 - [ ] 보안 워크플로 3개의 diff가 0이다.
 - [ ] `github-plan.md`·`vercel.md`의 CI job 서술이 새 구조와 일치한다.
@@ -127,3 +127,10 @@
 의존 관계: 1 → 2 → 3. PR-A는 Motion PR-2 머지 직후, PR-3보다 먼저 들어갑니다. 파일 겹침은 0입니다. PR-A가 머지되면 진행 중인 PR도 다음 실행부터 새 규칙(라벨 게이트)을 따릅니다. PR-A 자체는 기존 트리거로 1회 돕니다.
 
 운영 제약은 `docs/specs/operating-constraints.md`를 따릅니다.
+
+## 7. 구현 중 결정 (Dev 되묻기 `msg_51d2c85df5b0` → Plan 결정, 2026-10-02)
+
+- PR-A(#37) 실측: 라벨 없음 1분, `ci:run` 전체 18분, 문서 전용 1분. 이전에는 PR 21분 + main push 18분.
+- **`docs/pipeline/**`를 문서 전용 생략 대상에 추가한다 (A).** 이 폴더를 읽는 단위 테스트가 없고, `docs/**` 전체를 제외한 이유(테스트가 `docs/ops`·`deploy`·`chat`·`vercel.md`를 읽음)에 해당하지 않는다. 생략 대상에서도 secret scan은 계속 돈다.
+- 보호 장치: `ci.yml`의 판정 정규식 옆에 "이 목록의 경로를 읽는 테스트가 생기면 목록에서 뺄 것"이라는 주석을 단다. `workflows.test.ts`가 생략 대상 목록을 정확히 고정한다(목록이 넓어지면 테스트가 실패하도록).
+- 문서 전용 PR의 머지 규칙 3.3-②는 "head SHA에서 문서 전용 판정 run(secret scan) 녹색"으로 충족한다.
