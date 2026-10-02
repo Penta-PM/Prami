@@ -117,6 +117,40 @@ describe('Modal 퇴장 (Motion 도입 스펙 §3.3)', () => {
     expect(dialog).toHaveAttribute('open');
   });
 
+  it('③-b 부모가 닫는 퇴장 도중 다시 open=true 가 되면 퇴장을 취소하고 열린 채 유지한다 — onClose 미호출 (스펙 §9.1 Q2)', async () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <Modal open onClose={onClose} title="재열기">
+        내용
+      </Modal>,
+      withMotion,
+    );
+    const dialog = screen.getByRole('dialog');
+
+    rerender(
+      <Modal open={false} onClose={onClose} title="재열기">
+        내용
+      </Modal>,
+    );
+    expect(dialog).toHaveAttribute('data-closing');
+    // 퇴장 완료(다음 프레임) 전에 다시 연다
+    rerender(
+      <Modal open onClose={onClose} title="재열기">
+        내용
+      </Modal>,
+    );
+    expect(dialog).not.toHaveAttribute('data-closing');
+
+    // 퇴장 완료 시점이 지나도 닫히지 않는다
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(dialog).toHaveAttribute('open');
+    expect(dialog).not.toHaveAttribute('data-closing');
+    expect(
+      screen.getByRole('heading', { name: '재열기' }).parentElement?.parentElement,
+    ).not.toHaveClass('pointer-events-none');
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('④ <Presence> 아래에서 언마운트되면 에러 없이 제거되고 onClose 는 호출되지 않는다', async () => {
     const onClose = vi.fn();
     function Host({ show }: { show: boolean }) {

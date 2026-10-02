@@ -121,6 +121,14 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
       notifiedRef.current = false;
       dialog.showModal();
     }
+    // 부모가 닫는 퇴장 도중 다시 열리면 퇴장을 취소하고 열린 상태로 되돌린다 — onClose 는 부르지 않는다
+    // (Motion 도입 스펙 §9.1 Q2). 취소하지 않으면 퇴장 완료 시 close() 되어 open=true 인데 보이지 않는다
+    if (open && dialog.open && closingRef.current && reasonRef.current === 'parent') {
+      closingRef.current = false;
+      reasonRef.current = null;
+      exitStartedRef.current = false;
+      setClosing(false);
+    }
     if (!open && dialog.open) beginClose('parent');
   }, [open, beginClose]);
 
