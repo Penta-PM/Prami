@@ -4,6 +4,7 @@ import { m, useIsPresent, type Variants } from 'motion/react';
 import {
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   type KeyboardEvent,
   type ReactNode,
@@ -60,11 +61,26 @@ function useRestoreFocus(isPresent: boolean, panelRef: RefObject<HTMLElement | n
     };
   }, [panelRef]);
 
-  useEffect(() => {
+  // 퇴장 시작 커밋(inert 가 붙는 커밋)과 같은 프레임에 포커스를 옮기도록 layout effect 로 둔다
+  useLayoutEffect(() => {
     if (isPresent || restoredRef.current) return;
     restoredRef.current = true;
-    previousRef.current?.focus();
-  }, [isPresent]);
+    const previous = previousRef.current;
+    if (previous && previous !== document.body && previous.isConnected) {
+      previous.focus();
+      return;
+    }
+    // 돌려줄 트리거가 없으면(포커스를 받지 않는 표 행 클릭으로 연 경우 — 열기 전 포커스가 body) 퇴장 중 inert 패널에
+    // 포커스가 남지 않도록 놓아 준다 (Motion 도입 스펙 §3.3 드로어 "퇴장 시작 시 복원·퇴장 중 inert")
+    const panel = panelRef.current;
+    if (
+      panel &&
+      document.activeElement instanceof HTMLElement &&
+      panel.contains(document.activeElement)
+    ) {
+      document.activeElement.blur();
+    }
+  }, [isPresent, panelRef]);
 }
 
 /** Tab 을 패널 안에서 순환시킨다 */

@@ -287,4 +287,34 @@ describe('Drawer 퇴장 (Motion 도입 스펙 §3.3)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(trigger).toHaveFocus();
   });
+
+  it('⑥-b 포커스를 받지 않는 트리거(표 행 클릭)로 열었으면 퇴장 시작 시 inert 패널 안의 포커스를 놓는다', async () => {
+    function Host() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <table>
+            <tbody>
+              <tr data-testid="row" onClick={() => setOpen(true)}>
+                <td>행</td>
+              </tr>
+            </tbody>
+          </table>
+          <Drawer open={open} onClose={() => setOpen(false)} title="행 상세">
+            내용
+          </Drawer>
+        </>
+      );
+    }
+    render(<Host />, withMotion);
+    fireEvent.click(screen.getByTestId('row'));
+    const panel = screen.getByRole('dialog', { name: '행 상세' });
+    const close = screen.getByRole('button', { name: '닫기' });
+    expect(close).toHaveFocus();
+
+    fireEvent.click(close);
+    expect(panel).toHaveAttribute('inert');
+    expect(panel).not.toContainElement(document.activeElement as HTMLElement);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
 });
