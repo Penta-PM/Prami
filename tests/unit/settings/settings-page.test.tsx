@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   testMode: false,
   db: null as unknown,
   save: vi.fn(),
+  remove: vi.fn(),
 }));
 
 vi.mock('@/server/auth/rbac', () => ({
@@ -37,7 +38,7 @@ vi.mock('@/db', async (importOriginal) => ({
 vi.mock('@/features/settings/actions', () => ({
   saveLlmCredentialAction: (input: unknown) => state.save(input),
   verifyLlmCredentialAction: vi.fn(),
-  deleteLlmCredentialAction: vi.fn(),
+  deleteLlmCredentialAction: (input: unknown) => state.remove(input),
   updateChatDefaultsAction: vi.fn(),
   reloginWithGoogleAction: vi.fn(),
 }));
@@ -45,6 +46,7 @@ vi.mock('@/features/settings/actions', () => ({
 const { default: SettingsPage } = await import('@/app/(app)/settings/page');
 const { LlmSection } = await import('@/features/settings/LlmSection');
 const { VENDOR_VIEWS } = await import('@/server/llm/credentials/settings');
+const { NO_CREDENTIAL_NOTICE } = await import('@/features/settings/labels');
 
 const GOOGLE_SUB = 'google-sub-1122334455667788';
 let handle: DbHandle;
@@ -61,6 +63,7 @@ afterAll(async () => {
 beforeEach(() => {
   state.guards.length = 0;
   state.save.mockReset();
+  state.remove.mockReset();
 });
 
 describe('SettingsPage', () => {
@@ -303,5 +306,55 @@ describe('결과별 알림 (QA L-1·L-2)', () => {
     expect(within(card).getByRole('alert')).toHaveTextContent(
       '키를 읽을 수 없습니다 — 다시 등록하세요',
     );
+  });
+});
+
+describe('기본 벤더 키 삭제 시 기본값 선택 비움 (#17 I-3)', () => {
+  it('기본 벤더 키를 삭제하면 기본값 선택이 비워지고, 같은 벤더 키를 다시 등록해도 이전 모델이 되살아나지 않는다', async () => {
+    state.remove.mockResolvedValue({ ok: true, data: { deleted: true } });
+    state.save.mockResolvedValue({ ok: true, data: savedView('anthropic', 'fake-…NEW1') });
+    render(
+      <LlmSection
+        vendors={VENDOR_VIEWS}
+        initialCredentials={[savedView('anthropic', 'fake-…WXYZ')]}
+        initialDefaults={{ vendor: 'anthropic', model: 'claude-opus-5', modelReplaced: false }}
+        keyringReady
+      />,
+    );
+    // ChatDefaultsForm 은 정상 키 목록이 바뀌면 다시 마운트되므로 매번 새로 찾는다
+    const region = () => screen.getByRole('region', { name: '챗봇 기본값' });
+    expect((within(region()).getByLabelText(/모델/) as HTMLSelectElement).value).toBe(
+      'claude-opus-5',
+    );
+    const card = screen.getByRole('article', { name: 'Anthropic (Claude) 연결' });
+    await userEvent.click(within(card).getByRole('button', { name: '삭제' }));
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'Anthropic (Claude) 키 삭제' })).getByRole(
+        'button',
+        { name: '삭제' },
+      ),
+    );
+    expect(state.remove).toHaveBeenCalledWith({ vendor: 'anthropic' });
+    // 키 0건: 빈 상태 문구 + 기본값 선택 없음
+    expect(await screen.findByText(NO_CREDENTIAL_NOTICE)).toBeInTheDocument();
+    expect(
+      within(region()).getByText('정상 검증된 LLM 키가 있어야 기본 벤더를 고를 수 있습니다.'),
+    ).toBeInTheDocument();
+    expect(within(region()).queryByLabelText(/모델/)).not.toBeInTheDocument();
+
+    // 같은 벤더 키 재등록 → 저장된 기본값이 없으므로 벤더 기본 모델(claude-opus-5-5)이 초기 선택
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(within(card).getByRole('button', { name: '등록' })).toBeEnabled());
+    await userEvent.click(within(card).getByRole('button', { name: '등록' }));
+    await userEvent.type(
+      await within(card).findByLabelText('Anthropic (Claude) API 키 등록'),
+      makeFakeKey(),
+    );
+    await userEvent.click(within(card).getByRole('button', { name: '저장하고 검증' }));
+    expect(await screen.findByTestId('hint-anthropic')).toHaveTextContent('fake-…NEW1');
+    expect((within(region()).getByLabelText(/모델/) as HTMLSelectElement).value).toBe(
+      'claude-opus-5-5',
+    );
+    expect(screen.queryByTestId('legacy-badge')).not.toBeInTheDocument();
   });
 });
