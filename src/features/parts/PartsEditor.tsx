@@ -1,6 +1,6 @@
 'use client';
 
-import { m } from 'motion/react';
+import { m, useIsPresent } from 'motion/react';
 import { useState } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
@@ -77,26 +77,11 @@ export function PartsEditor(props: PartsEditorProps) {
                 Presence initial={false} 라 모델을 고를 때 이미 체크된 칩은 애니메이션 없이 최종 상태 */}
             <Presence>
               {selected.map((item) => (
-                <m.span
+                <SelectedChip
                   key={item.itemCode}
-                  layout
-                  variants={scaleIn}
-                  initial={VARIANT_KEYS.initial}
-                  animate={VARIANT_KEYS.animate}
-                  exit={VARIANT_KEYS.exit}
-                  transition={{ layout: transition.layout }}
-                  className="inline-flex items-center gap-1.5 rounded-pill bg-gray-100 py-1 pr-1.5 pl-3 text-[12px] font-medium"
-                >
-                  {item.itemName}
-                  <button
-                    type="button"
-                    aria-label={`${item.itemName} 선택 해제`}
-                    className="border-0 bg-transparent px-1 text-text-tertiary hover:text-ink-900"
-                    onClick={() => props.onToggle(item.itemCode, false)}
-                  >
-                    ×
-                  </button>
-                </m.span>
+                  item={item}
+                  onRemove={() => props.onToggle(item.itemCode, false)}
+                />
               ))}
             </Presence>
             {selected.length === 0 ? (
@@ -253,5 +238,36 @@ function PartsChecklist({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * 선택된 파츠 칩 (Motion 도입 스펙 §3.3 클라이언트 목록). scaleIn 진입·퇴장, 남은 칩은 layout 재배치.
+ * 퇴장 중인 칩은 layout 을 끈다(QA #40 CRITICAL, QuoteSteps 와 같은 패턴) — 모델을 바꿔 칩 줄이 다시 그려질 때
+ * 퇴장 칩이 옛 위치에서 미끄러져 다른 요소 위를 지나가지 않게, 줄과 함께 옮겨진 자리에서 축소+fade 로 사라진다.
+ */
+function SelectedChip({ item, onRemove }: { item: CatalogItemView; onRemove: () => void }) {
+  const isPresent = useIsPresent();
+  return (
+    <m.span
+      layout={isPresent}
+      data-layout={isPresent ? 'on' : 'off'}
+      variants={scaleIn}
+      initial={VARIANT_KEYS.initial}
+      animate={VARIANT_KEYS.animate}
+      exit={VARIANT_KEYS.exit}
+      transition={{ layout: transition.layout }}
+      className="inline-flex items-center gap-1.5 rounded-pill bg-gray-100 py-1 pr-1.5 pl-3 text-[12px] font-medium"
+    >
+      {item.itemName}
+      <button
+        type="button"
+        aria-label={`${item.itemName} 선택 해제`}
+        className="border-0 bg-transparent px-1 text-text-tertiary hover:text-ink-900"
+        onClick={onRemove}
+      >
+        ×
+      </button>
+    </m.span>
   );
 }

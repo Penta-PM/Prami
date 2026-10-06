@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MotionGlobalConfig } from 'motion/react';
 import { useState } from 'react';
@@ -30,7 +30,6 @@ vi.mock('@/features/groups/actions', () => ({
 const { GroupsManager } = await import('@/features/groups/GroupsManager');
 
 const withMotion = { wrapper: MotionProvider };
-const wait = (ms: number) => act(() => new Promise((resolve) => setTimeout(resolve, ms)));
 
 /** 숨김 initial(opacity 0 · height 0 · scale 0.96)이 인라인 스타일로 남아 있지 않다 */
 function expectVisible(element: HTMLElement) {
@@ -260,7 +259,7 @@ describe('클라이언트 목록 — 실제 애니메이션 (skipAnimations 끔)
     await waitFor(() => expect(cartItem('품목 C').style.opacity).toBe('1'), { timeout: 1000 });
 
     await userEvent.click(screen.getByRole('button', { name: '품목 A 삭제' }));
-    await wait(60);
+    // 퇴장 시작 직후 — 대기 없이 단언한다(고부하에서 60ms 대기가 퇴장 160ms 를 넘겨 실패하던 타이밍 flake, QA #40)
     expect(screen.getByText('품목 A')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText('품목 A')).not.toBeInTheDocument(), {
       timeout: 1000,
@@ -272,12 +271,35 @@ describe('클라이언트 목록 — 실제 애니메이션 (skipAnimations 끔)
   it('PartsEditor: 해제한 칩은 퇴장 동안 남았다가 제거된다', async () => {
     render(<PartsHarness />, withMotion);
     await userEvent.click(screen.getByRole('button', { name: '파츠 하나 선택 해제' }));
-    await wait(60);
     expect(selectedChip('파츠 하나')).toBeInTheDocument();
     await waitFor(() => expect(selectedChip('파츠 하나')).not.toBeInTheDocument(), {
       timeout: 1000,
     });
     expect(selectedChip('파츠 둘')).toBeInTheDocument();
+  });
+
+  it('QuoteSteps: 제품군을 바꾸면 퇴장하는 이전 칩은 layout 을 끈다 — 줄이 내려가도 옛 위치에서 미끄러지지 않음 (QA #40 CRITICAL)', async () => {
+    // 브라우저에서는 STEP 1 이 커져 칩 줄이 247px 내려갈 때, 퇴장 칩이 layout 을 유지하면 다른 카드 위를 쓸고 지나갔다.
+    // jsdom 은 레이아웃 투영을 재현하지 못하므로(수정 전에도 translate 가 생기지 않음) 퇴장 칩의 layout 해제 표식을 본다.
+    // 실제 이동 궤적은 PR 본문의 브라우저 실측으로 확인한다.
+    const { rerender } = render(<StepCategory {...categoryProps(CHIPS)} />, withMotion);
+    const oldChip = chipWrapper('어플라이언스')!;
+    expect(oldChip).toHaveAttribute('data-layout', 'on');
+    rerender(<StepCategory {...categoryProps({ ...CHIPS, mids: ['DB 암호화', '키 관리'] })} />);
+    expect(oldChip.isConnected).toBe(true);
+    expect(oldChip).toHaveAttribute('data-layout', 'off');
+    expect(chipWrapper('DB 암호화')).toHaveAttribute('data-layout', 'on');
+    await waitFor(() => expect(oldChip.isConnected).toBe(false), { timeout: 1000 });
+  });
+
+  it('PartsEditor: 해제한 칩은 퇴장 중 layout 을 끈다 (QA #40 — QuoteSteps 와 같은 패턴)', async () => {
+    render(<PartsHarness />, withMotion);
+    const chip = selectedChip('파츠 하나')!;
+    expect(chip).toHaveAttribute('data-layout', 'on');
+    await userEvent.click(screen.getByRole('button', { name: '파츠 하나 선택 해제' }));
+    expect(chip).toHaveAttribute('data-layout', 'off');
+    expect(selectedChip('파츠 둘')).toHaveAttribute('data-layout', 'on');
+    await waitFor(() => expect(chip.isConnected).toBe(false), { timeout: 1000 });
   });
 
   it('GroupsManager: 퇴장 중에는 아래 카드가 점프하지 않고, 제거 순간 layout 으로 미끄러져 올라온다 (Plan §9.4 Q2)', async () => {
@@ -313,7 +335,6 @@ describe('클라이언트 목록 — 실제 애니메이션 (skipAnimations 끔)
       rerender(
         <GroupsManager family="WAPPLES" groups={[group('g2', '그룹 둘')]} candidates={[]} />,
       );
-      await wait(60);
       // 퇴장 중: 삭제 카드가 자리를 지키고 있어 그룹 둘은 이동(transform) 없이 제자리
       expect(groupCard('그룹 하나')).toBeInTheDocument();
       expect(groupCard('그룹 둘')!.style.transform).toMatch(/^(none)?$/);
@@ -351,7 +372,6 @@ describe('클라이언트 목록 — 실제 애니메이션 (skipAnimations 끔)
     expect(groupCard('그룹 둘')!.style.height).toBe('');
 
     rerender(<GroupsManager family="WAPPLES" groups={[group('g2', '그룹 둘')]} candidates={[]} />);
-    await wait(60);
     expect(groupCard('그룹 하나')).toBeInTheDocument();
     await waitFor(() => expect(groupCard('그룹 하나')).toBeNull(), { timeout: 1000 });
     expect(groupCard('그룹 둘')).toBeInTheDocument();
