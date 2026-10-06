@@ -71,6 +71,48 @@ const NO_NEW_MISS: Case[] = [
   ['X13 this item costs $', 'This item costs $1,200.', R],
 ];
 
+/**
+ * #17 출력 가드 후속 (L-A 미탐·L-B 오탐·I-1 COGS) 회귀 표 — 스펙 issue-17-output-guard-followup.md.
+ * 1차 방어(intent COST_RE·컨텍스트·prompt)는 그대로이고 출력 가드(2차 방어)만 바꾼다.
+ */
+const ISSUE17_CASES: Case[] = [
+  // L-A 통화 코드·won 미탐
+  ['F01 KRW 코드 + 숫자', '원가는 KRW 1,000입니다.', R],
+  ['F02 USD 코드 + 숫자', 'The cost is USD 500.', R],
+  ['F03 숫자 + won', 'The cost is 1,000 won.', R],
+  ['F04 JPY 붙여쓰기', '원가 JPY500', R],
+  ['F05 유로 기호', 'cost €500', R],
+  // 계속 차단 (한글 수사·단위)
+  ['F06 천원 단독', '원가는 천원입니다.', R],
+  ['F07 만원 단독', '원가 만원', R],
+  ['F08 삼천원', '원가는 삼천원', R],
+  ['F09 오천만 원입니다', '원가는 오천만 원입니다.', R],
+  ['F10 오천만 원 끝', '원가는 오천만 원', R],
+  ['F11 숫자 + 조원', '원가 1조원', R],
+  ['F12 일조원', '원가는 일조원입니다.', R],
+  ['F13 숫자 + 천억원', '원가는 2천억원', R],
+  ['F14 억원대', '원가는 억원대입니다.', R],
+  // L-B 수사 없는 단위·'원'으로 시작하는 일반 명사 오탐
+  ['F15 조원(구성원)', '마진 보고는 조원 모두에게 공유합니다.', K],
+  ['F16 구조 원칙', '원가 구조 원칙을 설명합니다.', K],
+  ['F17 강조 원칙', '원가 절감을 강조 원칙으로 삼습니다.', K],
+  // 경계
+  ['F18 wonderful', 'cost 1,000 wonderful', K],
+  ['F19 USB 3.0', 'USB 3.0 cost', K],
+  ['F20 연도', 'cost in 2026', K],
+  ['F21 통화 코드만', 'cost KRW', K],
+  // I-1 COGS (대문자만)
+  ['F22 COGS + $', 'COGS is $500.', R],
+  ['F23 COGS margin %', 'COGS margin 30%', R],
+  ['F24 COGS 금액 없음', 'What is COGS?', K],
+  ['F25 소문자 cogs(톱니)', 'The gear cogs margin is not set, 3 pcs', K],
+  // L-B (b) 보강: '원'으로 시작하는 일반 명사는 유지, 허용 조사·서술어는 계속 차단
+  ['F26 구조 원리', '원가 구조 원리를 설명합니다.', K],
+  ['F27 강조 원인', '마진 강조 원인을 분석합니다.', K],
+  ['F28 원만하게', '원가 구조 원만하게 조정합니다.', K],
+  ['F29 오천만 원 정도', '원가는 오천만 원 정도입니다.', R],
+];
+
 let ctx: ChatTestDb;
 beforeAll(async () => {
   ctx = await setupChatDb();
@@ -121,7 +163,16 @@ describe('미탐 방지 추가 케이스 (오탐 수정의 반대 방향)', () =
   });
 });
 
-describe('QA 스트리밍 분할 S01~S06 (토큰 가드, 같은 판정)', () => {
+describe('#17 출력 가드 후속 F01~F29 (L-A·L-B·I-1)', () => {
+  it.each(ISSUE17_CASES)('%s', async (_id, text, expected) => {
+    const reply = await run(text);
+    expect(reply.mode).toBe('llm');
+    if (expected === R) expect(reply.reply).toBe(COST_REPLY_USER);
+    else expect(reply.reply).toBe(text);
+  });
+});
+
+describe('QA 스트리밍 분할 S01~S07 (토큰 가드, 같은 판정)', () => {
   it.each([
     ['S01 원|가 분할', ['가격 안내입니다. 원', '가는 1,', '000원입니다.'], '가격 안내입니다.'],
     ['S02 마|진 분할 + %', ['마', '진은 3', '5%입니다.'], ''],
@@ -133,6 +184,8 @@ describe('QA 스트리밍 분할 S01~S06 (토큰 가드, 같은 판정)', () => 
       ['두 모델이 있습니다. ', '가격은 12,000,000원입니다.'],
       '두 모델이 있습니다. 가격은 12,000,000원입니다.',
     ],
+    // #17 L-A: 통화 코드와 숫자가 청크로 나뉘어도 같은 판정(isAmount)으로 막는다
+    ['S07 KRW|숫자 분할', ['원가는 KRW', ' 1,000입니다.'], ''],
   ])('%s', (id, chunks, streamed) => {
     const guard = createTokenGuard();
     const out = chunks.map((chunk) => guard.push(chunk)).join('') + guard.flush();

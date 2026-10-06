@@ -62,19 +62,57 @@ const SALE_PRICE_SIGNAL =
 const COST_CONTEXT =
   /\b(?:the|our|its|their|your|unit|total|material|production|purchase|internal)\s+costs\b|\bcosts\s*[:=]|\bcosts\s+us\b|\bto\s+(?:make|produce|manufacture|build|procure)\b|\bmaterials?\b/i;
 
+/**
+ * 매출원가 약어 COGS (#17 I-1) — 대소문자를 구분하는 별도 정규식. 소문자 `cogs`(톱니)는 오탐 방지를 위해 제외한다.
+ * `cost of goods sold` 는 COST_WORD 의 `\bcost\b` 로 이미 잡힌다.
+ */
+const COGS_WORD = /\bCOGS\b/;
+
 function hasCostWord(sentence: string): boolean {
-  if (COST_WORD.test(sentence)) return true;
+  if (COST_WORD.test(sentence) || COGS_WORD.test(sentence)) return true;
   if (!COSTS_WORD.test(sentence)) return false;
   const saleSentence = COSTS_AS_PRICE_VERB.test(sentence) && SALE_PRICE_SIGNAL.test(sentence);
   return !saleSentence || COST_CONTEXT.test(sentence);
 }
 
 /**
- * 금액: 아라비아 숫자(+만·천·억 단위) + 통화, `$`·`₩` 기호 + 숫자(￦ 는 NFKC 로 ₩), 한글 수사 + 통화.
- * 한글 수사는 자릿수 단위(십·백·천·만·억·조)를 하나 이상 포함해야 한다 — "사원"·"이원화" 같은 일반어 오탐 방지 (QA L-5).
+ * 금액 (#17 L-A·L-B) — 세 갈래 중 하나라도 맞으면 금액이다 (isAmount).
+ * 1. 아라비아 숫자 + (한글 단위) + 통화. won·yen·dollars·euros 는 뒤에 영문자가 없을 때만 ("1,000 wonderful" 제외).
+ * 2. 통화 코드·기호 + 숫자 ("KRW 1,000", "JPY500", "€500"; ￦ 는 NFKC 로 ₩).
+ * 3. 한글 수사 + 단위 + 원·달러 (KOREAN_NUMERAL_AMOUNT).
  */
-const AMOUNT =
-  /\d[\d,.]*\s*(만|천|억|백만|천만)?\s*(원|KRW|USD|JPY|\$|₩|엔|달러|dollars?)|[$₩￦]\s*\d|(?:[일이삼사오육칠팔구]?[십백천만억조])+\s*(원|달러)/i;
+const AMOUNT_DIGIT_CURRENCY =
+  /\d[\d,.]*\s*[십백천만억조]*\s*(원|엔|달러|[$₩€£¥]|(KRW|USD|JPY|EUR|CNY|GBP|dollars?|won|yen|euros?)(?![a-z]))/i;
+const AMOUNT_CURRENCY_DIGIT = /(\b(KRW|USD|JPY|EUR|CNY|GBP)|[$₩￦€£¥])\s*\d/i;
+/**
+ * 한글 수사 갈래 (#17 L-B). 한글은 \w 밖이라 `\b` 가 경계로 동작하지 않으므로 경계를 lookahead 로 명시한다.
+ * (a) 수사 표현은 단위를 하나 이상 포함한다("사원"·"이원화" 제외, QA L-5). 마지막 단위가 조·억이면 앞에 수사나 다른 단위가
+ *     있어야 한다 — `조원`(구성원)·`강조 원칙` 의 단독 '조' 는 금액이 아니다. 십·백·천·만은 단독으로도 금액("천원", "만원").
+ * (b) 단위와 '원' 사이에 공백이 있으면 '원' 뒤가 끝·공백·구두점·숫자이거나 조사·서술어로 시작할 때만 금액
+ *     ("구조 원칙"·"원리"·"원인" 제외). '원만'·'원대' 는 뒤에 하·한·히·해가 오면 일반어(원만하다·원대한)로 본다.
+ * (c) 공백 없이 붙은 '원'("삼천원", "오천만원")은 뒤와 상관없이 금액. '달러'는 공백과 상관없이 금액("이백 달러").
+ * 예외: 단독 '억원대'는 금액대 표현이라 (a)와 별개로 금액이다.
+ */
+const DIGIT = '[일이삼사오육칠팔구]';
+const UNIT = '[십백천만억조]';
+/** (a) 수사 표현: 단위 둘 이상(마지막 조·억 허용) | 십·백·천·만으로 끝남 | 수사 + 조·억 */
+const NUMERAL_EXPR = `(?:(?:${DIGIT}?${UNIT})+[억조]|(?:${DIGIT}?${UNIT})*(?:${DIGIT}?[십백천만]|${DIGIT}[억조]))`;
+/** (b) 공백 뒤 '원' 다음에 허용하는 것: 끝·공백·구두점·숫자 또는 조사·서술어 */
+const WON_FOLLOWER =
+  '(?=$|[\\s\\p{P}\\d]|이다|입니다|이|은|을|의|에|도|만(?![하한히해])|과|으로|대(?![하한히해])|정도|가량|씩|짜리)';
+const KOREAN_NUMERAL_AMOUNT = new RegExp(
+  `${NUMERAL_EXPR}(?:원|\\s+원${WON_FOLLOWER}|\\s*달러)|억원대`,
+  'u',
+);
+
+function isAmount(sentence: string): boolean {
+  return (
+    AMOUNT_DIGIT_CURRENCY.test(sentence) ||
+    AMOUNT_CURRENCY_DIGIT.test(sentence) ||
+    KOREAN_NUMERAL_AMOUNT.test(sentence)
+  );
+}
+
 /** 비율: 마진·이익률 같은 단어와 함께면 금액과 같게 본다 ("margin 35%") */
 const PERCENT = /\d[\d.]*\s*(%|퍼센트|percent)/i;
 /** 텍스트 속 원가 키 JSON (모델이 {"unit_cost":…} 를 글로 쓰는 경우) */
@@ -152,9 +190,7 @@ export function mentionsCostAmount(raw: string, terms: readonly string[] = []): 
     text
       // 문장 끝 부호 뒤 공백 또는 줄바꿈에서만 나눈다 ("1.2억원" 같은 소수점에서 나누지 않음)
       .split(/(?<=[.!?。])\s+|\n/)
-      .some(
-        (sentence) => hasCostWord(sentence) && (AMOUNT.test(sentence) || PERCENT.test(sentence)),
-      )
+      .some((sentence) => hasCostWord(sentence) && (isAmount(sentence) || PERCENT.test(sentence)))
   );
 }
 
