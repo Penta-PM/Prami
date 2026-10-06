@@ -31,7 +31,7 @@
 - [ ] × 또는 Escape로 닫은 뒤 `document.activeElement`가 헤더 `챗봇` 버튼이다.
 - [ ] 가려짐 해소: 가격·원가·감사 목록을 맨 아래로 스크롤한 뒤 오른쪽 끝 '다음' 링크, 가져오기 패널의 우하단 액션 버튼, 계산기 `CartPanel` 하단 버튼을 실제로 클릭할 수 있다(1280×720 기준, trial 없이).
 - [ ] 단위 테스트 3개(`panel.test.tsx:57`, `panel-llm.test.tsx:57`, `panel-stream.test.tsx:53`)가 헤더 버튼으로 진입하도록 바뀌었다. `panel.test.tsx`에 'FAB 부재' 회귀 단언, Escape 닫기, 포커스 복원 테스트가 추가됐다.
-- [ ] reduced-motion에서 패널이 즉시 열리고 닫힌다.
+- [ ] reduced-motion에서 패널이 이동(x) 없이 열리고 닫힌다. opacity fade는 Motion 스펙 §3.5 정의대로 남아도 된다(앱 전체 오버레이와 같은 정책). (정정 2026-10-06, Dev `msg_b6fdde1120c3`)
 - [ ] Dev 게이트 기록(`docs/pipeline/verification.md` §3.1) + QA E2E 전체 1회(§3.2) + 머지 head SHA의 `ci:run` 녹색(§3.3).
 - [ ] PR 본문에 `Closes #30`.
 
