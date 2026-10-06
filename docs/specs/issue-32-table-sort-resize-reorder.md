@@ -1,0 +1,108 @@
+# 스펙: #32 표 정렬 · 열 너비 · 열 순서 변경
+
+- 요구사항: Main `msg_5422b4ee243f` (이슈 #32 원문 범위·완료기준) · 되묻기 답변: `msg_f986faf78dd5` (Q1 B, Q2 A, Q3 A, 사용자 확인 완료) · 2026-10-06
+- 상태: 확정 → Dev 배정. 착수는 Motion PR-4 머지 후에 한다(`CartPanel` 겹침).
+
+## 1. 범위 (Q2 A)
+| # | 표 | 파일 | 정렬 방식 |
+|---|---|---|---|
+| 1 | 가격 조회/관리 | `pricing/PriceTable.tsx` | **서버** (50행 페이지네이션) |
+| 2 | 원가 | `costs/CostBrowser.tsx` | **서버** |
+| 3 | 감사 로그 | `audit/AuditTable.tsx` (client로 전환) | **서버** (+CSV) |
+| 4 | 사용자 | `users/UsersTable.tsx` | 클라이언트 (전량) |
+| 5 | 공지 관리 | `notices/NoticesAdminTable.tsx` | 클라이언트 |
+| 6 | 파츠 매핑 | `parts/PartsMappingTable.tsx` | 클라이언트 |
+| 7 | 내 견적 목록 (모달) | `calculator/CartPanel.tsx:268` | 클라이언트 (100건 안. 100건 제한은 유지) |
+| 8 | 업로드 미리보기 | `admin-policies/UploadSummary.tsx:154` | 클라이언트, **"상위 20행 안에서 정렬"** 안내 표시 |
+
+- **제외**: `QuoteSheet`(공유 견적서, 품목 순서에 의미가 있음), `PermissionMatrix`(상수 매트릭스), `<ul>` 목록 UI(공지 목록·검색 결과·그룹), `RowDetailDrawer`(`<dl>`).
+- **Q3 A**: 원가 표의 '분류' 헤더를 **'단위'**로 고친다(`CostBrowser.tsx:22`, 셀은 `row.unit`).
+
+## 2. 정렬 규칙 (Q1 B — 코드포인트, 클라이언트·서버 동일)
+- 문자열
+  - 클라이언트: ASCII만 소문자로 바꾼 뒤 코드포인트로 비교한다. `Intl.Collator`와 `localeCompare`는 쓰지 않는다(CLDR 비의존, `lib/date-format.ts`와 같은 원칙).
+  - 서버: `lower(x) COLLATE "C"`.
+  - 그 결과 'WAPPLES-2700'이 'WAPPLES-300'보다 앞에 온다. 사용자가 수용했다.
+- 숫자·금액: 숫자 값으로 비교한다. **통화가 섞이면 통화로 먼저 묶고**, 같은 통화 안에서 금액순으로 정렬한다.
+- 날짜: ISO 또는 시각 값으로 비교한다. 적용기간은 시작일 기준이다(`effective_from`, `effective_to NULLS LAST`).
+- 상태 값은 정의 순서를 따른다.
+  - 운영중 → 미사용
+  - 사용 → 임시 → 폐기 → 미확인
+  - 성공 → 거부 → 오류
+  - ADMIN → USER
+- `null`·`'—'`·빈 값은 방향과 관계없이 항상 맨 뒤에 둔다(`NULLS LAST`).
+- 같은 값끼리는 원래 순서를 유지한다(stable). 서버는 기존 기본 정렬 전체를 tie-breaker로 붙인다(끝에 `id`).
+- 정렬은 단일 열만 한다. 클릭할 때마다 오름 → 내림 → 해제(기본 정렬)로 순환한다. 첫 클릭은 모든 타입에서 오름차순이다.
+- 정렬하지 않는 열: 비데이터 열(관리·액션), 감사 '변경 전/후'(jsonb), 파츠 '장착 파츠'(목록).
+
+## 3. 서버 정렬 (표 1~3)
+- URL `?…&sort=<colId>&dir=asc|desc`. sort와 dir는 쿼리 문자열 **맨 뒤**에 붙인다(기존 E2E의 URL 정규식 보호).
+- 각 필터 zod 스키마에서 `z.enum(정렬 가능 colId).catch(undefined)`로 받고, `colId → Drizzle 컬럼/SQL 식` 맵으로만 ORDER BY를 만든다. 문자열 보간은 금지다(인젝션 차단).
+- 정렬을 바꾸면 `page=1`로 간다.
+- sort를 끌고 다닐 곳: `pricing/filter.ts`, `features/costs/query.ts`, `server/cost/filter.ts`, `audit/query.ts`의 직렬화, `PricingFilters`·`CostFilters`의 `router.push`, `CostFilters` 탭 링크, `AuditFilters` GET 폼(hidden input), 감사 CSV.
+  - CSV는 열 구성·순서를 고정하고 정렬만 화면을 따른다.
+- 신규 인덱스와 마이그레이션은 없다.
+
+## 4. 공통 컴포넌트
+- `src/components/ui/data-table/`에 `'use client'` headless로 직접 구현한다. `@tanstack/react-table`과 dnd-kit은 쓰지 않는다. `ui/table.tsx` 프리미티브는 서버 호환으로 유지한다.
+- 열 정의:
+  ```
+  { id, header, type: 'text'|'number'|'date'|'status'|'none', sortable, sortValue?, resizable=true, reorderable=true, pinned?: 'start'|'end', minWidth=60, maxWidth=600, align, cell }
+  ```
+  - 관리·액션 열은 `type:'none', pinned:'end'`이고 정렬·재배치를 하지 않는다. 다른 열을 고정 열 너머로 놓을 수 없다.
+  - 업로드 미리보기의 '행' 열은 `pinned:'start'`.
+- 헤더와 데이터는 같은 열 배열 순서로 렌더한다(불일치를 구조적으로 막음). thead에 `TableRow` hover가 붙는 문제도 같이 정리한다.
+- `sortMode: 'client' | 'server'`. server 모드는 `onSortChange`가 `router.push`를 호출하고, 현재 상태는 props로 받는다.
+
+## 5. 너비 · 순서 · 저장
+- 너비: 기본은 지금의 auto 레이아웃이다. **처음 리사이즈할 때** 모든 열의 `offsetWidth`를 측정해 `<colgroup>`과 `table-layout: fixed`로 전환한다(기본 모습은 그대로). 최소 60px, 최대 600px이다. 핸들을 더블클릭하면 그 열만 기본 폭으로 돌아간다.
+- 재배치: pointer 이벤트 기반이다. 끄는 동안 반투명 고스트와 2px 삽입 인디케이터를 보여 준다. 행 transform 애니메이션은 쓰지 않는다(Motion 스펙 금지 2).
+- 클릭과 드래그 구분: 5px 미만으로 움직였을 때만 정렬한다. 리사이즈 핸들의 pointerdown은 전파를 막는다. 드래그 직후의 click은 무시한다. 드래그 중 Esc를 누르면 드래그만 취소된다(모달은 닫지 않음).
+- 키보드(WCAG 2.5.7)
+  - 헤더 버튼에서 Enter/Space는 정렬, `Alt+Shift+←/→`는 열 이동이다.
+  - 리사이즈 핸들(`role="separator"`, 포커스 가능)에서 `←/→`는 ±16px이다.
+  - `aria-live="polite"` 영역 하나로 변경을 알린다.
+- 접근성 이름
+  - `th`에 `aria-sort`를 둔다.
+  - 아이콘은 `aria-hidden`이고 텍스트가 없어야 한다.
+  - 핸들의 aria-label이 columnheader 이름에 섞이면 안 된다(`tests/unit/ui.test.tsx:146` 보호). sr-only 텍스트를 th 안에 넣지 않는다.
+- 터치(`pointerType==='touch'`)에서는 정렬만 한다. 리사이즈와 재배치는 끈다.
+- 저장
+  - 키는 `localStorage['prami:table:<tableId>:v1:<userId>']`. 값은 `{order, widths}`이고 zod로 검증한다. 모르는 colId는 버리고, 새 열은 기본 위치에 끼우고, 너비는 clamp한다. 손상된 값이면 기본값으로 돌아간다.
+  - **첫 렌더 이후에 적용**한다(`useSyncExternalStore`의 server snapshot이 기본값). 하이드레이션 불일치 경고 0이 목표다.
+  - 가격 조회와 가격 관리는 다른 tableId를 쓴다.
+  - DB 저장은 하지 않는다.
+- 정렬 상태: 서버 표는 URL, 클라이언트 표는 컴포넌트 상태다(새로고침하면 해제).
+- **'열 초기화'**: 표마다 툴바에 별도 텍스트 버튼을 둔다. 필터 초기화와 분리돼 있고 정렬은 건드리지 않는다. 기본 상태에서는 비활성이다.
+
+## 6. 비범위
+- 데이터 수정, 열 추가·삭제, 다중 정렬, 서버 설정 저장.
+- 견적 목록 100건 제한 해제.
+- QuoteSheet와 PermissionMatrix.
+- CSV 열 순서 연동.
+- 견적 PDF.
+
+## 7. 수용 기준
+- [ ] 범위 표 8개 모두에서 헤더 클릭 시 `aria-sort`가 ascending → descending → 없음으로 바뀌고, 순서가 기본 정렬로 돌아온다. 비데이터 열에는 정렬 아이콘과 `aria-sort`가 없다.
+- [ ] 서버 표: 2페이지에서 판매가 오름차순을 고르면 1페이지로 이동하고, 첫 행이 전체 최소값이다. 다음 페이지 첫 행은 이전 페이지 마지막 행 이상이다. 필터·탭·페이지 이동·감사 GET 폼 조회 뒤에도 sort/dir가 URL에 남는다. 감사 CSV가 같은 정렬을 따른다.
+- [ ] `sort=id;drop`처럼 화이트리스트에 없는 값은 무시되고 기본 정렬로 응답한다(단위·통합 테스트).
+- [ ] 비교 함수 단위 테스트: null·'—'가 맨 뒤, 숫자, 날짜, ASCII 대소문자, 한글 가나다, 통화 혼합, stable.
+- [ ] 같은 데이터에서 클라이언트 비교 결과와 서버 `COLLATE "C"` 결과가 같다(PGlite 통합 테스트, 대표 문자열 세트).
+- [ ] 열 재배치 후 모든 행의 셀이 바뀐 헤더 아래에 있다. 리사이즈 후 헤더와 셀 폭이 1px 이내로 일치한다. 최소·최대 폭에서 멈춘다.
+- [ ] 리사이즈나 5px 이상 드래그 후 정렬이 실행되지 않는다. 3px 이하로 움직였다 놓으면 정렬된다. 고정 열은 이동할 수 없고 고정 열 너머로 놓을 수도 없다.
+- [ ] 키보드만으로 정렬, 열 이동, 폭 조절을 할 수 있고 라이브 영역이 결과를 알린다.
+- [ ] 너비·순서 설정이 정렬·필터 변경·페이지 이동·감사 전체 리로드 뒤에도 유지된다. '열 초기화'를 누르면 기본으로 돌아가고, 기본 상태에서는 버튼이 비활성이다. 손상된 localStorage 값이면 기본값이다. 다른 사용자 계정과 섞이지 않는다.
+- [ ] 새로고침 직후 하이드레이션 경고가 0이다(E2E 카나리 통과).
+- [ ] 모달(내 견적 목록) 안에서 정렬·드래그를 해도 모달이 닫히지 않는다. 드래그 중 Esc를 누르면 드래그만 취소된다. 가격 표에서 헤더를 조작해도 행 드로어가 열리지 않는다.
+- [ ] 업로드 미리보기에 '상위 20행 안에서 정렬' 안내가 보인다. 원가 표 헤더가 '단위'다.
+- [ ] 정렬 후 `<tr>`에 transform이나 layout 애니메이션이 없다.
+- [ ] 기존 헤더 텍스트·순서 단언 테스트가 통과한다(기본 순서 유지). 원가 '단위' 라벨 변경분은 갱신한다.
+- [ ] Dev 게이트 기록 + QA E2E 전체 1회 + 머지 head SHA의 `ci:run` 녹색(`docs/pipeline/verification.md`).
+- [ ] 마지막 PR 본문에 `Closes #32`(앞선 PR들은 `Part of #32`).
+
+## 8. 태스크 (PR 3개)
+1. **[PR-1 공통]** `data-table/` 컴포넌트(정렬·리사이즈·재배치·키보드·저장·초기화), 비교 함수, 저장소, 단위 테스트. **UsersTable**을 파일럿으로 적용한다.
+2. **[PR-2 클라이언트 표]** Notices, PartsMapping, CartPanel 견적 목록, UploadSummary.
+3. **[PR-3 서버 정렬]** 공용 `parseSort`, 정렬 화이트리스트 3종, `COLLATE "C"`, 필터·탭·폼·CSV로 sort 전파. Price·Cost·Audit 표에 적용하고 원가 '단위' 라벨을 고친다. PGlite 통합 테스트를 추가한다.
+
+의존 관계: 1 → 2, 1 → 3(2와 3은 병렬 가능하지만 각자 QA·머지). Motion PR-4가 머지된 뒤 착수한다.

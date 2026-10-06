@@ -206,3 +206,8 @@
 - **가로 칩 퇴장 (A)**: `PartsEditor` 선택 칩, `QuoteSteps` 중·소분류 칩은 가로 flex-wrap 알약이라 height 접힘이 어색하다. 퇴장은 `scaleIn`(0.96↔1 + fade, 160ms), 나머지 칩은 layout 재배치. 세로 목록(`CartPanel`)은 height 접힘 + layout 유지.
 - **GroupsManager 튐 (A)**: fade만 두면 퇴장 160ms 후 아래 카드가 한 번에 튄다(PR-3 사이드바와 같은 종류). fade + `m.li layout`(`duration.layout`)으로 미끄러지게 한다.
 - 허용(보고만): 마지막 항목 삭제 시 퇴장 160ms 동안 빈 목록 안내가 함께 보임, `QuoteSteps` 제품군 변경 시 이전·새 칩이 160ms 겹침 — `mode="wait"` 금지(입력 지연 방지)의 결과로 수용한다.
+
+### 9.5 #30 FAB 제거에 따른 정정 (2026-10-06)
+
+- Issue #30(`docs/specs/issue-30-chat-fab-removal.md`)으로 챗봇 FAB를 제거한다. 이 스펙의 FAB 관련 항목은 효력을 잃는다: 3.3 '버튼 press' 행의 `ChatDock` FAB, '챗 패널 + FAB' 행의 FAB 교대 부분, 6절 PR-2 "패널과 FAB가 교대로 fade+slide" 기준. 패널 자체의 열림·닫힘 모션은 유지한다.
+- PR-4는 FAB가 없는 `ChatDock`(=`<ChatPanel />`만 렌더)을 기준으로 진행한다.
