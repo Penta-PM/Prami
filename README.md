@@ -297,7 +297,7 @@ QA 는 `IMPORT_FAULT_INJECTION=<단계>`(개발·테스트 전용)로 적용 중
 
 > PRAMI-002 PR-B 이후 이 규칙 엔진은 LangGraph 그래프의 `ruleAnswer` 노드(키 없음·킬스위치·벤더 일시 오류 폴백)로 그대로 쓰인다 — 아래 "챗봇 LangGraph" 절.
 
-- 헤더 챗봇 버튼 · 우하단 플로팅 버튼 → 사이드 패널(`src/features/chat/`). 인사말·예시 질문 칩("Wapples-500 가격 알려줘", "작년보다 올랐어?",
+- 헤더 챗봇 버튼 → 사이드 패널(`src/features/chat/`, Escape·× 로 닫으면 포커스가 헤더 버튼으로 돌아온다 — #30 에서 우하단 플로팅 버튼 제거). 인사말·예시 질문 칩("Wapples-500 가격 알려줘", "작년보다 올랐어?",
   "견적 뽑아줘"), 제품 퀵칩(WAPPLES · D.AMO · iSIGN · Cloudbric), 모호할 때 후보 품목 칩, 견적 시작 링크. **대화는 저장하지 않는다**(감사도 없음).
 - `POST /api/chat`(`chat.use` = 로그인 사용자, 비로그인 401): 본문 `{ message }` → 공백·제어 문자 정리·200자 제한(검색과 같은 규칙, ILIKE 는
   파라미터 바인딩 + 와일드카드 이스케이프) → 의도 분류(`src/server/chat/intent.ts`, 정규식·키워드, **LLM 호출 없음** Q-04b) → `sales_prices` 만 읽어

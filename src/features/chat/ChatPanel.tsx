@@ -30,7 +30,7 @@ export const EXAMPLE_QUESTIONS = [
 export { askChat, GREETING } from './useChatConversation';
 
 export function ChatPanel() {
-  const { isOpen, close, statusEndpoint } = useChatPanel();
+  const { isOpen, close, launcherRef, statusEndpoint } = useChatPanel();
   const { status, applyLlm } = useChatStatus(statusEndpoint, isOpen);
   const [input, setInput] = useState('');
   const [showProductChips, setShowProductChips] = useState(false);
@@ -49,6 +49,24 @@ export function ChatPanel() {
     // jsdom 에는 scrollTo 가 없다
     logRef.current?.scrollTo?.({ top: logRef.current.scrollHeight });
   }, [messages]);
+
+  // ×·Escape 로 닫으면 포커스를 헤더 챗봇 버튼으로 돌려준다 — 없으면 body 로 빠진다 (#30)
+  const closeAndRestoreFocus = useCallback(() => {
+    close();
+    launcherRef.current?.focus();
+  }, [close, launcherRef]);
+
+  // Escape 로 닫기 (#30, Main 결정 A). 모달(<dialog open>)·드로어(aria-modal) 가 열려 있으면 그쪽 Escape 가 우선이다
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (document.querySelector('dialog[open], [aria-modal="true"]')) return;
+      closeAndRestoreFocus();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, closeAndRestoreFocus]);
 
   const send = async (raw: string) => {
     const text = raw.trim();
@@ -83,7 +101,7 @@ export function ChatPanel() {
             <button
               type="button"
               aria-label="챗봇 닫기"
-              onClick={close}
+              onClick={closeAndRestoreFocus}
               className="border-0 bg-transparent text-[16px] font-semibold text-text-tertiary hover:text-ink-900"
             >
               ×

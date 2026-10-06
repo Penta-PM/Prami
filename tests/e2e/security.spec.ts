@@ -102,7 +102,7 @@ test('PR-11a QA M-1: 404(없는 경로)·세그먼트 notFound 페이지에서�
   expect(missing!.headers()['content-security-policy']).toMatch(/'nonce-[^']+'/);
   const segment = await page.goto('/notices/not-a-uuid');
   expect(segment?.status()).toBe(404);
-  // 404 화면에서도 앱 셸(클라이언트 컴포넌트)이 동작 — 챗봇 열기
+  // 404 화면에서도 앱 셸(클라이언트 컴포넌트)이 동작 — 헤더 챗봇 버튼으로 패널 열기
   await page.getByRole('button', { name: '챗봇', exact: true }).click();
   await expect(page.getByRole('complementary', { name: '가격정책 챗봇' })).toBeVisible();
   expect(violations).toEqual([]);
