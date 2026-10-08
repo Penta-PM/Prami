@@ -63,7 +63,8 @@ async function openPanel() {
     </ChatProvider>,
     withMotion,
   );
-  await userEvent.click(screen.getByRole('button', { name: '챗봇 열기' }));
+  // 진입점은 헤더 챗봇 버튼 하나 (#30 — 플로팅 버튼 제거, Motion 스펙 §9.5)
+  await userEvent.click(screen.getByRole('button', { name: '챗봇' }));
   const panel = screen.getByRole('complementary', { name: '가격정책 챗봇' });
   return { panel, log: within(panel).getByRole('log', { name: '대화' }) };
 }
