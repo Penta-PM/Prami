@@ -77,36 +77,41 @@ function hasCostWord(sentence: string): boolean {
 
 /**
  * 금액 (#17 L-A·L-B) — 세 갈래 중 하나라도 맞으면 금액이다 (isAmount).
- * 1. 아라비아 숫자 + (한글 단위) + 통화. won·yen·dollars·euros 는 뒤에 영문자가 없을 때만 ("1,000 wonderful" 제외).
+ * 1. 아라비아 숫자 + (한글 단위) + 통화 (AMOUNT_DIGIT_WON·AMOUNT_DIGIT_CURRENCY). won·yen·dollars·euros 는 뒤에 영문자가
+ *    없을 때만 ("1,000 wonderful" 제외). '원'은 바로 앞에 공백이 있으면 (b)의 '원' 뒤 판정을 거친다 ("3 원칙" 제외).
  * 2. 통화 코드·기호 + 숫자 ("KRW 1,000", "JPY500", "€500"; ￦ 는 NFKC 로 ₩).
  * 3. 한글 수사 + 단위 + 원·달러 (KOREAN_NUMERAL_AMOUNT).
- */
-const AMOUNT_DIGIT_CURRENCY =
-  /\d[\d,.]*\s*[십백천만억조]*\s*(원|엔|달러|[$₩€£¥]|(KRW|USD|JPY|EUR|CNY|GBP|dollars?|won|yen|euros?)(?![a-z]))/i;
-const AMOUNT_CURRENCY_DIGIT = /(\b(KRW|USD|JPY|EUR|CNY|GBP)|[$₩￦€£¥])\s*\d/i;
-/**
+ *
  * 한글 수사 갈래 (#17 L-B). 한글은 \w 밖이라 `\b` 가 경계로 동작하지 않으므로 경계를 lookahead 로 명시한다.
  * (a) 수사 표현은 단위를 하나 이상 포함한다("사원"·"이원화" 제외, QA L-5). 마지막 단위가 조·억이면 앞에 수사나 다른 단위가
  *     있어야 한다 — `조원`(구성원)·`강조 원칙` 의 단독 '조' 는 금액이 아니다. 십·백·천·만은 단독으로도 금액("천원", "만원").
- * (b) 단위와 '원' 사이에 공백이 있으면 '원' 뒤가 끝·공백·구두점·숫자이거나 조사·서술어로 시작할 때만 금액
+ * (b) 단위(또는 숫자)와 '원' 사이에 공백이 있으면 '원' 뒤가 끝·공백·구두점·숫자이거나 조사·서술어로 시작할 때만 금액
  *     ("구조 원칙"·"원리"·"원인" 제외). '원만'·'원대' 는 뒤에 하·한·히·해가 오면 일반어(원만하다·원대한)로 본다.
- * (c) 공백 없이 붙은 '원'("삼천원", "오천만원")은 뒤와 상관없이 금액. '달러'는 공백과 상관없이 금액("이백 달러").
- * 예외: 단독 '억원대'는 금액대 표현이라 (a)와 별개로 금액이다.
+ * (c) 공백 없이 붙은 '원'("삼천원", "오천만원", "1,000원")은 뒤와 상관없이 금액. '달러'는 공백과 상관없이 금액("이백 달러").
+ * 예외: 공백 없는 단독 '억원대'·'조원대'는 금액대 표현이라 (a)와 별개로 금액이다. 단 뒤에 '표'가 오면(조원대표) 제외.
  */
+/** (b) 공백 뒤 '원' 다음에 허용하는 것: 끝·공백·구두점·숫자 또는 조사·서술어 */
+const WON_FOLLOWER =
+  '(?=$|[\\s\\p{P}\\d]|이다|입니다|이|은|을|의|에|도|만(?![하한히해])|과|으로|대(?![하한히해])|정도|가량|씩|짜리)';
+const AMOUNT_DIGIT_WON = new RegExp(
+  `\\d[\\d,.]*(?:\\s*[십백천만억조]+)?(?:원|\\s+원${WON_FOLLOWER})`,
+  'u',
+);
+const AMOUNT_DIGIT_CURRENCY =
+  /\d[\d,.]*\s*[십백천만억조]*\s*(엔|달러|[$₩€£¥]|(KRW|USD|JPY|EUR|CNY|GBP|dollars?|won|yen|euros?)(?![a-z]))/i;
+const AMOUNT_CURRENCY_DIGIT = /(\b(KRW|USD|JPY|EUR|CNY|GBP)|[$₩￦€£¥])\s*\d/i;
 const DIGIT = '[일이삼사오육칠팔구]';
 const UNIT = '[십백천만억조]';
 /** (a) 수사 표현: 단위 둘 이상(마지막 조·억 허용) | 십·백·천·만으로 끝남 | 수사 + 조·억 */
 const NUMERAL_EXPR = `(?:(?:${DIGIT}?${UNIT})+[억조]|(?:${DIGIT}?${UNIT})*(?:${DIGIT}?[십백천만]|${DIGIT}[억조]))`;
-/** (b) 공백 뒤 '원' 다음에 허용하는 것: 끝·공백·구두점·숫자 또는 조사·서술어 */
-const WON_FOLLOWER =
-  '(?=$|[\\s\\p{P}\\d]|이다|입니다|이|은|을|의|에|도|만(?![하한히해])|과|으로|대(?![하한히해])|정도|가량|씩|짜리)';
 const KOREAN_NUMERAL_AMOUNT = new RegExp(
-  `${NUMERAL_EXPR}(?:원|\\s+원${WON_FOLLOWER}|\\s*달러)|억원대`,
+  `${NUMERAL_EXPR}(?:원|\\s+원${WON_FOLLOWER}|\\s*달러)|[억조]원대(?!표)`,
   'u',
 );
 
 function isAmount(sentence: string): boolean {
   return (
+    AMOUNT_DIGIT_WON.test(sentence) ||
     AMOUNT_DIGIT_CURRENCY.test(sentence) ||
     AMOUNT_CURRENCY_DIGIT.test(sentence) ||
     KOREAN_NUMERAL_AMOUNT.test(sentence)
