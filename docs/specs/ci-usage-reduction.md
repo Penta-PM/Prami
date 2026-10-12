@@ -140,3 +140,4 @@
   - `docs/pipeline/verification.md` §0 판정 값 목록에 "다른 라벨 추가: 경량"을 추가하는 정정은 **PR-C에 함께 넣는다**. 문서만 고치는 PR을 따로 열면 QA 왕복이 한 번 더 생긴다.
   - 문서 §2에 **"문서 전용 PR(생략 대상 경로만 바뀐 PR)은 QA E2E 전체 1회를 생략한다"**를 명시한다. 이 경우 QA는 문서 검토와 secret scan 녹색만 확인한다. 생략 대상 밖의 경로가 하나라도 바뀌면 일반 규칙을 따른다.
   - 순서는 Motion PR-4(새 규칙 첫 적용) → PR-C로 확인했다.
+- (Dev 확인 요청 `msg_df8a5971a16c`, PR #42 QA 조건부 통과의 조건 1) **재시도 flaky 수정 방식 인정 (A).** `xai-adapter` 503과 `llm-diagnostics-r2:262`의 원인은 LangChain AsyncCaller(p-retry)의 재시도 대기(1~2s)와 테스트 timeout 2000ms가 겹치는 경합이었다. 재시도 경로 테스트에만 timeout 여유(`RETRY_SAFE_SETTINGS` 8000ms)를 명시해 원인을 없앤 것은 §5 PR-C 기준 "가짜 타이머나 명시적 대기"를 충족한다. 가짜 타이머로 외부 라이브러리 내부 타이머(p-retry setTimeout, `AbortSignal.timeout`)를 제어하면 새 flake 원인이 될 수 있다. 조건: 해당 테스트의 최대 재시도 횟수 기준으로 최악의 누적 대기가 8000ms보다 짧다는 근거를 `RETRY_SAFE_SETTINGS` 옆 주석에 남긴다(비블로킹, 같은 PR 또는 #17에 포함).
