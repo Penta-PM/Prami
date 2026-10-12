@@ -48,6 +48,8 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['tests/unit/**/*.test.{ts,tsx}'],
           setupFiles: ['tests/setup.ts'],
+          // PGlite 마이그레이션 템플릿을 한 번만 만든다 — createTestDb 가 복원 (CI 사용량 절감 PR-C)
+          globalSetup: ['tests/global-pglite-template.ts'],
           css: false,
           // next-auth 는 'next/server' 를 확장자 없이 import 해 Node ESM 이 직접 읽으면 실패한다 — Vite 로 변환해 해석한다
           // (PRAMI-003 AC-342·343: 실제 Auth.js 핸들러로 302 Location·쿠키 검사)
