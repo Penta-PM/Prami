@@ -342,6 +342,19 @@ describe('DataTable 열 너비', () => {
     expect(colWidth('price')).toBe('600px');
   });
 
+  it('포인터로 끌어도 최소 60px·최대 600px 에서 멈춘다 (QA #44 백로그 3)', () => {
+    offsetWidths = { name: 100 };
+    renderTable();
+    fireEvent.pointerDown(handle('이름'), { pointerType: 'mouse', button: 0, clientX: 100 });
+    fireEvent.pointerMove(document, { clientX: -900 });
+    expect(colWidth('name')).toBe('60px');
+    fireEvent.pointerMove(document, { clientX: 2000 });
+    expect(colWidth('name')).toBe('600px');
+    fireEvent.pointerUp(document, { clientX: 2000 });
+    expect(colWidth('name')).toBe('600px');
+    expect(handle('이름')).toHaveAttribute('aria-valuenow', '600');
+  });
+
   it('핸들 더블클릭은 그 열만 기본 폭으로 되돌리고, 남은 폭이 없으면 auto 레이아웃으로 돌아간다', async () => {
     renderTable();
     handle('이름').focus();
@@ -396,6 +409,24 @@ describe('DataTable 열 이동 (포인터)', () => {
     fireEvent.click(button);
     expect(th('이름')).toHaveAttribute('aria-sort', 'ascending');
     expect(headers()).toEqual(DEFAULT_HEADERS);
+  });
+
+  it('임계값 경계: 4px 이동은 클릭(정렬), 정확히 5px 이동부터 드래그 (QA #44 백로그 3)', () => {
+    renderTable();
+    const button = sortButton('이름');
+    fireEvent.pointerDown(button, { pointerType: 'mouse', clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(document, { clientX: 14, clientY: 10 });
+    expect(ghost()).toBeNull();
+    fireEvent.pointerUp(document, { clientX: 14, clientY: 10 });
+    fireEvent.click(button);
+    expect(th('이름')).toHaveAttribute('aria-sort', 'ascending');
+
+    fireEvent.pointerDown(button, { pointerType: 'mouse', clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(document, { clientX: 13, clientY: 14 }); // 대각선 √(9+16) = 5px
+    expect(ghost()).not.toBeNull();
+    fireEvent.pointerUp(document, { clientX: 13, clientY: 14 });
+    fireEvent.click(button);
+    expect(th('이름')).toHaveAttribute('aria-sort', 'ascending'); // 드래그 직후 click 은 정렬하지 않음
   });
 
   it('5px 이상 끌면 고스트·삽입선을 보이고, 놓으면 이동하며 직후 click 은 정렬하지 않는다', () => {
