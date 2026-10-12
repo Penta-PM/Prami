@@ -93,7 +93,7 @@ describe('Segmented 활성 pill (§3.3 세그먼트 탭 — layoutId)', () => {
 
 describe('CalculatorTabs 탭 전환 (§3.3 — 퇴장 없음, mode="wait" 금지)', () => {
   it('탭을 바꾸면 새 콘텐츠가 즉시 DOM 에 있고 바로 상호작용할 수 있다', async () => {
-    render(<CalculatorTabs preload={[]} savedQuotes={[]} canSeeCost />);
+    render(<CalculatorTabs userId="u" preload={[]} savedQuotes={[]} canSeeCost />);
     expect(screen.getByRole('region', { name: '견적 계산기 본문' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '순매출 계산기 본문' })).not.toBeInTheDocument();
 
@@ -112,7 +112,9 @@ describe('CalculatorTabs 탭 전환 (§3.3 — 퇴장 없음, mode="wait" 금지
   });
 
   it('initialTab 으로 시작한 첫 렌더 콘텐츠는 숨김 initial 없이 바로 보인다 (서버 렌더 보호)', () => {
-    render(<CalculatorTabs preload={[]} savedQuotes={[]} canSeeCost initialTab="margin" />);
+    render(
+      <CalculatorTabs userId="u" preload={[]} savedQuotes={[]} canSeeCost initialTab="margin" />,
+    );
     const region = screen.getByRole('region', { name: '순매출 계산기 본문' });
     const wrapper = region.parentElement as HTMLElement;
     // 첫 렌더에는 opacity:0 / y 이동 인라인 스타일이 붙지 않는다 (정지 상태는 '' 또는 'none')

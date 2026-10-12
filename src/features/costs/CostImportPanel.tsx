@@ -18,6 +18,8 @@ import {
 import { applyCostImportAction } from './actions';
 
 type CostImportPanelProps = {
+  /** 현재 사용자 id — 업로드 미리보기 표의 열 설정 저장 키 (#32) */
+  userId: string;
   options: readonly BatchOption[];
   currentBatchId: string | null;
 };
@@ -40,7 +42,7 @@ const STAT_LABELS: readonly [keyof Stats, string][] = [
  * 원가 파일 적용 (§4.4.7, R-11 과 같은 신규 업로드/기존 파일 재사용 모델). PR-3 ImportFileRow 재사용.
  * 디자인의 "업로드 적용 연도"는 판매단가와 같은 이유(연도 파일 개념 제거, R-05)로 두지 않는다.
  */
-export function CostImportPanel({ options, currentBatchId }: CostImportPanelProps) {
+export function CostImportPanel({ userId, options, currentBatchId }: CostImportPanelProps) {
   const router = useRouter();
   const [selection, setSelection] = useState<FileSelection>(
     currentBatchId
@@ -69,6 +71,7 @@ export function CostImportPanel({ options, currentBatchId }: CostImportPanelProp
   return (
     <section aria-label="원가 파일 적용" className="flex flex-col gap-2.5">
       <ImportFileRow
+        userId={userId}
         kind="costs"
         label="원가 파일"
         uploadLabel="구매단가 엑셀 업로드"

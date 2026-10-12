@@ -1,18 +1,10 @@
 'use client';
 
 import { m } from 'motion/react';
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  Button,
-  Modal,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-} from '@/components/ui';
+import { Button, Modal } from '@/components/ui';
+import { DataTable, DataTableResetButton, type DataTableColumn } from '@/components/ui/data-table';
 import { Presence } from '@/components/motion/Presence';
 import { formatDate } from '@/lib/date-format';
 import { VARIANT_KEYS, listItem, transition } from '@/lib/motion/tokens';
@@ -23,6 +15,8 @@ import { describeLine } from './cart';
 import type { CartLine, SavedQuoteView } from './types';
 
 type CartPanelProps = {
+  /** 현재 사용자 id — 견적 목록 표의 열 너비·순서 저장 키 (#32 스펙 §5) */
+  userId: string;
   lines: readonly CartLine[];
   saved: readonly SavedQuoteView[];
   isPending: boolean;
@@ -245,6 +239,7 @@ export function CartPanel(props: CartPanelProps) {
       <Presence>
         {listOpen ? (
           <SavedQuotesModal
+            userId={props.userId}
             saved={saved}
             onClose={() => setListOpen(false)}
             onReload={props.onReload}
@@ -265,96 +260,193 @@ function totalLabel(quote: SavedQuoteView): string {
   return '통화 혼합';
 }
 
+/** 열 너비·순서 저장 키의 표 구분자 (#32 스펙 §5) */
+const MY_QUOTES_TABLE_ID = 'my-quotes';
+
+/**
+ * 백드롭 클릭 오인 방지 (#32 스펙 §7 — 모달 안에서 정렬·드래그를 해도 닫히지 않는다).
+ * 브라우저는 pointerdown 과 pointerup 대상의 공통 조상에 click 을 보낸다. 헤더를 끌다가 대화상자 밖(백드롭)에서 놓으면
+ * 그 공통 조상이 <dialog> 자체라 Modal 의 "target === currentTarget → 백드롭 클릭" 판정에 걸려 닫힌다.
+ * 그래서 누르기가 패널 안에서 시작된 click 은 <dialog> 에 닿기 전에 window capture 에서 멈춘다.
+ * 백드롭에서 누르고 뗀 진짜 백드롭 클릭은 그대로 둔다.
+ */
+function useIgnoreBackdropClickFromInside() {
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let pressedInside = false;
+    const onPointerDown = (event: PointerEvent) => {
+      // 패널(제목·닫기 버튼 포함) 안 = <dialog> 의 자손. <dialog> 자신이 대상이면 백드롭에서 누른 것
+      const dialog = contentRef.current?.closest('dialog');
+      const target = event.target;
+      pressedInside =
+        !!dialog && target instanceof Node && target !== dialog && dialog.contains(target);
+    };
+    const onClick = (event: MouseEvent) => {
+      const dialog = contentRef.current?.closest('dialog');
+      const fromInside = pressedInside;
+      pressedInside = false;
+      if (fromInside && dialog && event.target === dialog) event.stopPropagation();
+    };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('click', onClick, true);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('click', onClick, true);
+    };
+  }, []);
+  return contentRef;
+}
+
 function SavedQuotesModal({
+  userId,
   saved,
   onClose,
   onReload,
   onDelete,
   onShare,
 }: {
+  userId: string;
   saved: readonly SavedQuoteView[];
   onClose: () => void;
   onReload: (quote: SavedQuoteView) => void;
   onDelete: (quote: SavedQuoteView) => void;
   onShare: (quote: SavedQuoteView) => void;
 }) {
+  const contentRef = useIgnoreBackdropClickFromInside();
+
+  // 부모가 넘기는 콜백은 렌더마다 새 함수라, 열 배열(저장 레이아웃 정규화 기준)을 고정하려고 최신 값을 ref 로 읽는다.
+  // ref 는 클릭 핸들러 안에서만 읽는다(렌더 중 읽기 없음)
+  const handlersRef = useRef({ onClose, onReload, onDelete, onShare });
+  useEffect(() => {
+    handlersRef.current = { onClose, onReload, onDelete, onShare };
+  });
+
+  // 열 배열은 저장 레이아웃 정규화의 기준이라 렌더마다 새로 만들지 않는다
+  const columns = useMemo<DataTableColumn<SavedQuoteView>[]>(
+    () => [
+      {
+        id: 'quoteNo',
+        header: '견적 번호',
+        type: 'text',
+        sortValue: (quote) => quote.quoteNo,
+        headerClassName: 'pl-5',
+        cellClassName: 'pl-5 whitespace-nowrap text-text-tertiary',
+        cell: (quote) => quote.quoteNo,
+      },
+      {
+        id: 'createdAt',
+        header: '일자',
+        type: 'date',
+        sortValue: (quote) => quote.createdAt,
+        cellClassName: 'whitespace-nowrap text-text-tertiary',
+        cell: (quote) => formatDate(quote.createdAt),
+      },
+      {
+        id: 'productFamily',
+        header: '제품',
+        type: 'text',
+        sortValue: (quote) => quote.productFamily,
+        cellClassName: 'font-semibold whitespace-nowrap',
+        cell: (quote) => quote.productFamily,
+      },
+      {
+        id: 'summary',
+        header: '내용',
+        type: 'text',
+        sortValue: (quote) => quote.summary,
+        cellClassName: 'text-text-secondary',
+        cell: (quote) => quote.summary,
+      },
+      {
+        id: 'totalAmount',
+        header: '금액',
+        type: 'number',
+        // 통화가 섞이면 통화로 먼저 묶고 같은 통화 안에서 금액순 (#32 스펙 §2). '통화 혼합' 견적은 빈 값 → 맨 뒤
+        sortValue: (quote) =>
+          quote.totalAmount && quote.currency
+            ? { amount: Number(quote.totalAmount), currency: quote.currency }
+            : null,
+        align: 'right',
+        cellClassName: 'font-semibold whitespace-nowrap',
+        cell: (quote) => totalLabel(quote),
+      },
+      {
+        id: 'actions',
+        header: ' ',
+        label: '관리',
+        type: 'none',
+        pinned: 'end',
+        align: 'right',
+        headerClassName: 'pr-5',
+        cellClassName: 'pr-5 whitespace-nowrap',
+        cell: (quote) => (
+          <>
+            <a
+              className="mr-1.5 text-[12px] font-semibold text-purple-600"
+              href={quotePdfHref(quote)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`${quote.quoteNo} PDF`}
+            >
+              PDF
+            </a>
+            <button
+              type="button"
+              aria-label={`${quote.quoteNo} 공유`}
+              className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-600"
+              onClick={() => handlersRef.current.onShare(quote)}
+            >
+              공유
+            </button>
+            <button
+              type="button"
+              aria-label={`${quote.quoteNo} 장바구니 담기`}
+              className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-600"
+              onClick={() => {
+                handlersRef.current.onReload(quote);
+                handlersRef.current.onClose();
+              }}
+            >
+              장바구니 담기
+            </button>
+            <button
+              type="button"
+              aria-label={`${quote.quoteNo} 삭제`}
+              className="border-0 bg-transparent text-[12px] font-semibold text-red-500"
+              onClick={() => handlersRef.current.onDelete(quote)}
+            >
+              삭제
+            </button>
+          </>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
     <Modal open onClose={onClose} title="내 견적 목록" className="w-[min(860px,calc(100vw-32px))]">
-      <div className="rounded-xl bg-surface-card shadow-(--hairline-default)">
-        <Table aria-label="견적 목록 표">
-          <TableHead className="bg-gray-75">
-            <TableRow>
-              <TableHeaderCell className="pl-5">견적 번호</TableHeaderCell>
-              <TableHeaderCell>일자</TableHeaderCell>
-              <TableHeaderCell>제품</TableHeaderCell>
-              <TableHeaderCell>내용</TableHeaderCell>
-              <TableHeaderCell className="text-right">금액</TableHeaderCell>
-              <TableHeaderCell className="pr-5 text-right"> </TableHeaderCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {saved.map((quote) => (
-              <TableRow key={quote.id}>
-                <TableCell className="pl-5 whitespace-nowrap text-text-tertiary">
-                  {quote.quoteNo}
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-text-tertiary">
-                  {formatDate(quote.createdAt)}
-                </TableCell>
-                <TableCell className="font-semibold whitespace-nowrap">
-                  {quote.productFamily}
-                </TableCell>
-                <TableCell className="text-text-secondary">{quote.summary}</TableCell>
-                <TableCell className="text-right font-semibold whitespace-nowrap">
-                  {totalLabel(quote)}
-                </TableCell>
-                <TableCell className="pr-5 text-right whitespace-nowrap">
-                  <a
-                    className="mr-1.5 text-[12px] font-semibold text-purple-600"
-                    href={quotePdfHref(quote)}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`${quote.quoteNo} PDF`}
-                  >
-                    PDF
-                  </a>
-                  <button
-                    type="button"
-                    aria-label={`${quote.quoteNo} 공유`}
-                    className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-600"
-                    onClick={() => onShare(quote)}
-                  >
-                    공유
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`${quote.quoteNo} 장바구니 담기`}
-                    className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-600"
-                    onClick={() => {
-                      onReload(quote);
-                      onClose();
-                    }}
-                  >
-                    장바구니 담기
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`${quote.quoteNo} 삭제`}
-                    className="border-0 bg-transparent text-[12px] font-semibold text-red-500"
-                    onClick={() => onDelete(quote)}
-                  >
-                    삭제
-                  </button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {saved.length === 0 ? (
-          <p className="m-0 p-8 text-center text-[13px] text-text-tertiary">
-            저장된 견적이 없습니다.
-          </p>
-        ) : null}
+      <div ref={contentRef}>
+        <div className="mb-2 flex justify-end">
+          <DataTableResetButton tableId={MY_QUOTES_TABLE_ID} userId={userId} columns={columns} />
+        </div>
+        <div className="rounded-xl bg-surface-card shadow-(--hairline-default)">
+          {/* 행에는 transform·layout 애니메이션을 걸지 않는다 (#32 스펙 §5, Motion 스펙 금지 2) */}
+          <DataTable
+            tableId={MY_QUOTES_TABLE_ID}
+            userId={userId}
+            columns={columns}
+            rows={saved}
+            getRowKey={(quote) => quote.id}
+            aria-label="견적 목록 표"
+            headClassName="bg-gray-75"
+          />
+          {saved.length === 0 ? (
+            <p className="m-0 p-8 text-center text-[13px] text-text-tertiary">
+              저장된 견적이 없습니다.
+            </p>
+          ) : null}
+        </div>
       </div>
     </Modal>
   );

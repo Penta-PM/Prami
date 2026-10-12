@@ -94,7 +94,7 @@ describe('NoticesAdminTable (AC-51)', () => {
         },
       })
       .mockResolvedValueOnce({ ok: true, data: { id: 'n3', title: '새 공지' } });
-    render(<NoticesAdminTable notices={NOTICES} defaultAuthor="픽스처 관리자" />);
+    render(<NoticesAdminTable notices={NOTICES} defaultAuthor="픽스처 관리자" userId="u1" />);
     const table = screen.getByRole('table', { name: '공지 관리 표' });
     expect(
       within(table)
@@ -137,7 +137,7 @@ describe('NoticesAdminTable (AC-51)', () => {
       ok: true,
       data: { id: NOTICES[0]!.id, title: '플랫폼 오픈 안내' },
     });
-    render(<NoticesAdminTable notices={NOTICES} defaultAuthor="x" />);
+    render(<NoticesAdminTable notices={NOTICES} defaultAuthor="x" userId="u1" />);
     await userEvent.click(screen.getByRole('button', { name: '하반기 일정 수정' }));
     const dialog = screen.getByRole('dialog', { name: '공지 수정' });
     expect(within(dialog).getByLabelText(/^제목/)).toHaveValue('하반기 일정');

@@ -34,6 +34,8 @@ type ImportFileRowProps = {
   /** 여러 파일을 한 배치로 (품목조회 1~5개, PRAMI-003 §4.2.3) */
   multiple?: boolean;
   note?: ReactNode;
+  /** 현재 사용자 id — 업로드 미리보기 표의 열 설정 저장 키 (#32 스펙 §5) */
+  userId: string;
 };
 
 type UploadResponse =
@@ -191,7 +193,7 @@ export function ImportFileRow(props: ImportFileRowProps) {
         ) : null}
       </Presence>
       {selection.mode === 'new' && selection.upload ? (
-        <UploadSummary kind={kind} data={selection.upload} />
+        <UploadSummary kind={kind} data={selection.upload} userId={props.userId} />
       ) : null}
     </div>
   );
