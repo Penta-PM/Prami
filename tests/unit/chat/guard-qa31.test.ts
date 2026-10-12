@@ -318,6 +318,9 @@ const COVERAGE2_CASES: Case[] = [
   ['F209 G6 어림 수사 + 만 + 어림', '원가는 몇만 정도입니다.', R],
   ['F210 G6 어림 수사 + 천 + 단위 명사(제외)', '원가 데이터는 수천 건입니다.', K],
   ['F211 G6 어림 수사 + 만 + 단위 명사(제외)', '원가 조회 사용자는 수만 명입니다.', K],
+  // Plan msg_2af875b35ffa: 통화 코드가 붙은 숫자는 제품코드가 아니다 — 기존 AMOUNT_CURRENCY_DIGIT 로 계속 R
+  ['F212 통화 코드 + 숫자 + 원가?(금액)', '원가는 KRW1000 원가?', R],
+  ['F213 통화 코드 + 숫자 + 원가(금액)', '원가는 USD500 원가', R],
 ];
 
 let ctx: ChatTestDb;
@@ -379,7 +382,7 @@ describe('#17 출력 가드 후속 F01~F119 (L-A·L-B·I-1·규칙 (b) 정정)',
   });
 });
 
-describe('출력 가드 2차 PR-2 F120~F211 (G1–G7·G10 + 경계)', () => {
+describe('출력 가드 2차 PR-2 F120~F213 (G1–G7·G10 + 경계)', () => {
   it.each(COVERAGE2_CASES)('%s', async (_id, text, expected) => {
     const reply = await run(text);
     expect(reply.mode).toBe('llm');
