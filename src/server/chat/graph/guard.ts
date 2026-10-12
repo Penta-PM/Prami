@@ -81,6 +81,8 @@ function hasCostWord(sentence: string): boolean {
  *    없을 때만 ("1,000 wonderful" 제외). '원'은 바로 앞에 공백이 있으면 (b)의 일반 명사 제외를 거친다 ("3 원칙" 제외).
  * 2. 통화 코드·기호 + 숫자 ("KRW 1,000", "JPY500", "€500"; ￦ 는 NFKC 로 ₩).
  * 3. 한글 수사 + 단위 + 원·달러 (KOREAN_NUMERAL_AMOUNT).
+ * 출력 가드 2차(스펙 output-guard-coverage-2 G1–G6·G10): 엔·円(AMOUNT_DIGIT_YEN·KOREAN_NUMERAL_YEN), 배수 접미 + 통화
+ * (hasScaleCurrency), 영어 수사 + 통화(AMOUNT_WORD_CURRENCY), '원' 없는 억·천·만(AMOUNT_SCALE_ONLY). 아래 각 정의 참고.
  *
  * 한글 수사 갈래 (#17 L-B). 한글은 \w 밖이라 `\b` 가 경계로 동작하지 않으므로 경계를 lookahead 로 명시한다.
  * (a) 수사 표현은 단위를 하나 이상 포함한다("사원"·"이원화" 제외, QA L-5). 마지막 단위가 조·억이면 앞에 수사나 다른 단위,
@@ -103,12 +105,18 @@ function hasCostWord(sentence: string): boolean {
  */
 const WON_COMMON_NOUN =
   '(?!(?:칙|본|장)(?=[을이은과으의에도만]|\\s)|리(?=[를가는와로의에도만]|\\s)|인(?=[을이은의과에으])|만(?=하게|히))';
+/**
+ * G10 (스펙 output-guard-coverage-2): 숫자 + 공백 + '원가'는 원가 단어다("WAPPLES-500 원가", "SA-200 원가는") — 금액 아님.
+ * 단 '원가' 바로 뒤가 량·까·치·격이면 '원 + 가량/가까이/가치/가격'이라 금액으로 둔다("1,000 원가량", "3,000 원가까이").
+ * 단위 없는 아라비아 숫자에만 적용한다(한글 수사·단위 + 공백 + '원가', 붙여 쓴 "500원가량"은 기존 그대로).
+ */
+const WON_COST_WORD = '(?!가(?![량까치격]))';
 const AMOUNT_DIGIT_WON = new RegExp(
-  `\\d[\\d,.]*(?:\\s*[십백천만억조]+)?(?:원|\\s+원${WON_COMMON_NOUN})`,
+  `\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN}${WON_COST_WORD})|\\d[\\d,.]*\\s*[십백천만억조]+(?:원|\\s+원${WON_COMMON_NOUN})`,
   'u',
 );
 const AMOUNT_DIGIT_CURRENCY =
-  /\d[\d,.]*\s*[십백천만억조]*\s*(엔|달러|[$₩€£¥]|(KRW|USD|JPY|EUR|CNY|GBP|dollars?|won|yen|euros?)(?![a-z]))/i;
+  /\d[\d,.]*\s*[십백천만억조]*\s*(달러|[$₩€£¥]|(KRW|USD|JPY|EUR|CNY|GBP|dollars?|won|yen|euros?)(?![a-z]))/i;
 const AMOUNT_CURRENCY_DIGIT = /(\b(KRW|USD|JPY|EUR|CNY|GBP)|[$₩￦€£¥])\s*\d/i;
 const DIGIT = '[일이삼사오육칠팔구]';
 const UNIT = '[십백천만억조]';
@@ -125,12 +133,73 @@ const KOREAN_NUMERAL_AMOUNT = new RegExp(
   'u',
 );
 
+/**
+ * 엔·円 (스펙 output-guard-coverage-2 G1·G2). 숫자 또는 한글 수사(+단위) 바로 뒤(공백 허용) '円'·'엔'.
+ * - '엔' 뒤가 진·지니어·드·터·트(엔진·엔지니어·엔드포인트·엔터·엔트리)면 일반어라 제외. '엔화'는 금액.
+ * - 숫자 바로 앞이 라틴 문자(버전·모델 토큰 "v2엔")면 제외. 숫자 중간에서 시작하지 않게 숫자·소수점·콤마 뒤도 제외.
+ * - 한글 수사는 앞이 한글 음절이면 제외(단어 중간·조사 '만' + "엔화" 오탐 방지).
+ */
+const YEN = '(?:円|엔(?!진|지니어|드|터|트))';
+const AMOUNT_DIGIT_YEN = new RegExp(`(?<![A-Za-z\\d.,])\\d[\\d,.]*\\s*${UNIT}*\\s*${YEN}`, 'u');
+const KOREAN_NUMERAL_YEN = new RegExp(
+  `(?<![가-힣])(?:(?:${DIGIT}?${UNIT})+|${ESTIMATE}\\s*[억조])\\s*${YEN}`,
+  'u',
+);
+
+/**
+ * 숫자 + 배수 접미(k·K·M·thousand·million·billion·bn) + 통화 (G3). 통화가 반드시 붙어야 한다("5k rows"·"4K video"·
+ * "1.5M users" 제외). 소문자 m(미터 등)은 배수로 보지 않는다. 통화 기호·코드가 앞에 오는 "$5k" 는 AMOUNT_CURRENCY_DIGIT.
+ */
+const CURRENCY_AFTER = `(?:원${WON_COMMON_NOUN}|달러|${YEN}|[$₩€£¥]|(?:KRW|USD|JPY|EUR|CNY|GBP|dollars?|won|yen|euros?)(?![a-z]))`;
+const AMOUNT_SCALE_CURRENCY = new RegExp(
+  `(?<![a-z\\d.,])\\d[\\d,.]*\\s*(k|m|thousand|million|billion|bn)(?![a-z])\\s*${CURRENCY_AFTER}`,
+  'giu',
+);
+
+function hasScaleCurrency(sentence: string): boolean {
+  for (const match of sentence.matchAll(AMOUNT_SCALE_CURRENCY)) if (match[1] !== 'm') return true;
+  return false;
+}
+
+/**
+ * 영어 수사 + 통화 (G4): 고정 단어 one–nineteen·twenty–ninety·hundred·thousand·million·billion(하이픈·공백·and 조합) +
+ * won·dollars·yen·euros·통화 코드. several·few 는 뒤에 hundred·thousand·million·billion 이 올 때만. a·some 은 수사가 아니다.
+ */
+const EN_NUMBER =
+  '(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion)\\b';
+const EN_SCALE = '(?:hundred|thousand|million|billion)\\b';
+const AMOUNT_WORD_CURRENCY = new RegExp(
+  `\\b(?:${EN_NUMBER}|(?:several|few)[-\\s]+${EN_SCALE})(?:(?:[-\\s]+(?:and\\s+)?)${EN_NUMBER})*\\s+(?:KRW|USD|JPY|EUR|CNY|GBP|dollars?|won|yen|euros?)(?![a-z])`,
+  'i',
+);
+
+/**
+ * '원' 없는 억·천·만·백만·천만 (G5·G6). 숫자·한글 수사·어림 수사(억 앞만) + 단위가 억·천·만으로 끝나고, 뒤가
+ * 문장 끝·구두점, 조사·서술어(붙여 씀), 어림(정도·가량·쯤·수준·내외, 붙여 쓰거나 띄어 씀, '대'는 억 뒤 붙여 쓴 것만)일 때 금액.
+ * - 뒤가 단위 명사(년·명·건·개·회·대수·종·번·가지·배·GB …)면 위 목록에 없으므로 금액이 아니다(가지·이상·이하·이내·에요 제외).
+ * - 조(G7)·백·십으로 끝나면 해당 없음("제3조"·"1조"). 수 표현은 끝까지 다 읽는다("3천만 명"의 '3천'+조사 '만' 로 끊지 않음).
+ * - 숫자 앞이 라틴 문자·숫자면 제외(모델·버전 토큰). 한글 수사·어림 수사는 앞이 한글 음절이면 제외(단어 중간 "…구억…").
+ * - 한글 수사는 수사 글자로 시작하거나 단위가 둘 이상일 때만("만이 아니라"·"천 정도"의 단독 단위 제외).
+ */
+const SCALE_NUMBER = `(?:(?<![A-Za-z\\d.,])\\d[\\d,.]*\\s?${UNIT}(?:(?:\\d[\\d,.]*|${DIGIT})?${UNIT})*|(?<![가-힣])(?=${DIGIT}|${UNIT}${DIGIT}?${UNIT})(?:${DIGIT}?${UNIT})+|(?<![가-힣])${ESTIMATE}\\s*억)`;
+const SCALE_APPROX = '(?:정도|가량|쯤|수준|내외)';
+const SCALE_FOLLOW = `(?:\\s*(?:$|[.!?。,)|/~])|이(?!상|하|내)|가(?!지)|[은는을를의도와과]|에(?!요)|으로|로|부터|까지|보다|씩|짜리|어치|임|인|입니|${SCALE_APPROX}|(?<=억)대(?![수표])|\\s+(?:입니다|이다|이에요|${SCALE_APPROX}))`;
+const AMOUNT_SCALE_ONLY = new RegExp(
+  `${SCALE_NUMBER}(?![십백천만억조\\d])(?<=[억천만])${SCALE_FOLLOW}`,
+  'u',
+);
+
 function isAmount(sentence: string): boolean {
   return (
     AMOUNT_DIGIT_WON.test(sentence) ||
     AMOUNT_DIGIT_CURRENCY.test(sentence) ||
     AMOUNT_CURRENCY_DIGIT.test(sentence) ||
-    KOREAN_NUMERAL_AMOUNT.test(sentence)
+    KOREAN_NUMERAL_AMOUNT.test(sentence) ||
+    AMOUNT_DIGIT_YEN.test(sentence) ||
+    KOREAN_NUMERAL_YEN.test(sentence) ||
+    hasScaleCurrency(sentence) ||
+    AMOUNT_WORD_CURRENCY.test(sentence) ||
+    AMOUNT_SCALE_ONLY.test(sentence)
   );
 }
 

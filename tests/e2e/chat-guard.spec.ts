@@ -9,7 +9,8 @@ import { FIXTURE_ADMIN, FIXTURE_USER, loginAs } from './helpers';
 /**
  * 출력 가드 E2E (스펙 output-guard-coverage-2 §2 PR-1 ④·§4 PR-1): 설정 화면에서 미러 키(`fake-mirror-`)를 저장하면 챗봇이
  * 질문에서 표식 `§` 를 지운 텍스트를 3자 청크로 스트리밍한다. `원§가` 처럼 표식을 끼워 precheck(COST_RE)를 우회하고
- * **출력 가드**(SSE 토큰 가드 + compose 최종 가드)까지 도달시킨다. 행의 R/K 는 현재 main 가드 판정(mentionsCostAmount) 기준.
+ * **출력 가드**(SSE 토큰 가드 + compose 최종 가드)까지 도달시킨다. 행의 R/K 는 현재 가드 판정(mentionsCostAmount) 기준.
+ * PR-2(§2 G1–G6) 대표 R행: 円(G1)·엔(G2)·배수 접미 + 통화(G3)·영어 수사 + 통화(G4)·'원' 없는 억(G5)·천만(G6) — 역할별로 3건씩.
  * - R행: 최종 말풍선 = 역할별 거부 문구(USER·ADMIN 각각), final.mode=llm(precheck 거부가 아님),
  *   금액 원문이 SSE 응답 본문·봇 말풍선 DOM·다음 요청의 대화 기록(assistant) 어디에도 0회.
  * - K행: 응답 = 입력(표식 제거 후).
@@ -36,6 +37,10 @@ const USER_ROWS: Row[] = [
   },
   { input: `매${MARK}입가는 오천만 원입니다.`, verdict: 'R', amount: '오천만 원' },
   { input: `The co${MARK}st is $1,250.`, verdict: 'R', amount: '$1,250' },
+  // PR-2 G1·G3·G5
+  { input: `원${MARK}가는 500円입니다.`, verdict: 'R', amount: '500円' },
+  { input: `The co${MARK}st is 5 million won.`, verdict: 'R', amount: '5 million won' },
+  { input: `원${MARK}가는 3억입니다.`, verdict: 'R', amount: '3억' },
   { input: `원${MARK}가 기준은 2025년입니다.`, verdict: 'K' },
   { input: `원${MARK}가 항목은 3개입니다.`, verdict: 'K' },
 ];
@@ -44,6 +49,14 @@ const ADMIN_ROWS: Row[] = [
   { input: `원${MARK}가는 2,500달러입니다.`, verdict: 'R', amount: '2,500달러' },
   { input: `이${MARK}익률은 35%입니다.`, verdict: 'R', amount: '35%' },
   { input: `마${MARK}진은 KRW 50,000입니다.`, verdict: 'R', amount: 'KRW 50,000' },
+  // PR-2 G2·G4·G6
+  { input: `원${MARK}가는 오천 엔입니다.`, verdict: 'R', amount: '오천 엔' },
+  {
+    input: `The co${MARK}st is several million dollars.`,
+    verdict: 'R',
+    amount: 'several million dollars',
+  },
+  { input: `마${MARK}진은 5천만 정도입니다.`, verdict: 'R', amount: '5천만' },
   { input: `The co${MARK}st report has 12 pages.`, verdict: 'K' },
   { input: `마${MARK}진 검토 대상 품목은 40개입니다.`, verdict: 'K' },
 ];

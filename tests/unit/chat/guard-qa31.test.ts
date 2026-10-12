@@ -213,6 +213,101 @@ const ISSUE17_CASES: Case[] = [
   ['F119 몇 조원끼리(구성원)', '원가 검토는 몇 조원끼리 나눠 합니다.', K],
 ];
 
+/**
+ * 출력 가드 미탐 보강 2차 PR-2 (스펙 output-guard-coverage-2 §2 G1–G7·G10, §4 PR-2) — 원가 단어와 같은 문장일 때만 쓰인다.
+ * G8(맨숫자·통화 없는 k 단독)·G9(일본어 원가 단어)는 비범위. 기존 F01~F119 기대값은 그대로다.
+ */
+const COVERAGE2_CASES: Case[] = [
+  // §4 PR-2 R 예문 — G1~G6·G10(원가량·원가까이 금액 유지). 영문 5k·1.5k 는 원가 단어가 있는 문장으로(규칙은 같은 문장에서만)
+  ['F120 G3 숫자 million won', 'The cost is 5 million won.', R],
+  ['F121 G3 50K USD', 'margin 50K USD', R],
+  ['F122 G3 5k won(원가 단어 문장)', 'cost is 5k won', R],
+  ['F123 G3 1.5k USD(원가 단어 문장)', '원가 1.5k USD', R],
+  ['F124 G3 1.2M 달러', '원가 1.2M 달러', R],
+  ['F125 G5 3억입니다', '원가는 3억입니다.', R],
+  ['F126 G6 5천만 정도', '마진은 5천만 정도입니다.', R],
+  ['F127 G5 몇 억 수준', '원가는 몇 억 수준입니다.', R],
+  ['F128 G1 500円', '원가는 500円입니다.', R],
+  ['F129 G2 오천 엔', '원가는 오천 엔입니다.', R],
+  ['F130 G2 5만엔', '원가는 5만엔입니다.', R],
+  ['F131 G4 five million won', 'The cost is five million won.', R],
+  ['F132 G4 one thousand won', 'one thousand won cost', R],
+  ['F133 G4 five dollars', 'cost of five dollars', R],
+  ['F134 G4 several million dollars', 'cost of several million dollars', R],
+  ['F135 G10 원가량(금액 유지)', '원가는 1,000 원가량입니다.', R],
+  ['F136 G10 원가까이(금액 유지)', '원가는 3,000 원가까이 됩니다.', R],
+  // §4 PR-2 K 예문 — main 의 엔 오탐 3문장(F143~F145)·G10 제품코드(F141·F150)는 main R → K (스펙 허용 R→K)
+  ['F137 연도', '원가 기준은 2025년입니다.', K],
+  ['F138 개수', '원가 항목은 3개입니다.', K],
+  ['F139 용량', '128GB 모델의 원가', K],
+  ['F140 G3 4K 모니터', '4K 모니터 원가는 제공하지 않습니다.', K],
+  ['F141 G10 WAPPLES-500 원가', 'WAPPLES-500 원가', K],
+  ['F142 G6 10만 건', '원가 데이터 10만 건', K],
+  ['F143 G2 엔지니어·엔진(main 엔 오탐 정정)', '원가 담당 엔지니어 2명이 5 엔진을 봅니다.', K],
+  ['F144 G2 엔드포인트(main 엔 오탐 정정)', '원가 계산 API는 3 엔드포인트로 구성됩니다.', K],
+  ['F145 G2 v2엔(main 엔 오탐 정정)', '원가 시스템은 v2엔 없습니다.', K],
+  ['F146 G7 제3조', '원가 원칙 제3조', K],
+  ['F147 G5 1억 명', '원가 사용자 1억 명', K],
+  ['F148 G6 3개만', '원가 검토는 3개만 하면 됩니다.', K],
+  ['F149 맨숫자 비범위(G8)', 'cost 1,000 wonderful', K],
+  ['F150 G10 SA-200 원가는', 'SA-200 원가는 제공하지 않습니다.', K],
+  // 경계: G5·G6 단위 명사·단어 중간·단독 단위 제외, 수 표현은 끝까지 읽음
+  ['F151 G5 3억 건', '원가 데이터 3억 건', K],
+  ['F152 G5 2억 개', '원가 부품 2억 개', K],
+  ['F153 G5 1억 년', '원가 이력 1억 년', K],
+  ['F154 G5 1억명(붙여 씀)', '원가 사용자 1억명', K],
+  ['F155 G5 1억 가지', '원가 조합은 1억 가지입니다.', K],
+  ['F156 G5 1억가지(붙여 씀)', '원가 조합은 1억가지', K],
+  ['F157 G5 1억 이상', '원가 데이터 1억 이상', K],
+  ['F158 G6 3천만 명(끝까지 읽음)', '원가 사용자 3천만 명', K],
+  ['F159 G6 2만 번', '원가 조회 2만 번', K],
+  ['F160 G6 2만 배', '원가 차이 2만 배', K],
+  ['F161 G6 1만 회', '원가 집계 1만 회', K],
+  ['F162 G6 2만 대(기기)', '원가 집계 대상 기기는 2만 대입니다.', K],
+  ['F163 G5 단어 중간 …구억…', '원가 연구억지 주장', K],
+  ['F164 G5 단어 중간 추억', '원가 추억이 있습니다.', K],
+  ['F165 G6 단독 만(조사)', '원가 만이 아니라 판매가도 봅니다.', K],
+  ['F166 G6 천만에요', '원가 문의 감사는 천만에요.', K],
+  // G5·G6 차단 형태 (문장 끝·서술어·어림·억대)
+  ['F167 G5 1억이다', '원가는 1억이다', R],
+  ['F168 G5 1억대', '원가는 1억대입니다.', R],
+  ['F169 G5 표 끝', '| 원가 | 3억 |', R],
+  ['F170 G5 수십억 정도', '원가는 수십억 정도', R],
+  ['F171 G6 이천만입니다', '원가는 이천만입니다.', R],
+  ['F172 G6 3억5000만 정도', '원가는 3억5000만 정도', R],
+  ['F173 G6 2천만 가량', '원가는 2천만 가량', R],
+  // G3 통화 필수·소문자 m 제외, G4 a·some 단독·several·few 는 scale 단어 앞만
+  ['F174 G3 5k rows(통화 없음)', 'The cost dashboard shows 5k rows.', K],
+  ['F175 G3 4K video(통화 없음)', 'The cost of 4K video encoding is not shown.', K],
+  ['F176 G3 1.5M users(통화 없음)', 'The cost for 1.5M users is not shown.', K],
+  ['F177 G3 소문자 m(배수 아님)', 'cost 5m won', K],
+  ['F178 G3 bn USD', 'cost 2bn USD', R],
+  ['F179 G4 a 단독', 'cost of a dollar store', K],
+  ['F180 G4 some 단독', 'cost some dollars', K],
+  ['F181 G4 several 단독', 'cost several dollars', K],
+  ['F182 G4 few 단독', 'cost a few dollars', K],
+  ['F183 G4 few hundred', 'the cost was a few hundred dollars', R],
+  ['F184 G4 하이픈 조합', 'cost of twenty-five thousand won', R],
+  // G1·G2 엔·円: 엔화 금액, 엔진·엔지니어·엔드포인트·엔터·엔트리·버전 토큰 제외, 한글 수사는 단어 중간 제외
+  ['F185 G2 엔화', '원가는 5,000 엔화입니다.', R],
+  ['F186 G2 엔화(수사 없음)', '원가는 엔화로 표시합니다.', K],
+  ['F187 G2 엔진', '원가 3 엔진', K],
+  ['F188 G2 엔터', '원가 입력은 2 엔터로 확정합니다.', K],
+  ['F189 G2 엔트리', '원가 표의 3 엔트리를 확인하세요.', K],
+  ['F190 G2 백엔드', '원가 백엔드 서버', K],
+  ['F191 G2 v2엔(끝)', '원가 v2엔', K],
+  ['F192 G2 조사 만 + 엔화', '원가만 엔화로 표시합니다.', K],
+  ['F193 G2 수억 엔', '원가는 수억 엔', R],
+  ['F194 G1 한글 수사 円', '원가는 오천 円', R],
+  // G7 조 제외, G10 숫자 + 공백 + 원가
+  ['F195 G7 1조', '원가 원칙 1조', K],
+  ['F196 G7 1조를', '원가 원칙 1조를 따릅니다.', K],
+  ['F197 G10 WAPPLES-500 원가는', 'WAPPLES-500 원가는 제공하지 않습니다.', K],
+  ['F198 G10 원가치(금액 유지)', '원가는 1,000 원가치', R],
+  ['F199 G10 원가격(금액 유지)', '원가는 1,000 원가격', R],
+  ['F200 G10 붙여 쓴 원가량(무변경)', '원가는 500원가량입니다.', R],
+];
+
 let ctx: ChatTestDb;
 beforeAll(async () => {
   ctx = await setupChatDb();
@@ -265,6 +360,15 @@ describe('미탐 방지 추가 케이스 (오탐 수정의 반대 방향)', () =
 
 describe('#17 출력 가드 후속 F01~F119 (L-A·L-B·I-1·규칙 (b) 정정)', () => {
   it.each(ISSUE17_CASES)('%s', async (_id, text, expected) => {
+    const reply = await run(text);
+    expect(reply.mode).toBe('llm');
+    if (expected === R) expect(reply.reply).toBe(COST_REPLY_USER);
+    else expect(reply.reply).toBe(text);
+  });
+});
+
+describe('출력 가드 2차 PR-2 F120~F200 (G1–G7·G10 + 경계)', () => {
+  it.each(COVERAGE2_CASES)('%s', async (_id, text, expected) => {
     const reply = await run(text);
     expect(reply.mode).toBe('llm');
     if (expected === R) expect(reply.reply).toBe(COST_REPLY_USER);

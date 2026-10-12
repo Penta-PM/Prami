@@ -66,6 +66,60 @@ function runTokenGuard(chunks: readonly string[]): { emitted: string; blocked: b
   return { emitted, blocked: guard.blocked };
 }
 
+/** 모든 분할 위치(2청크)·미러 3자 청크에서 토큰 가드 판정 = 문장 전체 판정, R 이면 내보낸 텍스트 0 */
+function expectStreamConsistent(sentence: string): void {
+  const whole = mentionsCostAmount(sentence);
+  const chars = Array.from(sentence);
+  const splits = chars
+    .slice(1)
+    .map((_, index) => [chars.slice(0, index + 1).join(''), chars.slice(index + 1).join('')]);
+  for (const chunks of [...splits, mirrorChunks(sentence)]) {
+    const { emitted, blocked } = runTokenGuard(chunks);
+    expect(blocked, `${sentence} @ ${JSON.stringify(chunks)}`).toBe(whole);
+    expect(emitted, `${sentence} @ ${JSON.stringify(chunks)}`).toBe(whole ? '' : sentence);
+  }
+}
+
+/**
+ * 출력 가드 2차 PR-2 (스펙 §4 PR-2) 규칙에 민감한 문장 — 청크 경계가 금액·통화·배수 접미·'엔'/'원가' 뒤 글자 사이에 걸려도
+ * 문장이 끝난 뒤 같은 판정을 내리는지. 영문 5k·1.5k 예문은 원가 단어가 있는 문장으로 둔다(규칙은 원가 단어와 같은 문장에서만 쓰임).
+ */
+const PR2_STREAM_CASES: [string, Verdict][] = [
+  ['The cost is 5 million won.', 'R'],
+  ['margin 50K USD', 'R'],
+  ['cost is 5k won', 'R'],
+  ['원가 1.5k USD', 'R'],
+  ['원가 1.2M 달러', 'R'],
+  ['원가는 3억입니다.', 'R'],
+  ['마진은 5천만 정도입니다.', 'R'],
+  ['원가는 몇 억 수준입니다.', 'R'],
+  ['원가는 500円입니다.', 'R'],
+  ['원가는 오천 엔입니다.', 'R'],
+  ['원가는 5만엔입니다.', 'R'],
+  ['The cost is five million won.', 'R'],
+  ['one thousand won cost', 'R'],
+  ['cost of five dollars', 'R'],
+  ['cost of several million dollars', 'R'],
+  ['원가는 1,000 원가량입니다.', 'R'],
+  ['원가는 3,000 원가까이 됩니다.', 'R'],
+  ['원가는 5,000 엔화입니다.', 'R'],
+  ['원가 기준은 2025년입니다.', 'K'],
+  ['원가 항목은 3개입니다.', 'K'],
+  ['128GB 모델의 원가', 'K'],
+  ['4K 모니터 원가는 제공하지 않습니다.', 'K'],
+  ['WAPPLES-500 원가', 'K'],
+  ['원가 데이터 10만 건', 'K'],
+  ['원가 담당 엔지니어 2명이 5 엔진을 봅니다.', 'K'],
+  ['원가 계산 API는 3 엔드포인트로 구성됩니다.', 'K'],
+  ['원가 시스템은 v2엔 없습니다.', 'K'],
+  ['원가 원칙 제3조', 'K'],
+  ['원가 사용자 1억 명', 'K'],
+  ['원가 검토는 3개만 하면 됩니다.', 'K'],
+  ['cost 1,000 wonderful', 'K'],
+  ['SA-200 원가는 제공하지 않습니다.', 'K'],
+  ['원가 사용자 3천만 명', 'K'],
+];
+
 describe('guard-corpus 픽스처', () => {
   it('원본 corpus7 집합이 그대로다 (sha256 일치)', () => {
     const original = Object.fromEntries(corpus._source.sets.map((set) => [set, corpus[set]]));
@@ -98,18 +152,13 @@ describe('main 판정 스냅샷', () => {
   });
 
   it('stream: 모든 분할 위치·3자 청크에서 토큰 가드 판정이 문장 전체 판정과 같다 (R 이면 내보낸 텍스트 0)', () => {
-    for (const row of corpus.stream!) {
-      const sentence = sentenceOf('stream', row);
-      const whole = mentionsCostAmount(sentence);
-      const chars = Array.from(sentence);
-      const splits = chars
-        .slice(1)
-        .map((_, index) => [chars.slice(0, index + 1).join(''), chars.slice(index + 1).join('')]);
-      for (const chunks of [...splits, mirrorChunks(sentence)]) {
-        const { emitted, blocked } = runTokenGuard(chunks);
-        expect(blocked, `${sentence} @ ${JSON.stringify(chunks)}`).toBe(whole);
-        expect(emitted, `${sentence} @ ${JSON.stringify(chunks)}`).toBe(whole ? '' : sentence);
-      }
+    for (const row of corpus.stream!) expectStreamConsistent(sentenceOf('stream', row));
+  });
+
+  it('PR-2 규칙 민감 문장(§4 R·K 예문 + 경계): 분할 위치·3자 청크와 무관하게 같은 판정', () => {
+    for (const [sentence, verdict] of PR2_STREAM_CASES) {
+      expect(verdictOf(sentence), sentence).toBe(verdict);
+      expectStreamConsistent(sentence);
     }
   });
 });
