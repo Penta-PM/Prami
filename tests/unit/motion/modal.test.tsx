@@ -453,8 +453,34 @@ describe('Modal 백드롭 판정 — 누름이 시작된 곳 (modal-backdrop-pre
     expect(dialog).not.toHaveAttribute('data-closing');
 
     fireEvent.pointerDown(dialog);
+    fireEvent.pointerUp(dialog);
     fireEvent.click(dialog);
     expect(dialog).toHaveAttribute('data-closing');
+    await waitFor(() => expect(dialog).not.toHaveAttribute('open'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('백드롭에서 누르고 패널 안에서 놓으면 닫히지 않는다 — onClose 0회 (Q-M1 = A)', async () => {
+    const onClose = vi.fn();
+    render(
+      <Modal open onClose={onClose} title="밖에서 안으로">
+        <span>내용</span>
+      </Modal>,
+      withMotion,
+    );
+    const dialog = screen.getByRole('dialog');
+    fireEvent.pointerDown(dialog);
+    fireEvent.pointerUp(screen.getByText('내용'));
+    fireEvent.click(dialog);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(dialog).toHaveAttribute('open');
+    expect(dialog).not.toHaveAttribute('data-closing');
+    expect(onClose).not.toHaveBeenCalled();
+
+    // 기록은 click 마다 비운다 — 이어지는 진짜 백드롭 클릭(누름·놓음 모두 백드롭)은 닫힌다
+    fireEvent.pointerDown(dialog);
+    fireEvent.pointerUp(dialog);
+    fireEvent.click(dialog);
     await waitFor(() => expect(dialog).not.toHaveAttribute('open'));
     expect(onClose).toHaveBeenCalledTimes(1);
   });

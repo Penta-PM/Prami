@@ -41,7 +41,7 @@ test('텍스트를 드래그 선택하다 백드롭에서 놓아도 모달이 �
   await expect(dialog).toBeHidden();
 });
 
-test('모달 헤더를 누른 채 백드롭으로 끌어 놓아도 닫히지 않고, Escape·× 는 닫는다', async ({
+test('모달 헤더를 누른 채 백드롭으로 끌어 놓거나 백드롭에서 눌러 안에서 놓아도 닫히지 않고, Escape·× 는 닫는다', async ({
   page,
 }) => {
   await loginAs(page, FIXTURE_ADMIN, '/admin/notices');
@@ -52,6 +52,14 @@ test('모달 헤더를 누른 채 백드롭으로 끌어 놓아도 닫히지 않
   await page.mouse.move(box.x + 4, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(BACKDROP.x, BACKDROP.y, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  await expect(dialog).toBeVisible();
+
+  // 백드롭에서 누르고 패널 안(제목)에서 놓아도 닫히지 않는다 (Q-M1 = A)
+  await page.mouse.move(BACKDROP.x, BACKDROP.y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 4, box.y + box.height / 2, { steps: 8 });
   await page.mouse.up();
   await page.waitForTimeout(400);
   await expect(dialog).toBeVisible();

@@ -57,8 +57,10 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
   const triggerRef = useRef<HTMLElement | null>(null);
   // m.div 가 'exit' 애니메이션을 실제로 시작했는지 (아래 안전장치 effect 참고)
   const exitStartedRef = useRef(false);
-  // 마지막 누름(pointerdown)이 패널 안(<dialog> 의 자손)에서 시작됐는지 — 백드롭 오인 닫힘 방지 (modal-backdrop-press-origin)
+  // 마지막 누름(pointerdown)·놓음(pointerup)이 패널 안(<dialog> 의 자손)이었는지 — 백드롭 오인 닫힘 방지
+  // (modal-backdrop-press-origin, Q-M1 = A: 누름·놓음이 모두 백드롭일 때만 닫힌다)
   const pressedInsideRef = useRef(false);
+  const releasedInsideRef = useRef(false);
 
   // <Presence> 아래에 있으면 언마운트가 isPresent=false 로 먼저 도착한다. 바깥에서는 항상 [true]
   const [isPresent, safeToRemove] = usePresence();
@@ -125,6 +127,7 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
       notifiedRef.current = false;
       exitStartedRef.current = false;
       pressedInsideRef.current = false;
+      releasedInsideRef.current = false;
       dialog.showModal();
     }
     // 부모가 닫는 퇴장 도중 다시 열리면 퇴장을 취소하고 열린 상태로 되돌린다 — onClose 는 부르지 않는다
@@ -175,17 +178,21 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
       onClose={handleNativeClose}
       // 백드롭 클릭 판정 (modal-backdrop-press-origin 스펙 §2). 브라우저는 click 을 pointerdown·pointerup 대상의 공통 조상으로
       // 보내므로, 패널 안에서 눌러 백드롭에서 놓으면(헤더 드래그·텍스트 선택·DataTable 리사이즈) click 대상이 <dialog> 자신이 된다.
-      // 그래서 누름이 패널 안에서 시작된 click 은 백드롭 클릭으로 보지 않는다(제외 방식).
+      // 그래서 누름이 패널 안에서 시작됐거나 놓음이 패널 안에서 끝난 click 은 백드롭 클릭으로 보지 않는다(제외 방식, Q-M1 = A).
       // - 캡처 단계로 기록한다: DataTable 리사이즈 핸들은 pointerdown 에서 stopPropagation 하므로 버블 단계에는 오지 않는다.
       // - pointerdown 기록이 없는 click(합성 click·보조기술)은 기존대로 백드롭 클릭이다.
       // - portal 로 top-layer 위에 띄운 요소는 <dialog> 의 자손이 아니라 기록되지 않는다(현재 createPortal 사용 0건).
       onPointerDownCapture={(event) => {
         pressedInsideRef.current = event.target !== event.currentTarget;
       }}
+      onPointerUpCapture={(event) => {
+        releasedInsideRef.current = event.target !== event.currentTarget;
+      }}
       onClick={(event) => {
-        const pressedInside = pressedInsideRef.current;
+        const fromInside = pressedInsideRef.current || releasedInsideRef.current;
         pressedInsideRef.current = false;
-        if (event.target === event.currentTarget && !pressedInside) beginClose('user');
+        releasedInsideRef.current = false;
+        if (event.target === event.currentTarget && !fromInside) beginClose('user');
       }}
       className={cn(
         'm-auto w-[min(520px,calc(100vw-32px))] border-0 bg-transparent p-0 text-ink-900',
