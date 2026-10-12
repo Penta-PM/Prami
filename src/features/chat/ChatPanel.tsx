@@ -40,7 +40,14 @@ const bubbleEnter: Variants = {
 };
 
 export function ChatPanel() {
-  const { isOpen, close, launcherRef, statusEndpoint } = useChatPanel();
+  // 패널 동작은 '그리는지'(isShown) 기준 — 알림 드롭다운 퇴장을 기다리는 동안은 닫힌 패널과 같다 (#31)
+  const {
+    isShown: isOpen,
+    close,
+    launcherRef,
+    statusEndpoint,
+    onPanelExitComplete,
+  } = useChatPanel();
   const { status, applyLlm } = useChatStatus(statusEndpoint, isOpen);
   const [input, setInput] = useState('');
   const [showProductChips, setShowProductChips] = useState(false);
@@ -93,7 +100,7 @@ export function ChatPanel() {
   // 패널을 닫았다 열어도 메시지는 유지된다. 버블은 패널과 함께 마운트되는 Presence(initial={false}) 안에 있어
   // 패널을 다시 열 때 기존 메시지는 애니메이션 없이 최종 상태로, 열린 뒤 추가된 버블만 1회 fadeUp 한다 (§3.3 챗 메시지)
   return (
-    <Presence>
+    <Presence onExitComplete={onPanelExitComplete}>
       {isOpen ? (
         <m.aside
           key="chat-panel"
