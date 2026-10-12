@@ -30,6 +30,8 @@ import type {
 import { useCart } from './useCart';
 
 type QuoteCalculatorProps = {
+  /** 현재 사용자 id — 내 견적 목록 표의 열 설정 저장 키 (#32) */
+  userId: string;
   preload: readonly FamilyPreload[];
   savedQuotes: readonly SavedQuoteView[];
   /** 챗봇 견적 시작 링크(§4.5.9): 제품군을 먼저 고르고 품번이 목록에 있으면 선택해 둔다 */
@@ -81,7 +83,7 @@ function toggle(set: ReadonlySet<string>, code: string, on: boolean): ReadonlySe
  * → STEP6 할인율/목표금액 → 장바구니 → 견적 저장/목록/담기/삭제. 금액은 lib/pricing/quote.ts 순수 함수.
  * 서버 조회 결과는 "요청 키" 와 함께 보관해 선택이 바뀌면 이전 결과를 보여 주지 않는다 (effect 안에서 동기 setState 없음).
  */
-export function QuoteCalculator({ preload, savedQuotes, initial }: QuoteCalculatorProps) {
+export function QuoteCalculator({ userId, preload, savedQuotes, initial }: QuoteCalculatorProps) {
   const [family, setFamily] = useState(() =>
     initial?.family && preload.some((entry) => entry.family === initial.family)
       ? initial.family
@@ -394,6 +396,7 @@ export function QuoteCalculator({ preload, savedQuotes, initial }: QuoteCalculat
           </button>
         </div>
         <CartPanel
+          userId={userId}
           lines={cart.lines}
           saved={saved}
           isPending={isPending}

@@ -15,7 +15,12 @@ import {
 
 import { applyPartImportAction } from './actions';
 
-type PartsExcelPanelProps = { options: readonly BatchOption[]; onApplied: (text: string) => void };
+type PartsExcelPanelProps = {
+  options: readonly BatchOption[];
+  onApplied: (text: string) => void;
+  /** 업로드 미리보기 표 열 설정 저장 키 (#32 스펙 §5) */
+  userId: string;
+};
 
 type Stats = Extract<Awaited<ReturnType<typeof applyPartImportAction>>, { ok: true }>['data'];
 
@@ -23,7 +28,7 @@ type Stats = Extract<Awaited<ReturnType<typeof applyPartImportAction>>, { ok: tr
  * 엑셀 등록 (§4.5.6, AC-32): 2컬럼(모델품번, 파츠품번) 업로드 → 미리보기(존재하지 않는 품번은 오류 목록)
  * → 적용(모델별 전체 교체). PR-3 ImportFileRow 재사용.
  */
-export function PartsExcelPanel({ options, onApplied }: PartsExcelPanelProps) {
+export function PartsExcelPanel({ options, onApplied, userId }: PartsExcelPanelProps) {
   const [selection, setSelection] = useState<FileSelection>({
     mode: 'new',
     upload: null,
@@ -70,6 +75,7 @@ export function PartsExcelPanel({ options, onApplied }: PartsExcelPanelProps) {
         options={options}
         selection={selection}
         onChange={setSelection}
+        userId={userId}
       />
       <div className="flex items-center justify-end gap-2.5">
         {blocked ? (

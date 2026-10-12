@@ -27,12 +27,15 @@ const TAB_SHOWN = { opacity: 1, y: 0 } as const;
  * 첫 로드(서버 렌더) 콘텐츠는 숨김 initial 을 주지 않는다: 사용자가 탭을 바꾼 뒤부터만 애니메이션한다.
  */
 export function CalculatorTabs({
+  userId,
   preload,
   savedQuotes,
   canSeeCost,
   initialTab = 'quote',
   initial,
 }: {
+  /** 현재 사용자 id — 내 견적 목록 표의 열 설정 저장 키 (#32) */
+  userId: string;
   preload: readonly FamilyPreload[];
   savedQuotes: readonly SavedQuoteView[];
   canSeeCost: boolean;
@@ -60,7 +63,12 @@ export function CalculatorTabs({
         transition={transition.base}
       >
         {tab === 'quote' ? (
-          <QuoteCalculator preload={preload} savedQuotes={savedQuotes} initial={initial} />
+          <QuoteCalculator
+            userId={userId}
+            preload={preload}
+            savedQuotes={savedQuotes}
+            initial={initial}
+          />
         ) : (
           <MarginCalculator canSeeCost={canSeeCost} />
         )}

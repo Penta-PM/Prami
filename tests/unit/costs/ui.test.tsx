@@ -267,7 +267,7 @@ describe('CostBrowser', () => {
 describe('CostImportPanel', () => {
   it('현재 적용 배치가 있으면 재사용 기본, 적용 → 통계 + 같은 날짜 중복 그룹(전부/값 다름) + refresh', async () => {
     mocks.apply.mockResolvedValue({ ok: true, data: APPLY_RESULT });
-    render(<CostImportPanel options={[BATCH]} currentBatchId={BATCH.id} />);
+    render(<CostImportPanel userId="u" options={[BATCH]} currentBatchId={BATCH.id} />);
     expect(screen.getByLabelText('원가 파일 기존 배치')).toHaveValue(BATCH.id);
     await userEvent.click(screen.getByRole('button', { name: '원가 적용' }));
     expect(mocks.apply).toHaveBeenCalledWith({ batchId: BATCH.id, reused: true });
@@ -282,7 +282,7 @@ describe('CostImportPanel', () => {
   });
 
   it('적용 이력이 없으면 신규 업로드 모드이고 업로드 전에는 적용 불가', () => {
-    render(<CostImportPanel options={[]} currentBatchId={null} />);
+    render(<CostImportPanel userId="u" options={[]} currentBatchId={null} />);
     expect(screen.getByRole('button', { name: '원가 적용' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '구매단가 엑셀 업로드' })).toBeInTheDocument();
     expect(

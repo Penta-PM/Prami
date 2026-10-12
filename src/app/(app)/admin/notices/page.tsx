@@ -13,7 +13,7 @@ export default async function AdminNoticesPage() {
   const rows = await listNoticesWithBody(await getDb());
   return (
     <section aria-labelledby="page-title" className="flex flex-col">
-      <NoticesAdminTable notices={rows} defaultAuthor={actor.name} />
+      <NoticesAdminTable notices={rows} defaultAuthor={actor.name} userId={actor.id} />
     </section>
   );
 }

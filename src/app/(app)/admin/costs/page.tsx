@@ -58,7 +58,12 @@ export default async function AdminCostsPage({ searchParams }: AdminCostsPagePro
         이 화면과 원가 데이터는 관리자에게만 노출됩니다. 일반 사용자 API는 서버단에서 반환을
         차단합니다.
       </p>
-      <CostImportPanel options={options} currentBatchId={current?.batchId ?? null} />
+      {/* 페이지 접근은 세션 사용자만 통과하므로 userId 는 항상 있다 (null 은 세션 없는 스크립트용) */}
+      <CostImportPanel
+        userId={access.userId ?? ''}
+        options={options}
+        currentBatchId={current?.batchId ?? null}
+      />
       <CostFilters filter={filter} errors={errors} families={families} years={years} />
       <CostBrowser rows={page.rows} />
       <CostPagination

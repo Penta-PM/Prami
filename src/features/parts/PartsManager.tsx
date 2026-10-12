@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useCallback, useState, useTransition } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
@@ -19,6 +19,8 @@ type PartsManagerProps = {
   parts: readonly CatalogItemView[];
   mappings: readonly PartMappingView[];
   batchOptions: readonly BatchOption[];
+  /** 매핑 표의 열 너비·순서 저장 키 (#32 스펙 §5) */
+  userId: string;
 };
 
 const MODE_OPTIONS = [
@@ -32,7 +34,7 @@ type Flash = { tone: 'ok' | 'error'; text: string };
  * 파츠 관리 (§4.5.6, R-02): 수동 등록/엑셀 등록 토글, 모델별 전체 교체 저장(AC-30·31), 등록된 매핑 표.
  * 제품군 탭은 서버 컴포넌트(페이지)가 URL 로 다룬다.
  */
-export function PartsManager({ models, parts, mappings, batchOptions }: PartsManagerProps) {
+export function PartsManager({ models, parts, mappings, batchOptions, userId }: PartsManagerProps) {
   const router = useRouter();
   const [mode, setMode] = useState<PartsMode>('manual');
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
@@ -75,12 +77,13 @@ export function PartsManager({ models, parts, mappings, batchOptions }: PartsMan
       router.refresh();
     });
 
-  const edit = (mapping: PartMappingView) => {
+  // 매핑 표의 열 배열(useMemo) 의존성이라 안정적인 참조로 둔다 — setter 만 쓴다
+  const edit = useCallback((mapping: PartMappingView) => {
     setMode('manual');
     setSelectedModel(mapping.modelItemCode);
     setChecked(new Set(mapping.parts.map((part) => part.itemCode)));
     setEditing(true);
-  };
+  }, []);
 
   const remove = () =>
     startTransition(async () => {
@@ -140,13 +143,14 @@ export function PartsManager({ models, parts, mappings, batchOptions }: PartsMan
       ) : (
         <PartsExcelPanel
           options={batchOptions}
+          userId={userId}
           onApplied={(text) => {
             setFlash({ tone: 'ok', text });
             router.refresh();
           }}
         />
       )}
-      <PartsMappingTable mappings={mappings} onEdit={edit} onDelete={setDeleting} />
+      <PartsMappingTable mappings={mappings} onEdit={edit} onDelete={setDeleting} userId={userId} />
       <Presence>
         {deleting ? (
           <Modal

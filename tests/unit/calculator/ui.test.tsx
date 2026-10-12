@@ -118,7 +118,7 @@ beforeEach(() => {
 
 describe('QuoteCalculator', () => {
   it('STEP1 단가유형 = DB 목록, STEP3 품목 선택·파츠 체크·수량 → 할인 12.5% → 35,875,000원 → 장바구니 (AC-60~62)', async () => {
-    render(<QuoteCalculator preload={PRELOAD} savedQuotes={[]} />);
+    render(<QuoteCalculator userId="u" preload={PRELOAD} savedQuotes={[]} />);
     const priceTypes = within(screen.getByRole('group', { name: '단가 유형' })).getAllByRole(
       'button',
     );
@@ -213,7 +213,7 @@ describe('QuoteCalculator', () => {
       ],
     });
     mocks.remove.mockResolvedValue({ ok: true, data: { id: 'q1', quoteNo: 'Q-2026-0001' } });
-    render(<QuoteCalculator preload={PRELOAD} savedQuotes={[SAVED]} />);
+    render(<QuoteCalculator userId="u" preload={PRELOAD} savedQuotes={[SAVED]} />);
     await userEvent.click(
       await screen.findByRole('button', { name: 'Wapples-500 (H500 T2) (P10100015)' }),
     );
@@ -272,6 +272,7 @@ describe('QuoteCalculator', () => {
     mocks.options.mockResolvedValue({ ok: true, data: { parts: [], bundles: [], mapped: false } });
     const { unmount } = render(
       <QuoteCalculator
+        userId="u"
         preload={PRELOAD}
         savedQuotes={[]}
         initial={{ family: 'WAPPLES', itemCode: ITEM.itemCode }}
@@ -283,6 +284,7 @@ describe('QuoteCalculator', () => {
     unmount();
     render(
       <QuoteCalculator
+        userId="u"
         preload={PRELOAD}
         savedQuotes={[]}
         initial={{ family: 'WAPPLES', itemCode: 'NOPE-0001' }}
@@ -299,7 +301,7 @@ describe('QuoteCalculator', () => {
       data: [ITEM, { ...ITEM, itemCode: 'P2', itemName: 'Wapples-100', unitPrice: '9000000.00' }],
     });
     mocks.options.mockResolvedValue({ ok: true, data: { parts: [], bundles: [], mapped: false } });
-    render(<QuoteCalculator preload={PRELOAD} savedQuotes={[]} />);
+    render(<QuoteCalculator userId="u" preload={PRELOAD} savedQuotes={[]} />);
     await userEvent.click(
       await screen.findByRole('button', { name: 'Wapples-500 (H500 T2) (P10100015)' }),
     );
@@ -317,7 +319,7 @@ describe('QuoteCalculator', () => {
   });
 
   it('그룹 솔루션: 그룹 칩 → 하드웨어·상세 제품 수량 → 그룹 소계 → 그룹 라인 담기 (AC-33 UI)', async () => {
-    render(<QuoteCalculator preload={PRELOAD} savedQuotes={[]} />);
+    render(<QuoteCalculator userId="u" preload={PRELOAD} savedQuotes={[]} />);
     await userEvent.click(screen.getByRole('button', { name: 'WAPPLES 기본' }));
     expect(screen.getByTestId('group-subtotal')).toHaveTextContent('20,201,000원');
     await userEvent.click(screen.getByRole('button', { name: '상세 A 수량 감소' }));
@@ -413,7 +415,7 @@ describe('CartPanel', () => {
   };
 
   it('출력·공유 대상 견적이 없으면 출력·공유 비활성, 저장은 장바구니가 비어 있으면 비활성', () => {
-    render(<CartPanel {...base} activeQuote={null} />);
+    render(<CartPanel userId="u" {...base} activeQuote={null} />);
     expect(screen.getByRole('button', { name: '견적서 출력' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '견적 공유' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '견적 저장' })).toBeDisabled();
@@ -423,7 +425,9 @@ describe('CartPanel', () => {
 
   it('대상 견적이 있으면 출력 = PDF Route 링크(새 탭), 공유 = onShare (PR-8)', async () => {
     const onShare = vi.fn();
-    render(<CartPanel {...base} saved={[quote]} activeQuote={quote} onShare={onShare} />);
+    render(
+      <CartPanel userId="u" {...base} saved={[quote]} activeQuote={quote} onShare={onShare} />,
+    );
     const pdf = screen.getByRole('link', { name: 'Q-2026-0007 견적서 출력' });
     expect(pdf).toHaveAttribute('href', `/api/quotes/${quote.id}/pdf`);
     expect(pdf).toHaveAttribute('target', '_blank');

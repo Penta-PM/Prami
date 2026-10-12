@@ -65,6 +65,7 @@ function CartHarness({ initial }: { initial: CartLine[] }) {
         담기
       </button>
       <CartPanel
+        userId="u"
         lines={lines}
         saved={[]}
         isPending={false}
