@@ -24,10 +24,14 @@ export function TableBody(props: HTMLAttributes<HTMLTableSectionElement>) {
   return <tbody {...props} />;
 }
 
+/** 행 hover 배경은 본문 행에만 — thead 안의 TableRow 에는 붙지 않는다 (#32 스펙 §4) */
 export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
   return (
     <tr
-      className={cn('border-b border-border-subtle last:border-b-0 hover:bg-gray-75', className)}
+      className={cn(
+        'border-b border-border-subtle last:border-b-0 hover:bg-gray-75 [thead_&]:hover:bg-transparent',
+        className,
+      )}
       {...props}
     />
   );
