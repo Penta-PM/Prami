@@ -10,11 +10,17 @@ import {
 } from '@/server/chat/graph/messages';
 import { classifyResponse } from '@/server/chat/graph/refusal';
 import { streamChat } from '@/server/chat/graph/stream';
-import type { ChatReplyOut, ChatRuntime } from '@/server/chat/graph/types';
+import type { ChatReplyOut, ChatRuntime, ChatSettings } from '@/server/chat/graph/types';
 import { createOpenAIChatModel } from '@/server/llm/vendors/openai-chat';
 
 import { createOpenAIStub, type VendorTurn } from '../../fixtures/chat/vendor-http';
-import { ask, scriptedRuntime, setupChatDb, type ChatTestDb } from '../../helpers/chat';
+import {
+  ask,
+  RETRY_SAFE_SETTINGS,
+  scriptedRuntime,
+  setupChatDb,
+  type ChatTestDb,
+} from '../../helpers/chat';
 
 /**
  * AC-353 응답 판정 (PRAMI-003 §4.5.5 L-1) — 실제 OpenAI Responses 어댑터 + 전송 스텁, JSON·SSE 각각.
@@ -37,12 +43,16 @@ afterAll(async () => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-async function runtimeWith(turn: VendorTurn): Promise<ChatRuntime> {
+async function runtimeWith(
+  turn: VendorTurn,
+  settings?: Partial<ChatSettings>,
+): Promise<ChatRuntime> {
   const stub = createOpenAIStub([turn]);
   const runtime = scriptedRuntime(ctx.handle, {
     status: 'ready',
     vendor: 'openai',
     modelId: 'gpt-6.1-sol',
+    settings,
   });
   const credential = await runtime.resolveCredential();
   runtime.resolveCredential = async () => ({
@@ -211,7 +221,8 @@ describe('AC-353 응답 판정 — OpenAI Responses JSON·SSE (L-1)', () => {
       { error: { status: 500, body: { error: { type: 'server_error' } } } },
       { incomplete: { reason: 'max_output_tokens', text: PARTIAL } },
     ]);
-    const runtime = await runtimeWith({ text: 'unused' });
+    // 500 → 재시도(1~2s 지터) — 기본 timeoutMs 2000 과의 경합 방지
+    const runtime = await runtimeWith({ text: 'unused' }, RETRY_SAFE_SETTINGS);
     const credential = await runtime.resolveCredential();
     runtime.resolveCredential = async () => ({
       ...credential,

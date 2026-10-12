@@ -10,7 +10,9 @@
 - GitHub Free 플랜은 월 2,000분이다. 2026-10 은 이틀 만에 397분을 썼다(머지 1건 ≈ 50분).
 - 그래서 CI(`.github/workflows/ci.yml`)는 PR 에서만 돌고, 무거운 단계(lint·typecheck·unit coverage·build·integration·e2e)는
   PR 에 **`ci:run` 라벨이 있을 때만** 돈다. 라벨 없는 PR 은 secret scan 과 판정만(약 1분) 돈다.
-  판정은 job 로그에 `CI 판정: <문서 전용: secret scan만 | ci:run 없음: 경량 | 전체>` 로 남는다(`gh run view <id> --log | grep 'CI 판정:'`).
+  판정은 job 로그에 `CI 판정: <문서 전용: secret scan만 | ci:run 없음: 경량 | 다른 라벨 추가: 경량 | 전체>` 로 남는다
+  (`gh run view <id> --log | grep 'CI 판정:'`). "다른 라벨 추가: 경량"은 `ci:run` 이 이미 붙은 PR 에 다른 라벨을 더했을 때로,
+  전체를 다시 돌리지 않고 진행 중인 `ci:run` 실행도 취소하지 않는다.
 - 브랜치 보호·ruleset·필수 검사를 쓸 수 없다(Free 플랜 403). **CI 통과는 이 규칙으로만 강제된다.**
 - main push 실행은 없다. PR CI 는 `refs/pull/N/merge` 를 검증하므로, 머지 전에 PR 이 최신 main 을 포함하는지 확인하는 것으로 대신한다.
 
@@ -38,6 +40,8 @@
 ## 2. QA 검증 (로컬)
 
 - 스펙 수용 기준으로 실제 검증하고, **E2E 전체를 1회** 돌린다(새 DB, PR head SHA).
+- **문서 전용 PR**(생략 대상 경로 — `CLAUDE.md`·`README.md`·`docs/specs/**`·`docs/qa/**`·`docs/pipeline/**` — 만 바뀐 PR)은
+  QA E2E 전체 1회를 생략하고, QA 는 문서 검토와 secret scan 녹색만 확인한다. 생략 대상 밖의 경로가 하나라도 바뀌면 일반 규칙을 따른다.
 - Dev 와 QA 가 E2E 를 **동시에 돌리지 않는다**(4코어 호스트 과부하). 로컬 vitest 는 `--maxWorkers=2` 이하.
 - 반복 실행은 실패가 1회 나왔는데 main 에서 재현되지 않을 때만, **해당 스펙만** `--repeat-each=3`.
   전체 반복은 금지한다. 스펙에 "연속 N회"가 명시돼 있으면 그 지시를 따른다.

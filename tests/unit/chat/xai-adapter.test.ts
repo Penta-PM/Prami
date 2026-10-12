@@ -16,7 +16,14 @@ import { createXaiStub, XAI_ENCRYPTED_REASONING, type XaiTurn } from '../../fixt
 import { CHAT_FEATURES } from '@/server/chat/features/registry';
 import { assertNoCostKeys } from '@/server/chat/graph/guard';
 
-import { ask, captureSql, scriptedRuntime, setupChatDb, type ChatTestDb } from '../../helpers/chat';
+import {
+  ask,
+  captureSql,
+  RETRY_SAFE_SETTINGS,
+  scriptedRuntime,
+  setupChatDb,
+  type ChatTestDb,
+} from '../../helpers/chat';
 import { expectNoSecret } from '../../helpers/secret';
 
 /**
@@ -339,7 +346,8 @@ describe('xAI 오류 분류·진단 (§4.7.5, AC-358)', () => {
     async (label, turn, code, setup) => {
       for (const streaming of [false, true]) {
         const lines = captureLlmErrors();
-        const { runtime } = await xaiRuntime([turn], 'grok-4.7');
+        // 429·5xx 는 LangChain 재시도(1~2s 지터)를 거친다 — 기본 timeoutMs 2000 과의 경합 방지
+        const { runtime } = await xaiRuntime([turn], 'grok-4.7', RETRY_SAFE_SETTINGS);
         const result = streaming
           ? await runStream(runtime)
           : { raw: '', final: await ask(runtime, QUESTION) };
@@ -390,7 +398,7 @@ describe('xAI 오류 분류·진단 (§4.7.5, AC-358)', () => {
 
   it('네트워크 오류(fetch failed): 규칙 폴백, 키·질문 없음, chat.llm_error 1행 (vendor=xai)', async () => {
     const lines = captureLlmErrors();
-    const { runtime } = await xaiRuntime([{ networkError: true }], 'grok-4.7');
+    const { runtime } = await xaiRuntime([{ networkError: true }], 'grok-4.7', RETRY_SAFE_SETTINGS);
     const reply = await ask(runtime, QUESTION);
     expect(reply.mode).toBe('rule');
     expect(runtime.markRejected).not.toHaveBeenCalled();
@@ -404,7 +412,7 @@ describe('xAI 오류 분류·진단 (§4.7.5, AC-358)', () => {
   // 네트워크 → unavailable 은 §4.5.5 L-2(PR-1b #20, cause 체인 판정)
   it('네트워크 오류 → unavailable', async () => {
     const lines = captureLlmErrors();
-    const { runtime } = await xaiRuntime([{ networkError: true }], 'grok-4.7');
+    const { runtime } = await xaiRuntime([{ networkError: true }], 'grok-4.7', RETRY_SAFE_SETTINGS);
     const reply = await ask(runtime, QUESTION);
     expect(reply.setup?.status).toBe('unavailable');
     expect(diagnosticOf(lines).entry.code).toBe('unavailable');

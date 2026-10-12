@@ -3,13 +3,19 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 
 import { buildChatGraph } from '@/server/chat/graph/build';
 import { streamChat } from '@/server/chat/graph/stream';
-import type { ChatRuntime } from '@/server/chat/graph/types';
+import type { ChatRuntime, ChatSettings } from '@/server/chat/graph/types';
 import { debugMessageOf, describeLlmError, OTHER_TOKEN } from '@/server/llm/error-diagnostics';
 import { createOpenAIChatModel } from '@/server/llm/vendors/openai-chat';
 
 import { ScriptedChatModel } from '../../fixtures/chat/scripted-model';
 import { createOpenAIStub, type VendorTurn } from '../../fixtures/chat/vendor-http';
-import { ask, scriptedRuntime, setupChatDb, type ChatTestDb } from '../../helpers/chat';
+import {
+  ask,
+  RETRY_SAFE_SETTINGS,
+  scriptedRuntime,
+  setupChatDb,
+  type ChatTestDb,
+} from '../../helpers/chat';
 import { expectNoSecret } from '../../helpers/secret';
 
 /**
@@ -48,12 +54,17 @@ function captureLogs() {
       .map((line) => JSON.parse(line.text) as Line);
 }
 
-async function openAiRuntime(turns: VendorTurn[], requestId?: string): Promise<ChatRuntime> {
+async function openAiRuntime(
+  turns: VendorTurn[],
+  requestId?: string,
+  settings?: Partial<ChatSettings>,
+): Promise<ChatRuntime> {
   const stub = createOpenAIStub(turns);
   const runtime = scriptedRuntime(ctx.handle, {
     status: 'ready',
     vendor: 'openai',
     modelId: 'gpt-6.1-sol',
+    settings,
   });
   runtime.requestId = requestId;
   const credential = await runtime.resolveCredential();
@@ -256,7 +267,8 @@ describe('L-4 sdkErrorName · source 정확도 (AC-354 ③④)', () => {
     const unavailable: VendorTurn = {
       error: { status: 500, body: { error: { type: 'server_error', message: 'R2-500' } } },
     };
-    await ask(await openAiRuntime([unavailable]), '가격');
+    // 5xx 는 LangChain 재시도(1~2s 지터)를 거친다 — 기본 timeoutMs 2000 과의 경합 방지
+    await ask(await openAiRuntime([unavailable], undefined, RETRY_SAFE_SETTINGS), '가격');
     await ask(await openAiRuntime([REJECTED_400]), '가격');
     const [first, second] = logs('chat.llm_error');
     expect(first).toMatchObject({ code: 'unavailable', httpStatus: 500, attempts: 2 });
