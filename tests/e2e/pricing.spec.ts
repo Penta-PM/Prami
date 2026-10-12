@@ -71,7 +71,8 @@ test('USER 조회: 대분류 선택 → URL, 품목 마스터 없으면 중/소�
   page,
 }) => {
   await loginAs(page, FIXTURE_USER, '/pricing');
-  const major = page.getByLabel('대분류');
+  // 표 헤더·리사이즈 핸들도 '대분류' 이름을 가지므로(#32) 필터 드롭다운을 역할로 고른다
+  const major = page.getByRole('combobox', { name: '대분류' });
   const options = await major.locator('option').allInnerTexts();
   expect(options[0]).toBe('전체');
   await major.selectOption(options[1]!);
