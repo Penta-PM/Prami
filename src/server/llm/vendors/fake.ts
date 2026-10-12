@@ -15,6 +15,7 @@ import { defaultModelFor, modelsFor } from '../models';
  * | `fake-gemini400-` | 400 + details[].reason=API_KEY_INVALID (Gemini 식) |
  * | `fake-403-` | 403 |  `fake-429-` | 429 |  `fake-500-` | 500 |
  * | `fake-timeout-` | 네트워크 타임아웃 |
+ * | `fake-mirror-` | 200 + 상수 모델 전부 (검증은 정상 — 채팅에서 입력을 되돌려주는 미러 모델, fake-chat.ts) |
  * | `fake-echo-` | 벤더 SDK 처럼 **오류 메시지에 키를 그대로 반복**하며 실패 (노출 방지 테스트, AC-204) |
  */
 export type SimulatedResponse = { status: number; body: unknown } | { throw: Error };
@@ -54,8 +55,12 @@ function listResponse(secret: string, vendorId: string, url: string): SimulatedR
     vendorId,
     modelsFor(vendorId).map((model) => model.id),
   );
-  // 채팅 시점 오류만 흉내 내는 키(fake-404-·fake-refusal-)는 검증에서는 정상 (PR-B §9.1)
-  if (['fake-valid-', 'fake-404-', 'fake-refusal-'].some((prefix) => secret.startsWith(prefix))) {
+  // 채팅 시점 동작만 흉내 내는 키(fake-404-·fake-refusal-·fake-mirror-)는 검증에서는 정상 (PR-B §9.1, 가드 2차 PR-1)
+  if (
+    ['fake-valid-', 'fake-404-', 'fake-refusal-', 'fake-mirror-'].some((prefix) =>
+      secret.startsWith(prefix),
+    )
+  ) {
     return { status: 200, body: listBody(vendorId, all, null) };
   }
   if (secret.startsWith('fake-partial-')) {
