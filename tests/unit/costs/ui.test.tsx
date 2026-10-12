@@ -43,6 +43,8 @@ const ROW: CostRowView = {
   remark: null,
   source: 'erp',
 };
+/** CostBrowser 공통 props — 기본 필터(정렬 없음)·로그인 사용자 */
+const BROWSER = { filter: { dateMode: 'start' as const, page: 1 }, userId: 'u1' };
 const FAMILIES = [
   { family: 'WAPPLES', count: 294 },
   { family: 'D.AMO', count: 80 },
@@ -140,7 +142,10 @@ describe('CostFilters', () => {
 describe('CostBrowser', () => {
   it('디자인 헤더 8개, 원가·기간·상태 라벨, 기간 0일은 없음, 빈 결과 문구', () => {
     const { rerender } = render(
-      <CostBrowser rows={[ROW, { ...ROW, id: 4, source: 'manual', effectiveTo: '2024-01-01' }]} />,
+      <CostBrowser
+        rows={[ROW, { ...ROW, id: 4, source: 'manual', effectiveTo: '2024-01-01' }]}
+        {...BROWSER}
+      />,
     );
     const table = screen.getByRole('table', { name: '원가 표' });
     expect(
@@ -151,7 +156,7 @@ describe('CostBrowser', () => {
     expect(COST_COLUMNS.map((column) => column.label)).toEqual([
       '원자재 코드',
       '원자재명',
-      '분류',
+      '단위',
       '원가',
       '적용시작일',
       '적용기간',
@@ -164,7 +169,7 @@ describe('CostBrowser', () => {
     expect(first).toHaveTextContent('미사용');
     expect(second).toHaveTextContent('없음');
     expect(within(table).getAllByText('수동')).toHaveLength(1);
-    rerender(<CostBrowser rows={[]} />);
+    rerender(<CostBrowser rows={[]} {...BROWSER} />);
     expect(screen.getByText('검색 결과가 없습니다.')).toBeInTheDocument();
   });
 
@@ -179,7 +184,7 @@ describe('CostBrowser', () => {
         },
       })
       .mockResolvedValueOnce({ ok: true, data: { id: 3, operationStatus: '운영중' } });
-    render(<CostBrowser rows={[ROW]} />);
+    render(<CostBrowser rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByRole('button', { name: 'WAPPLES-100 (H100 T2) 수정' }));
     const dialog = screen.getByRole('dialog', { name: '원가 수정' });
     expect(within(dialog).getByText(/ERP 임포트 행을 수정하면/)).toBeInTheDocument();
@@ -215,7 +220,7 @@ describe('CostBrowser', () => {
         },
       })
       .mockResolvedValueOnce({ ok: true, data: { id: 9, operationStatus: '운영중' } });
-    render(<CostBrowser rows={[ROW]} />);
+    render(<CostBrowser rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByRole('button', { name: '+ 등록' }));
     const dialog = screen.getByRole('dialog', { name: '원가 등록' });
     expect(within(dialog).getByLabelText('단위 *')).toHaveValue('EA');
@@ -251,7 +256,7 @@ describe('CostBrowser', () => {
         },
       })
       .mockResolvedValueOnce({ ok: true, data: { id: 3 } });
-    render(<CostBrowser rows={[ROW]} />);
+    render(<CostBrowser rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByRole('button', { name: 'WAPPLES-100 (H100 T2) 삭제' }));
     const dialog = screen.getByRole('dialog', { name: '원가 삭제' });
     expect(dialog).toHaveTextContent('984,000원');

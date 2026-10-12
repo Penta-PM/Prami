@@ -1,5 +1,6 @@
 // 클라이언트(필터 UI)에서도 파싱하므로 JIT(eval) 탐지를 끈 zod 를 쓴다 (CSP, PR-11a QA L-1)
 import { z } from '@/lib/zod-jitless';
+import { appendSortParams, parseSortParams, type SortState } from '@/lib/table/sort-param';
 
 /**
  * 가격정책 조회 필터 (§4.5.1·§4.5.2) — URL 검색 파라미터가 곧 상태다(공유·뒤로가기·새로고침 유지).
@@ -10,6 +11,23 @@ export type DateMode = (typeof DATE_MODES)[number];
 
 /** 드롭다운 첫 항목 `전체` = 필터 없음 */
 export const ALL = '전체';
+
+/** 서버 정렬 화이트리스트 (#32 스펙 §3) — 표 열 id 와 같다. 관리(actions) 열은 정렬하지 않는다 */
+export const PRICE_SORT_IDS = [
+  'priceType',
+  'major',
+  'mid',
+  'minor',
+  'itemName',
+  'price',
+  'effectiveFrom',
+  'period',
+  'operationYears',
+  'itemStatus',
+  'status',
+  'remark',
+] as const;
+export type PriceSortId = (typeof PRICE_SORT_IDS)[number];
 
 export type PriceFilter = {
   major?: string;
@@ -22,6 +40,8 @@ export type PriceFilter = {
   to?: string;
   q?: string;
   page: number;
+  /** 단일 열 정렬. 없으면 기본 정렬(effective_from DESC, item_name, id) */
+  sort?: SortState<PriceSortId>;
 };
 
 export type FilterErrors = Partial<Record<'from' | 'to', string>>;
@@ -79,10 +99,14 @@ export function parsePriceFilter(params: Params): { filter: PriceFilter; errors:
   const mid = parsed.major ? parsed.mid : undefined;
   const minor = mid ? parsed.minor : undefined;
   const family = parsed.major ? undefined : parsed.family;
-  return { filter: { ...parsed, family, from, to, mid, minor }, errors };
+  const sort = parseSortParams(params, PRICE_SORT_IDS);
+  return {
+    filter: { ...parsed, family, from, to, mid, minor, ...(sort ? { sort } : {}) },
+    errors,
+  };
 }
 
-/** 필터 → 쿼리스트링 (기본값·빈 값·1페이지는 생략) */
+/** 필터 → 쿼리스트링 (기본값·빈 값·1페이지는 생략). sort·dir 는 항상 맨 뒤 (#32 §3, E2E URL 정규식 보호) */
 export function filterToQuery(filter: Partial<PriceFilter>): string {
   const params = new URLSearchParams();
   const entries: [string, string | number | undefined][] = [
@@ -99,7 +123,7 @@ export function filterToQuery(filter: Partial<PriceFilter>): string {
   for (const [key, value] of entries)
     if (value !== undefined && value !== '') params.set(key, String(value));
   const query = params.toString();
-  return query ? `?${query}` : '';
+  return appendSortParams(query ? `?${query}` : '', filter.sort);
 }
 
 /** 연도 퀵칩 = from=YYYY-01-01&to=YYYY-12-31 (R-B) */

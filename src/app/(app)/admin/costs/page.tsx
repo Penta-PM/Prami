@@ -65,7 +65,7 @@ export default async function AdminCostsPage({ searchParams }: AdminCostsPagePro
         currentBatchId={current?.batchId ?? null}
       />
       <CostFilters filter={filter} errors={errors} families={families} years={years} />
-      <CostBrowser rows={page.rows} />
+      <CostBrowser rows={page.rows} filter={filter} userId={access.userId ?? ''} />
       <CostPagination
         filter={filter}
         page={page.page}

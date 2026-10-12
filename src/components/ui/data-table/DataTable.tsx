@@ -592,6 +592,12 @@ export function DataTable<T>({
                 {ordered.map((column) => (
                   <TableCell
                     key={column.id}
+                    // 비데이터 칸(관리·액션)의 클릭은 행 클릭(상세 드로어 등)으로 번지지 않는다 — 버튼 사이 여백 포함
+                    onClick={
+                      column.type === 'none' && onRowClick
+                        ? (event) => event.stopPropagation()
+                        : undefined
+                    }
                     className={cn(
                       column.align && ALIGN_CLASSES[column.align],
                       fixed && 'overflow-hidden text-ellipsis',

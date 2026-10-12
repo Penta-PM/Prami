@@ -1,5 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { AuditFilters } from '@/features/audit/AuditFilters';
 import { AuditPagination } from '@/features/audit/AuditPagination';
@@ -12,6 +12,9 @@ import {
   toAuditCsv,
   type AuditDisplayRow,
 } from '@/lib/audit-format';
+
+// AuditTable 은 정렬을 router.push 로 바꾸는 client 컴포넌트다 (#32 PR-3)
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 /** 감사 로그 화면 (디자인 열: 일시·사용자·행위·대상·변경 전·변경 후·IP·결과) */
 const ROW: AuditDisplayRow = {
@@ -34,7 +37,11 @@ const FILTER = { page: 2, from: '2026-09-01', to: undefined, action: 'user.updat
 describe('AuditTable', () => {
   it('디자인 열 순서와 변경 전/후 요약, 결과 필을 렌더한다', () => {
     render(
-      <AuditTable rows={[ROW, { ...ROW, id: 2, result: 'denied', ip: null, before: null }]} />,
+      <AuditTable
+        rows={[ROW, { ...ROW, id: 2, result: 'denied', ip: null, before: null }]}
+        filter={{ page: 1 }}
+        userId="u1"
+      />,
     );
     const table = screen.getByRole('table', { name: '감사 로그' });
     expect(
@@ -50,7 +57,7 @@ describe('AuditTable', () => {
   });
 
   it('빈 결과 안내', () => {
-    render(<AuditTable rows={[]} />);
+    render(<AuditTable rows={[]} filter={{ page: 1 }} userId="u1" />);
     expect(screen.getByText('조건에 맞는 감사 로그가 없습니다.')).toBeInTheDocument();
   });
 });

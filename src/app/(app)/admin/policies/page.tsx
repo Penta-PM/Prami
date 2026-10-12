@@ -53,7 +53,12 @@ export default async function AdminPoliciesPage({ searchParams }: AdminPoliciesP
         currentItemId={current?.item?.id ?? null}
       />
       <RecentRuns runs={runs} />
-      <PricingSection mode="admin" basePath="/admin/policies" searchParams={await searchParams} />
+      <PricingSection
+        mode="admin"
+        basePath="/admin/policies"
+        searchParams={await searchParams}
+        userId={user.id}
+      />
     </section>
   );
 }

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Button, Input, Select } from '@/components/ui';
 import type { AuditFilter } from '@/server/audit/queries';
 
-/** 필터 폼 (GET). 결과는 URL 에 남아 새로고침·공유해도 유지된다 */
+/** 필터 폼 (GET). 결과는 URL 에 남아 새로고침·공유해도 유지된다. 조회하면 1페이지(page 미전송)·정렬 유지 */
 export function AuditFilters({ filter, actions }: { filter: AuditFilter; actions: string[] }) {
   return (
     <form
@@ -48,6 +48,13 @@ export function AuditFilters({ filter, actions }: { filter: AuditFilter; actions
           초기화
         </a>
       </div>
+      {/* 현재 정렬을 유지한다 — 폼의 마지막 컨트롤이라 쿼리 맨 뒤에 sort·dir 순으로 붙는다 (#32 스펙 §3) */}
+      {filter.sort ? (
+        <>
+          <input type="hidden" name="sort" value={filter.sort.id} />
+          <input type="hidden" name="dir" value={filter.sort.dir} />
+        </>
+      ) : null}
     </form>
   );
 }

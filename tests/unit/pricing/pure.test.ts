@@ -115,6 +115,25 @@ describe('필터 URL 상태 (§4.5.1·§4.5.2)', () => {
     expect(activeYear({ from: '2024-01-01', to: '2024-06-30' })).toBeNull();
     expect(filterToQuery({ dateMode: 'start', page: 1 })).toBe('');
   });
+
+  it('정렬 sort·dir 왕복 — 쿼리 맨 뒤, 화이트리스트 밖(id;drop)은 무시 (#32 §3)', () => {
+    const { filter } = parsePriceFilter({ q: 'H500', page: '3', sort: 'price', dir: 'desc' });
+    expect(filter).toMatchObject({ q: 'H500', page: 3, sort: { id: 'price', dir: 'desc' } });
+    const query = filterToQuery(filter);
+    expect(query).toBe('?q=H500&page=3&sort=price&dir=desc');
+    expect(query.endsWith('&sort=price&dir=desc')).toBe(true);
+    const back = parsePriceFilter(Object.fromEntries(new URLSearchParams(query.slice(1))));
+    expect(back.filter.sort).toEqual({ id: 'price', dir: 'desc' });
+    expect(filterToQuery({ dateMode: 'start', page: 1, sort: { id: 'remark', dir: 'asc' } })).toBe(
+      '?sort=remark&dir=asc',
+    );
+    expect(parsePriceFilter({ sort: 'id;drop', dir: 'asc' }).filter.sort).toBeUndefined();
+    expect(parsePriceFilter({ sort: 'actions' }).filter.sort).toBeUndefined();
+    expect(parsePriceFilter({ sort: 'itemStatus', dir: 'x' }).filter.sort).toEqual({
+      id: 'itemStatus',
+      dir: 'asc',
+    });
+  });
 });
 
 describe('등록 모달 폼 변환', () => {
