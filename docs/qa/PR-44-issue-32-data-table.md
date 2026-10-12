@@ -1,7 +1,8 @@
 # QA 기록 — PR #44 #32 PR-1 공용 data-table + UsersTable 파일럿
 
 - 대상: `feat/issue-32-data-table` @ `17d19b4` (base `origin/main` @ `3e07fdc`)
-- 판정 (1차, 2026-10-12): **반려 / CRITICAL 1건**
+- 판정 (2차, 2026-10-12, 45eb4ec): **통과 / 셀프머지 승인** — 검증 SHA: 45eb4ec (CRITICAL 해소)
+- 판정 (1차, 2026-10-12): 반려 / CRITICAL 1건
 - 스펙: `docs/specs/issue-32-table-sort-resize-reorder.md` §2·§4·§5·§7·§9
 
 ## CRITICAL
@@ -18,3 +19,8 @@
 4. number 정렬에 서식 문자열을 넘기면 NaN 으로 순서가 깨짐 (PR-2·3 전 처리 권장)
 5. 앞 공백 이름 정렬이 화면상 어색함
 6. 관리 열에도 리사이즈 핸들 존재 (스펙상 허용)
+
+## 2차 재검증 (45eb4ec)
+- axe aria-required-attr 0 (기본·리사이즈·재배치·375), aria-valuenow = 실제 열 폭(창 크기 변경·열 초기화 추종), 하이드레이션·렌더 루프 0
+- 새 테스트가 수정 되돌림을 잡음(offsetWidth mock 으로 값 단언). 단위 2006, E2E 65/66 + quote-share flake(main·PR 각 repeat 3 → 6/6)
+- 추가 백로그: auto 레이아웃 aria-valuenow 가 min(60) 아래로 나올 수 있음(clamp 없음), 원래 폭으로 되돌려도 지정 폭으로 저장돼 열 초기화 활성, quote-share 계정 전환 flake
