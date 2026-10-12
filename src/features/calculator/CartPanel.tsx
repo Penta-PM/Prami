@@ -263,40 +263,6 @@ function totalLabel(quote: SavedQuoteView): string {
 /** 열 너비·순서 저장 키의 표 구분자 (#32 스펙 §5) */
 const MY_QUOTES_TABLE_ID = 'my-quotes';
 
-/**
- * 백드롭 클릭 오인 방지 (#32 스펙 §7 — 모달 안에서 정렬·드래그를 해도 닫히지 않는다).
- * 브라우저는 pointerdown 과 pointerup 대상의 공통 조상에 click 을 보낸다. 헤더를 끌다가 대화상자 밖(백드롭)에서 놓으면
- * 그 공통 조상이 <dialog> 자체라 Modal 의 "target === currentTarget → 백드롭 클릭" 판정에 걸려 닫힌다.
- * 그래서 누르기가 패널 안에서 시작된 click 은 <dialog> 에 닿기 전에 window capture 에서 멈춘다.
- * 백드롭에서 누르고 뗀 진짜 백드롭 클릭은 그대로 둔다.
- */
-function useIgnoreBackdropClickFromInside() {
-  const contentRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    let pressedInside = false;
-    const onPointerDown = (event: PointerEvent) => {
-      // 패널(제목·닫기 버튼 포함) 안 = <dialog> 의 자손. <dialog> 자신이 대상이면 백드롭에서 누른 것
-      const dialog = contentRef.current?.closest('dialog');
-      const target = event.target;
-      pressedInside =
-        !!dialog && target instanceof Node && target !== dialog && dialog.contains(target);
-    };
-    const onClick = (event: MouseEvent) => {
-      const dialog = contentRef.current?.closest('dialog');
-      const fromInside = pressedInside;
-      pressedInside = false;
-      if (fromInside && dialog && event.target === dialog) event.stopPropagation();
-    };
-    window.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('click', onClick, true);
-    return () => {
-      window.removeEventListener('pointerdown', onPointerDown, true);
-      window.removeEventListener('click', onClick, true);
-    };
-  }, []);
-  return contentRef;
-}
-
 function SavedQuotesModal({
   userId,
   saved,
@@ -312,8 +278,6 @@ function SavedQuotesModal({
   onDelete: (quote: SavedQuoteView) => void;
   onShare: (quote: SavedQuoteView) => void;
 }) {
-  const contentRef = useIgnoreBackdropClickFromInside();
-
   // 부모가 넘기는 콜백은 렌더마다 새 함수라, 열 배열(저장 레이아웃 정규화 기준)을 고정하려고 최신 값을 ref 로 읽는다.
   // ref 는 클릭 핸들러 안에서만 읽는다(렌더 중 읽기 없음)
   const handlersRef = useRef({ onClose, onReload, onDelete, onShare });
@@ -426,27 +390,25 @@ function SavedQuotesModal({
 
   return (
     <Modal open onClose={onClose} title="내 견적 목록" className="w-[min(860px,calc(100vw-32px))]">
-      <div ref={contentRef}>
-        <div className="mb-2 flex justify-end">
-          <DataTableResetButton tableId={MY_QUOTES_TABLE_ID} userId={userId} columns={columns} />
-        </div>
-        <div className="rounded-xl bg-surface-card shadow-(--hairline-default)">
-          {/* 행에는 transform·layout 애니메이션을 걸지 않는다 (#32 스펙 §5, Motion 스펙 금지 2) */}
-          <DataTable
-            tableId={MY_QUOTES_TABLE_ID}
-            userId={userId}
-            columns={columns}
-            rows={saved}
-            getRowKey={(quote) => quote.id}
-            aria-label="견적 목록 표"
-            headClassName="bg-gray-75"
-          />
-          {saved.length === 0 ? (
-            <p className="m-0 p-8 text-center text-[13px] text-text-tertiary">
-              저장된 견적이 없습니다.
-            </p>
-          ) : null}
-        </div>
+      <div className="mb-2 flex justify-end">
+        <DataTableResetButton tableId={MY_QUOTES_TABLE_ID} userId={userId} columns={columns} />
+      </div>
+      <div className="rounded-xl bg-surface-card shadow-(--hairline-default)">
+        {/* 행에는 transform·layout 애니메이션을 걸지 않는다 (#32 스펙 §5, Motion 스펙 금지 2) */}
+        <DataTable
+          tableId={MY_QUOTES_TABLE_ID}
+          userId={userId}
+          columns={columns}
+          rows={saved}
+          getRowKey={(quote) => quote.id}
+          aria-label="견적 목록 표"
+          headClassName="bg-gray-75"
+        />
+        {saved.length === 0 ? (
+          <p className="m-0 p-8 text-center text-[13px] text-text-tertiary">
+            저장된 견적이 없습니다.
+          </p>
+        ) : null}
       </div>
     </Modal>
   );
