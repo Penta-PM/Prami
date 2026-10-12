@@ -23,6 +23,7 @@ import { CredentialUnreadableError, isSealedIntact, openSecret, sealSecret } fro
 import type { KeyProvider } from './keyring';
 import { maskKey } from './mask';
 import {
+  clearOwnDefaultsForVendor,
   deleteOwn,
   findCredentialRow,
   insertSealed,
@@ -334,6 +335,18 @@ export async function deleteOwnCredential(
         target: { type: 'llm_credential', id: input.vendor, label: input.vendor },
         before: { vendor: before.vendor },
         after: null,
+        meta: ctx.meta,
+      });
+    }
+    // 삭제한 벤더가 기본값이면 같은 트랜잭션에서 비운다 (#17 I-3). 교체(storeSealed)는 이 경로를 타지 않는다
+    const clearedDefaults = await clearOwnDefaultsForVendor(tx, ctx.actor.id, input.vendor);
+    if (clearedDefaults) {
+      await writeAudit(tx, {
+        actor: ctx.actor,
+        action: AUDIT_ACTIONS.llmDefaultUpdate,
+        target: { type: 'user_settings', id: ctx.actor.id, label: ctx.actor.label },
+        before: clearedDefaults,
+        after: { vendor: null, model: null },
         meta: ctx.meta,
       });
     }

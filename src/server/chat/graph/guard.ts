@@ -62,19 +62,78 @@ const SALE_PRICE_SIGNAL =
 const COST_CONTEXT =
   /\b(?:the|our|its|their|your|unit|total|material|production|purchase|internal)\s+costs\b|\bcosts\s*[:=]|\bcosts\s+us\b|\bto\s+(?:make|produce|manufacture|build|procure)\b|\bmaterials?\b/i;
 
+/**
+ * 매출원가 약어 COGS (#17 I-1) — 대소문자를 구분하는 별도 정규식. 소문자 `cogs`(톱니)는 오탐 방지를 위해 제외한다.
+ * `cost of goods sold` 는 COST_WORD 의 `\bcost\b` 로 이미 잡힌다.
+ */
+const COGS_WORD = /\bCOGS\b/;
+
 function hasCostWord(sentence: string): boolean {
-  if (COST_WORD.test(sentence)) return true;
+  if (COST_WORD.test(sentence) || COGS_WORD.test(sentence)) return true;
   if (!COSTS_WORD.test(sentence)) return false;
   const saleSentence = COSTS_AS_PRICE_VERB.test(sentence) && SALE_PRICE_SIGNAL.test(sentence);
   return !saleSentence || COST_CONTEXT.test(sentence);
 }
 
 /**
- * 금액: 아라비아 숫자(+만·천·억 단위) + 통화, `$`·`₩` 기호 + 숫자(￦ 는 NFKC 로 ₩), 한글 수사 + 통화.
- * 한글 수사는 자릿수 단위(십·백·천·만·억·조)를 하나 이상 포함해야 한다 — "사원"·"이원화" 같은 일반어 오탐 방지 (QA L-5).
+ * 금액 (#17 L-A·L-B) — 세 갈래 중 하나라도 맞으면 금액이다 (isAmount).
+ * 1. 아라비아 숫자 + (한글 단위) + 통화 (AMOUNT_DIGIT_WON·AMOUNT_DIGIT_CURRENCY). won·yen·dollars·euros 는 뒤에 영문자가
+ *    없을 때만 ("1,000 wonderful" 제외). '원'은 바로 앞에 공백이 있으면 (b)의 일반 명사 제외를 거친다 ("3 원칙" 제외).
+ * 2. 통화 코드·기호 + 숫자 ("KRW 1,000", "JPY500", "€500"; ￦ 는 NFKC 로 ₩).
+ * 3. 한글 수사 + 단위 + 원·달러 (KOREAN_NUMERAL_AMOUNT).
+ *
+ * 한글 수사 갈래 (#17 L-B). 한글은 \w 밖이라 `\b` 가 경계로 동작하지 않으므로 경계를 lookahead 로 명시한다.
+ * (a) 수사 표현은 단위를 하나 이상 포함한다("사원"·"이원화" 제외, QA L-5). 마지막 단위가 조·억이면 앞에 수사나 다른 단위,
+ *     또는 어림 수사(수·몇·십수·수십·수백·수천)가 있어야 한다 — `조원`(구성원)·`강조 원칙` 의 단독 '조' 는 금액이 아니고,
+ *     "수억원"·"몇억원"·"십수억원"은 금액이다. 십·백·천·만은 단독으로도 금액("천원", "만원").
+ * (b) 단위(또는 숫자)와 '원' 사이에 공백이 있어도 기본은 금액이다(누설 방지 우선, 거부 목록 — 스펙 '규칙 (b) 정정').
+ *     '원' 뒤가 일반 명사 원칙·원리·원본·원장·원인에 조사가 붙은 형태이거나 '원만하게'·'원만히' 일 때만 제외한다.
+ *     main 이 막던 문장을 새로 통과시키지 않는다(Plan '새 누설 0 원칙') — 문장 끝·구두점 앞 명사("1,000 원리"),
+ *     원리금·원래·원장부가·원칙적으로 등은 금액이다. 목록에 없는 일반 명사("3 원소")와 조사 없는 명사("3 원칙")는
+ *     금액으로 남는다(main 과 같은 동작).
+ * (c) 공백 없이 붙은 '원'("삼천원", "오천만원", "1,000원")은 뒤와 상관없이 금액. '달러'는 공백과 상관없이 금액("이백 달러").
+ * 예외: 공백 없는 단독 '억원대'·'조원대'는 금액대 표현이라 (a)와 별개로 금액이다. 단 뒤에 '표'가 오면(조원대표) 제외.
  */
-const AMOUNT =
-  /\d[\d,.]*\s*(만|천|억|백만|천만)?\s*(원|KRW|USD|JPY|\$|₩|엔|달러|dollars?)|[$₩￦]\s*\d|(?:[일이삼사오육칠팔구]?[십백천만억조])+\s*(원|달러)/i;
+/**
+ * (b) 공백 뒤 '원'이 일반 명사로 이어지는 경우 — 이때만 금액이 아니다.
+ * - 원칙·원본·원장(받침): 뒤에 조사(을·이·은·과·으로·의·에·도·만) 또는 공백
+ * - 원리(받침 없음): 뒤에 조사(를·가·는·와·로·의·에·도·만) 또는 공백 — 원리금 제외
+ * - 원인: 뒤에 조사 을·이·은·의·과·에·으 만 (원인데·원인지·원인가·원인 경우·문장 끝 원인은 금액)
+ * - 원만: '원만하게'·'원만히' 만 (Q2 K행). 원래·원대는 제외하지 않는다
+ */
+const WON_COMMON_NOUN =
+  '(?!(?:칙|본|장)(?=[을이은과으의에도만]|\\s)|리(?=[를가는와로의에도만]|\\s)|인(?=[을이은의과에으])|만(?=하게|히))';
+const AMOUNT_DIGIT_WON = new RegExp(
+  `\\d[\\d,.]*(?:\\s*[십백천만억조]+)?(?:원|\\s+원${WON_COMMON_NOUN})`,
+  'u',
+);
+const AMOUNT_DIGIT_CURRENCY =
+  /\d[\d,.]*\s*[십백천만억조]*\s*(엔|달러|[$₩€£¥]|(KRW|USD|JPY|EUR|CNY|GBP|dollars?|won|yen|euros?)(?![a-z]))/i;
+const AMOUNT_CURRENCY_DIGIT = /(\b(KRW|USD|JPY|EUR|CNY|GBP)|[$₩￦€£¥])\s*\d/i;
+const DIGIT = '[일이삼사오육칠팔구]';
+const UNIT = '[십백천만억조]';
+/**
+ * (a) 어림 수사 — 억·조 앞에서만 수사로 인정 (Plan 결정 ③). 띄어 쓴 "몇 억 원"·"수십 억 원"·"몇 조 원"도 금액이다(QA 재검증).
+ * 띄어 쓴 어림 수사 뒤 붙여 쓴 '조원'도 금액이다("몇 조원입니다", "수십 조원 규모" — 규모 노출도 누설, Plan 결정 (나)).
+ * 바로 뒤가 사람에게만 붙는 조사 에게·한테·들·끼리일 때만 구성원으로 본다("조원들에게"). '몇 조원으로 나눠'는 금액(main 과 같음).
+ */
+const ESTIMATE = '(?:십수|수십|수백|수천|수|몇)';
+/** (a) 수사 표현: 단위 둘 이상(마지막 조·억 허용) | 십·백·천·만으로 끝남 | 수사 또는 어림 수사 + 조·억 */
+const NUMERAL_EXPR = `(?:(?:${DIGIT}?${UNIT})+[억조]|(?:${DIGIT}?${UNIT})*(?:${DIGIT}?[십백천만]|${DIGIT}[억조])|${ESTIMATE}(?:[억조]|\\s+억|\\s+조(?=\\s|원(?!에게|한테|들|끼리))))`;
+const KOREAN_NUMERAL_AMOUNT = new RegExp(
+  `${NUMERAL_EXPR}(?:원|\\s+원${WON_COMMON_NOUN}|\\s*달러)|[억조]원대(?!표)`,
+  'u',
+);
+
+function isAmount(sentence: string): boolean {
+  return (
+    AMOUNT_DIGIT_WON.test(sentence) ||
+    AMOUNT_DIGIT_CURRENCY.test(sentence) ||
+    AMOUNT_CURRENCY_DIGIT.test(sentence) ||
+    KOREAN_NUMERAL_AMOUNT.test(sentence)
+  );
+}
+
 /** 비율: 마진·이익률 같은 단어와 함께면 금액과 같게 본다 ("margin 35%") */
 const PERCENT = /\d[\d.]*\s*(%|퍼센트|percent)/i;
 /** 텍스트 속 원가 키 JSON (모델이 {"unit_cost":…} 를 글로 쓰는 경우) */
@@ -152,9 +211,7 @@ export function mentionsCostAmount(raw: string, terms: readonly string[] = []): 
     text
       // 문장 끝 부호 뒤 공백 또는 줄바꿈에서만 나눈다 ("1.2억원" 같은 소수점에서 나누지 않음)
       .split(/(?<=[.!?。])\s+|\n/)
-      .some(
-        (sentence) => hasCostWord(sentence) && (AMOUNT.test(sentence) || PERCENT.test(sentence)),
-      )
+      .some((sentence) => hasCostWord(sentence) && (isAmount(sentence) || PERCENT.test(sentence)))
   );
 }
 

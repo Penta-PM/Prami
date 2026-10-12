@@ -217,3 +217,26 @@ export async function upsertOwnSettings(
     .returning();
   return row!;
 }
+
+/**
+ * 삭제한 벤더가 챗봇 기본값이면 기본 벤더·모델을 비운다 (#17 I-3) — `deleteOwnCredential` 의 트랜잭션 전용.
+ * 교체(`storeSealed`)는 같은 벤더 키를 바로 다시 넣으므로 부르지 않는다. 실제로 행이 바뀐 경우에만 이전 값을 돌려준다.
+ */
+export async function clearOwnDefaultsForVendor(
+  tx: Tx,
+  userId: string,
+  vendor: string,
+): Promise<{ vendor: string; model: string | null } | null> {
+  const [before] = await tx
+    .select({ vendor: userSettings.chatDefaultVendor, model: userSettings.chatDefaultModel })
+    .from(userSettings)
+    .where(and(eq(userSettings.userId, userId), eq(userSettings.chatDefaultVendor, vendor)))
+    .for('update');
+  if (!before) return null;
+  const changed = await tx
+    .update(userSettings)
+    .set({ chatDefaultVendor: null, chatDefaultModel: null, updatedAt: new Date() })
+    .where(and(eq(userSettings.userId, userId), eq(userSettings.chatDefaultVendor, vendor)))
+    .returning({ userId: userSettings.userId });
+  return changed.length > 0 ? { vendor, model: before.model } : null;
+}

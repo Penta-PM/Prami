@@ -89,6 +89,9 @@ export function LlmSection({
         if (!result.ok) return setFlash({ tone: 'error', text: result.error.message });
         const removed = credentials.find((entry) => entry.vendor === vendor);
         setCredentials((list) => list.filter((entry) => entry.vendor !== vendor));
+        // 서버가 같은 트랜잭션에서 기본값을 비운다 (#17 I-3) — 화면도 맞춘다
+        if (defaults.vendor === vendor)
+          setDefaults({ vendor: null, model: null, modelReplaced: false });
         setFlash(
           deletedFlash(
             vendors.find((entry) => entry.id === vendor),
