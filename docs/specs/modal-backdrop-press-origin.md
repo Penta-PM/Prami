@@ -25,9 +25,9 @@
 3. 판정은 **제외 방식(deny-list)**: "pointerdown 이 dialog 의 자손에서 시작됐으면 그 click 은 backdrop 클릭이 아니다".
    - pointerdown 기록이 없는 click(합성 click, 보조기술, 기존 단위 테스트 `modal.test.tsx:56,87`)은 기존대로 backdrop 클릭으로 처리한다.
    - 플래그는 pointerdown 마다 덮어쓰고, click 처리 직후 비우고, `showModal()` 직전에 false 로 초기화한다.
-   - **바깥에서 누르고 안에서 놓는 경우**는 §5 Q-M1 의 Main 답에 따른다. 답 전에는 이 결정(제외 방식)으로 구현을 시작해도 된다.
-     Q-M1 이 A 로 확정되면 "pointerdown 대상이 dialog 자신이고 pointerup 대상도 dialog 자신일 때만 닫힘"으로 좁힌다
-     (pointerup 도 `onPointerUpCapture` 로 기록).
+   - **바깥에서 누르고 안에서 놓는 경우(Q-M1 = A 확정)**: 닫지 않는다. pointerup 도 `onPointerUpCapture` 로 기록해
+     "pointerup 이 dialog 의 자손에서 끝났으면 그 click 은 backdrop 클릭이 아니다"를 같은 제외 방식으로 더한다.
+     즉 누름·놓음이 **모두** backdrop(dialog 자신)일 때만 닫힌다. 기록 없는 합성 click 은 여전히 닫힘(기존 테스트 유지).
 4. 키보드: `detail===0` 분기는 두지 않는다(제외 방식이면 키보드 경로는 무변화).
 5. 주석: top-layer 위에 portal 로 띄운 요소는 dialog 의 자손이 아니므로 기록이 빠진다는 점을 `modal.tsx` 문서 주석에 남긴다(현재 `createPortal` 0건).
 6. **CartPanel 개별 조치 제거**: `useIgnoreBackdropClickFromInside`(`CartPanel.tsx:266-298`), 호출(315), 래퍼 div 의 ref(429)를
@@ -50,7 +50,7 @@
 - [ ] backdrop 우클릭·중클릭으로 닫히지 않는다(현행 유지).
 - [ ] `useIgnoreBackdropClickFromInside` 가 코드에서 사라진다(grep 0건).
 - [ ] Drawer 오버레이 클릭 닫힘·패널 안 드래그 비닫힘 동작 무변화.
-- [ ] (Q-M1 = A 일 때만) backdrop 에서 누르고 패널 안에서 놓으면 닫히지 않는다. (Q-M1 = B 면 이 경우 닫힘 — 현행 유지)
+- [ ] backdrop 에서 누르고 패널 안에서 놓으면 닫히지 않고 `onClose` 0회(단위 `pointerDown(dialog)`→`pointerUp(내용)`→`click(dialog)` + E2E).
 - [ ] Dev 게이트 기록(`docs/pipeline/verification.md` §3.1) + QA E2E 전체 1회(§3.2) + 머지 head SHA의 `ci:run` 녹색(§3.3)
 
 ## 5. Main 되묻기
@@ -58,12 +58,13 @@
 - **Q-M1** 바깥(backdrop)에서 누르고 패널 안에서 놓는 경우. 현재는 닫힘.
   - A: 누름·놓음이 모두 backdrop 일 때만 닫힘(Radix 등 관행, 오닫힘 더 적음) — **Plan 의견**
   - B: 현행 유지(요구 문구 그대로, 변경 최소)
+  - **답(2026-10-12, 사용자 확인, msg_8690014d4b93): A.** §2.3·§4 반영.
 
 ## 6. 태스크
 
 1. [FE] `modal.tsx` — `pressedInsideRef`·`onPointerDownCapture`·onClick 조건·`showModal` 시 초기화·문서 주석.
 2. [FE] `CartPanel.tsx` — 개별 훅 제거.
-3. [TEST] `tests/unit/motion/modal.test.tsx` — 신규 3건(안→밖 비닫힘 / 밖→밖 닫힘 / 막힌 직후 진짜 클릭 닫힘).
+3. [TEST] `tests/unit/motion/modal.test.tsx` — 신규 4건(안→밖 비닫힘 / 밖→안 비닫힘 / 밖→밖 닫힘 / 막힌 직후 진짜 클릭 닫힘).
 4. [E2E] 공용 모달 드래그 시나리오 + CartPanel 리사이즈 회귀 + backdrop·Escape·× 닫힘.
 
 의존: 2·3·4 → 1. PR 1개.
