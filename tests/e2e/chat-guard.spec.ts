@@ -110,17 +110,35 @@ function parseSse(raw: string): SseEvent[] {
 const isChatPost = (request: Request) =>
   request.url().endsWith('/api/chat') && request.method() === 'POST';
 
+/**
+ * SSE 본문 수집. 스트리밍 응답은 response.text() 로 읽을 수 없어(CDP: No data found for resource) route 로 받아 기록한 뒤
+ * 같은 응답을 그대로 넘긴다. 서버는 그대로 토큰 가드를 거쳐 스트리밍하고, 브라우저는 완료된 본문을 한 번에 받는다.
+ */
+async function captureChatBodies(page: Page): Promise<string[]> {
+  const bodies: string[] = [];
+  await page.route('**/api/chat', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    const response = await route.fetch();
+    const body = await response.text();
+    bodies.push(body);
+    await route.fulfill({ response, body });
+  });
+  return bodies;
+}
+
 /** 질문 1건: SSE 응답 본문(완료까지)과 봇 말풍선 */
-async function ask(page: Page, text: string) {
+async function ask(page: Page, bodies: string[], text: string) {
   const panel = page.getByRole('complementary', { name: '가격정책 챗봇' });
   const bots = panel.locator('[data-from="bot"]');
   const before = await bots.count();
+  const seen = bodies.length;
   const responsePromise = page.waitForResponse((response) => isChatPost(response.request()));
   await panel.getByLabel('질문 입력').fill(text);
   await panel.getByRole('button', { name: '보내기' }).click();
   const response = await responsePromise;
   expect(response.headers()['content-type']).toContain('text/event-stream');
-  const raw = await response.text();
+  await expect.poll(() => bodies.length).toBeGreaterThan(seen);
+  const raw = bodies[seen]!;
   const events = parseSse(raw);
   const final = events.find((event) => event.event === 'final')?.data;
   const tokens = events
@@ -131,13 +149,14 @@ async function ask(page: Page, text: string) {
 }
 
 async function runRows(page: Page, rows: readonly Row[], refusal: string) {
+  const bodies = await captureChatBodies(page);
   const requests: Request[] = [];
   page.on('request', (request) => {
     if (isChatPost(request)) requests.push(request);
   });
   const panel = page.getByRole('complementary', { name: '가격정책 챗봇' });
   for (const row of rows) {
-    const { raw, tokens, final, bubble } = await ask(page, row.input);
+    const { raw, tokens, final, bubble } = await ask(page, bodies, row.input);
     if (row.verdict === 'R') {
       // 출력 가드 교체본 (precheck 거부면 mode=refusal·intent=cost — 표식 우회가 실제로 LLM 까지 갔는지)
       expect(final, row.input).toMatchObject({ mode: 'llm', reply: refusal });
