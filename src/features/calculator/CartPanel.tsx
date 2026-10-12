@@ -1,5 +1,6 @@
 'use client';
 
+import { m } from 'motion/react';
 import { useState } from 'react';
 
 import {
@@ -14,6 +15,7 @@ import {
 } from '@/components/ui';
 import { Presence } from '@/components/motion/Presence';
 import { formatDate } from '@/lib/date-format';
+import { VARIANT_KEYS, listItem, transition } from '@/lib/motion/tokens';
 import { priceLabel } from '@/lib/pricing/format';
 import { cartTotals } from '@/lib/pricing/quote';
 
@@ -55,30 +57,44 @@ export function CartPanel(props: CartPanelProps) {
       >
         <h2 className="m-0 mb-3 text-[13px] font-semibold">장바구니 ({lines.length})</h2>
         <ul className="m-0 flex list-none flex-col p-0">
-          {lines.map((line) => (
-            <li
-              key={line.id}
-              className="flex items-start justify-between gap-2 border-t border-border-subtle py-2.5"
-            >
-              <div className="min-w-0">
-                <div className="text-[12px] font-semibold">{line.name}</div>
-                <div className="text-[11px] text-text-tertiary">{describeLine(line)}</div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="text-[12px] font-semibold">
-                  {priceLabel(line.lineTotal, line.currency)}
-                </span>
-                <button
-                  type="button"
-                  aria-label={`${line.name} 삭제`}
-                  className="border-0 bg-transparent text-[14px] font-semibold text-red-500"
-                  onClick={() => props.onRemove(line.id)}
-                >
-                  ×
-                </button>
-              </div>
-            </li>
-          ))}
+          {/* 담기·삭제는 height 접힘 + fade, 나머지는 layout 재배치 (Motion 도입 스펙 §3.3 클라이언트 목록).
+              Presence initial={false} 라 페이지 로드·복원 시 이미 있는 항목은 애니메이션 없이 최종 상태 */}
+          <Presence>
+            {lines.map((line) => (
+              <m.li
+                key={line.id}
+                layout
+                variants={listItem}
+                initial={VARIANT_KEYS.initial}
+                animate={VARIANT_KEYS.animate}
+                exit={VARIANT_KEYS.exit}
+                transition={{ layout: transition.layout }}
+                // shrink-0: overflow:hidden 인 flex 아이템은 min-height 가 0 이 되어 넘치는 세로 flex 안에서 높이 0 으로
+                // 줄 수 있다 (PR-3 Collapse 회귀). 테두리·패딩은 안쪽 div 에 두어 접힐 때 패딩만 남지 않게 한다
+                className="shrink-0 overflow-hidden"
+              >
+                <div className="flex items-start justify-between gap-2 border-t border-border-subtle py-2.5">
+                  <div className="min-w-0">
+                    <div className="text-[12px] font-semibold">{line.name}</div>
+                    <div className="text-[11px] text-text-tertiary">{describeLine(line)}</div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-[12px] font-semibold">
+                      {priceLabel(line.lineTotal, line.currency)}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`${line.name} 삭제`}
+                      className="border-0 bg-transparent text-[14px] font-semibold text-red-500"
+                      onClick={() => props.onRemove(line.id)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              </m.li>
+            ))}
+          </Presence>
           {lines.length === 0 ? (
             <li className="py-4 text-center text-[12px] text-text-tertiary">
               담긴 품목이 없습니다.
