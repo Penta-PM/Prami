@@ -196,6 +196,26 @@ export function DataTable<T>({
     if (hasWidths && baseline === null) setBaseline(measure());
   }, [hasWidths, baseline, measure]);
 
+  // 리사이즈 핸들(포커스 가능한 separator)의 aria-valuenow 는 필수다 — auto 레이아웃(지정 폭 없음)에서도 실제 렌더 폭을 알린다.
+  // 첫 커밋 뒤와 열 폭이 바뀔 때마다(ResizeObserver) 잰다. 서버 렌더와 첫 클라이언트 렌더는 같은 값(없음)이라 하이드레이션 불일치 없음
+  const [renderedWidths, setRenderedWidths] = useState<Record<string, number>>({});
+  useLayoutEffect(() => {
+    const update = () => {
+      const measured = measure();
+      setRenderedWidths((prev) =>
+        Object.keys(measured).every((id) => prev[id] === measured[id]) &&
+        Object.keys(prev).length === Object.keys(measured).length
+          ? prev
+          : measured,
+      );
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(update);
+    thRefs.current.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [measure, layout.order]);
+
   const ensureBaseline = () => {
     if (baseline) return baseline;
     const measured = measure();
@@ -234,7 +254,7 @@ export function DataTable<T>({
   useEffect(() => {
     const onReset = (event: Event) => {
       if ((event as CustomEvent<TableResetDetail>).detail?.key !== layoutKey) return;
-      setAnnouncement('열 너비·순서를 기본값으로 되돌림');
+      setAnnouncement('열 너비·순서를 기본값으로 되돌렸습니다');
       // 기본 순서로 다시 그려진 뒤의 첫 헤더 버튼
       window.setTimeout(
         () => wrapperRef.current?.querySelector<HTMLButtonElement>('thead button')?.focus(),
@@ -533,7 +553,7 @@ export function DataTable<T>({
                       role="separator"
                       aria-orientation="vertical"
                       aria-label={`${columnLabel(column)} 열 너비 조절`}
-                      aria-valuenow={width}
+                      aria-valuenow={width ?? renderedWidths[column.id]}
                       aria-valuemin={column.minWidth ?? MIN_COL_WIDTH}
                       aria-valuemax={column.maxWidth ?? MAX_COL_WIDTH}
                       tabIndex={0}

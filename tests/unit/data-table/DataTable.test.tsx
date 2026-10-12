@@ -243,6 +243,21 @@ describe('DataTable 정렬', () => {
 });
 
 describe('DataTable 접근성 이름', () => {
+  it('기본(auto) 레이아웃에서도 모든 리사이즈 핸들이 aria-valuenow·min·max 를 가진다 — 포커스 가능한 separator 필수 속성 (QA #44)', () => {
+    offsetWidths = { name: 140, price: 90 };
+    renderTable();
+    expect(table().querySelector('colgroup')).toBeNull(); // 아직 auto 레이아웃
+    const handles = screen.getAllByRole('separator');
+    expect(handles.length).toBe(COLUMNS.length);
+    for (const separator of handles) {
+      expect(separator).toHaveAttribute('aria-valuenow');
+      expect(separator).toHaveAttribute('aria-valuemin', '60');
+      expect(separator).toHaveAttribute('aria-valuemax', '600');
+    }
+    expect(handle('이름')).toHaveAttribute('aria-valuenow', '140');
+    expect(handle('판매가')).toHaveAttribute('aria-valuenow', '90');
+  });
+
   it('columnheader 이름에 리사이즈 핸들 aria-label 이 섞이지 않는다', () => {
     renderTable();
     expect(screen.getByRole('columnheader', { name: '이름' })).toBeInTheDocument();
@@ -581,7 +596,7 @@ describe('DataTable 저장', () => {
     expect(th('이름')).toHaveAttribute('aria-sort', 'ascending');
     // 비활성화된 버튼 대신 첫 헤더 버튼으로 포커스를 옮기고 알린다 (#32 §9 Q4)
     await waitFor(() => expect(sortButton('이름')).toHaveFocus());
-    expect(liveRegion()).toHaveTextContent('열 너비·순서를 기본값으로 되돌림');
+    expect(liveRegion()).toHaveTextContent('열 너비·순서를 기본값으로 되돌렸습니다');
   });
 
   it('localStorage 쓰기가 실패해도 이번 탭에서는 바뀐 레이아웃이 유지된다 (메모리 폴백, #32 §9 Q3)', async () => {
