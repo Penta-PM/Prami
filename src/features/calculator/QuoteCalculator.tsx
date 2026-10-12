@@ -22,6 +22,7 @@ import { StepCategory, StepDiscount, StepItems, StepOptions, StepPriceType } fro
 import { ShareModal } from './ShareModal';
 import type {
   CartLine,
+  CategoryChipsView,
   FamilyPreload,
   PriceAdjustmentView,
   QuoteItemView,
@@ -43,12 +44,7 @@ type Options = { parts: QuoteItemView[]; bundles: QuoteItemView[]; mapped: boole
 type Loaded<T> = { key: string; data: T };
 
 const NO_OPTIONS: Options = { parts: [], bundles: [], mapped: false };
-const EMPTY_CHIPS = {
-  majors: [] as string[],
-  mids: [] as string[],
-  minors: [] as string[],
-  hasMaster: false,
-};
+const EMPTY_CHIPS: CategoryChipsView = { majors: [], mids: [], minorsByMid: {}, hasMaster: false };
 
 function toLineInput(line: CartLine) {
   return {

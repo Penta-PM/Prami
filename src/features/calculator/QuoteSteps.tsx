@@ -62,6 +62,8 @@ export function StepCategory({
   onMid: (mid: string | null) => void;
   onMinor: (minor: string | null) => void;
 }) {
+  // 소분류 = 선택한 중분류의 사전 적재분 (프로토타입 키 방지로 own 속성만)
+  const minors = mid && Object.hasOwn(chips.minorsByMid, mid) ? chips.minorsByMid[mid]! : [];
   return (
     <StepCard title="STEP 2 · 대분류 / 중분류 / 소분류">
       <div className="flex flex-col gap-3">
@@ -89,10 +91,10 @@ export function StepCategory({
             품목조회 파일이 적용되면 중/소분류로 좁힐 수 있습니다.
           </p>
         )}
-        {chips.hasMaster && mid && chips.minors.length > 0 ? (
+        {chips.hasMaster && mid && minors.length > 0 ? (
           <ChipRow label="소분류">
             <Presence>
-              {chips.minors.map((entry) => (
+              {minors.map((entry) => (
                 <ChipMotion key={entry}>
                   <Chip
                     active={minor === entry}
