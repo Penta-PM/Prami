@@ -82,6 +82,7 @@ export const EXPECTED_TABLES = [
   'items',
   'material_costs',
   'notices',
+  'notifications',
   'oauth_flow_states',
   'part_mappings',
   'policy_apply_runs',

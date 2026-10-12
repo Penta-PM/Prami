@@ -148,6 +148,8 @@ DB 를 바꾸지 않는다. 관리자가 시트 2 로 검수하고 필요한 행
 | 6) `data:verify --fresh --target local` | exit 0 — PASS 31 / SKIP 1(활성 ADMIN, 로그인 전) |
 | 대체 검증 SQL | items_master 2511 · items_stub 0 · sales_rows 5885 · sales_operating 2428 · sales_unused 3457 · costs_rows 487 · fixture_users 0 · notices 0 · quotes 0 · solution_groups 0 · part_mappings 0 · seed_audit 0 — `data:verify` 와 동일 |
 | 8) 임시 덤프 삭제 | 성공 |
+
+> **#31 이후 기대값:** 위 기록은 2026-10-01(마이그레이션 `0007` 까지) 기준이다. `0008_notifications` 부터 3) 은 `0000`~`0008` 9행, 6) `data:verify --fresh --target local` 은 **PASS 32 / SKIP 1**(`notifications 행 = 0` 검사 추가)이다. 사용자 행위자가 없는 스크립트 적용(`import:source`)은 알림을 만들지 않으므로 5) 임포트 뒤에도 `notifications` 는 0 이다.
 | 복원 | 드롭·재생성 → `pg_restore --no-owner` → items 2511 · audit_logs 8 · users 2 · notices 3(사전 상태와 동일) |
 
 ## 6. LAN 에서 dev 서버 열기 (Linux 하이드레이션 수정 스펙 §3.2·§3.4)

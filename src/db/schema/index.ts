@@ -9,6 +9,7 @@ export * from './items';
 export * from './llm-credentials';
 export * from './material-costs';
 export * from './notices';
+export * from './notifications';
 export * from './oauth-flow-states';
 export * from './parts';
 export * from './quotes';
