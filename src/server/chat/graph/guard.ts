@@ -96,7 +96,7 @@ function hasCostWord(sentence: string): boolean {
  * (b) 공백 뒤 '원'이 일반 명사로 이어지는 경우 — 이때만 금액이 아니다. '원대한'은 QA 코퍼스가 금액 진술("2천 원대한")로
  * 분류해 제외하지 않는다(Plan 결정: QA 분류를 따름).
  */
-const WON_COMMON_NOUN = '(?!칙|리|래|본|장|인(?!데|\\s)|만[하한히해]|대하)';
+const WON_COMMON_NOUN = '(?!칙|리|래|본|장|인(?![데지가]|\\s)|만[하한히해]|대하)';
 const AMOUNT_DIGIT_WON = new RegExp(
   `\\d[\\d,.]*(?:\\s*[십백천만억조]+)?(?:원|\\s+원${WON_COMMON_NOUN})`,
   'u',
@@ -106,10 +106,13 @@ const AMOUNT_DIGIT_CURRENCY =
 const AMOUNT_CURRENCY_DIGIT = /(\b(KRW|USD|JPY|EUR|CNY|GBP)|[$₩￦€£¥])\s*\d/i;
 const DIGIT = '[일이삼사오육칠팔구]';
 const UNIT = '[십백천만억조]';
-/** (a) 어림 수사 — 억·조 앞에서만 수사로 인정 (Plan 결정 ③) */
+/**
+ * (a) 어림 수사 — 억·조 앞에서만 수사로 인정 (Plan 결정 ③). 띄어 쓴 "몇 억 원"·"수십 억 원"·"몇 조 원"도 금액이다(QA 재검증).
+ * 단 띄어 쓴 어림 수사 뒤 '조원'(붙여 씀)은 구성원으로 본다 — "몇 조원으로 나눠" 는 (a)의 단독 '조원'과 같이 금액 아님.
+ */
 const ESTIMATE = '(?:십수|수십|수백|수천|수|몇)';
 /** (a) 수사 표현: 단위 둘 이상(마지막 조·억 허용) | 십·백·천·만으로 끝남 | 수사 또는 어림 수사 + 조·억 */
-const NUMERAL_EXPR = `(?:(?:${DIGIT}?${UNIT})+[억조]|(?:${DIGIT}?${UNIT})*(?:${DIGIT}?[십백천만]|${DIGIT}[억조])|${ESTIMATE}[억조])`;
+const NUMERAL_EXPR = `(?:(?:${DIGIT}?${UNIT})+[억조]|(?:${DIGIT}?${UNIT})*(?:${DIGIT}?[십백천만]|${DIGIT}[억조])|${ESTIMATE}(?:[억조]|\\s+억|\\s+조(?=\\s)))`;
 const KOREAN_NUMERAL_AMOUNT = new RegExp(
   `${NUMERAL_EXPR}(?:원|\\s+원${WON_COMMON_NOUN}|\\s*달러)|[억조]원대(?!표)`,
   'u',
