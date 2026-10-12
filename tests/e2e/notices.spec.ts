@@ -27,7 +27,7 @@ test('AC-50: 홈 제품 카드 4개 → /pricing?major=…, 최근 공지 5건 �
   await cards.first().click();
   await expect(page).toHaveURL(/\/pricing\?family=WAPPLES$/);
   // r5: family 만 있으면 드롭다운은 전체, 표 위 배지 "제품군: WAPPLES"
-  await expect(page.getByLabel('대분류')).toHaveValue('전체');
+  await expect(page.getByRole('combobox', { name: '대분류' })).toHaveValue('전체');
   await expect(page.getByRole('status')).toContainText('제품군: WAPPLES');
   await page.goto('/');
   await page.getByRole('link', { name: '전체보기 →' }).click();

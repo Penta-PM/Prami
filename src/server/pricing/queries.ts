@@ -3,13 +3,15 @@ import { and, asc, count, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '@/db';
 import { ITEM_REMARK_HEADER } from '@/server/imports/schemas/items';
 import { importBatches, items, salesPrices, type SalesPrice } from '@/db/schema';
-import type { PriceFilter } from '@/features/pricing/filter';
+import type { PriceFilter, PriceSortId } from '@/features/pricing/filter';
+import { STATUS_ORDERS, type SortDir } from '@/lib/table/compare';
 import { productFamilyMajors } from '@/lib/constants/product-cards';
 import { ITEM_STATUS_UNKNOWN } from '@/lib/constants/item-status';
 
 import { dateConditions } from './date-filter';
+import { buildOrderBy, byMoney, byStatus, byText, byValue } from './sort-sql';
 
-/** 조회·관리 표 (§4.5.3) — 서버 페이지네이션 50행, 정렬 effective_from DESC, item_name */
+/** 조회·관리 표 (§4.5.3) — 서버 페이지네이션 50행, 기본 정렬 effective_from DESC, item_name (+ #32 열 정렬) */
 export const PRICE_PAGE_SIZE = 50;
 
 export type ItemStatusLabel = '임시' | '폐기' | '사용' | typeof ITEM_STATUS_UNKNOWN;
@@ -98,6 +100,36 @@ const ROW_FIELDS = {
   source: salesPrices.source,
 };
 
+/** 기본 정렬 (§4.5.3) — 정렬을 고르면 tie-breaker 로 그대로 뒤에 붙는다(stable, 끝은 id) */
+const DEFAULT_ORDER: SQL[] = [
+  desc(salesPrices.effectiveFrom),
+  asc(salesPrices.itemName),
+  asc(salesPrices.id),
+];
+
+/** 운영 연도 라벨(operationYearsLabel)의 연도: 시작 연도, 끝 연도 = 배타적 종료일 하루 전의 연도 (NULL = 현재) */
+const START_YEAR = sql`extract(year from ${salesPrices.effectiveFrom})`;
+const END_YEAR = sql`extract(year from (${salesPrices.effectiveTo} - 1))`;
+
+/** 가격 표 정렬 id → ORDER BY 키 (#32 스펙 §2·§3). 화이트리스트 PRICE_SORT_IDS 와 1:1 */
+export const PRICE_SORT_SQL: Record<PriceSortId, (dir: SortDir) => SQL[]> = {
+  priceType: (dir) => byText(salesPrices.priceType, dir),
+  major: (dir) => byText(MAJOR, dir),
+  mid: (dir) => byText(items.categoryMid, dir),
+  minor: (dir) => byText(items.categoryMinor, dir),
+  itemName: (dir) => byText(salesPrices.itemName, dir),
+  price: (dir) => byMoney(salesPrices.currency, salesPrices.unitPrice, dir),
+  effectiveFrom: (dir) => [byValue(salesPrices.effectiveFrom, dir)],
+  // 적용기간 = 시작일 기준, 같으면 종료일 (NULL = 현재 → NULLS LAST, 스펙 §2)
+  period: (dir) => [byValue(salesPrices.effectiveFrom, dir), byValue(salesPrices.effectiveTo, dir)],
+  // 표시 라벨 `시작 ~ 끝`/`시작 ~ 현재`/`시작` 의 문자열 순과 같다: 시작 연도 → 끝 연도(현재 = 맨 뒤)
+  operationYears: (dir) => [byValue(START_YEAR, dir), byValue(END_YEAR, dir)],
+  // 사용 → 임시 → 폐기 → 미확인 (스펙 §9.2 Q3)
+  itemStatus: (dir) => byStatus(ITEM_STATUS, STATUS_ORDERS.partMapping, dir),
+  status: (dir) => byStatus(salesPrices.operationStatus, STATUS_ORDERS.pricingState, dir),
+  remark: (dir) => byText(salesPrices.remark, dir),
+};
+
 /** getPriceRows (§4.7) — 원가 조인 없음 */
 export async function getPriceRows(db: Db, filter: PriceFilter): Promise<PricePage> {
   const where = buildWhere(filter);
@@ -114,7 +146,7 @@ export async function getPriceRows(db: Db, filter: PriceFilter): Promise<PricePa
     .from(salesPrices)
     .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
     .where(where)
-    .orderBy(desc(salesPrices.effectiveFrom), asc(salesPrices.itemName), asc(salesPrices.id))
+    .orderBy(...buildOrderBy(filter.sort, PRICE_SORT_SQL, DEFAULT_ORDER))
     .limit(PRICE_PAGE_SIZE)
     .offset((page - 1) * PRICE_PAGE_SIZE);
   return { rows, total, page, pageCount };

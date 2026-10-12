@@ -41,6 +41,7 @@ vi.mock('@/server/pricing/queries', () => ({
 vi.mock('@/server/auth/rbac', () => ({
   requirePagePermission: async (permission: string, path: string) => {
     calls.guards.push(`${permission}:${path}`);
+    return { id: 'u1', email: 'admin@pentasecurity.com', role: 'ADMIN' };
   },
 }));
 vi.mock('@/features/pricing/actions', () => ({}));
@@ -57,6 +58,7 @@ describe('PricingSection', () => {
       await PricingSection({
         mode: 'admin',
         basePath: '/admin/policies',
+        userId: 'u1',
         searchParams: { dateMode: 'period', from: '2025-01-01', to: '2025-12-31', page: '2' },
       }),
     );

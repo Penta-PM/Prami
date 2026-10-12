@@ -23,6 +23,8 @@ export type PriceColumn = {
   view: boolean;
   admin: boolean;
   align: 'left' | 'center' | 'right';
+  /** 관리(비데이터) 열 — 정렬·재배치하지 않고 끝에 고정 (#32 스펙 §4) */
+  pinned?: 'end';
 };
 
 export const PRICE_TABLE_COLUMNS: readonly PriceColumn[] = [
@@ -38,11 +40,36 @@ export const PRICE_TABLE_COLUMNS: readonly PriceColumn[] = [
   { key: 'itemStatus', label: '품목상태', view: true, admin: true, align: 'center' },
   { key: 'status', label: '상태', view: true, admin: true, align: 'left' },
   { key: 'remark', label: '비고', view: true, admin: true, align: 'left' },
-  { key: 'actions', label: '관리', view: false, admin: true, align: 'right' },
+  { key: 'actions', label: '관리', view: false, admin: true, align: 'right', pinned: 'end' },
 ];
 
 export type TableMode = 'view' | 'admin';
 
+const BY_MODE: Record<TableMode, readonly PriceColumn[]> = {
+  view: PRICE_TABLE_COLUMNS.filter((column) => column.view),
+  admin: PRICE_TABLE_COLUMNS.filter((column) => column.admin),
+};
+
+/** 모드별 컬럼 — 같은 배열 참조를 돌려준다(열 레이아웃 저장소의 기준 배열로 쓰임) */
 export function columnsFor(mode: TableMode): readonly PriceColumn[] {
-  return PRICE_TABLE_COLUMNS.filter((column) => (mode === 'admin' ? column.admin : column.view));
+  return BY_MODE[mode];
+}
+
+/**
+ * 열 너비·순서 저장 키의 표 구분자 (#32 스펙 §5) — 가격 조회와 가격 관리는 다른 tableId 를 쓴다.
+ * 정렬 가능한 열의 id 는 서버 정렬 화이트리스트(PRICE_SORT_IDS)와 같은 PriceColumnKey 다.
+ */
+export const PRICE_TABLE_IDS: Record<TableMode, string> = {
+  view: 'pricing-view',
+  admin: 'pricing-manage',
+};
+
+const LAYOUT_BY_MODE: Record<TableMode, readonly { id: string; pinned?: 'end' }[]> = {
+  view: BY_MODE.view.map(({ key, pinned }) => ({ id: key, pinned })),
+  admin: BY_MODE.admin.map(({ key, pinned }) => ({ id: key, pinned })),
+};
+
+/** '열 초기화' 버튼이 표와 같은 저장값을 구독하도록 넘길 열 목록 (id·고정 여부만) */
+export function layoutColumnsFor(mode: TableMode): readonly { id: string; pinned?: 'end' }[] {
+  return LAYOUT_BY_MODE[mode];
 }

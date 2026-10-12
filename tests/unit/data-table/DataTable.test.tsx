@@ -242,6 +242,19 @@ describe('DataTable 정렬', () => {
   });
 });
 
+describe('DataTable 행 클릭', () => {
+  it('비데이터 칸(관리) 클릭은 버튼 사이 여백이어도 행 클릭으로 번지지 않고, 데이터 칸 클릭은 행 클릭이다', async () => {
+    const onRowClick = vi.fn();
+    renderTable({ onRowClick });
+    const [first] = bodyRows();
+    const cells = within(first as HTMLElement).getAllByRole('cell');
+    await userEvent.click(cells[cells.length - 1] as HTMLElement);
+    expect(onRowClick).not.toHaveBeenCalled();
+    await userEvent.click(cells[0] as HTMLElement);
+    expect(onRowClick).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('DataTable 접근성 이름', () => {
   it('기본(auto) 레이아웃에서도 모든 리사이즈 핸들이 aria-valuenow·min·max 를 가진다 — 포커스 가능한 separator 필수 속성 (QA #44)', () => {
     offsetWidths = { name: 140, price: 90 };

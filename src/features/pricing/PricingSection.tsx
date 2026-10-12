@@ -20,10 +20,13 @@ export async function PricingSection({
   mode,
   basePath,
   searchParams,
+  userId,
 }: {
   mode: TableMode;
   basePath: string;
   searchParams: Params;
+  /** 로그인 사용자 id — 표 열 너비·순서 저장 키 (#32 스펙 §5) */
+  userId: string;
 }) {
   const { filter, errors } = parsePriceFilter(searchParams);
   const db = await getDb();
@@ -41,7 +44,7 @@ export async function PricingSection({
         years={years}
         searchPlaceholder={mode === 'admin' ? '모델명, 코드로 검색' : '모델명으로 검색'}
       />
-      <PricingBrowser mode={mode} rows={page.rows} />
+      <PricingBrowser mode={mode} rows={page.rows} filter={filter} userId={userId} />
       <PricingPagination
         basePath={basePath}
         filter={filter}

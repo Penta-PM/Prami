@@ -1,6 +1,8 @@
+import { appendSortParams } from '@/lib/table/sort-param';
+
 import type { CostFilterView } from './types';
 
-/** 필터 → 쿼리스트링 (클라이언트용 — 서버 모듈 filter.ts 와 같은 규칙) */
+/** 필터 → 쿼리스트링 (클라이언트용 — 서버 모듈 filter.ts 와 같은 규칙). sort·dir 는 맨 뒤 (#32 §3) */
 export function costFilterToQuery(filter: Partial<CostFilterView>): string {
   const params = new URLSearchParams();
   if (filter.family) params.set('family', filter.family);
@@ -10,5 +12,5 @@ export function costFilterToQuery(filter: Partial<CostFilterView>): string {
   if (filter.q) params.set('q', filter.q);
   if (filter.page && filter.page > 1) params.set('page', String(filter.page));
   const query = params.toString();
-  return query ? `?${query}` : '';
+  return appendSortParams(query ? `?${query}` : '', filter.sort);
 }

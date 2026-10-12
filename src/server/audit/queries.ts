@@ -3,6 +3,10 @@ import { z } from 'zod';
 
 import type { Db } from '@/db';
 import { auditLogs, type AuditLog } from '@/db/schema';
+import { AUDIT_SORT_IDS, type AuditSortId } from '@/features/audit/sort';
+import type { SortDir } from '@/lib/table/compare';
+import { parseSortParams, type SortState } from '@/lib/table/sort-param';
+import { buildOrderBy, byStatus, byText, byValue } from '@/server/pricing/sort-sql';
 
 /** 감사 로그 화면 (§4.5.10): 필터(기간·행위·사용자), 페이지 50, CSV 내보내기 */
 export const AUDIT_PAGE_SIZE = 50;
@@ -34,20 +38,25 @@ export const auditFilterSchema = z.object({
   page: z.coerce.number().int().min(1).max(10_000).catch(1).default(1),
 });
 
-export type AuditFilter = z.infer<typeof auditFilterSchema>;
+export type AuditFilter = z.infer<typeof auditFilterSchema> & {
+  /** 단일 열 정렬 (#32). 없으면 기본 정렬(created_at DESC, id DESC). 화면·CSV 공용 */
+  sort?: SortState<AuditSortId>;
+};
 
 export function parseAuditFilter(params: Record<string, string | string[] | undefined>) {
   const pick = (key: string) => {
     const value = params[key];
     return Array.isArray(value) ? value[0] : value;
   };
-  return auditFilterSchema.parse({
+  const filter: AuditFilter = auditFilterSchema.parse({
     from: pick('from'),
     to: pick('to'),
     action: pick('action'),
     actor: pick('actor'),
     page: pick('page'),
   });
+  const sort = parseSortParams(params, AUDIT_SORT_IDS);
+  return sort ? { ...filter, sort } : filter;
 }
 
 /** LIKE 와일드카드를 이스케이프한다 */
@@ -72,6 +81,39 @@ function buildWhere(filter: AuditFilter): SQL | undefined {
   return conditions.length > 0 ? and(...conditions) : undefined;
 }
 
+/** 기본 정렬 (최신순) — 정렬을 고르면 tie-breaker 로 그대로 뒤에 붙는다(stable, 끝은 id) */
+const DEFAULT_ORDER: SQL[] = [desc(auditLogs.createdAt), desc(auditLogs.id)];
+
+/** '대상' 열 표시값 = formatAuditTarget (src/lib/audit-format.ts) 의 SQL 판 — 화면에 보이는 문자열 순으로 정렬한다 */
+const TARGET_DISPLAY = sql<string>`case
+  when nullif(${auditLogs.targetType}, '') is null then coalesce(${auditLogs.targetLabel}, ${auditLogs.targetId}, '')
+  else ${auditLogs.targetType} || coalesce(' · ' || nullif(coalesce(${auditLogs.targetLabel}, ${auditLogs.targetId}), ''), '')
+end`;
+
+/** 'IP' 열 표시값: inet 출력 형식(호스트 주소는 /32·/128 생략) = host() */
+const IP_DISPLAY = sql<string>`host(${auditLogs.ip})`;
+
+/** 감사 결과 정렬 서수: 성공 → 거부 → 오류 (STATUS_ORDERS.auditResult 라벨의 저장값) */
+const AUDIT_RESULT_ORDER = [
+  'success',
+  'denied',
+  'error',
+] as const satisfies readonly AuditLog['result'][];
+
+/** 감사 표 정렬 id → ORDER BY 키 (#32 스펙 §2·§3). 화이트리스트 AUDIT_SORT_IDS 와 1:1 */
+export const AUDIT_SORT_SQL: Record<AuditSortId, (dir: SortDir) => SQL[]> = {
+  createdAt: (dir) => [byValue(auditLogs.createdAt, dir)],
+  actor: (dir) => byText(auditLogs.actorLabel, dir),
+  action: (dir) => byText(auditLogs.action, dir),
+  target: (dir) => byText(TARGET_DISPLAY, dir),
+  ip: (dir) => byText(IP_DISPLAY, dir),
+  result: (dir) => byStatus(auditLogs.result, AUDIT_RESULT_ORDER, dir),
+};
+
+function orderBy(filter: AuditFilter): SQL[] {
+  return buildOrderBy(filter.sort, AUDIT_SORT_SQL, DEFAULT_ORDER);
+}
+
 export type AuditPage = {
   rows: AuditLog[];
   total: number;
@@ -90,7 +132,7 @@ export async function getAuditLogs(db: Db, filter: AuditFilter): Promise<AuditPa
     .select()
     .from(auditLogs)
     .where(where)
-    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+    .orderBy(...orderBy(filter))
     .limit(AUDIT_PAGE_SIZE)
     .offset((page - 1) * AUDIT_PAGE_SIZE);
   return { rows, total, page, pageSize: AUDIT_PAGE_SIZE, pageCount };
@@ -105,11 +147,12 @@ export async function listAuditActions(db: Db): Promise<string[]> {
   return rows.map((row) => row.action);
 }
 
+/** CSV 내보내기: 열 구성·순서는 고정(toAuditCsv), 행 순서만 화면 정렬을 따른다 (#32 스펙 §3) */
 export async function getAuditLogsForExport(db: Db, filter: AuditFilter): Promise<AuditLog[]> {
   return db
     .select()
     .from(auditLogs)
     .where(buildWhere(filter))
-    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+    .orderBy(...orderBy(filter))
     .limit(AUDIT_EXPORT_LIMIT);
 }
