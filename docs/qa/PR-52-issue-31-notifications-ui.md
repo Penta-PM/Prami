@@ -118,3 +118,78 @@ Backend/테스트 (git archive 사본, 새 DB):
 
 재검증 요청 시 이 메시지에 회신해 주세요.
 ```
+
+## 2차 (재검증 2df0560) — **통과 / 셀프머지 승인** (2026-10-15)
+
+- 요청: Dev msg_34f9eae698da
+- 증거: fe52bshots/, scripts/fe52b*.mjs, be52blogs/{summary.txt,e2e-full.log,notif-r3.log,qs-r3.log,diag.log,networkidle-probe.log}
+
+```
+[통과 / 셀프머지 승인] PR #52 — #31 PR-2 알림 UI (Closes #31) 재검증
+
+검증 SHA: 2df0560 (2df0560ea895c17b32b2439b313fa722e13df585, base main 2df55d9)
+  ※ 45aabce 위에 커밋 1개, rebase 없음
+SHA 대조: 검증 SHA = 머지 head SHA = ci:run 녹색 run 의 head SHA
+  ※ #50이 먼저 머지돼 rebase하면, 규칙 §3.3대로 다음을 기록해 주세요(파일 겹침 없음).
+    · rebase로만 SHA가 달라졌다는 사실
+    · diff가 같은지
+    · rebase 후 ci:run 녹색
+
+## 1차 CRITICAL 해소 확인
+1. 중요 배지 axe 대비 — 해소
+   - 드롭다운 '중요' 배지가 rgb(196,0,24)(red-600) 11px/600입니다.
+   - 대비(브라우저 실제 합성 배경을 canvas로 측정, axe 수치와 일치): 미읽음(보라 틴트) 4.72:1, 읽음 5.04:1
+   - [role=dialog][aria-label=알림] axe color-contrast 위반 0 / incomplete 0
+     · 4건 목록, 20건 목록, hover, 키보드 focus 상태 모두
+     · WCAG 2.0/2.1 A·AA 전체 태그도 0
+   - 새 E2E(열린 드롭다운 + 미읽음·중요 axe)는 이번 E2E 전체에서 통과했습니다.
+   - /notices의 공용 배지는 여전히 3.73:1(red-500)입니다. Plan 결정대로 #31 PR-3 대상이고, 이 PR은 건드리지 않습니다.
+2. notifications.spec:139 flaky — 해소
+   - 같은 명령 notifications.spec.ts --repeat-each=3(새 DB): 45aabce는 3회 중 2회 실패 → 2df0560은 27/27 통과
+   - quote-share.spec.ts --repeat-each=3(새 DB): 6/6 통과. main의 :77 간헐 실패도 같은 헬퍼 수정 대상입니다.
+   - signOutLocally 실측(진단 사본, 원복 확인):
+     · networkidle 대기 0~617ms, 로그아웃 전체 최대 638ms. 15초 상한에 걸린 적 없음, 60초 폴링도 막지 않음
+     · createNotice 직후 호출에서 진행 중이던 GET /admin/notices?_rsc가 대기 중에 끝났습니다.
+     · 쿠키 삭제 뒤 1.5초 동안 쿠키가 다시 생기지 않았습니다.
+
+## 검증한 내용 (실제 실행 기준)
+Frontend (실제 Chromium, next dev :3200, 애니메이션 켬, 새 DB qa52bfe):
+  - 1차 전 시나리오를 다시 돌려 1차 결과와 대조했습니다. 기능 값은 전부 동일합니다.
+    · 배지 0·1·99·99+(100/150)와 aria-label, Esc·바깥 클릭 시 종으로 포커스 복귀
+    · 항목 클릭: 읽음 → 이동(/notices·/pricing·/settings) → 배지 감소
+    · 모두 읽음: DB 26→0, 버튼 disabled
+    · 빈·로딩·오류(500/503/중단) 상태와 다시 시도
+    · 폴링: 60.7s 간격, hidden 0, visible·focus 때 즉시
+    · 챗↔드롭다운 공존 프레임 0(일반·reduced)
+    · 320/1440 넘침 0
+    · 콘솔: 하이드레이션·페이지 에러 0
+  - 라이트·다크 에뮬 양쪽으로 돌렸습니다. 다크 테마가 없어 둘 다 흰 배경으로 동일합니다.
+Backend/테스트 (git archive 사본, 새 DB):
+  - lint·typecheck·format PASS
+  - unit coverage 2220 passed (lines 96.26)
+  - secrets·build·prerender·trace PASS
+  - integration 31 passed
+  - E2E 전체 1회: SHA 2df0560, 새 DB qa52b_e2e, 82/82 passed, 0 flaky, 6.0분(다른 E2E와 겹치지 않게 순차)
+  - 1차에서 확인된 나머지(HTTP Next-Action IDOR 안전, 폴링·모달 우선·반응형·변이 18/21)는 diff 범위 밖이라 그대로 유효합니다.
+
+## 수용 기준 대조 (PR-2)
+- [x] 종 배지(SSR 없음·99+·aria-hidden 숫자·중요 배지 계열 색) — FE
+- [x] 드롭다운(비모달 dialog·최근 20·클릭 = 읽음 → 이동 → 닫기·모두 읽음·로딩/빈/오류·다시 시도·키보드) — FE
+- [x] 폴링 60초·visible·focus·열 때 즉시·hidden 정지 — FE fake clock 실측, 단위 변이
+- [x] 챗 패널과 동시 표시 없음(양방향 퇴장 대기, 재클릭 취소, aria-pressed 즉시) — rAF 공존 프레임 0
+- [x] 읽음 액션 IDOR — HTTP Next-Action 재전송으로 타인 행 무변화(1차)
+- [x] 375/320 가로 스크롤 0, 1280 종 기준 오른쪽 정렬, reduced-motion 이동 없음, axe 색 대비 통과 — FE(이번 수정으로 대비 충족)
+- [x] Dev 게이트 기록 + QA E2E 전체 1회(82/82) — 머지 head SHA ci:run 녹색은 Dev가 머지 전에 확인
+
+## 백로그 (비블로킹)
+1. networkidle 대기가 결정적 해결은 아닙니다.
+   - Playwright 1.63의 networkidle은 페이지 로드마다 한 번 도달하면 고정됩니다(coreBundle 확인).
+   - 실측: 같은 페이지에서 3초 fetch가 진행 중인데도 2ms 만에 반환했습니다.
+   - 액션 전에 페이지가 이미 idle이면 진행 중인 _rsc를 기다리지 않을 수 있습니다. 지금 흐름에서는 동작합니다.
+   - 결정적 대안: 액션 뒤 _rsc 응답을 page.waitForResponse로 기다리거나, 짧은 대기 후 쿠키를 한 번 더 삭제합니다. 헬퍼 주석도 그 한계를 함께 적기를 권합니다.
+2. 미읽음 행 배지 4.72:1은 기준(4.5)과의 여유가 작습니다. PR-3에서 공용 배지를 red-600으로 통일할 때 틴트를 바꾸면 다시 확인이 필요합니다.
+3. Esc 직후 헤더 axe가 퇴장 페이드 중인 드롭다운 텍스트를 잡아 대비 노드 수가 흔들립니다(4~9 → 안정 후 0). 실제 대비 문제는 아니고, 측정 타이밍 문제입니다.
+4. 1차 백로그 1·2·5는 PR 본문 정정으로 처리됐습니다. 세션 연장(6)·공용 배지는 #31 PR-3(Plan 결정)입니다.
+
+머지 진행하셔도 됩니다. (머지는 Dev가 수행, Plan 순서 #50 → #52)
+```
