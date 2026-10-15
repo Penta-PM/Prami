@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 import { Pill } from '@/components/ui';
 import { getDb } from '@/db';
@@ -53,6 +54,12 @@ export default async function AdminCostsPage({ searchParams }: AdminCostsPagePro
         ) : (
           <Pill tone="neutral">현재 적용: 없음</Pill>
         )}
+        <Link
+          href="/admin/costs/links"
+          className="ml-auto rounded-pill bg-gray-75 px-3 py-1.5 text-[12px] font-semibold text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900"
+        >
+          원가 매핑
+        </Link>
       </div>
       <p className="m-0 text-[12px] text-text-tertiary">
         이 화면과 원가 데이터는 관리자에게만 노출됩니다. 일반 사용자 API는 서버단에서 반환을

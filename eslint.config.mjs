@@ -88,6 +88,22 @@ const COST_SYNTAX = [
     message:
       '원가 테이블(material_costs) raw SQL 은 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
   },
+  // 원가 매핑(cost_item_links, 스펙 cost-ratio-price-change §2.1-1)도 원가 영역 — 관계형 쿼리·raw SQL 모두 server/cost 안에서만
+  {
+    selector: "MemberExpression[property.name='costItemLinks']",
+    message:
+      '원가 매핑 관계형 쿼리(db.query.costItemLinks)는 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+  },
+  {
+    selector: 'Literal[value=/(^|[^_a-zA-Z])cost_item_links/]',
+    message:
+      '원가 매핑 테이블(cost_item_links) raw SQL 은 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+  },
+  {
+    selector: 'TemplateElement[value.raw=/(^|[^_a-zA-Z])cost_item_links/]',
+    message:
+      '원가 매핑 테이블(cost_item_links) raw SQL 은 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+  },
 ];
 
 /**
@@ -123,6 +139,12 @@ const restrictCostSyntax = {
             message:
               '원가 테이블 스키마(materialCosts)는 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
           },
+          {
+            name: '@/db/schema',
+            importNames: ['costItemLinks'],
+            message:
+              '원가 매핑 스키마(costItemLinks)는 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+          },
         ],
         patterns: [
           {
@@ -135,6 +157,11 @@ const restrictCostSyntax = {
             group: ['@/db/schema/material-costs', '**/schema/material-costs'],
             message:
               '원가 테이블 스키마(material-costs)는 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
+          },
+          {
+            group: ['@/db/schema/cost-item-links', '**/schema/cost-item-links'],
+            message:
+              '원가 매핑 스키마(cost-item-links)는 server/cost 안에서만 사용할 수 있습니다 (§4.8 AC-42).',
           },
         ],
       },

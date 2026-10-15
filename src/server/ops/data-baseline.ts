@@ -41,7 +41,7 @@ export const DATA_BASELINE: DataBaseline = {
     ],
   },
   expected: {
-    migrations: 9,
+    migrations: 10,
     items: 2511,
     itemStatus: { 사용: 856, 폐기: 1609, 임시: 46 },
     itemMajor: { WAPPLES: 385, 'D.AMO': 1335, iSIGN: 420, 'iSIGN PKI': 215, Cloudbric: 156 },
