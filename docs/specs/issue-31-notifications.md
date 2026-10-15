@@ -146,3 +146,8 @@
    - `shell.test` 갱신, E2E `notifications.spec.ts`
 
 의존 관계: 2 → 1. 착수는 #32 다음이다. CI PR-C(PGlite 템플릿)와 #32(`components/ui`) 이후라 간섭이 없다. 텍스트 충돌이 나는 파일은 없다.
+
+## 구현 중 판단 (2026-10-15, Dev msg_1da743e104c0)
+- Q1 (A): 종 클릭으로 챗 패널을 닫을 때 **챗 퇴장 애니메이션이 끝난 뒤** 드롭다운을 연다(최대 약 160ms 지연, 챗 모션 유지). reduced-motion 이면 퇴장이 없으므로 즉시 연다. 수용 기준 "동시에 보이는 순간이 없다" 유지. 연타·퇴장 중 재클릭은 마지막 의도만 반영.
+- Q2 (기본안): 사용자 행위자가 없는 스크립트 적용(`import:source`, actor.id = null)은 policy.applied 알림을 만들지 않는다. `data:verify --fresh` 의 notifications 0 검사 유지.
+- Q3 (기본안): `docs/deploy/local.md` 의 `data:verify --fresh` 기대값을 PR-1 에서 함께 "PASS 32 / SKIP 1" 로 갱신.
