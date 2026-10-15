@@ -185,15 +185,23 @@ async function runRows(page: Page, rows: readonly Row[], refusal: string) {
   }
   // 봇 말풍선 DOM 전체에 금액 원문 0회 (사용자 말풍선은 본인이 입력한 원문이라 제외)
   const botTexts = (await panel.locator('[data-from="bot"]').allTextContents()).join('\n');
-  // 대화 기록: 마지막 요청이 보낸 history 의 assistant 항목 (클라이언트 메모리의 문답 — R행 답이 모두 포함되는지도 확인)
-  const history = (
-    (requests.at(-1)!.postDataJSON() as { history?: { role: string; text: string }[] }).history ??
-    []
-  ).filter((item) => item.role === 'assistant');
-  expect(history.filter((item) => item.text === refusal)).toHaveLength(
-    rows.filter((row) => row.verdict === 'R').length,
-  );
-  const historyText = history.map((item) => item.text).join('\n');
+  // 대화 기록: 요청마다 보낸 history 의 assistant 항목. 클라이언트는 최근 HISTORY_TURNS(10)개만 보내므로
+  // 마지막 요청 하나로는 모든 행을 볼 수 없다 → 요청 i 의 마지막 assistant 항목 = 행 i-1 의 답(R행이면 거부 문구)
+  const assistantOf = (request: Request) =>
+    (
+      (request.postDataJSON() as { history?: { role: string; text: string }[] }).history ?? []
+    ).filter((item) => item.role === 'assistant');
+  expect(requests).toHaveLength(rows.length);
+  for (let index = 1; index < rows.length; index += 1) {
+    const previous = rows[index - 1]!;
+    expect(assistantOf(requests[index]!).at(-1)?.text, previous.input).toBe(
+      previous.verdict === 'R' ? refusal : mirrored(previous.input),
+    );
+  }
+  const historyText = requests
+    .flatMap(assistantOf)
+    .map((item) => item.text)
+    .join('\n');
   for (const row of rows.filter((entry) => entry.verdict === 'R')) {
     expect(botTexts, `봇 말풍선에 ${row.amount}`).not.toContain(row.amount!);
     expect(historyText, `대화 기록에 ${row.amount}`).not.toContain(row.amount!);
