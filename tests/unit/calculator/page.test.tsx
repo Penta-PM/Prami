@@ -17,7 +17,7 @@ vi.mock('@/server/quotes/catalog', () => ({
   listQuoteCategories: async () => ({
     majors: ['WAPPLES'],
     mids: [],
-    minors: [],
+    minorsByMid: {},
     hasMaster: false,
   }),
   listGroupHardware: async () => [],

@@ -9,10 +9,8 @@ import { runAction } from '@/server/auth/rbac';
 import type { SessionUser } from '@/server/auth/session-user';
 import {
   listQuoteBundles,
-  listQuoteCategories,
   listQuoteItems,
   listQuoteParts,
-  type CategoryChips,
   type QuoteItem,
 } from '@/server/quotes/catalog';
 import {
@@ -54,11 +52,6 @@ const partsFilterSchema = itemFilterSchema.extend({
   modelItemCode: z.string().trim().min(1).max(50),
 });
 
-const categorySchema = z.object({
-  family: z.string().trim().min(1).max(50),
-  mid: z.string().trim().max(100).optional(),
-});
-
 async function context(actor: SessionUser): Promise<QuotesContext> {
   return {
     handle: await getDbHandle(),
@@ -88,15 +81,6 @@ export async function listQuoteOptionsAction(
       listQuoteBundles(db, filter),
     ]);
     return { ...parts, bundles };
-  });
-}
-
-export async function listQuoteCategoriesAction(
-  input: z.input<typeof categorySchema>,
-): Promise<ActionResult<CategoryChips>> {
-  return runAction({ ...read, name: 'listQuoteCategories' }, async () => {
-    const { family, mid } = categorySchema.parse(input);
-    return listQuoteCategories(await getDb(), family, { mid });
   });
 }
 

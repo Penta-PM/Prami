@@ -90,10 +90,6 @@ describe('후보 조회', () => {
     });
     expect(options).toMatchObject({ ok: true, data: { mapped: false, bundles: [] } });
     expect(JSON.stringify(options)).not.toMatch(COST_KEYS);
-    expect(await actions.listQuoteCategoriesAction({ family: 'WAPPLES' })).toMatchObject({
-      ok: true,
-      data: { hasMaster: false, majors: ['WAPPLES'] },
-    });
   });
 
   it('비로그인은 UNAUTHENTICATED', async () => {

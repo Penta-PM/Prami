@@ -126,7 +126,7 @@ const selectedChip = (name: string) =>
 const CHIPS: CategoryChipsView = {
   majors: ['WAPPLES'],
   mids: ['어플라이언스', '파츠'],
-  minors: [],
+  minorsByMid: {},
   hasMaster: true,
 };
 

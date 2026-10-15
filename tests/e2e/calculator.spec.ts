@@ -85,6 +85,51 @@ test('AC-63: 다른 사용자(ADMIN 아님)의 목록에는 남의 견적이 없
   ).toContainText('성공');
 });
 
+test('STEP2: 중분류 → 소분류 → STEP3 품목이 좁혀진다 (globalSetup 의 품목 마스터 items-v1 적용 데이터)', async ({
+  page,
+}) => {
+  await loginAs(page, FIXTURE_USER, '/calculator');
+  await page
+    .getByRole('group', { name: '제품군' })
+    .getByRole('button', { name: 'WAPPLES', exact: true })
+    .click();
+  const items = page.getByRole('list', { name: '품목 목록' });
+  const mids = page.getByRole('group', { name: '중분류' });
+  const minors = page.getByRole('group', { name: '소분류' });
+  // 첫 로드: 중분류 미선택, 소분류 줄 없음
+  await expect(mids.getByRole('button', { name: 'Wapples Product', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await expect(minors).toHaveCount(0);
+
+  await mids.getByRole('button', { name: 'Wapples Product', exact: true }).click();
+  // 순서는 DB 정렬(collation)에 따르므로 집합으로 본다
+  const minorNames = ['H/W Appliance', 'NIC', 'S/W 업그레이드', 'SSL/TLS Acceleator Options'];
+  await expect(minors.getByRole('button')).toHaveCount(minorNames.length);
+  for (const name of minorNames) {
+    await expect(minors.getByRole('button', { name, exact: true })).toBeVisible();
+  }
+  await expect(items).toContainText('Wapples 100 T4 S/W v5.0 업그레이드');
+  await expect(items).toContainText('Wapples-10000 (H10000 T1)-1G RAID');
+
+  const hw = minors.getByRole('button', { name: 'H/W Appliance', exact: true });
+  await hw.click();
+  await expect(hw).toHaveAttribute('aria-pressed', 'true');
+  await expect(items).toContainText('Wapples-10000 (H10000 T1)-1G RAID');
+  await expect(items).not.toContainText('S/W v5.0 업그레이드');
+
+  // 다른 중분류로 바꾸면 소분류가 바뀌고 선택이 풀린다, 같은 중분류 재클릭은 줄을 숨긴다
+  await mids.getByRole('button', { name: 'Wapples-CC', exact: true }).click();
+  await expect(minors.getByRole('button')).toHaveText(['H/W Appliance']);
+  await expect(minors.getByRole('button', { name: 'H/W Appliance', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await mids.getByRole('button', { name: 'Wapples-CC', exact: true }).click();
+  await expect(minors).toHaveCount(0);
+});
+
 test('AC-64: 순매출 계산기 — USER 원가 잠금·비공개, ADMIN 계산', async ({ page }) => {
   await loginAs(page, FIXTURE_USER, '/calculator?tab=margin');
   await expect(page.getByRole('status', { name: '원가 잠금' })).toContainText('관리자만 조회 가능');

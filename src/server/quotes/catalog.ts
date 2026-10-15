@@ -15,7 +15,8 @@ export type CategoryChips = {
   /** 품목 마스터가 있으면 대분류 = items.category_major, 없으면 제품군 하나 */
   majors: string[];
   mids: string[];
-  minors: string[];
+  /** 중분류 → 그 중분류의 소분류(정렬, 빈 값 제외). 클라이언트가 선택한 중분류로 바로 파생한다 */
+  minorsByMid: Record<string, string[]>;
   hasMaster: boolean;
 };
 
@@ -55,35 +56,43 @@ export async function listQuotePriceTypes(db: Db, family: string): Promise<Price
   );
 }
 
-/** STEP2: 대/중/소 칩. 마스터가 없으면 대분류 = 제품군 하나, 중/소는 비어 있다 (§4.5.1 fallback 과 동일) */
-export async function listQuoteCategories(
-  db: Db,
-  family: string,
-  selection: { mid?: string } = {},
-): Promise<CategoryChips> {
-  const distinct = async (column: AnyPgColumn, ...extra: ReturnType<typeof eq>[]) =>
+/**
+ * STEP2: 대/중/소 칩. 마스터가 없으면 대분류 = 제품군 하나, 중/소는 비어 있다 (§4.5.1 fallback 과 동일).
+ * 소분류는 중분류별로 한 번에 미리 내려준다(DISTINCT mid·minor 1회) — 중분류 선택 시 재조회가 없다.
+ */
+export async function listQuoteCategories(db: Db, family: string): Promise<CategoryChips> {
+  const scope = and(isNull(salesPrices.deletedAt), eq(salesPrices.productFamily, family));
+  const distinct = async (column: AnyPgColumn) =>
     (
       await db
         .selectDistinct({ value: column })
         .from(items)
         .innerJoin(salesPrices, eq(salesPrices.itemCode, items.itemCode))
-        .where(
-          and(
-            isNull(salesPrices.deletedAt),
-            eq(salesPrices.productFamily, family),
-            sql`${column} is not null`,
-            ...extra,
-          ),
-        )
+        .where(and(scope, sql`${column} is not null`))
         .orderBy(asc(column))
     ).map((row) => row.value as string);
   const majors = await distinct(items.categoryMajor);
-  if (majors.length === 0) return { majors: [family], mids: [], minors: [], hasMaster: false };
+  if (majors.length === 0) return { majors: [family], mids: [], minorsByMid: {}, hasMaster: false };
   const mids = await distinct(items.categoryMid);
-  const minors = selection.mid
-    ? await distinct(items.categoryMinor, eq(items.categoryMid, selection.mid))
-    : [];
-  return { majors, mids, minors, hasMaster: true };
+  const pairs = await db
+    .selectDistinct({ mid: items.categoryMid, minor: items.categoryMinor })
+    .from(items)
+    .innerJoin(salesPrices, eq(salesPrices.itemCode, items.itemCode))
+    .where(
+      and(
+        scope,
+        sql`${items.categoryMid} is not null`,
+        sql`nullif(btrim(${items.categoryMinor}), '') is not null`,
+      ),
+    )
+    .orderBy(asc(items.categoryMid), asc(items.categoryMinor));
+  // Map → fromEntries: 중분류 값이 '__proto__' 같은 이름이어도 own 속성으로 담긴다 (DB 정렬 순서 유지)
+  const grouped = new Map<string, string[]>();
+  for (const { mid, minor } of pairs) {
+    if (mid === null || minor === null) continue;
+    grouped.set(mid, [...(grouped.get(mid) ?? []), minor]);
+  }
+  return { majors, mids, minorsByMid: Object.fromEntries(grouped), hasMaster: true };
 }
 
 /** 선택 단가유형의 운영중 최신 행 (품번당 1건) */

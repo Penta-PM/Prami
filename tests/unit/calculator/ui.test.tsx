@@ -8,7 +8,6 @@ import type { FamilyPreload, QuoteItemView, SavedQuoteView } from '@/features/ca
 const mocks = vi.hoisted(() => ({
   items: vi.fn(),
   options: vi.fn(),
-  categories: vi.fn(),
   save: vi.fn(),
   list: vi.fn(),
   remove: vi.fn(),
@@ -18,7 +17,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/features/calculator/actions', () => ({
   listQuoteItemsAction: mocks.items,
   listQuoteOptionsAction: mocks.options,
-  listQuoteCategoriesAction: mocks.categories,
   saveQuoteAction: mocks.save,
   listMyQuotesAction: mocks.list,
   deleteQuoteAction: mocks.remove,
@@ -51,7 +49,7 @@ const PRELOAD: FamilyPreload[] = [
       { priceType: '정상판매', count: 77 },
       { priceType: 'ASP', count: 55 },
     ],
-    categories: { majors: ['WAPPLES'], mids: [], minors: [], hasMaster: false },
+    categories: { majors: ['WAPPLES'], mids: [], minorsByMid: {}, hasMaster: false },
     groups: [
       {
         id: '22222222-0000-4000-8000-000000000001',
@@ -73,7 +71,7 @@ const PRELOAD: FamilyPreload[] = [
   {
     family: 'D.AMO',
     priceTypes: [{ priceType: '정상판매', count: 4 }],
-    categories: { majors: ['D.AMO'], mids: [], minors: [], hasMaster: false },
+    categories: { majors: ['D.AMO'], mids: [], minorsByMid: {}, hasMaster: false },
     groups: [],
     hardware: [],
   },
@@ -330,6 +328,122 @@ describe('QuoteCalculator', () => {
     );
     expect(screen.getByLabelText('장바구니')).toHaveTextContent('상세 1');
     expect(screen.getByTestId('quote-total')).toHaveTextContent('20,100,000원');
+  });
+});
+
+/** STEP 2 소분류 줄 (calculator-minor-row 스펙 §4) — 서버가 미리 적재한 minorsByMid 에서 파생 */
+describe('STEP 2 중분류 → 소분류', () => {
+  const MASTER: FamilyPreload[] = [
+    {
+      ...PRELOAD[0]!,
+      categories: {
+        majors: ['WAPPLES'],
+        mids: ['어플라이언스', '라이선스', '빈소분류'],
+        minorsByMid: { 어플라이언스: ['H500', 'H700'], 라이선스: ['연간'], 빈소분류: [] },
+        hasMaster: true,
+      },
+    },
+    PRELOAD[1]!,
+  ];
+  const midChip = (name: string) =>
+    within(screen.getByRole('group', { name: '중분류' })).getByRole('button', { name });
+  const minorRow = () => screen.queryByRole('group', { name: '소분류' });
+  const minorNames = () =>
+    within(screen.getByRole('group', { name: '소분류' }))
+      .getAllByRole('button')
+      .map((chip) => chip.textContent);
+
+  it('첫 로드: 중분류·소분류 미선택, 소분류 줄 없음', async () => {
+    render(<QuoteCalculator userId="u" preload={MASTER} savedQuotes={[]} />);
+    await vi.waitFor(() => expect(mocks.items).toHaveBeenCalled());
+    for (const chip of within(screen.getByRole('group', { name: '중분류' })).getAllByRole(
+      'button',
+    )) {
+      expect(chip).toHaveAttribute('aria-pressed', 'false');
+    }
+    expect(minorRow()).toBeNull();
+  });
+
+  it('중분류 선택 → 그 소분류 칩, 소분류 클릭 → aria-pressed + minor 로 품목 조회', async () => {
+    render(<QuoteCalculator userId="u" preload={MASTER} savedQuotes={[]} />);
+    await userEvent.click(midChip('어플라이언스'));
+    expect(minorNames()).toEqual(['H500', 'H700']);
+    const h700 = within(minorRow()!).getByRole('button', { name: 'H700' });
+    expect(h700).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(h700);
+    expect(within(minorRow()!).getByRole('button', { name: 'H700' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await vi.waitFor(() =>
+      expect(mocks.items).toHaveBeenLastCalledWith({
+        family: 'WAPPLES',
+        priceType: '정상판매',
+        mid: '어플라이언스',
+        minor: 'H700',
+      }),
+    );
+  });
+
+  it('다른 중분류로 바꾸면 칩이 바뀌고 소분류 선택이 해제된다; 같은 중분류 재클릭은 줄을 숨긴다', async () => {
+    render(<QuoteCalculator userId="u" preload={MASTER} savedQuotes={[]} />);
+    await userEvent.click(midChip('어플라이언스'));
+    await userEvent.click(within(minorRow()!).getByRole('button', { name: 'H500' }));
+    await userEvent.click(midChip('라이선스'));
+    await vi.waitFor(() => expect(minorNames()).toEqual(['연간']));
+    expect(within(minorRow()!).getByRole('button', { name: '연간' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    await vi.waitFor(() =>
+      expect(mocks.items).toHaveBeenLastCalledWith({
+        family: 'WAPPLES',
+        priceType: '정상판매',
+        mid: '라이선스',
+        minor: undefined,
+      }),
+    );
+    await userEvent.click(midChip('라이선스'));
+    await vi.waitFor(() => expect(minorRow()).toBeNull());
+  });
+
+  it('제품군을 바꾸면 소분류 줄이 사라진다', async () => {
+    render(<QuoteCalculator userId="u" preload={MASTER} savedQuotes={[]} />);
+    await userEvent.click(midChip('어플라이언스'));
+    expect(minorRow()).not.toBeNull();
+    await userEvent.click(
+      within(screen.getByRole('group', { name: '제품군' })).getByRole('button', { name: 'D.AMO' }),
+    );
+    await vi.waitFor(() => expect(minorRow()).toBeNull());
+    await userEvent.click(
+      within(screen.getByRole('group', { name: '제품군' })).getByRole('button', {
+        name: 'WAPPLES',
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(
+        within(screen.getByRole('group', { name: '중분류' })).getAllByRole('button'),
+      ).toHaveLength(3),
+    );
+    expect(midChip('어플라이언스')).toHaveAttribute('aria-pressed', 'false');
+    expect(minorRow()).toBeNull();
+  });
+
+  it('소분류가 없는 중분류(빈 배열·키 없음)는 줄을 숨기고 이름 없는 칩을 만들지 않는다', async () => {
+    const preload: FamilyPreload[] = [
+      {
+        ...MASTER[0]!,
+        categories: { ...MASTER[0]!.categories, mids: ['빈소분류', '키없음'] },
+      },
+    ];
+    render(<QuoteCalculator userId="u" preload={preload} savedQuotes={[]} />);
+    await userEvent.click(midChip('빈소분류'));
+    expect(midChip('빈소분류')).toHaveAttribute('aria-pressed', 'true');
+    expect(minorRow()).toBeNull();
+    await userEvent.click(midChip('키없음'));
+    expect(midChip('키없음')).toHaveAttribute('aria-pressed', 'true');
+    expect(minorRow()).toBeNull();
+    expect(screen.queryByRole('button', { name: '' })).toBeNull();
   });
 });
 

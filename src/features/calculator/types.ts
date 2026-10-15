@@ -37,7 +37,8 @@ export type PriceTypeView = { priceType: string; count: number };
 export type CategoryChipsView = {
   majors: string[];
   mids: string[];
-  minors: string[];
+  /** 중분류 → 소분류 (서버가 미리 적재, 선택한 중분류의 소분류는 클라이언트에서 파생) */
+  minorsByMid: Record<string, string[]>;
   hasMaster: boolean;
 };
 
