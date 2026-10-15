@@ -151,3 +151,4 @@
 - Q1 (A): 종 클릭으로 챗 패널을 닫을 때 **챗 퇴장 애니메이션이 끝난 뒤** 드롭다운을 연다(최대 약 160ms 지연, 챗 모션 유지). reduced-motion 이면 퇴장이 없으므로 즉시 연다. 수용 기준 "동시에 보이는 순간이 없다" 유지. 연타·퇴장 중 재클릭은 마지막 의도만 반영.
 - Q2 (기본안): 사용자 행위자가 없는 스크립트 적용(`import:source`, actor.id = null)은 policy.applied 알림을 만들지 않는다. `data:verify --fresh` 의 notifications 0 검사 유지.
 - Q3 (기본안): `docs/deploy/local.md` 의 `data:verify --fresh` 기대값을 PR-1 에서 함께 "PASS 32 / SKIP 1" 로 갱신.
+- Q1 반대 방향 (A, Dev msg_3c0e31e472b7): 알림 드롭다운이 열린 채 챗 버튼을 누르면 **드롭다운 퇴장(약 160ms)이 끝난 뒤** 챗 패널을 연다(Q1 A 와 대칭). 대기 중 챗 버튼 재클릭은 취소(마지막 의도만), `aria-pressed` 는 클릭 즉시 반영, reduced-motion 이면 즉시.
