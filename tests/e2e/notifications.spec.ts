@@ -274,3 +274,54 @@ test('1280px: 폭 360px, 종 버튼 기준 오른쪽 정렬', async ({ page }) =
   expect(Math.round(box.x + box.width)).toBe(Math.round(bellBox.x + bellBox.width));
   expect(box.y).toBeGreaterThan(bellBox.y + bellBox.height);
 });
+
+/** #31 PR-3: 이 페이지에서 '중요' 배지가 걸린 axe color-contrast 위반 노드 (다른 요소의 기존 위반은 이 검사 대상 아님) */
+async function importantBadgeContrastViolations(page: Page) {
+  const results = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze();
+  const checked = results.passes
+    .flatMap((rule) => rule.nodes)
+    .filter((node) => node.html.includes('>중요<'));
+  const violations = results.violations
+    .flatMap((rule) => rule.nodes)
+    .filter((node) => node.html.includes('>중요<'))
+    .map((node) => node.html);
+  return { checked: checked.length, violations };
+}
+
+test('#31 PR-3: 공용 중요 배지 axe 대비 — /notices 목록·상세, 공지 관리', async ({ page }) => {
+  await loginAs(page, FIXTURE_ADMIN, '/notices');
+  for (const path of ['/notices', '/admin/notices']) {
+    await page.goto(path);
+    await expect(page.getByText(FIRST).first()).toBeVisible();
+    const result = await importantBadgeContrastViolations(page);
+    expect(result.violations, path).toEqual([]);
+    expect(result.checked, `${path} 에서 검사한 중요 배지`).toBeGreaterThan(0);
+  }
+  await page.goto('/notices');
+  await page.getByRole('link', { name: FIRST }).first().click();
+  await expect(page.getByRole('heading', { level: 1, name: FIRST })).toBeVisible();
+  const detail = await importantBadgeContrastViolations(page);
+  expect(detail.violations, '상세').toEqual([]);
+  expect(detail.checked, '상세에서 검사한 중요 배지').toBeGreaterThan(0);
+});
+
+test('#31 PR-3: 알림 폴링 응답은 세션 쿠키를 재발급하지 않고, 다른 요청은 슬라이딩 연장 그대로', async ({
+  page,
+}) => {
+  await loginAs(page, FIXTURE_USER, '/');
+  const sessionCookies = (headers: { name: string; value: string }[]) =>
+    headers
+      .filter((header) => header.name.toLowerCase() === 'set-cookie')
+      .filter((header) => /(?:^|\s)(?:__Secure-)?authjs\.session-token/.test(header.value));
+
+  const poll = await page.request.get('/api/notifications?limit=20');
+  expect(poll.status()).toBe(200);
+  expect(sessionCookies(poll.headersArray()), '알림 폴링 응답의 세션 Set-Cookie').toEqual([]);
+
+  const status = await page.request.get('/api/chat/status');
+  expect(status.status()).toBe(200);
+  expect(
+    sessionCookies(status.headersArray()).length,
+    '챗봇 상태 조회는 기존처럼 세션 연장',
+  ).toBeGreaterThan(0);
+});
