@@ -106,19 +106,20 @@ function hasCostWord(sentence: string): boolean {
 const WON_COMMON_NOUN =
   '(?!(?:칙|본|장)(?=[을이은과으의에도만]|\\s)|리(?=[를가는와로의에도만]|\\s)|인(?=[을이은의과에으])|만(?=하게|히))';
 /**
- * G10 (스펙 output-guard-coverage-2 §7, Plan 결정 msg_17214c7ca947): **제품코드 숫자** + 공백 + '원가'는 원가 단어다
- * ("WAPPLES-500 원가", "SA-200 원가는", "H500 원가") — 금액 아님. 제품코드 = 라틴 문자(+하이픈)에 바로 붙은 숫자.
+ * G10 (스펙 output-guard-coverage-2 §7): **당사 제품 모델 접두**(허용 목록) + 숫자 + 공백 + '원가'는 원가 단어다
+ * ("WAPPLES-500 원가", "SA-200 원가는", "H500 원가", "SG-KMS-1700 원가") — 금액 아님.
+ * - 허용 목록(대소문자 무관): WAPPLES(·-CC·-MS), SA, H(하드웨어 코드), SG-KMS·KMS, SG-WCA·SG-WVA·SS-ATH·SS-IAT, iSIGN(+).
+ *   접두 앞은 토큰 경계(라틴 문자·숫자에 붙으면 아님 — "USA-500"·"WH500"·"xSA-200" 은 금액),
+ *   접두와 숫자 사이 구분자는 '-'·'_'·공백 0~1개(Plan 결정 msg_335fbc44273e).
  * - 뒤가 량·까·치·격이면 '원 + 가량/가까이/가치/가격'이라 금액으로 둔다("WAPPLES-500 원가량").
- * - 통화 코드(KRW·USD·JPY·EUR·CNY·GBP) 바로 뒤 하이픈은 제품코드가 아니다("USD-500 원가?" 금액).
- * - 일반 숫자 + 공백 + '원가'는 뒤에 무엇이 오든 main 과 같이 금액이다("원가는 3,000 원가 정도", "1,000 원가~").
- *   main 대비 새 누설 금지 원칙 — 코퍼스 밖이어도 백로그로 두지 않는다.
+ * - 그 밖의 모든 숫자(일반 숫자, 통화 코드·ISO 코드·W·WON·라벨 접두 등 허용 목록 밖 라틴 접두)는 + 공백 + '원가'가
+ *   main 과 같이 금액이다 — 차단 목록 대신 허용 목록이라 표기 변형(대소문자·밑줄·연속 하이픈)으로 새 누설이 생기지 않는다.
  */
-const CURRENCY_CODE_HYPHEN = '(?<![A-Za-z])(?:KRW|USD|JPY|EUR|CNY|GBP|krw|usd|jpy|eur|cny|gbp)-';
-const NOT_PRODUCT_CODE = `(?:(?<![A-Za-z][\\w-]*)|(?<=${CURRENCY_CODE_HYPHEN}))`;
-const PRODUCT_CODE = `(?<=[A-Za-z][\\w-]*)(?<!${CURRENCY_CODE_HYPHEN})`;
+const PRODUCT_PREFIX =
+  '(?<![A-Za-z0-9])(?:WAPPLES(?:-CC|-MS)?|SA|H|SG-KMS|KMS|SG-WCA|SG-WVA|SS-ATH|SS-IAT|ISIGN\\+|ISIGN)[-_ ]?';
 const AMOUNT_DIGIT_WON = new RegExp(
-  `${NOT_PRODUCT_CODE}\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN})|${PRODUCT_CODE}\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN}(?!가(?![량까치격])))|\\d[\\d,.]*\\s*[십백천만억조]+(?:원|\\s+원${WON_COMMON_NOUN})`,
-  'u',
+  `(?<!${PRODUCT_PREFIX}[\\d,.]*)\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN})|(?<=${PRODUCT_PREFIX})\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN}(?!가(?![량까치격])))|\\d[\\d,.]*\\s*[십백천만억조]+(?:원|\\s+원${WON_COMMON_NOUN})`,
+  'iu',
 );
 const AMOUNT_DIGIT_CURRENCY =
   /\d[\d,.]*\s*[십백천만억조]*\s*(달러|[$₩€£¥]|(KRW|USD|JPY|EUR|CNY|GBP|dollars?|won|yen|euros?)(?![a-z]))/i;
