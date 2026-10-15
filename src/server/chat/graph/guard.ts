@@ -106,15 +106,18 @@ function hasCostWord(sentence: string): boolean {
 const WON_COMMON_NOUN =
   '(?!(?:칙|본|장)(?=[을이은과으의에도만]|\\s)|리(?=[를가는와로의에도만]|\\s)|인(?=[을이은의과에으])|만(?=하게|히))';
 /**
- * G10 (스펙 output-guard-coverage-2): 숫자 + 공백 + '원가'는 원가 단어다("WAPPLES-500 원가", "SA-200 원가는") — 금액 아님.
- * 단 '원가' 바로 뒤가 량·까·치·격이면 '원 + 가량/가까이/가치/가격'이라 금액으로 둔다("1,000 원가량", "3,000 원가까이").
- * '원가' 바로 뒤가 문장부호·문장 끝이어도 금액이다("원가는 1,000 원가?" — main 에서 R, 새 누설 금지. Plan Q2 B).
- * 단위 없는 아라비아 숫자에만 적용한다(한글 수사·단위 + 공백 + '원가', 붙여 쓴 "500원가량"은 기존 그대로).
+ * G10 (스펙 output-guard-coverage-2 §7, Plan 결정 msg_17214c7ca947): **제품코드 숫자** + 공백 + '원가'는 원가 단어다
+ * ("WAPPLES-500 원가", "SA-200 원가는", "H500 원가") — 금액 아님. 제품코드 = 라틴 문자(+하이픈)에 바로 붙은 숫자.
+ * - 뒤가 량·까·치·격이면 '원 + 가량/가까이/가치/가격'이라 금액으로 둔다("WAPPLES-500 원가량").
+ * - 통화 코드(KRW·USD·JPY·EUR·CNY·GBP) 바로 뒤 하이픈은 제품코드가 아니다("USD-500 원가?" 금액).
+ * - 일반 숫자 + 공백 + '원가'는 뒤에 무엇이 오든 main 과 같이 금액이다("원가는 3,000 원가 정도", "1,000 원가~").
+ *   main 대비 새 누설 금지 원칙 — 코퍼스 밖이어도 백로그로 두지 않는다.
  */
-const WON_COST_WORD = '(?!가(?![량까치격]|\\s*(?:$|\\p{P})))';
+const CURRENCY_CODE_HYPHEN = '(?<![A-Za-z])(?:KRW|USD|JPY|EUR|CNY|GBP|krw|usd|jpy|eur|cny|gbp)-';
+const NOT_PRODUCT_CODE = `(?:(?<![A-Za-z][\\w-]*)|(?<=${CURRENCY_CODE_HYPHEN}))`;
+const PRODUCT_CODE = `(?<=[A-Za-z][\\w-]*)(?<!${CURRENCY_CODE_HYPHEN})`;
 const AMOUNT_DIGIT_WON = new RegExp(
-  // 제품코드(라틴 문자에 붙은 숫자: WAPPLES-500·SA-200·H500) 뒤 공백 + '원가'는 뒤와 관계없이 원가 단어 — 문장 끝이어도("WAPPLES-500 원가")
-  `(?<![A-Za-z][\\w-]*)\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN}${WON_COST_WORD})|(?<=[A-Za-z][\\w-]*)\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN}(?!가(?![량까치격])))|\\d[\\d,.]*\\s*[십백천만억조]+(?:원|\\s+원${WON_COMMON_NOUN})`,
+  `${NOT_PRODUCT_CODE}\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN})|${PRODUCT_CODE}\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN}(?!가(?![량까치격])))|\\d[\\d,.]*\\s*[십백천만억조]+(?:원|\\s+원${WON_COMMON_NOUN})`,
   'u',
 );
 const AMOUNT_DIGIT_CURRENCY =
@@ -183,8 +186,10 @@ const AMOUNT_WORD_CURRENCY = new RegExp(
  * - 숫자 앞이 라틴 문자·숫자면 제외(모델·버전 토큰). 한글 수사·어림 수사는 앞이 한글 음절이면 제외(단어 중간 "…구억…").
  * - 어림 수사(수·몇·수십·십수…)는 억뿐 아니라 천·만에도 붙는다("수천만입니다", "몇만 정도" — Plan Q3 B).
  * - 한글 수사는 수사 글자로 시작하거나 단위가 둘 이상일 때만("만이 아니라"·"천 정도"의 단독 단위 제외).
+ * - 아라비아 숫자 바로 뒤의 한글 수사 글자는 수사로 시작하지 않는다("3일만에"·"10일만이면"의 '일만' 제외, Plan 결정).
+ *   숫자 + 단위 조합("1억2천만")은 첫 갈래가 읽는다. 숫자에 붙지 않은 "일만 원"·"약 일만 원"은 그대로 금액.
  */
-const SCALE_NUMBER = `(?:(?<![A-Za-z\\d.,])\\d[\\d,.]*\\s?${UNIT}(?:(?:\\d[\\d,.]*|${DIGIT})?${UNIT})*|(?<![가-힣])(?=${DIGIT}|${UNIT}${DIGIT}?${UNIT})(?:${DIGIT}?${UNIT})+|(?<![가-힣])${ESTIMATE}\\s*${UNIT}+)`;
+const SCALE_NUMBER = `(?:(?<![A-Za-z\\d.,])\\d[\\d,.]*\\s?${UNIT}(?:(?:\\d[\\d,.]*|${DIGIT})?${UNIT})*|(?<![가-힣\\d])(?=${DIGIT}|${UNIT}${DIGIT}?${UNIT})(?:${DIGIT}?${UNIT})+|(?<![가-힣])${ESTIMATE}\\s*${UNIT}+)`;
 const SCALE_APPROX = '(?:정도|가량|쯤|수준|내외)';
 const SCALE_FOLLOW = `(?:\\s*(?:$|[.!?。,)|/~])|이(?!상|하|내)|가(?!지)|[은는을를의도와과]|에(?!요)|으로|로|부터|까지|보다|씩|짜리|어치|임|인|입니|${SCALE_APPROX}|(?<=억)대(?![수표])|\\s+(?:입니다|이다|이에요|${SCALE_APPROX}))`;
 const AMOUNT_SCALE_ONLY = new RegExp(
