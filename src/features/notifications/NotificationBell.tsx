@@ -266,7 +266,8 @@ function NotificationBody({
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="flex min-w-0 items-center gap-1.5">
-                {item.important ? <ImportantBadge /> : null}
+                {/* 기본 배지(red-500)는 미읽음 보라 틴트 위에서 axe 대비 미달(3.4:1) → 드롭다운에서는 red-600(4.6:1 이상) */}
+                {item.important ? <ImportantBadge className="text-red-600" /> : null}
                 <span
                   className={cn(
                     'min-w-0 flex-1 truncate text-[13px]',

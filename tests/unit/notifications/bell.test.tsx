@@ -233,9 +233,13 @@ describe('NotificationBell 항목', () => {
     });
     renderShell();
     const { dialog } = await openDropdown();
-    expect(
-      within(await within(dialog).findByRole('link', { name: /긴급/ })).getByText('중요'),
-    ).toBeInTheDocument();
+    const badge = within(await within(dialog).findByRole('link', { name: /긴급/ })).getByText(
+      '중요',
+    );
+    expect(badge).toBeInTheDocument();
+    // 미읽음 보라 틴트 위 axe 대비(#52 QA): 기본 red-500 대신 red-600
+    expect(badge).toHaveClass('text-red-600');
+    expect(badge).not.toHaveClass('text-red-500');
     expect(
       within(within(dialog).getByRole('link', { name: /일반/ })).queryByText('중요'),
     ).not.toBeInTheDocument();

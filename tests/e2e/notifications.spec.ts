@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 
@@ -123,6 +124,17 @@ test('USER: 배지 1·"알림 1개 안 읽음" → 항목 클릭 → /notices/{i
   await expect(item).toContainText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
   await expect(item).toHaveAttribute('href', /^\/notices\/[0-9a-f-]{36}$/);
   const href = await item.getAttribute('href');
+
+  // §6 axe 색 대비: 미읽음(보라 틴트) + 중요 배지가 든 열린 드롭다운 (#52 QA CRITICAL 1)
+  const axe = await new AxeBuilder({ page })
+    .include('[role="dialog"][aria-label="알림"]')
+    .withRules(['color-contrast'])
+    .analyze();
+  expect(
+    axe.violations,
+    JSON.stringify(axe.violations.map((v) => v.nodes.map((n) => n.html))),
+  ).toEqual([]);
+  expect(axe.passes.flatMap((rule) => rule.nodes).length, 'axe 가 검사한 요소').toBeGreaterThan(0);
 
   await item.click();
   await expect(page).toHaveURL((url) => url.pathname === href);
