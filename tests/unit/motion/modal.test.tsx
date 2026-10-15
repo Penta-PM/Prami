@@ -390,3 +390,148 @@ describe('Modal 퇴장 — 실제 애니메이션 (skipAnimations 끔)', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * 공용 모달 백드롭 오인 닫힘 (modal-backdrop-press-origin 스펙 §4). 브라우저는 click 을 pointerdown·pointerup 대상의 공통 조상으로
+ * 보내므로, 패널 안에서 눌러 백드롭에서 놓으면 click 대상이 <dialog> 자신이다 — jsdom 에서는 pointerDown(내용) → click(dialog) 로 재현한다.
+ */
+describe('Modal 백드롭 판정 — 누름이 시작된 곳 (modal-backdrop-press-origin)', () => {
+  it('패널 안(헤더)에서 누르고 백드롭에서 놓으면 닫히지 않는다 — onClose 0회', async () => {
+    const onClose = vi.fn();
+    render(
+      <Modal open onClose={onClose} title="드래그">
+        <input aria-label="입력" defaultValue="유지" />
+      </Modal>,
+      withMotion,
+    );
+    const dialog = screen.getByRole('dialog');
+    fireEvent.pointerDown(screen.getByRole('heading', { name: '드래그' }));
+    fireEvent.click(dialog);
+    fireEvent.pointerDown(screen.getByRole('textbox', { name: '입력' }));
+    fireEvent.click(dialog);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(dialog).toHaveAttribute('open');
+    expect(dialog).not.toHaveAttribute('data-closing');
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox', { name: '입력' })).toHaveValue('유지');
+  });
+
+  it('pointerdown 에서 전파를 막는 요소(DataTable 리사이즈 핸들)에서 시작해도 캡처로 기록해 닫지 않는다', async () => {
+    const onClose = vi.fn();
+    render(
+      <Modal open onClose={onClose} title="리사이즈">
+        <div
+          role="separator"
+          aria-label="열 너비 조절"
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            event.preventDefault();
+          }}
+        />
+      </Modal>,
+      withMotion,
+    );
+    const dialog = screen.getByRole('dialog');
+    fireEvent.pointerDown(screen.getByRole('separator', { name: '열 너비 조절' }));
+    fireEvent.click(dialog);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(dialog).toHaveAttribute('open');
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('막힌 직후의 진짜 백드롭 클릭(백드롭에서 누르고 놓음)은 퇴장 뒤 닫히고 onClose 정확히 1회 — 기록은 click 마다 비운다', async () => {
+    const onClose = vi.fn();
+    render(
+      <Modal open onClose={onClose} title="초기화">
+        내용
+      </Modal>,
+      withMotion,
+    );
+    const dialog = screen.getByRole('dialog');
+    fireEvent.pointerDown(screen.getByText('내용'));
+    fireEvent.click(dialog);
+    expect(dialog).not.toHaveAttribute('data-closing');
+
+    fireEvent.pointerDown(dialog);
+    fireEvent.pointerUp(dialog);
+    fireEvent.click(dialog);
+    expect(dialog).toHaveAttribute('data-closing');
+    await waitFor(() => expect(dialog).not.toHaveAttribute('open'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('백드롭에서 누르고 패널 안에서 놓으면 닫히지 않는다 — onClose 0회 (Q-M1 = A)', async () => {
+    const onClose = vi.fn();
+    render(
+      <Modal open onClose={onClose} title="밖에서 안으로">
+        <span>내용</span>
+      </Modal>,
+      withMotion,
+    );
+    const dialog = screen.getByRole('dialog');
+    fireEvent.pointerDown(dialog);
+    fireEvent.pointerUp(screen.getByText('내용'));
+    fireEvent.click(dialog);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(dialog).toHaveAttribute('open');
+    expect(dialog).not.toHaveAttribute('data-closing');
+    expect(onClose).not.toHaveBeenCalled();
+
+    // 기록은 click 마다 비운다 — 이어지는 진짜 백드롭 클릭(누름·놓음 모두 백드롭)은 닫힌다
+    fireEvent.pointerDown(dialog);
+    fireEvent.pointerUp(dialog);
+    fireEvent.click(dialog);
+    await waitFor(() => expect(dialog).not.toHaveAttribute('open'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('백드롭 우클릭·중클릭(auxclick·contextmenu)으로는 닫히지 않는다', async () => {
+    const onClose = vi.fn();
+    render(
+      <Modal open onClose={onClose} title="보조 버튼">
+        내용
+      </Modal>,
+      withMotion,
+    );
+    const dialog = screen.getByRole('dialog');
+    fireEvent.pointerDown(dialog, { button: 2 });
+    fireEvent.contextMenu(dialog, { button: 2 });
+    fireEvent.pointerDown(dialog, { button: 1 });
+    fireEvent(dialog, new MouseEvent('auxclick', { bubbles: true, button: 1 }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(dialog).toHaveAttribute('open');
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('다시 열면 이전 열림의 기록이 남지 않는다 — 열기 직전 초기화', async () => {
+    const onClose = vi.fn();
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            열기
+          </button>
+          <Modal open={open} onClose={() => (onClose(), setOpen(false))} title="재열기">
+            <button type="button" onClick={() => setOpen(false)}>
+              안에서 닫기
+            </button>
+          </Modal>
+        </>
+      );
+    }
+    render(<Harness />, withMotion);
+    // 패널 안에서 눌러 기록만 남기고(click 없음) 부모가 닫는다
+    fireEvent.pointerDown(screen.getByRole('button', { name: '안에서 닫기' }));
+    await userEvent.click(screen.getByRole('button', { name: '안에서 닫기' }));
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { hidden: true })).not.toHaveAttribute('open'),
+    );
+    fireEvent.pointerDown(screen.getByRole('button', { name: '안에서 닫기', hidden: true }));
+    await userEvent.click(screen.getByRole('button', { name: '열기' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(dialog); // 기록 없는 click(합성) = 백드롭 클릭
+    await waitFor(() => expect(dialog).not.toHaveAttribute('open'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
