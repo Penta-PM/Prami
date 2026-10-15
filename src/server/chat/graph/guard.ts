@@ -109,16 +109,21 @@ const WON_COMMON_NOUN =
  * G10 (스펙 output-guard-coverage-2 §7): **당사 제품 모델 접두**(허용 목록) + 숫자 + 공백 + '원가'는 원가 단어다
  * ("WAPPLES-500 원가", "SA-200 원가는", "H500 원가", "SG-KMS-1700 원가") — 금액 아님.
  * - 허용 목록(대소문자 무관): WAPPLES(·-CC·-MS), SA, H(하드웨어 코드), SG-KMS·KMS, SG-WCA·SG-WVA·SS-ATH·SS-IAT, iSIGN(+).
- *   접두 앞은 토큰 경계(라틴 문자·숫자에 붙으면 아님 — "USA-500"·"WH500"·"xSA-200" 은 금액),
- *   접두와 숫자 사이 구분자는 '-'·'_'·공백 0~1개(Plan 결정 msg_335fbc44273e).
+ *   접두 앞은 토큰 경계 — 라틴 문자(Ü·é 포함)·숫자·'-'·'_'·'.'·'/' 뒤면 아님("USA-500"·"WH500"·"xSA-200"·"ÜSA-500"·
+ *   "USD-SA-200"·"SG--KMS-500" 은 금액). 접두와 숫자 사이 구분자는 '-'·'_'·공백 0~1개, 한 글자 접두 H 는 붙여 쓰거나
+ *   하이픈만("H500"·"H-500" — "H 1,000" 은 금액). Plan 결정 msg_335fbc44273e·#50 3차 경계 1·2 (가).
  * - 뒤가 량·까·치·격이면 '원 + 가량/가까이/가치/가격'이라 금액으로 둔다("WAPPLES-500 원가량").
  * - 그 밖의 모든 숫자(일반 숫자, 통화 코드·ISO 코드·W·WON·라벨 접두 등 허용 목록 밖 라틴 접두)는 + 공백 + '원가'가
  *   main 과 같이 금액이다 — 차단 목록 대신 허용 목록이라 표기 변형(대소문자·밑줄·연속 하이픈)으로 새 누설이 생기지 않는다.
  */
 const PRODUCT_PREFIX =
-  '(?<![A-Za-z0-9])(?:WAPPLES(?:-CC|-MS)?|SA|H|SG-KMS|KMS|SG-WCA|SG-WVA|SS-ATH|SS-IAT|ISIGN\\+|ISIGN)[-_ ]?';
+  '(?<![\\p{Script=Latin}\\p{N}\\-_./])(?:(?:WAPPLES(?:-CC|-MS)?|SA|SG-KMS|KMS|SG-WCA|SG-WVA|SS-ATH|SS-IAT|ISIGN\\+|ISIGN)[-_ ]?|H-?)';
+/**
+ * 일반 숫자 갈래에서 빼는 것은 **접두 바로 뒤에서 시작한 숫자**(와 그 숫자의 중간 자리)뿐이다. 접두와 숫자 사이에 '.'·','
+ * 같은 다른 문자가 끼면("H.500원", "SA,1,000원") 제품코드가 아니므로 main 과 같이 일반 숫자로 판정한다(QA #50 3차).
+ */
 const AMOUNT_DIGIT_WON = new RegExp(
-  `(?<!${PRODUCT_PREFIX}[\\d,.]*)\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN})|(?<=${PRODUCT_PREFIX})\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN}(?!가(?![량까치격])))|\\d[\\d,.]*\\s*[십백천만억조]+(?:원|\\s+원${WON_COMMON_NOUN})`,
+  `(?<!${PRODUCT_PREFIX})(?<!${PRODUCT_PREFIX}\\d[\\d,.]*)\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN})|(?<=${PRODUCT_PREFIX})\\d[\\d,.]*(?:원|\\s+원${WON_COMMON_NOUN}(?!가(?![량까치격])))|\\d[\\d,.]*\\s*[십백천만억조]+(?:원|\\s+원${WON_COMMON_NOUN})`,
   'iu',
 );
 const AMOUNT_DIGIT_CURRENCY =
