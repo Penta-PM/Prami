@@ -102,7 +102,7 @@ docker exec prami-postgres-1 rm "/tmp/prami-$stamp.dump"
 | 옵션 | 의미 |
 | --- | --- |
 | `--target local\|preview\|production` | 원격(`preview`·`production`)은 `--target-host <연결 호스트>` 가 실제 호스트와 같아야 실행. `local` 도 DB 가 원격이면 같은 규칙 |
-| `--stage schema\|data` | `schema` = 저널 최신 = DB 최신·마이그레이션 9행(`0000`~`0008`). 기본 `data` |
+| `--stage schema\|data` | `schema` = 저널 최신 = DB 최신·마이그레이션 10행(`0000`~`0009`). 기본 `data` |
 | `--fresh` | 클린 설치 직후용: fixture 계정 0, 공지·견적·공유·솔루션 그룹·LLM 키·OAuth state 0, part_mappings 0, 감사 actor `seed` 0, 적용 배치 종류별 1, 허용 도메인 밖 사용자 0, 활성 ADMIN ≥ 1(로컬은 로그인 전이면 SKIP) |
 | `--allow-part-mappings` | 관리자가 파츠 매핑을 넣은 뒤 — 매핑 수만 출력 |
 | exit | 0 통과 · 1 실패 · 2 원본 SHA-256 이 기준과 다름(수치는 실측만 출력 — Plan 기준값 재계산 필요) |
@@ -150,7 +150,7 @@ DB 를 바꾸지 않는다. 관리자가 시트 2 로 검수하고 필요한 행
 | 8) 임시 덤프 삭제 | 성공 |
 | 복원 | 드롭·재생성 → `pg_restore --no-owner` → items 2511 · audit_logs 8 · users 2 · notices 3(사전 상태와 동일) |
 
-> **#31 이후 기대값:** 위 기록은 2026-10-01(마이그레이션 `0007` 까지) 기준이다. `0008_notifications` 부터 3) 은 `0000`~`0008` 9행, 6) `data:verify --fresh --target local` 은 **PASS 32 / SKIP 1**(`notifications 행 = 0` 검사 추가)이다. 사용자 행위자가 없는 스크립트 적용(`import:source`)은 알림을 만들지 않으므로 5) 임포트 뒤에도 `notifications` 는 0 이다.
+> **#31 이후 기대값:** 위 기록은 2026-10-01(마이그레이션 `0007` 까지) 기준이다. `0008_notifications` 부터 3) 은 `0000`~`0008` 9행, 6) `data:verify --fresh --target local` 은 **PASS 32 / SKIP 1**(`notifications 행 = 0` 검사 추가)이다. 사용자 행위자가 없는 스크립트 적용(`import:source`)은 알림을 만들지 않으므로 5) 임포트 뒤에도 `notifications` 는 0 이다. `0009_cost_item_links`(원가 매핑) 부터 3) 은 `0000`~`0009` 10행이다(6) 의 PASS 수는 같음 — `cost_item_links` 는 fresh 검사 대상 아님).
 
 ## 6. LAN 에서 dev 서버 열기 (Linux 하이드레이션 수정 스펙 §3.2·§3.4)
 
