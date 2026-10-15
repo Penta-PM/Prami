@@ -16,6 +16,8 @@ import {
 import { withTransaction, type Tx } from '@/db/tx';
 import { AppError } from '@/lib/result';
 import { writeAudit, type AuditActor, type RequestMeta } from '@/server/audit/log';
+import { insertForActiveUsers } from '@/server/notifications/audience';
+import { NOTIFICATION_REF, notificationContent } from '@/server/notifications/types';
 
 import {
   applyItemBatch,
@@ -176,6 +178,28 @@ async function finalizeRun(
     target: { type: 'policy_apply_run', id: runId, label: runId },
     after: { ...stats, salesBatchId: input.salesBatchId, itemBatchId: input.itemBatchId },
     meta: ctx.meta,
+  });
+  await notifyPolicyApplied(tx, ctx, runId, stats);
+}
+
+/**
+ * #31: 적용 성공을 실행자 외 활성 사용자에게 알린다(같은 트랜잭션, 실패 run 은 여기까지 오지 않는다).
+ * 본문은 반영 건수만 — 금액·원가 없음. 사용자 행위자가 없는 스크립트 적용(import:source, actor.id=null)은
+ * 클린 설치·복구 절차라 알리지 않는다 (data:verify --fresh 의 notifications 0 과 일관).
+ */
+async function notifyPolicyApplied(
+  tx: Tx,
+  ctx: ApplyContext,
+  runId: string,
+  stats: PolicyApplyStats,
+) {
+  if (!ctx.actor.id) return;
+  await insertForActiveUsers(tx, {
+    type: 'policy.applied',
+    ...notificationContent.policyApplied(stats.inserted),
+    refType: NOTIFICATION_REF.policyApplyRun,
+    refId: runId,
+    actorUserId: ctx.actor.id,
   });
 }
 

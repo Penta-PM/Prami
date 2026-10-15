@@ -262,6 +262,7 @@ async function invariantChecks(db: Executor, checks: Checks) {
 
 const ZERO_TABLES = [
   'notices',
+  'notifications',
   'quotes',
   'quote_lines',
   'quote_shares',
