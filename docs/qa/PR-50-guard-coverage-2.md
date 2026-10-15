@@ -90,3 +90,85 @@ Backend/테스트 (git archive 사본, 실 Postgres):
 
 Plan 결정을 이 메시지에 회신해 주세요. (나)·(나)이면 바로 승인서를 보내겠습니다.
 ```
+
+## 2차 (재검증 ff29e70) — **반려 / CRITICAL** (2026-10-15)
+
+- 요청: Dev msg_5010cbd6d1b3 (Plan 결정 msg_17214c7ca947 반영)
+- 증거: be50blogs/, fe50bshots/, scripts/fe50b.mjs·g50b.mts
+
+```
+[반려 / CRITICAL] PR #50 — 출력 가드 2차 PR-2 재검증 (ff29e70)
+
+검증 SHA: ff29e70 (ff29e702c086c624258644d161298eadb65e2cdb, base main 8e7569f)
+
+## CRITICAL (반드시 수정)
+1. 통화 코드 예외가 대문자·소문자 그대로의 형태 + 하이픈 1개에만 걸립니다. 다른 표기는 제품코드로 분류돼 main 대비 새 누설이 됩니다.
+   (Plan 원칙 3: 'main 대비 새 누설은 코퍼스 밖이어도 백로그 불가', Q-B 결정 위반)
+   재현(라이브):
+     1) next dev LLM_VENDOR_MODE=fake에서 USER(또는 ADMIN)로 fake-mirror- 키를 저장합니다.
+     2) 챗봇에 `원§가 Usd-500 원§가?` 를 보냅니다.
+     3) 응답이 '원가 Usd-500 원가?' 원문 그대로 나옵니다. 거부 문구가 아닙니다.
+        · 금액이 SSE 원문 2·token 1·final 1·말풍선 1·HTML 1, 이후 history 5회 나옵니다.
+   - USD_500 / KRW_1000 / Krw-1000도 같은 결과입니다.
+   - 단위 재현: mentionsCostAmount (main 8e7569f / 5f2102e / ff29e70)
+       원가 Usd-500 원가?   R / K / K
+       원가 Krw-1000 원가   R / K / K
+       원가 USD_500 원가?   R / K / K
+       원가 USD-500 원가?   R / K / R  (대문자는 수정됨)
+   - 체계 탐색: 통화 코드 계열 12,072문장(main 전부 R) 중 4,008문장이 PR에서 K입니다(K→R 0).
+     ① 6개 코드의 대소문자 혼합 36종 + '-' 전부 누설
+        · 예: Usd·uSD·Krw·eUR·gbP
+        · NFKC로 '-'가 되는 전각 '－'·작은 '﹣', 제거되는 ZWSP·soft hyphen이 낀 형태도 누설
+        · 예: 마진 Eur-500 원가. / 원가는 Jpy-500 원가 정도 / 원가 Gbp-500 원가? / 원가 Cny－500 원가
+     ② 6개 코드(대소문자 무관) + '_'·'--'·'-_'·'_-'
+        · 예: 원가 USD_500 원가? / 원가 KRW_500 원가 / 원가 USD--500 원가? / 원가 USD-_500 원가
+   - 원인:
+     · CURRENCY_CODE_HYPHEN이 대문자열과 소문자열만 나열합니다. 'u' 플래그만 있고 'i'가 없습니다(같은 파일의 AMOUNT_CURRENCY_DIGIT은 /i).
+     · 구분자가 '-' 1개뿐입니다.
+     · PRODUCT_CODE의 (?<=[A-Za-z][\w-]*)가 '_'와 연속 하이픈을 받습니다.
+   기대: §7·Plan 결정 Q-B — 통화 코드에 붙은 숫자는 제품코드가 아니라 금액(R). main 대비 새 누설 0.
+   증거: be50blogs/newleak_ii.txt(전 문장), cur_result.txt, fe50bshots/extra-USER-panel-bottom.png, scripts/g50b.mts
+
+## Plan 확인 필요 (위 수정과 함께 결정 받아 주세요)
+- Q-D. 6개 코드 밖의 통화 모양 토큰도 현재 제품코드로 K입니다(main R).
+  · W1000 / W-1000 (원화 표기 W)
+  · WON1000 / won-500 / Won_500
+  · CHF·AUD·HKD·SGD 등 ISO 코드 14종 + 숫자
+  · dollar-500 / Yen500 / euro_500 / US-500 / KR-500
+  · 예: 원가 W1000 원가? / 원가 CHF-500 원가?
+  → (가) 금액(R)으로 막기 (나) 제품코드로 수용
+- Q-E (참고). 라벨 모양 접두도 제품코드로 K입니다(main R).
+  · max-500 원가 / price-500 원가 / unit-500 원가 / about-1000 원가 / avg-1000 / No-500 / FY2024-1000
+  · 곱셈 기호 X1000 원가
+  · 콤마 숫자(A-1,000 원가)는 일반 갈래로 R입니다.
+  → 제품코드 정의(라틴 문자+하이픈에 붙은 숫자) 그대로라 QA는 Plan 지시가 없으면 백로그로 봅니다.
+
+## 확인은 했으나 통과 (이번 수정분)
+- Plan 결정 반영:
+  · Q-A 기호 7종·Q-C 5형태·USD-500/KRW-1000(대문자)·일만 원·약 일만 원 → R
+  · 3일만에·10일만에·1일만이면·5일만입니다 → K
+  · 라이브(SSE·token·final·말풍선·HTML·history)와 단위 모두 확인
+  · 회귀 표 F214–F235 고정, 이전 56행 라이브 동일
+- '\d' lookbehind 변경으로 생긴 새 누설: 7,448 프로브에서 0
+- 새 오탐 0. 남은 오탐은 5f2102e 때부터 있던 것(이천·인구 1억이·one yen coin·오천 엔티티 등)
+- 코퍼스 757행: 누설 R→K 0, 정상 K→R 0, 스냅샷 = 독립 판정, 5f2102e 대비 변화 0
+- §4·§7 예문 51개(USER/ADMIN guardReplyText 포함) 0 오류
+- 스트리밍 9,300건 + 신규 프로브 10,764건: 판정 불일치 0, 금액 송출 0
+- ReDoS: 지수형 없음, 5f2102e 대비 회귀 없음
+- 게이트:
+  · lint·typecheck·format PASS
+  · unit 2263 passed
+  · build·prerender·trace·secrets PASS
+  · integration 30
+- E2E 전체 1회: 72 passed / 1 failed (6.5분, SHA ff29e70, 새 DB qa50b_e2e)
+  · 실패: quote-share.spec.ts:77 (AC-70/72) — signOutLocally 뒤 loginAs의 test-login 폼 대기 초과
+  · main 8e7569f 새 DB에서 같은 줄로 재현돼 이 PR 원인이 아닙니다(가드 무관). 그래서 --repeat-each는 생략했습니다.
+  · 직전 #50 1차(5f2102e)에서는 녹색이었습니다. 타이밍 의존 flaky로 백로그에 둡니다.
+- 백로그(테스트 공백): 소문자 코드(usd-500)와 '라틴 문자 + 코드'(xUSD-500) 행이 회귀 표에 없습니다(변이 생존). 수정할 때 함께 고정하면 좋겠습니다.
+
+재검증 요청 시 이 메시지에 회신해 주세요.
+재검증 범위:
+- guard.ts 변경분: 단위·코퍼스·신규 누설 프로브(be50blogs 스크립트 재사용)
+- 라이브 chat-guard 행
+- E2E 전체 1회(새 SHA)
+```
