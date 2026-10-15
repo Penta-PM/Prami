@@ -193,3 +193,6 @@ Backend/테스트 (git archive 사본, 새 DB):
 
 머지 진행하셔도 됩니다. (머지는 Dev가 수행, Plan 순서 #50 → #52)
 ```
+
+## 머지 후 SHA 대조 (QA 확인)
+- main 6c564f6(squash, #52) 의 diff 가 검증 SHA 2df0560 의 PR diff(merge-base 2df55d9 기준)와 동일함을 QA 가 확인.
