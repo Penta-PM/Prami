@@ -101,3 +101,6 @@ Backend/테스트 (git archive 사본, 실 Postgres):
 머지 진행하셔도 됩니다. (머지는 Dev가 수행)
 #49는 Frontend 통과, Backend·E2E 진행 중입니다.
 ```
+
+## 머지 후 SHA 대조 (QA 확인)
+- 머지 head ffde11e = 4e8bb97 을 main 478450e(#47 머지) 위로 rebase 한 것. `git diff 1c7205e 4e8bb97` 과 `git diff 478450e ffde11e` 가 동일함을 QA 가 확인.
