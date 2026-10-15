@@ -125,7 +125,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 | 롤백 | 앱: Vercel instant rollback. DB: forward-only(expand/contract) — 손상 시만 PITR(런북 R-3) |
 
 - 마이그레이션은 **앱 배포 전에** 적용한다: `DB_DRIVER=neon DATABASE_URL_UNPOOLED=<직접 연결> pnpm db:migrate` (값은 셸 환경변수로만).
-  현재 `0000`~`0007`(PR-3 `0007_llm_credential_expiry`).
+  현재 `0000`~`0008`(#31 `0008_notifications`).
 - **기동 시 스키마 버전 검사**(`src/instrumentation.ts` → `src/server/ops/schema-version.ts`): 번들의 `drizzle/meta/_journal.json`
   마지막 항목과 DB `drizzle.__drizzle_migrations` 최신 항목을 비교한다. DB 가 뒤처지면 `db.schema_behind` 오류 로그 + `/api/health` 503,
   앞서면(롤백한 구버전 앱) `db.schema_ahead` 경고 + 200.
