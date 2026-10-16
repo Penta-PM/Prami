@@ -60,8 +60,16 @@ export async function submitTestLogin(page: Page, email: string, password: strin
  */
 export async function signOutLocally(page: Page): Promise<void> {
   // #52 QA: 서버 액션 뒤 이어지는 RSC 새로고침(GET ?_rsc=)이 아직 진행 중이면 쿠키를 지운 뒤 도착한 응답이 세션 쿠키를 다시 심는다.
-  // 먼저 네트워크가 잠잠해지기를 기다린다(알림 폴링은 60초 간격이라 막지 않는다). 상한을 넘으면 그대로 진행
+  // 1) 네트워크가 잠잠해지기를 기다린다(알림 폴링은 60초 간격이라 막지 않는다). 단 Playwright 의 networkidle 은 페이지 로드마다
+  //    한 번 도달하면 고정이라(이미 idle 이었으면 진행 중 요청을 기다리지 않음) 이것만으로는 결정적이지 않다(#52 QA 백로그 1).
+  // 2) 빈 페이지로 떠나 남은 요청을 끊고 쿠키를 지운 뒤, 늦게 도착한 응답이 쿠키를 되살렸으면 한 번 더 지운다(되살아남이 멈출 때까지, 상한 5회).
   await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined);
   await page.goto('about:blank');
-  await page.context().clearCookies();
+  const context = page.context();
+  await context.clearCookies();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await page.waitForTimeout(300);
+    if ((await context.cookies()).length === 0) return;
+    await context.clearCookies();
+  }
 }

@@ -237,7 +237,7 @@ describe('NotificationBell 항목', () => {
       '중요',
     );
     expect(badge).toBeInTheDocument();
-    // 미읽음 보라 틴트 위 axe 대비(#52 QA): 기본 red-500 대신 red-600
+    // 미읽음 보라 틴트 위 axe 대비(#52 QA → #31 PR-3 공용 배지 red-600)
     expect(badge).toHaveClass('text-red-600');
     expect(badge).not.toHaveClass('text-red-500');
     expect(
