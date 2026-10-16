@@ -78,6 +78,7 @@ export const SALES_PRICE_SOURCE_COLUMNS: readonly ColumnSnapshot[] = [
 /** §4.3 전 테이블 (뷰 제외) */
 export const EXPECTED_TABLES = [
   'audit_logs',
+  'cost_item_links',
   'import_batches',
   'items',
   'material_costs',
