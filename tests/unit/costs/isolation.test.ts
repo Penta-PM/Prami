@@ -299,6 +299,8 @@ describe('AC-43 공개 쿼리 응답에 unit_cost·material_code 없음', () => 
         'mid',
         'minor',
         'operationStatus',
+        'previousPrice',
+        'priceChangeRate',
         'priceType',
         'remark',
         'source',

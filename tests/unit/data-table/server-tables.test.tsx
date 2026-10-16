@@ -45,6 +45,8 @@ const PRICE_ROW: PriceRowView = {
   operationStatus: '운영중',
   remark: null,
   source: 'erp',
+  previousPrice: null,
+  priceChangeRate: null,
 };
 
 const COST_ROW: CostRowView = {

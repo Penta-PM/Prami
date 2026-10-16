@@ -42,7 +42,7 @@ const NORMAL_PRICE_TYPE = '정상판매';
 const COST_PRICE_TYPE = '표준구매원가';
 const COST_PRICE_CATEGORY = '일반';
 
-const CANDIDATE_FAMILY_SQL = sql<CostLinkFamily | null>`case
+export const CANDIDATE_FAMILY_SQL = sql<CostLinkFamily | null>`case
   when ${items.categoryMajor} = 'WAPPLES'
    and (${items.categoryMid} = 'H/W Appliance' or ${items.categoryMinor} = 'H/W Appliance') then 'WAPPLES'
   when ${items.categoryMid} = 'D''Amo KMS' and ${items.categoryMinor} in ('SG-KMS', 'SG-RST') then 'D.AMO KMS'
@@ -125,11 +125,17 @@ export async function listCostLinkView(access: CostAccess, db: Db): Promise<Cost
   });
 
   // 품목 마스터에 없는 링크(가격 임포트로 사라진 품번) — 후보 밖이지만 items 에 있는 품목은 고아가 아니다
-  const itemCodes = links.length
-    ? new Set(
+  // 링크 품목의 마스터 존재·후보 여부 — 마스터에 없으면 고아('품목 없음'), 있지만 후보 밖이면 '후보 밖 링크'(Plan Q1 A)
+  const linkedItems = links.length
+    ? new Map(
         (
           await db
-            .select({ itemCode: items.itemCode })
+            .select({
+              itemCode: items.itemCode,
+              itemName: items.itemName,
+              family,
+              itemKind: items.itemKind,
+            })
             .from(items)
             .where(
               inArray(
@@ -137,20 +143,32 @@ export async function listCostLinkView(access: CostAccess, db: Db): Promise<Cost
                 links.map((link) => link.itemCode),
               ),
             )
-        ).map((row) => row.itemCode),
+        ).map((row) => [row.itemCode, row]),
       )
-    : new Set<string>();
-  const orphans: CostLinkOrphan[] = links
-    .filter((link) => !itemCodes.has(link.itemCode))
-    .map((link) => ({
-      itemCode: link.itemCode,
-      materialCode: link.materialCode,
-      materialName: names.get(link.materialCode) ?? null,
-      updatedAt: iso(link.updatedAt ?? link.createdAt),
-    }))
-    .sort((a, b) => a.itemCode.localeCompare(b.itemCode));
+    : new Map<
+        string,
+        { itemName: string; family: CostLinkFamily | null; itemKind: string | null }
+      >();
+  const toEntry = (link: (typeof links)[number]): CostLinkOrphan => ({
+    itemCode: link.itemCode,
+    materialCode: link.materialCode,
+    materialName: names.get(link.materialCode) ?? null,
+    updatedAt: iso(link.updatedAt ?? link.createdAt),
+  });
+  const byCode = (a: CostLinkOrphan, b: CostLinkOrphan) => a.itemCode.localeCompare(b.itemCode);
+  const orphans = links
+    .filter((link) => !linkedItems.has(link.itemCode))
+    .map(toEntry)
+    .sort(byCode);
+  const outOfScope = links
+    .filter((link) => {
+      const item = linkedItems.get(link.itemCode);
+      return item && !(item.family && item.itemKind === '본품');
+    })
+    .map((link) => ({ ...toEntry(link), itemName: linkedItems.get(link.itemCode)!.itemName }))
+    .sort(byCode);
 
-  return { candidates, orphans, materials };
+  return { candidates, orphans, outOfScope, materials };
 }
 
 const code = (label: string) => z.string().trim().min(1, `${label}를 입력하세요`).max(100);
@@ -190,17 +208,29 @@ export async function confirmCostLinks(
   const materialCodes = [...new Set(byItem.values())];
 
   return withTransaction(async (tx) => {
-    const knownItems = new Map(
-      (
-        await tx
-          .select({ itemCode: items.itemCode, itemName: items.itemName })
-          .from(items)
-          .where(inArray(items.itemCode, itemCodes))
-      ).map((row) => [row.itemCode, row.itemName]),
-    );
+    const itemRows = await tx
+      .select({
+        itemCode: items.itemCode,
+        itemName: items.itemName,
+        family: CANDIDATE_FAMILY_SQL,
+        itemKind: items.itemKind,
+      })
+      .from(items)
+      .where(inArray(items.itemCode, itemCodes));
+    const knownItems = new Map(itemRows.map((row) => [row.itemCode, row.itemName]));
     const missingItems = itemCodes.filter((itemCode) => !knownItems.has(itemCode));
     if (missingItems.length) {
       throw new AppError('VALIDATION', `품목 마스터에 없는 품목입니다: ${missingItems.join(', ')}`);
+    }
+    // 후보 범위(§2.1 후보 조건 — 본품 + 대상 제품군 분류) 밖 품목은 저장하지 않는다(Plan Q1 A, QA #53 백로그 1)
+    const outOfScope = itemRows
+      .filter((row) => !(row.family && row.itemKind === '본품'))
+      .map((row) => row.itemCode);
+    if (outOfScope.length) {
+      throw new AppError(
+        'VALIDATION',
+        `원가 매핑 후보가 아닌 품목입니다: ${outOfScope.join(', ')}`,
+      );
     }
     const knownMaterials = new Set(
       (

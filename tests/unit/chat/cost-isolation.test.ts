@@ -13,7 +13,9 @@ import { afterAll, describe, expect, it } from 'vitest';
  */
 const ROOT = process.cwd();
 const ENTRY_DIRS = ['src/server/chat', 'src/server/llm', 'src/app/api/chat', 'src/features/chat'];
-const FORBIDDEN = /src[\\/](server[\\/]cost[\\/]|db[\\/]schema[\\/]material-costs)/;
+// 원가 비중(cost-ratio-price-change §2.3): 원가 매핑 스키마·features/costs 의 서버 전용 입구(price-ratios)도 닿으면 안 된다
+const FORBIDDEN =
+  /src[\\/](server[\\/]cost[\\/]|db[\\/]schema[\\/](material-costs|cost-item-links)|features[\\/]costs[\\/])/;
 const BARREL = path.join(ROOT, 'src/db/schema/index.ts');
 const PROBE = path.join(ROOT, 'src/server/chat/features/__cost_probe.tmp.ts');
 

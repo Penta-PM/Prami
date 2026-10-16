@@ -74,13 +74,26 @@ describe('suggestMaterial', () => {
     }
   });
 
+  it('RAID 는 세대 대체를 하지 않는다(Plan Q2 A) — 비RAID 는 그대로 대체', () => {
+    const raid = buildMaterialIndex([
+      { materialCode: 'R', materialName: 'WAPPLES-4700 RAID' },
+      { materialCode: 'B', materialName: 'WAPPLES-5400' },
+    ]);
+    expect(suggestMaterial('Wapples-4700 T2 (H4700 T2) RAID', 'WAPPLES', raid)).toEqual({
+      reason: 'no-cost',
+    });
+    expect(suggestMaterial('Wapples-5400 (H5400 T1)', 'WAPPLES', raid)).toEqual({
+      suggestion: { materialCode: 'B', materialName: 'WAPPLES-5400' },
+    });
+  });
+
   it('같은 모델 키 원가가 둘 이상이면 제안하지 않는다(모호함)', () => {
     const doubled = buildMaterialIndex([
       { materialCode: 'A', materialName: 'WAPPLES-700' },
       { materialCode: 'B', materialName: 'WAPPLES 700' },
     ]);
     expect(suggestMaterial('Wapples-700 (H700)', 'WAPPLES', doubled)).toEqual({
-      reason: 'no-cost',
+      reason: 'ambiguous',
     });
   });
 });
@@ -129,6 +142,7 @@ describe('summarizeSuggestions (dry-run 리포트)', () => {
         swUpgrade: 1,
         noModel: 0,
         noCost: 0,
+        ambiguous: 0,
       },
       {
         family: 'iSIGN',
@@ -139,6 +153,7 @@ describe('summarizeSuggestions (dry-run 리포트)', () => {
         swUpgrade: 0,
         noModel: 1,
         noCost: 1,
+        ambiguous: 0,
       },
     ]);
   });

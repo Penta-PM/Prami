@@ -78,6 +78,7 @@ const VIEW: CostLinkView = {
   orphans: [
     { itemCode: 'P900', materialCode: 'W300', materialName: 'D.AMO KMS 서버', updatedAt: UPDATED },
   ],
+  outOfScope: [],
   materials: [W300, W200, W100],
 };
 
@@ -154,6 +155,55 @@ describe('CostLinkManager 표시', () => {
 
     render(<CostLinkManager view={{ ...VIEW, orphans: [] }} canWrite userId="u1" />);
     expect(screen.queryByRole('heading', { name: /품목 없음/ })).toBeNull();
+  });
+
+  it('후보 밖 링크 구역(Plan Q1 A): 품목코드·품목명과 자재를 나열하고 해제만 가능, 없으면 숨김', async () => {
+    const view = {
+      ...VIEW,
+      outOfScope: [
+        {
+          itemCode: 'P800',
+          itemName: 'NIC 10G 파츠',
+          materialCode: 'W100',
+          materialName: 'WAPPLES-1700 T1',
+          updatedAt: UPDATED,
+        },
+      ],
+    };
+    const { unmount } = render(<CostLinkManager view={view} canWrite userId="u1" />);
+    const section = screen.getByRole('region', { name: '후보 밖 링크 (원가 비중에 쓰이지 않음)' });
+    expect(within(section).getByText('P800 NIC 10G 파츠')).toBeInTheDocument();
+    expect(within(section).getByText(/원가 비중 계산에 쓰이지 않으며/)).toBeInTheDocument();
+    await userEvent.click(within(section).getByRole('button', { name: 'P800 해제' }));
+    const dialog = screen.getByRole('dialog', { name: '매핑 해제' });
+    await userEvent.click(within(dialog).getByRole('button', { name: '해제' }));
+    expect(mocks.remove).toHaveBeenCalledWith({ itemCode: 'P800' });
+    unmount();
+
+    render(<CostLinkManager view={view} canWrite={false} userId="u1" />);
+    expect(
+      within(
+        screen.getByRole('region', { name: '후보 밖 링크 (원가 비중에 쓰이지 않음)' }),
+      ).queryByRole('button'),
+    ).toBeNull();
+  });
+
+  it('같은 모델 원가가 여럿이면 모호함 사유', () => {
+    render(
+      <CostLinkManager
+        view={{
+          ...VIEW,
+          candidates: [
+            candidate({ itemCode: 'P777', itemName: 'WAPPLES-700', noSuggestion: 'ambiguous' }),
+          ],
+        }}
+        canWrite
+        userId="u1"
+      />,
+    );
+    expect(
+      within(rowOf('WAPPLES-700')).getByText('같은 모델 원가가 여럿 — 직접 선택'),
+    ).toBeInTheDocument();
   });
 
   it('원가 금액처럼 보이는 텍스트가 없다', () => {
