@@ -13,7 +13,11 @@ const actions = vi.hoisted(() => ({
 const refresh = vi.fn();
 
 vi.mock('@/features/users/actions', () => actions);
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh }) }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh, replace: vi.fn() }),
+  usePathname: () => '/admin/users',
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const { UsersTable } = await import('@/features/users/UsersTable');
 const { PermissionMatrix } = await import('@/features/users/PermissionMatrix');

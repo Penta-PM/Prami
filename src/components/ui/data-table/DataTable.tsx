@@ -15,9 +15,11 @@ import {
 
 import { cn } from '@/lib/cn';
 import { sortRows } from '@/lib/table/compare';
+import { serializeFilters, type FilterCondition } from '@/lib/table/filter';
 import { MAX_COL_WIDTH, MIN_COL_WIDTH } from '@/lib/table/layout-storage';
 
 import { Table, TableBody, TableCell, TableHead, TableRow } from '../table';
+import { applyFilterFields, filterFieldsOf, type DataTableFilterField } from './filter-fields';
 import type { DataTableAlign, DataTableColumn, DataTableSort } from './types';
 import { TABLE_RESET_EVENT, useTableLayout, type TableResetDetail } from './useTableLayout';
 
@@ -44,12 +46,23 @@ export type DataTableProps<T> = {
   onRowClick?: (row: T) => void;
   /** 행이 없을 때 전체 폭 한 칸으로 보일 내용 */
   empty?: ReactNode;
+  /**
+   * 열 필터 조건 (표 열 필터 스펙 §2). client 모드는 정렬 전에 행을 거르고, server 모드는 rows 를 그대로 쓴다(서버가 이미 거름).
+   * 조건이 걸린 열 헤더에 aria-hidden 점을 표시하고, 조건이 바뀌면 라이브 영역에 "필터 적용 · M건" 을 알린다.
+   */
+  filters?: readonly FilterCondition[];
+  /** 필터 필드. 기본은 `filter` 가 있는 열(filterFieldsOf(columns)) — 열에 없는 필드(통화 등)를 더할 때만 넘긴다 */
+  filterFields?: readonly DataTableFilterField<T>[];
+  /** server 모드에서 필터 알림에 쓸 전체 건수(페이지가 아닌 총계). 없으면 rows.length */
+  filteredTotal?: number;
 };
 
 /** 클릭과 드래그를 가르는 이동 거리 (#32 스펙 §5) */
 const DRAG_THRESHOLD = 5;
 /** 리사이즈 핸들 키보드 한 번 = 16px */
 const RESIZE_STEP = 16;
+
+const NO_FILTERS: readonly FilterCondition[] = [];
 
 const ALIGN_CLASSES: Record<DataTableAlign, string> = {
   left: 'text-left',
@@ -91,6 +104,17 @@ function insertBounds<T>(ordered: readonly DataTableColumn<T>[]): [number, numbe
   return [lo, hi];
 }
 
+/** 필터가 걸린 열 표시 — 헤더 안에 버튼·필터 행을 두지 않는다(스펙 §2.5-3). 이름에 섞이지 않게 aria-hidden */
+function FilterDot() {
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="data-table-filter-dot"
+      className="size-1.5 shrink-0 rounded-full bg-purple-600"
+    />
+  );
+}
+
 function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
   return (
     <svg
@@ -129,6 +153,9 @@ export function DataTable<T>({
   rowClassName,
   onRowClick,
   empty,
+  filters,
+  filterFields,
+  filteredTotal,
 }: DataTableProps<T>) {
   const domId = useId();
   const { layout, save, key: layoutKey } = useTableLayout(tableId, userId, columns);
@@ -146,15 +173,40 @@ export function DataTable<T>({
   const [innerSort, setInnerSort] = useState<DataTableSort>(null);
   const sort = sortProp !== undefined ? sortProp : innerSort;
 
+  // ── 필터 (정렬 전) ──────────────────────────────────────────────────────
+  const fields = useMemo(() => filterFields ?? filterFieldsOf(columns), [filterFields, columns]);
+  const conditions = filters ?? NO_FILTERS;
+  const filteredRows = useMemo(
+    () => (sortMode === 'server' ? rows : applyFilterFields(rows, conditions, fields)),
+    [rows, conditions, fields, sortMode],
+  );
+  const filteredColumns = useMemo(() => new Set(conditions.map((cond) => cond.col)), [conditions]);
+
   const viewRows = useMemo(() => {
-    if (sortMode === 'server' || !sort) return rows;
+    if (sortMode === 'server' || !sort) return filteredRows;
     const column = byId.get(sort.id);
-    if (!column?.sortValue || !isSortable(column, sortMode)) return rows;
-    return sortRows(rows, column.sortValue, column.type, sort.dir, column.statusOrder);
-  }, [rows, sort, sortMode, byId]);
+    if (!column?.sortValue || !isSortable(column, sortMode)) return filteredRows;
+    return sortRows(filteredRows, column.sortValue, column.type, sort.dir, column.statusOrder);
+  }, [filteredRows, sort, sortMode, byId]);
 
   // 라이브 영역 (표당 하나)
   const [announcement, setAnnouncement] = useState('');
+
+  // 필터 조건이 바뀌면 결과 건수를 알린다 (§2.5-6). 첫 렌더(새로고침으로 URL 에 조건이 있던 경우)는 알리지 않는다.
+  // 렌더 중 상태 보정 — 이전 렌더의 조건 키와 비교 (effect 의 연쇄 렌더 없이)
+  const filterKey = useMemo(
+    () =>
+      serializeFilters(conditions)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('&'),
+    [conditions],
+  );
+  const [announcedFilterKey, setAnnouncedFilterKey] = useState(filterKey);
+  if (announcedFilterKey !== filterKey) {
+    setAnnouncedFilterKey(filterKey);
+    const count = sortMode === 'server' ? (filteredTotal ?? rows.length) : filteredRows.length;
+    setAnnouncement(filterKey ? `필터 적용 · ${count}건` : `필터 해제 · ${count}건`);
+  }
 
   const toggleSort = (column: DataTableColumn<T>) => {
     const next = nextSort(sort, column.id);
@@ -477,6 +529,7 @@ export function DataTable<T>({
               const labelId = `${domId}-${column.id}`;
               const align = column.align ? ALIGN_CLASSES[column.align] : undefined;
               const width = widthOf(column.id);
+              const filtered = filteredColumns.has(column.id);
               return (
                 // TableHeaderCell 은 ref 를 받지 않는 서버 호환 프리미티브라 같은 클래스의 <th> 를 직접 쓴다
                 <th
@@ -487,6 +540,7 @@ export function DataTable<T>({
                     else thRefs.current.delete(column.id);
                   }}
                   data-column-id={column.id}
+                  data-filtered={filtered ? 'true' : undefined}
                   // 핸들의 aria-label 이 열 이름에 섞이지 않도록 이름은 라벨 span 으로만 정한다
                   aria-labelledby={labelId}
                   aria-sort={dir ? (dir === 'asc' ? 'ascending' : 'descending') : undefined}
@@ -522,6 +576,7 @@ export function DataTable<T>({
                       )}
                     >
                       <span id={labelId}>{column.header}</span>
+                      {filtered ? <FilterDot /> : null}
                       <SortIcon dir={dir} />
                     </button>
                   ) : isMovable(column) ? (
@@ -539,12 +594,18 @@ export function DataTable<T>({
                       }}
                       onKeyDown={(event) => onHeaderKeyDown(event, column)}
                       className={cn(
-                        'inline-flex max-w-full cursor-grab items-center border-0 bg-transparent p-0 align-middle text-inherit select-none [font:inherit]',
+                        'inline-flex max-w-full cursor-grab items-center gap-1 border-0 bg-transparent p-0 align-middle text-inherit select-none [font:inherit]',
                         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500',
                       )}
                     >
                       <span id={labelId}>{column.header}</span>
+                      {filtered ? <FilterDot /> : null}
                     </button>
+                  ) : filtered ? (
+                    <span className="inline-flex items-center gap-1 align-middle">
+                      <span id={labelId}>{column.header}</span>
+                      <FilterDot />
+                    </span>
                   ) : (
                     <span id={labelId}>{column.header}</span>
                   )}

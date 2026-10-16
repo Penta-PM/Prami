@@ -4,7 +4,7 @@ import { m } from 'motion/react';
 
 import { Presence } from '@/components/motion/Presence';
 import { Segmented } from '@/components/ui';
-import { cn } from '@/lib/cn';
+import { chipClass } from '@/components/ui/chip';
 import { fade } from '@/lib/motion/tokens';
 
 import { activeYear, ALL, yearRange, type DateMode, type FilterErrors } from './filter';
@@ -29,14 +29,8 @@ const MAX_YEAR_CHIPS = 9;
 const DATE_CLASS =
   'rounded-pill border-0 bg-surface-card px-3 py-2 text-[12px] font-semibold text-text-secondary shadow-(--hairline-default) outline-none';
 
-export function chipClass(active: boolean) {
-  return cn(
-    'rounded-pill border-0 px-3 py-[7px] text-[12px] font-semibold whitespace-nowrap',
-    active
-      ? 'bg-ink-900 text-white'
-      : 'bg-surface-card text-text-secondary shadow-(--hairline-default) hover:text-ink-900',
-  );
-}
+/** 칩 클래스는 표 열 필터 칩과 공유하려고 components/ui/chip 으로 옮겼다 (기존 import 경로 유지) */
+export { chipClass };
 
 /**
  * 날짜 기준(적용시작일/적용기간) + 전체·연도 칩 + 기간 입력 (§4.5.2, R-13).

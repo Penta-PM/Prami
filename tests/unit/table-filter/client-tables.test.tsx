@@ -1,0 +1,358 @@
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { MotionProvider } from '@/components/motion/MotionProvider';
+import type { SavedQuoteView } from '@/features/calculator/types';
+import type { NoticeDetailView } from '@/features/notices/types';
+import type { PartMappingView } from '@/features/parts/types';
+import type { UserRow } from '@/features/users/UsersTable';
+
+import { navigation } from '../../helpers/next-navigation';
+import { addFilter, check, chips, range, typeText } from './helpers';
+
+/**
+ * 클라이언트 4표 열 필터 (표 열 필터 스펙 §1·§4): 2개 조건 AND·건수·필터 결과 0건 빈 상태·URL(f.*) 반영.
+ * 내 견적 목록(모달)은 URL 대신 컴포넌트 상태, 모달 안 Esc 는 팝오버만 닫는다.
+ */
+vi.mock(
+  'next/navigation',
+  async () => (await import('../../helpers/next-navigation')).navigationModule,
+);
+vi.mock('@/features/users/actions', () => ({
+  createUserAction: vi.fn(),
+  updateUserAction: vi.fn(),
+  deactivateUserAction: vi.fn(),
+}));
+vi.mock('@/features/notices/actions', () => ({
+  upsertNoticeAction: vi.fn(),
+  deleteNoticeAction: vi.fn(),
+}));
+
+const { UsersTable } = await import('@/features/users/UsersTable');
+const { NoticesAdminTable } = await import('@/features/notices/NoticesAdminTable');
+const { PartsMappingTable } = await import('@/features/parts/PartsMappingTable');
+const { CartPanel } = await import('@/features/calculator/CartPanel');
+
+const withMotion = { wrapper: MotionProvider };
+const firstCells = (name: string) =>
+  within(screen.getByRole('table', { name }))
+    .getAllByRole('row')
+    .slice(1)
+    .map((row) => within(row).getAllByRole('cell')[0]?.textContent);
+const query = () => new URLSearchParams(navigation.search());
+
+beforeEach(() => {
+  localStorage.clear();
+});
+
+// ── 사용자 (파일럿) ───────────────────────────────────────────────────────
+
+const user = (patch: Partial<UserRow> & Pick<UserRow, 'id' | 'name'>): UserRow => ({
+  email: `${patch.id}@pentasecurity.com`,
+  department: null,
+  role: 'USER',
+  status: 'active',
+  createdVia: 'admin',
+  lastLoginAt: null,
+  ...patch,
+});
+
+const USERS: UserRow[] = [
+  user({ id: 'a', name: '나', lastLoginAt: '2026-09-02T00:00:00.000Z', department: '영업팀' }),
+  user({ id: 'b', name: '가', role: 'ADMIN', status: 'inactive' }),
+  user({ id: 'c', name: '다', lastLoginAt: '2026-08-01T00:00:00.000Z' }),
+  user({ id: 'd', name: '라', role: 'ADMIN', department: '영업2팀' }),
+];
+
+describe('UsersTable 열 필터 (파일럿)', () => {
+  beforeEach(() => navigation.reset('/admin/users'));
+
+  it('역할 ADMIN + 부서 "영업" 포함 → 1건, URL f.*·건수·칩·점', async () => {
+    const ue = userEvent.setup();
+    render(<UsersTable users={USERS} currentUserId="a" />, withMotion);
+    await addFilter(ue, '역할', check(ue, 'ADMIN'));
+    await addFilter(ue, '부서', typeText(ue, '영업'));
+    expect(firstCells('사용자 목록')).toEqual(['라']);
+    expect(chips()).toEqual(['부서: "영업" 포함', '역할: ADMIN']);
+    expect(screen.getByText('전체 4건 중 1건')).toBeInTheDocument();
+    expect(navigation.replace).toHaveBeenLastCalledWith(
+      '/admin/users?f.department.has=%EC%98%81%EC%97%85&f.role.in=ADMIN',
+      { scroll: false },
+    );
+    const th = within(screen.getByRole('table', { name: '사용자 목록' })).getByRole(
+      'columnheader',
+      {
+        name: '역할',
+      },
+    );
+    expect(th).toHaveAttribute('data-filtered', 'true');
+  });
+
+  it('상태(활성/비활성 라벨) + 마지막 로그인 기간', async () => {
+    const ue = userEvent.setup();
+    render(<UsersTable users={USERS} currentUserId="a" />, withMotion);
+    await addFilter(ue, '상태', check(ue, '활성'));
+    await addFilter(ue, '마지막 로그인', range(ue, '2026-09-01', null, 'date'));
+    expect(chips()).toEqual(['상태: 활성', '마지막 로그인: 2026-09-01 ~']);
+    expect(firstCells('사용자 목록')).toEqual(['나(나)']);
+  });
+
+  it('새로고침(URL 에 조건) → 같은 결과, 0건이면 "조건에 맞는 결과가 없습니다" + 필터 초기화', async () => {
+    navigation.reset('/admin/users', 'f.name.eq=%EC%97%86%EC%9D%8C&f.role.in=USER');
+    const ue = userEvent.setup();
+    render(<UsersTable users={USERS} currentUserId="a" />, withMotion);
+    expect(screen.getByText('조건에 맞는 결과가 없습니다')).toBeInTheDocument();
+    expect(screen.getByText('전체 4건 중 0건')).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: '사용자 목록' });
+    await ue.click(within(table).getByRole('button', { name: '필터 초기화' }));
+    expect(navigation.search()).toBe('');
+    expect(firstCells('사용자 목록')).toHaveLength(4);
+  });
+
+  it('사용자가 하나도 없으면 "등록된 사용자가 없습니다"', () => {
+    render(<UsersTable users={[]} currentUserId="a" />, withMotion);
+    expect(screen.getByText('등록된 사용자가 없습니다.')).toBeInTheDocument();
+    expect(screen.queryByText('조건에 맞는 결과가 없습니다')).toBeNull();
+  });
+});
+
+// ── 공지 관리 ─────────────────────────────────────────────────────────────
+
+const notice = (
+  patch: Partial<NoticeDetailView> & Pick<NoticeDetailView, 'id' | 'title'>,
+): NoticeDetailView => ({
+  authorName: '가격정책팀',
+  isImportant: false,
+  publishedAt: '2026-09-01',
+  body: '본문',
+  ...patch,
+});
+
+const NOTICES: NoticeDetailView[] = [
+  notice({ id: 'n1', title: '가격 개정', publishedAt: '2026-09-10', isImportant: true }),
+  notice({ id: 'n2', title: '가격 안내', publishedAt: '2026-08-01', isImportant: true }),
+  notice({ id: 'n3', title: '점검', publishedAt: '2026-09-12' }),
+];
+
+describe('NoticesAdminTable 열 필터', () => {
+  beforeEach(() => navigation.reset('/admin/notices'));
+
+  it('중요 + 작성일 기간 → AND, 건수·URL', async () => {
+    const ue = userEvent.setup();
+    render(<NoticesAdminTable notices={NOTICES} defaultAuthor="관리자" userId="u1" />, withMotion);
+    await addFilter(ue, '중요', check(ue, '중요'));
+    await addFilter(ue, '작성일', range(ue, '2026-09-01', '2026-09-30', 'date'));
+    expect(firstCells('공지 관리 표')).toEqual(['가격 개정']);
+    expect(chips()).toEqual(['작성일: 2026-09-01 ~ 2026-09-30', '중요: 중요']);
+    expect(screen.getByText('전체 3건 중 1건')).toBeInTheDocument();
+    expect([...query().keys()]).toEqual([
+      'f.publishedAt.gte',
+      'f.publishedAt.lte',
+      'f.isImportant.in',
+    ]);
+  });
+
+  it('0건 → 필터 빈 상태(데이터 없음 문구와 구분)', async () => {
+    const ue = userEvent.setup();
+    render(<NoticesAdminTable notices={NOTICES} defaultAuthor="관리자" userId="u1" />, withMotion);
+    await addFilter(ue, '제목', typeText(ue, '없는 제목'));
+    expect(screen.getByText('조건에 맞는 결과가 없습니다')).toBeInTheDocument();
+    expect(screen.queryByText('등록된 공지가 없습니다.')).toBeNull();
+  });
+});
+
+// ── 파츠 매핑 ─────────────────────────────────────────────────────────────
+
+const mapping = (modelItemCode: string, modelName: string, parts: string[]): PartMappingView => ({
+  modelItemCode,
+  modelName,
+  parts: parts.map((itemName, index) => ({ itemName, itemCode: `${modelItemCode}-${index}` })),
+});
+
+const MAPPINGS: PartMappingView[] = [
+  mapping('H2700', 'Wapples-2700', ['N_1']),
+  mapping('H300', 'Wapples-300', ['N_2']),
+  mapping('K100', 'D.AMO KE', ['N_3']),
+];
+
+describe('PartsMappingTable 열 필터', () => {
+  beforeEach(() => navigation.reset('/admin/parts', 'family=WAPPLES'));
+
+  it('모델 열만 필터 가능(장착 파츠 목록 열은 없음), 다시 열면 현재 조건이 채워진다', async () => {
+    const ue = userEvent.setup();
+    render(
+      <PartsMappingTable mappings={MAPPINGS} onEdit={vi.fn()} onDelete={vi.fn()} userId="u1" />,
+      withMotion,
+    );
+    await ue.click(screen.getByRole('button', { name: '＋ 필터' }));
+    const picker = await screen.findByRole('dialog', { name: '필터할 열 선택' });
+    expect(
+      within(picker)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['모델']);
+    await ue.keyboard('{Escape}');
+
+    await addFilter(ue, '모델', typeText(ue, 'wapples'));
+    // 같은 열을 다시 고르면 현재 조건이 채워져 있다
+    await ue.click(screen.getByRole('button', { name: '＋ 필터' }));
+    await ue.click(
+      within(await screen.findByRole('dialog', { name: '필터할 열 선택' })).getByRole('button', {
+        name: /^모델/,
+      }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: '모델 필터' });
+    expect(within(dialog).getByRole('textbox', { name: '값' })).toHaveValue('wapples');
+    expect(within(dialog).getByRole('combobox', { name: '조건' })).toHaveValue('has');
+  });
+
+  it('모델 "wapples" 포함 → 2건, 품번 같음 → 1건, URL 에 family 가 남는다', async () => {
+    const ue = userEvent.setup();
+    render(
+      <PartsMappingTable mappings={MAPPINGS} onEdit={vi.fn()} onDelete={vi.fn()} userId="u1" />,
+      withMotion,
+    );
+    await addFilter(ue, '모델', typeText(ue, 'WAPPLES'));
+    expect(screen.getByText('전체 3건 중 2건')).toBeInTheDocument();
+    expect(navigation.replace).toHaveBeenLastCalledWith(
+      '/admin/parts?family=WAPPLES&f.model.has=WAPPLES',
+      { scroll: false },
+    );
+    await ue.click(screen.getByRole('button', { name: '모델 필터 해제' }));
+    await addFilter(ue, '모델', typeText(ue, 'k100', '같음'));
+    expect(screen.getByText('전체 3건 중 1건')).toBeInTheDocument();
+    await ue.click(screen.getByRole('button', { name: '필터 초기화' }));
+    expect(navigation.search()).toBe('family=WAPPLES');
+  });
+
+  it('0건 → 필터 빈 상태', async () => {
+    const ue = userEvent.setup();
+    render(
+      <PartsMappingTable mappings={MAPPINGS} onEdit={vi.fn()} onDelete={vi.fn()} userId="u1" />,
+      withMotion,
+    );
+    await addFilter(ue, '모델', typeText(ue, 'zzz'));
+    expect(screen.getByText('조건에 맞는 결과가 없습니다')).toBeInTheDocument();
+    expect(screen.getByText('전체 3건 중 0건')).toBeInTheDocument();
+  });
+});
+
+// ── 내 견적 목록 (모달, 상태) ─────────────────────────────────────────────
+
+const quote = (patch: Partial<SavedQuoteView> & Pick<SavedQuoteView, 'id' | 'quoteNo'>) =>
+  ({
+    productFamily: 'WAPPLES',
+    title: `견적 ${patch.quoteNo}`,
+    summary: '요약',
+    totalAmount: '1000',
+    currency: 'KRW',
+    createdAt: '2026-09-01T00:00:00.000Z',
+    ownerUserId: 'u1',
+    lines: [],
+    ...patch,
+  }) as SavedQuoteView;
+
+const SAVED: SavedQuoteView[] = [
+  quote({ id: 'q1', quoteNo: 'Q-0001', totalAmount: '5000', currency: 'KRW' }),
+  quote({
+    id: 'q2',
+    quoteNo: 'Q-0002',
+    totalAmount: '30',
+    currency: 'USD',
+    productFamily: 'D.AMO',
+  }),
+  quote({ id: 'q3', quoteNo: 'Q-0003', totalAmount: null, currency: null }),
+  quote({ id: 'q4', quoteNo: 'Q-0004', totalAmount: '200', currency: 'KRW' }),
+];
+
+const noop = () => undefined;
+
+async function openQuotes(ue: ReturnType<typeof userEvent.setup>) {
+  render(
+    <CartPanel
+      userId="u1"
+      lines={[]}
+      saved={SAVED}
+      isPending={false}
+      activeQuote={null}
+      onRemove={noop}
+      onReset={noop}
+      onSave={noop}
+      onReload={noop}
+      onDelete={noop}
+      onShare={noop}
+    />,
+    withMotion,
+  );
+  await ue.click(screen.getByRole('button', { name: '전체보기' }));
+  return screen.getByRole('dialog', { name: '내 견적 목록' });
+}
+
+describe('내 견적 목록 모달 열 필터', () => {
+  beforeEach(() => navigation.reset('/calculator'));
+
+  it('통화 KRW + 금액 ≥ 1000 → 1건, 상태로만(URL 미사용), "최근 100건" 안내', async () => {
+    const ue = userEvent.setup();
+    const modal = await openQuotes(ue);
+    expect(within(modal).getByText('최근 100건 안에서 필터합니다')).toBeInTheDocument();
+    await addFilter(ue, '통화', check(ue, 'KRW'), modal);
+    await addFilter(ue, '금액', range(ue, '1000', null), modal);
+    expect(firstCells('견적 목록 표')).toEqual(['Q-0001']);
+    expect(chips()).toEqual(['금액: ≥ 1,000', '통화: KRW']);
+    expect(within(modal).getByText('전체 4건 중 1건')).toBeInTheDocument();
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
+
+  it('제품 + 내용 텍스트 AND, 0건이면 빈 상태 → 필터 초기화', async () => {
+    const ue = userEvent.setup();
+    const modal = await openQuotes(ue);
+    await addFilter(ue, '제품', typeText(ue, 'd.amo'), modal);
+    await addFilter(ue, '내용', typeText(ue, '없는 내용'), modal);
+    expect(within(modal).getByText('조건에 맞는 결과가 없습니다')).toBeInTheDocument();
+    await ue.click(
+      within(screen.getByRole('table', { name: '견적 목록 표' })).getByRole('button', {
+        name: '필터 초기화',
+      }),
+    );
+    expect(firstCells('견적 목록 표')).toHaveLength(4);
+  });
+
+  it('모달 안에서 Esc → 팝오버만 닫히고 모달은 유지', async () => {
+    const ue = userEvent.setup();
+    const modal = await openQuotes(ue);
+    await ue.click(within(modal).getByRole('button', { name: '＋ 필터' }));
+    await ue.click(
+      within(await screen.findByRole('dialog', { name: '필터할 열 선택' })).getByRole('button', {
+        name: '견적 번호',
+      }),
+    );
+    // 열리면 첫 입력(연산자 select)으로 포커스
+    const input = within(await screen.findByRole('dialog', { name: '견적 번호 필터' })).getByRole(
+      'combobox',
+      { name: '조건' },
+    );
+    await waitFor(() => expect(input).toHaveFocus());
+    const modalKeydown = vi.fn();
+    modal.addEventListener('keydown', modalKeydown);
+    const keydown = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      input.dispatchEvent(keydown);
+    });
+    expect(keydown.defaultPrevented).toBe(true);
+    expect(modalKeydown).not.toHaveBeenCalled();
+    const cancel = new Event('cancel', { cancelable: true });
+    fireEvent(modal, cancel);
+    expect(cancel.defaultPrevented).toBe(true);
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '견적 번호 필터' })).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole('dialog', { name: '내 견적 목록' })).toHaveAttribute('open');
+    expect(within(modal).getByRole('button', { name: '＋ 필터' })).toHaveFocus();
+  });
+});

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }),
   usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock('@/features/notices/actions', () => ({
   upsertNoticeAction: mocks.upsert,

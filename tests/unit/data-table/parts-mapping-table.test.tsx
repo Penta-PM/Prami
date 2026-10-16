@@ -5,6 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PartMappingView } from '@/features/parts/types';
 
 /** #32 PR-2: 파츠 매핑 표가 공용 DataTable(클라이언트 정렬)로 동작한다 */
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: vi.fn() }),
+  usePathname: () => '/admin/parts',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 const { PartsMappingTable } = await import('@/features/parts/PartsMappingTable');
 
 const mapping = (modelItemCode: string, modelName: string, parts: string[]): PartMappingView => ({

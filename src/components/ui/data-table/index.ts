@@ -1,5 +1,16 @@
 export { DataTable, type DataTableProps } from './DataTable';
+export {
+  DataTableFilterBar,
+  DataTableFilterEmpty,
+  type DataTableFilterBarProps,
+} from './DataTableFilterBar';
 export { DataTableResetButton, type DataTableResetButtonProps } from './DataTableResetButton';
+export {
+  applyFilterFields,
+  filterDefsOf,
+  filterFieldsOf,
+  type DataTableFilterField,
+} from './filter-fields';
 export type {
   DataTableAlign,
   DataTableColumn,
@@ -9,3 +20,4 @@ export type {
   SortValue,
 } from './types';
 export { useTableLayout, type TableLayoutState } from './useTableLayout';
+export { useStateFilters, useUrlFilters, type TableFilterState } from './useTableFilters';

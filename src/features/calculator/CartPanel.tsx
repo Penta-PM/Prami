@@ -4,7 +4,17 @@ import { m } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button, Modal } from '@/components/ui';
-import { DataTable, DataTableResetButton, type DataTableColumn } from '@/components/ui/data-table';
+import {
+  DataTable,
+  DataTableFilterBar,
+  DataTableFilterEmpty,
+  DataTableResetButton,
+  filterFieldsOf,
+  useStateFilters,
+  type DataTableColumn,
+  type DataTableFilterField,
+  type DataTableSort,
+} from '@/components/ui/data-table';
 import { Presence } from '@/components/motion/Presence';
 import { formatDate } from '@/lib/date-format';
 import { VARIANT_KEYS, listItem, transition } from '@/lib/motion/tokens';
@@ -263,6 +273,12 @@ function totalLabel(quote: SavedQuoteView): string {
 /** 열 너비·순서 저장 키의 표 구분자 (#32 스펙 §5) */
 const MY_QUOTES_TABLE_ID = 'my-quotes';
 
+/** 견적 목록에 있는 통화(코드포인트 순) — '통화' 필터 선택지 */
+function currencyOptions(saved: readonly SavedQuoteView[]) {
+  const codes = [...new Set(saved.flatMap((quote) => (quote.currency ? [quote.currency] : [])))];
+  return codes.sort().map((code) => ({ value: code, label: code }));
+}
+
 function SavedQuotesModal({
   userId,
   saved,
@@ -281,6 +297,9 @@ function SavedQuotesModal({
   // 부모가 넘기는 콜백은 렌더마다 새 함수라, 열 배열(저장 레이아웃 정규화 기준)을 고정하려고 최신 값을 ref 로 읽는다.
   // ref 는 클릭 핸들러 안에서만 읽는다(렌더 중 읽기 없음)
   const handlersRef = useRef({ onClose, onReload, onDelete, onShare });
+  // 모달은 URL 상태가 아니므로 필터·정렬은 컴포넌트 상태 (열 필터 스펙 §2.2 예외) — 모달을 닫으면 사라진다
+  const { filters, setFilters } = useStateFilters();
+  const [sort, setSort] = useState<DataTableSort>(null);
   useEffect(() => {
     handlersRef.current = { onClose, onReload, onDelete, onShare };
   });
@@ -293,6 +312,7 @@ function SavedQuotesModal({
         header: '견적 번호',
         type: 'text',
         sortValue: (quote) => quote.quoteNo,
+        filter: { kind: 'text' },
         headerClassName: 'pl-5',
         cellClassName: 'pl-5 whitespace-nowrap text-text-tertiary',
         cell: (quote) => quote.quoteNo,
@@ -302,6 +322,7 @@ function SavedQuotesModal({
         header: '일자',
         type: 'date',
         sortValue: (quote) => quote.createdAt,
+        filter: { kind: 'date' },
         cellClassName: 'whitespace-nowrap text-text-tertiary',
         cell: (quote) => formatDate(quote.createdAt),
       },
@@ -310,6 +331,7 @@ function SavedQuotesModal({
         header: '제품',
         type: 'text',
         sortValue: (quote) => quote.productFamily,
+        filter: { kind: 'text' },
         cellClassName: 'font-semibold whitespace-nowrap',
         cell: (quote) => quote.productFamily,
       },
@@ -318,6 +340,7 @@ function SavedQuotesModal({
         header: '내용',
         type: 'text',
         sortValue: (quote) => quote.summary,
+        filter: { kind: 'text' },
         cellClassName: 'text-text-secondary',
         cell: (quote) => quote.summary,
       },
@@ -330,6 +353,8 @@ function SavedQuotesModal({
           quote.totalAmount && quote.currency
             ? { amount: Number(quote.totalAmount), currency: quote.currency }
             : null,
+        // 통화가 섞이므로 '통화' 조건이 하나로 정해졌을 때만 금액 범위가 걸린다 (열 필터 스펙 §2.1-2)
+        filter: { kind: 'money', currencyCol: 'currency' },
         align: 'right',
         cellClassName: 'font-semibold whitespace-nowrap',
         cell: (quote) => totalLabel(quote),
@@ -388,9 +413,34 @@ function SavedQuotesModal({
     [],
   );
 
+  // 표에 통화 열은 없지만(금액 셀에 함께 표시) 금액 범위의 전제 조건이라 필터 필드로만 더한다
+  const filterFields = useMemo(() => {
+    const currency: DataTableFilterField<SavedQuoteView> = {
+      id: 'currency',
+      label: '통화',
+      filter: { kind: 'enum', options: currencyOptions(saved) },
+      value: (quote) => quote.currency,
+    };
+    return filterFieldsOf(columns, [currency]);
+  }, [columns, saved]);
+  const resetFilters = () => {
+    setFilters([]);
+    setSort(null);
+  };
+
   return (
     <Modal open onClose={onClose} title="내 견적 목록" className="w-[min(860px,calc(100vw-32px))]">
-      <div className="mb-2 flex justify-end">
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+        <DataTableFilterBar
+          className="min-w-0 flex-1"
+          fields={filterFields}
+          filters={filters}
+          onFiltersChange={setFilters}
+          onReset={resetFilters}
+          sorted={sort !== null}
+          rows={saved}
+          note="최근 100건 안에서 필터합니다"
+        />
         <DataTableResetButton tableId={MY_QUOTES_TABLE_ID} userId={userId} columns={columns} />
       </div>
       <div className="rounded-xl bg-surface-card shadow-(--hairline-default)">
@@ -403,6 +453,11 @@ function SavedQuotesModal({
           getRowKey={(quote) => quote.id}
           aria-label="견적 목록 표"
           headClassName="bg-gray-75"
+          sort={sort}
+          onSortChange={setSort}
+          filters={filters}
+          filterFields={filterFields}
+          empty={saved.length > 0 ? <DataTableFilterEmpty onReset={resetFilters} /> : undefined}
         />
         {saved.length === 0 ? (
           <p className="m-0 p-8 text-center text-[13px] text-text-tertiary">
