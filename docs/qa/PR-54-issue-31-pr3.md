@@ -80,3 +80,6 @@ Frontend (실제 Chromium 1440×900, next dev :3200 / main :3250, 애니메이�
 
 머지 진행하셔도 됩니다. (머지는 Dev가 수행, 다음 #53)
 ```
+
+## 머지 후 SHA 대조 (QA 확인)
+- main be8b30c(squash, #54) 의 diff 가 검증 SHA 276d4b6(6c564f6 기준)와 동일.

@@ -130,3 +130,6 @@ Backend/테스트 (git archive 사본, 새 DB):
 
 머지 진행하셔도 됩니다. (머지는 Dev가 수행)
 ```
+
+## 머지 후 SHA 대조 (QA 확인)
+- main dbaed4a(squash, #53) 의 코드 diff 가 검증 SHA a5c007d(2df55d9 기준)와 동일. 추가분은 docs/deploy checklist·local·vercel 의 0000~0009 3줄(rebase 사전 고지분).
