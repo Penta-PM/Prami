@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { DbHandle } from '@/db';
@@ -15,6 +15,7 @@ import {
   PRICE_TYPE_NONE,
   priceFilterDefs,
   priceFilterFields,
+  priceTypeOptions,
 } from '@/features/pricing/column-filters';
 import { parsePriceFilter } from '@/features/pricing/filter';
 import { filterAccessorsOf, filterDefsOf } from '@/components/ui/data-table/filter-fields';
@@ -46,6 +47,7 @@ import {
   PRICE_FILTER_SQL,
   type PriceRow,
 } from '@/server/pricing/queries';
+import { queryCount } from '@/server/imports/sql-rows';
 import { buildFilterSpec, filterSqlConditions } from '@/server/table/filter-sql';
 
 import { createTestDb } from '../../helpers/pglite';
@@ -72,6 +74,7 @@ const access = costAccessForTests({ id: null, email: 'vitest-filter' });
 const N = PARITY_STRINGS.length * 3;
 const pick = (i: number): string | null => PARITY_STRINGS[i % PARITY_STRINGS.length] ?? null;
 const CURRENCIES = ['KRW', 'USD', 'JPY'] as const;
+const COMMA_PRICE_TYPES = ['Standby,DR', '업그레이드(H/W Standby,DR)', 'a\\b,c'] as const;
 const IPS = ['10.0.0.2', '9.1.1.1', '192.168.0.10', '::1', '2001:db8::1', null] as const;
 const RESULTS = ['success', 'denied', 'error'] as const;
 /** 가격 변동 계열 (1번 계열 3번째 행은 삭제 — 직전가 계산에서도 빠진다) */
@@ -118,6 +121,19 @@ beforeAll(async () => {
     source: 'erp' as const,
   }));
   await handle.db.insert(salesPrices).values(priceRows);
+  // 쉼표·백슬래시가 든 단가 유형(실데이터 'Standby,DR' 등 5종 — QA #57 CRITICAL) — in 코덱이 백슬래시로 이스케이프
+  await handle.db.insert(salesPrices).values(
+    COMMA_PRICE_TYPES.flatMap((priceType, t) =>
+      [0, 1, 2].map((k) => ({
+        ...priceRows[0]!,
+        sourceId: 9000 + t * 10 + k,
+        itemCode: `CM${t}${k}`,
+        itemName: `comma-${t}-${k}`,
+        priceType,
+        operationStatus: k === 0 ? ('미사용' as const) : ('운영중' as const),
+      })),
+    ),
+  );
   const base = priceRows[0]!;
   await handle.db.insert(salesPrices).values(
     CHANGE_SERIES.flatMap((prices, s) =>
@@ -260,6 +276,19 @@ describe('가격 표 서버 필터 — 클라이언트 술어와 일치', () => 
       'f.priceType.in': 'a b,ab',
     },
     '기존 검색 q + 열 필터': { q: 'item-1', 'f.remark.has': 'a', 'f.status.in': '운영중' },
+    // in 코덱 백슬래시 이스케이프 (Plan §7): 값 안 , → \, , \ → \\
+    '단가 유형 Standby,DR(이스케이프) + 상태 운영중': {
+      'f.priceType.in': 'Standby\\,DR',
+      'f.status.in': '운영중',
+    },
+    '단가 유형 쉼표 값 2종 + 정상판매 + 상태 둘 다': {
+      'f.priceType.in': 'Standby\\,DR,업그레이드(H/W Standby\\,DR),정상판매',
+      'f.status.in': '운영중,미사용',
+    },
+    '단가 유형 백슬래시·쉼표 값(a\\b,c) + 상태 미사용': {
+      'f.priceType.in': 'a\\\\b\\,c',
+      'f.status.in': '미사용',
+    },
   };
 
   for (const [name, params] of Object.entries(CASES)) {
@@ -288,6 +317,29 @@ describe('가격 표 서버 필터 — 클라이언트 술어와 일치', () => 
     const byId = new Map(all.map((row) => [row.id, row.priceChangeRate]));
     expect(filtered.length).toBeGreaterThan(0);
     for (const row of filtered) expect(row.priceChangeRate).toBe(byId.get(row.id));
+  });
+
+  it('쉼표 값 단가 유형(QA #57 CRITICAL): 선택지에 모두 있고, Standby,DR 선택 → SQL 과 같은 행, 잘못된 이스케이프는 그 조건만 버림', async () => {
+    const options = priceTypeOptions(priceTypes).map((option) => option.value);
+    for (const value of COMMA_PRICE_TYPES) expect(options).toContain(value);
+    const server = await fetchPrices({ 'f.priceType.in': 'Standby\\,DR' });
+    const n = await queryCount(
+      handle.db,
+      sql`select count(*)::int as n from sales_prices where deleted_at is null and price_type = ${'Standby,DR'}`,
+    );
+    expect(n).toBeGreaterThan(0);
+    expect(server.total).toBe(n);
+    expect(server.rows.every((row) => row.priceType === 'Standby,DR')).toBe(true);
+    // 쉼표 그대로(이스케이프 없음)는 'Standby' 와 'DR' 두 값 → 목록 밖이라 조건 전체를 버림(전체 행)
+    const defs = priceFilterDefs(currencies, priceTypes);
+    expect(
+      parsePriceFilter({ 'f.priceType.in': 'Standby,DR' }, defs).filter.filters,
+    ).toBeUndefined();
+    // 그 밖의 \x 는 형식 오류 → 그 조건만 버림(다른 조건 유지)
+    expect(
+      parsePriceFilter({ 'f.priceType.in': 'Standby\\xDR', 'f.remark.has': 'a' }, defs).filter
+        .filters,
+    ).toEqual([{ col: 'remark', op: 'has', value: 'a' }]);
   });
 
   it('화이트리스트: 열·연산자·원가 비중·같은 의미 열·데이터에 없는 통화는 무시, 한도 초과 조건은 버린다', () => {

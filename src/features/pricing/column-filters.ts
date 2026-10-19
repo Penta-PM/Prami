@@ -40,15 +40,12 @@ const PRICE_TYPE_NONE_LABEL = '— (없음)';
 
 /**
  * 단가 유형 선택지: 서버 listPriceTypes 결과(빈 값은 PRICE_TYPE_NONE 하나로) → 옵션.
- * `in` 값으로 쓸 수 없는 값(쉼표 포함·100자 초과)은 고를 수 없다(URL 코덱 제약).
+ * 쉼표가 든 값("Standby,DR" 등)도 고를 수 있다 — `in` URL 코덱이 백슬래시로 이스케이프한다(Plan §7, §2.2 개정).
+ * 100자를 넘는 값만 한도(§2.1-4) 때문에 고를 수 없다(실데이터에는 없음).
  */
 export function priceTypeOptions(priceTypes: readonly string[]): FilterOption[] {
   return priceTypes
-    .filter(
-      (value) =>
-        value === PRICE_TYPE_NONE ||
-        (!value.includes(',') && value.length <= FILTER_LIMITS.valueMax),
-    )
+    .filter((value) => value === PRICE_TYPE_NONE || value.length <= FILTER_LIMITS.valueMax)
     .map((value) => ({
       value,
       label: value === PRICE_TYPE_NONE ? PRICE_TYPE_NONE_LABEL : value,

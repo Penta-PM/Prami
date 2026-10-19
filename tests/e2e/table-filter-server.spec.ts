@@ -1,5 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import pg from 'pg';
 
+import { E2E_ENV } from '../../playwright.config';
 import { expectNoHydrationErrors, FIXTURE_ADMIN, loginAs } from './helpers';
 
 /**
@@ -156,4 +158,37 @@ test('원가: 제품군 탭 + 상태 조건 하나 → URL f.*·칩·결과, 필
   await page.getByRole('button', { name: '필터 초기화' }).first().click();
   await expect(page).toHaveURL(tabUrl);
   await expect(chipList(page)).toHaveCount(0);
+});
+
+test('가격 관리: 쉼표가 든 단가 유형 "Standby,DR" 선택 → URL 이스케이프(\\,)·칩 원래 값·SQL 과 같은 건수 (QA #57 CRITICAL, Plan §7)', async ({
+  page,
+}) => {
+  const client = new pg.Client({ connectionString: E2E_ENV.DATABASE_URL });
+  await client.connect();
+  let expected: number;
+  try {
+    const result = await client.query<{ n: number }>(
+      "select count(*)::int as n from sales_prices where deleted_at is null and price_type = 'Standby,DR'",
+    );
+    expected = result.rows[0]!.n;
+  } finally {
+    await client.end();
+  }
+  expect(expected, 'E2E 픽스처(sales-200)에 Standby,DR 행').toBeGreaterThan(0);
+
+  await loginAs(page, FIXTURE_ADMIN, '/admin/policies');
+  await addFilter(page, '단가 유형', async (dialog) => {
+    await dialog.getByRole('checkbox', { name: 'Standby,DR', exact: true }).check();
+  });
+  // 값 안의 쉼표는 \, 로 이스케이프돼 URL 에 실린다(%5C%2C)
+  await expect(page).toHaveURL(/f\.priceType\.in=Standby%5C%2CDR(&|$)/);
+  await expect(chipList(page)).toContainText('Standby,DR');
+  expect(await totalCount(page)).toBe(expected);
+  const types = await page
+    .getByRole('table', { name: '가격정책 관리 표' })
+    .locator('tbody tr td:nth-child(1)')
+    .allInnerTexts();
+  expect(types.length).toBeGreaterThan(0);
+  expect(types.every((text) => text.trim() === 'Standby,DR')).toBe(true);
+  expectNoHydrationErrors(page);
 });
