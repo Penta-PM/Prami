@@ -40,6 +40,9 @@ function Harness({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
         <button type="button">적용</button>
       </Popover>
       <button type="button">바깥</button>
+      <button type="button" disabled>
+        비활성
+      </button>
       <p>빈 곳</p>
     </div>
   );
@@ -216,5 +219,46 @@ describe('Popover (표 열 필터 스펙 §2.5-5)', () => {
     }
     render(<WithInitial />, withMotion);
     await waitFor(() => expect(screen.getByRole('button', { name: '적용' })).toHaveFocus());
+  });
+
+  // A-1 QA 백로그: 비활성 버튼은 click 이 오지 않아 팝오버가 열린 채 포커스만 body 로 가던 문제
+  it('비활성 버튼(바깥)을 누르면 닫히고 포커스는 트리거로', async () => {
+    const onOpenChange = vi.fn();
+    render(<Harness onOpenChange={onOpenChange} />, withMotion);
+    await userEvent.click(trigger());
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveFocus());
+    const disabled = screen.getByRole('button', { name: '비활성' });
+    // 브라우저처럼: pointerdown 은 오지만 click 은 오지 않고, 포커스는 body 로 빠진다
+    fireEvent.pointerDown(disabled);
+    (document.activeElement as HTMLElement).blur();
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger()).toHaveFocus());
+  });
+
+  it('포커스가 body 로 빠진 채 열려 있어도 Esc 로 닫히고 트리거로 포커스 복귀', async () => {
+    render(<Harness />, withMotion);
+    await userEvent.click(trigger());
+    await waitFor(() => expect(screen.getByRole('textbox')).toHaveFocus());
+    act(() => (document.activeElement as HTMLElement).blur());
+    expect(document.activeElement).toBe(document.body);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(trigger()).toHaveFocus();
+  });
+
+  it('모달 안: 포커스가 body 로 빠져도 Esc 는 팝오버만 닫고 모달은 유지', async () => {
+    const onClose = vi.fn();
+    render(<ModalHarness onClose={onClose} />, withMotion);
+    await userEvent.click(trigger());
+    await waitFor(() => expect(screen.getByRole('textbox', { name: '값' })).toHaveFocus());
+    act(() => (document.activeElement as HTMLElement).blur());
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '품목명 필터' })).not.toBeInTheDocument(),
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(trigger()).toHaveFocus();
   });
 });

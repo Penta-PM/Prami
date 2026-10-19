@@ -1,3 +1,4 @@
+import type { FilterCondition } from '@/lib/table/filter';
 import type { SortState } from '@/lib/table/sort-param';
 
 import type { CostSortId } from './sort';
@@ -27,6 +28,8 @@ export type CostFilterView = {
   page: number;
   /** 단일 열 정렬 (#32). 없으면 기본 정렬 */
   sort?: SortState<CostSortId>;
+  /** 열 필터 (표 열 필터 스펙 §2) */
+  filters?: FilterCondition[];
 };
 
 export type CostFamilyTab = { family: string; count: number };

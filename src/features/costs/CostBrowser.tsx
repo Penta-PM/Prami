@@ -8,10 +8,13 @@ import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import {
   DataTable,
+  DataTableFilterBar,
+  DataTableFilterEmpty,
   DataTableResetButton,
   type DataTableColumn,
   type DataTableSort,
 } from '@/components/ui/data-table';
+import type { FilterCondition } from '@/lib/table/filter';
 import { parseSortParams } from '@/lib/table/sort-param';
 import { OperationStatus } from '@/features/pricing/cells';
 import { cn } from '@/lib/cn';
@@ -21,7 +24,8 @@ import { periodLabel } from '@/lib/pricing/period';
 import { CostCreateModal } from './CostCreateModal';
 import { CostDeleteModal } from './CostDeleteModal';
 import { CostEditModal } from './CostEditModal';
-import { costFilterToQuery } from './query';
+import { costFilterFields } from './column-filters';
+import { costFilterToQuery, isCostFiltered } from './query';
 import { COST_SORT_IDS } from './sort';
 import type { CostFilterView, CostRowView } from './types';
 
@@ -72,12 +76,24 @@ type CostBrowserProps = {
   rows: readonly CostRowView[];
   /** 현재 URL 필터 — 정렬을 바꾸면 이 필터 그대로 sort/dir 만 바꾸고 1페이지로 간다 (#32 스펙 §3) */
   filter: CostFilterView;
+  /** 필터 결과 전체 건수 (서버) — 라이브 영역 "필터 적용 · M건". 기본: 현재 페이지 행 수 */
+  total?: number;
+  /** 통화 열 필터 선택지 (데이터에 있는 통화 코드) */
+  currencies?: readonly string[];
   /** 열 너비·순서 저장 키 (#32 스펙 §5) */
   userId: string;
 };
 
+const NO_CURRENCIES: readonly string[] = [];
+
 /** 원가 표 + 수정/삭제 모달 (ADMIN). 원가 값은 이 화면에만 노출된다 */
-export function CostBrowser({ rows, filter, userId }: CostBrowserProps) {
+export function CostBrowser({
+  rows,
+  filter,
+  total = rows.length,
+  currencies = NO_CURRENCIES,
+  userId,
+}: CostBrowserProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
@@ -95,12 +111,20 @@ export function CostBrowser({ rows, filter, userId }: CostBrowserProps) {
 
   const columns = useMemo(() => costColumns({ onEdit: setEditing, onDelete: setDeleting }), []);
 
+  const go = (next: Partial<CostFilterView>) =>
+    startTransition(() => router.push(`${COSTS_PATH}${costFilterToQuery(next)}`));
+
   const changeSort = (next: DataTableSort) =>
-    startTransition(() =>
-      router.push(
-        `${COSTS_PATH}${costFilterToQuery({ ...filter, sort: urlSort(next, COST_SORT_IDS), page: 1 })}`,
-      ),
-    );
+    go({ ...filter, sort: urlSort(next, COST_SORT_IDS), page: 1 });
+
+  // 열 필터 (표 열 필터 스펙 §2) — 기존 필터·정렬은 그대로, 1페이지로. 기존 정렬·페이지 이동과 같은 router.push
+  const filterFields = useMemo(() => costFilterFields(currencies), [currencies]);
+  const columnFilters = filter.filters ?? [];
+  const changeFilters = (next: readonly FilterCondition[]) =>
+    go({ ...filter, filters: [...next], page: 1 });
+  // '필터 초기화' = 열 필터 + 기간·검색 + 정렬 (§2.5-4, Plan Q1 B). 제품군 탭은 화면 이동이라 유지 (§7 Q5)
+  const resetFilters = () => go({ family: filter.family, dateMode: 'start', page: 1 });
+  const filtered = isCostFiltered(filter);
 
   return (
     <div className="flex flex-col gap-3">
@@ -120,11 +144,22 @@ export function CostBrowser({ rows, filter, userId }: CostBrowserProps) {
           </Collapse>
         ) : null}
       </Presence>
-      <div className="flex items-center justify-end gap-2">
-        <DataTableResetButton tableId={COSTS_TABLE_ID} userId={userId} columns={columns} />
-        <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
-          + 등록
-        </Button>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <DataTableFilterBar
+          className="min-w-0 flex-1"
+          fields={filterFields}
+          filters={columnFilters}
+          onFiltersChange={changeFilters}
+          onReset={resetFilters}
+          sorted={filter.sort !== undefined}
+          canReset={filtered || filter.sort !== undefined}
+        />
+        <div className="flex items-center gap-2">
+          <DataTableResetButton tableId={COSTS_TABLE_ID} userId={userId} columns={columns} />
+          <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
+            + 등록
+          </Button>
+        </div>
       </div>
       <div className="overflow-x-auto rounded-[10px] bg-surface-card shadow-(--hairline-default)">
         <DataTable
@@ -136,13 +171,19 @@ export function CostBrowser({ rows, filter, userId }: CostBrowserProps) {
           sortMode="server"
           sort={filter.sort ?? null}
           onSortChange={changeSort}
+          filters={columnFilters}
+          filteredTotal={total}
           aria-label="원가 표"
           headClassName="bg-gray-75"
         />
         {rows.length === 0 ? (
-          <div className="p-12 text-center text-[13px] text-text-tertiary">
-            검색 결과가 없습니다.
-          </div>
+          filtered ? (
+            <DataTableFilterEmpty onReset={resetFilters} />
+          ) : (
+            <div className="p-12 text-center text-[13px] text-text-tertiary">
+              등록된 원가가 없습니다.
+            </div>
+          )
         ) : null}
       </div>
       <Presence>

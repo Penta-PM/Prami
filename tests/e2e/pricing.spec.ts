@@ -136,7 +136,8 @@ test('ADMIN 관리: 헤더(적용시작일·운영 연도·관리), 등록(사�
   await del.getByLabel('변경 사유 * (감사 로그에 기록됩니다)').fill('E2E 정리');
   await del.getByRole('button', { name: '삭제' }).click();
   await expect(page.getByRole('status')).toContainText('삭제했습니다');
-  await expect(page.getByText('검색 결과가 없습니다.')).toBeVisible();
+  // 검색 q 가 걸린 0건 → 필터 결과 없음 빈 상태 (표 열 필터 §2.5-7)
+  await expect(page.getByText('조건에 맞는 결과가 없습니다')).toBeVisible();
 
   await page.goto('/admin/audit?action=price_policy.create');
   await expect(page.getByRole('row').filter({ hasText: code }).first()).toContainText('성공');

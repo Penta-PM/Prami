@@ -3,8 +3,14 @@ import 'server-only';
 import { getDb } from '@/db';
 import { loadPolicyCostRatios } from '@/features/costs/price-ratios';
 import { getCategoryOptions } from '@/server/pricing/categories';
-import { getPriceRows, listEffectiveYears } from '@/server/pricing/queries';
+import {
+  getPriceRows,
+  listEffectiveYears,
+  listPriceCurrencies,
+  listPriceTypes,
+} from '@/server/pricing/queries';
 
+import { priceFilterDefs } from './column-filters';
 import type { TableMode } from './columns';
 import { parsePriceFilter } from './filter';
 import { PricingBrowser } from './PricingBrowser';
@@ -29,11 +35,19 @@ export async function PricingSection({
   /** 로그인 사용자 id — 표 열 너비·순서 저장 키 (#32 스펙 §5) */
   userId: string;
 }) {
-  const { filter, errors } = parsePriceFilter(searchParams);
   const db = await getDb();
-  const [options, years, page] = await Promise.all([
-    getCategoryOptions(db, { major: filter.major, mid: filter.mid, family: filter.family }),
+  // 통화·단가 유형 열 필터 선택지(데이터)가 화이트리스트에 들어가므로 먼저 읽고 URL 을 파싱한다 (표 열 필터 스펙 §2.3·§7 Q3 B)
+  const [currencies, priceTypes, years] = await Promise.all([
+    listPriceCurrencies(db),
+    listPriceTypes(db),
     listEffectiveYears(db),
+  ]);
+  const { filter, errors } = parsePriceFilter(
+    searchParams,
+    priceFilterDefs(currencies, priceTypes),
+  );
+  const [options, page] = await Promise.all([
+    getCategoryOptions(db, { major: filter.major, mid: filter.mid, family: filter.family }),
     getPriceRows(db, filter),
   ]);
   // 원가 비중: 관리 표에서만, cost.read 가 있을 때만(없으면 null → prop 자체를 넘기지 않음 — RSC payload 에 costRatio 키 0).
@@ -43,6 +57,8 @@ export async function PricingSection({
   return (
     <div className="flex flex-col gap-4">
       <PricingFilters
+        // 검색어 입력은 로컬 상태 — '필터 초기화' 등으로 q 가 바뀌면 새로 그려 입력값을 URL 과 맞춘다
+        key={filter.q ?? ''}
         filter={filter}
         errors={errors}
         options={options}
@@ -53,6 +69,9 @@ export async function PricingSection({
         mode={mode}
         rows={page.rows}
         filter={filter}
+        total={page.total}
+        currencies={currencies}
+        priceTypes={priceTypes}
         userId={userId}
         {...(costRatios ? { costRatios } : {})}
       />

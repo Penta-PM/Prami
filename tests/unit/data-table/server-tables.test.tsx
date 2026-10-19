@@ -8,7 +8,7 @@ import type { AuditDisplayRow } from '@/lib/audit-format';
 
 /**
  * #32 PR-3 서버 정렬 표 (가격·원가·감사): 헤더 클릭 → router.push 로 URL 의 sort/dir 만 바꾸고(맨 뒤) 1페이지로 간다.
- * 필터·탭·페이지 이동·감사 GET 폼이 정렬을 끌고 다닌다. Server Action·라우터는 모킹
+ * 필터·탭·페이지 이동·감사 열 필터(옛 GET 폼 흡수)가 정렬을 끌고 다닌다. Server Action·라우터는 모킹
  */
 const mocks = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn(), pathname: '/pricing' }));
 
@@ -26,7 +26,6 @@ const { CostBrowser } = await import('@/features/costs/CostBrowser');
 const { CostFilters } = await import('@/features/costs/CostFilters');
 const { CostPagination } = await import('@/features/costs/CostPagination');
 const { AuditTable } = await import('@/features/audit/AuditTable');
-const { AuditFilters } = await import('@/features/audit/AuditFilters');
 const { AuditPagination } = await import('@/features/audit/AuditPagination');
 
 const PRICE_ROW: PriceRowView = {
@@ -239,7 +238,7 @@ describe('원가 표 (서버 정렬)', () => {
 });
 
 describe('감사 로그 표 (서버 정렬)', () => {
-  const FILTER = { page: 2, action: 'user.update' };
+  const FILTER = { page: 2, action: ['user.update'] };
 
   it('헤더 클릭 → 필터 유지 + page 제거 + sort/dir 맨 뒤, 변경 전/후는 정렬하지 않는다', async () => {
     render(<AuditTable rows={[AUDIT_ROW]} filter={FILTER} userId="u1" />);
@@ -276,24 +275,18 @@ describe('감사 로그 표 (서버 정렬)', () => {
     expect(mocks.push).toHaveBeenLastCalledWith('/admin/audit?action=user.update');
   });
 
-  it('GET 폼은 정렬을 hidden input 으로 맨 뒤에 싣고, 정렬이 없으면 싣지 않는다', () => {
-    const { unmount } = render(
-      <AuditFilters
+  it('옛 GET 폼은 없고, 열 필터 칩 해제가 정렬을 맨 뒤에 유지한다 (표 열 필터 §2.4)', async () => {
+    render(
+      <AuditTable
+        rows={[AUDIT_ROW]}
         filter={{ ...FILTER, sort: { id: 'ip', dir: 'desc' } }}
         actions={['user.update']}
+        userId="u1"
       />,
     );
-    const form = screen.getByRole('form', { name: '감사 로그 필터' }) as HTMLFormElement;
-    const keys = [...new FormData(form).keys()];
-    expect(keys.slice(-2)).toEqual(['sort', 'dir']);
-    expect(new URLSearchParams(new FormData(form) as never).toString()).toMatch(
-      /&sort=ip&dir=desc$/,
-    );
-    unmount();
-
-    render(<AuditFilters filter={FILTER} actions={['user.update']} />);
-    const plain = screen.getByRole('form', { name: '감사 로그 필터' }) as HTMLFormElement;
-    expect([...new FormData(plain).keys()]).not.toContain('sort');
+    expect(screen.queryByRole('form', { name: '감사 로그 필터' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: '행위 필터 해제' }));
+    expect(mocks.push).toHaveBeenLastCalledWith('/admin/audit?sort=ip&dir=desc');
   });
 
   it('페이지 링크는 정렬을 맨 뒤에 유지한다', () => {

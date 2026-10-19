@@ -11,7 +11,8 @@ const TONE_CLASSES: Record<PillTone, string> = {
   positive: 'bg-green-600/12 text-green-700',
   purple: 'bg-purple-500/12 text-purple-600',
   amber: 'bg-amber-500/15 text-amber-500',
-  red: 'bg-red-500/12 text-red-500',
+  // 글자 red-600: red-500 은 옅은 빨강 배경에서 3.7:1 로 AA 미달(사용자 표 '비활성', A-1 QA 백로그 — 중요 배지 #54 와 같은 처방)
+  red: 'bg-red-500/12 text-red-600',
 };
 
 /** 상태·분류 표시용 필(배지). 색상은 의미별 tone 으로 선택 */

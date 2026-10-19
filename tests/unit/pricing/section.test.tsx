@@ -17,6 +17,8 @@ vi.mock('@/server/pricing/categories', () => ({
 }));
 vi.mock('@/server/pricing/queries', () => ({
   listEffectiveYears: async () => [2026, 2025],
+  listPriceCurrencies: async () => ['KRW', 'USD'],
+  listPriceTypes: async () => ['정상판매', '__none__'],
   getPriceRows: async (_db: unknown, filter: unknown) => {
     calls.filters.push(filter);
     return {
@@ -88,6 +90,56 @@ describe('PricingSection', () => {
     );
     expect(screen.getByPlaceholderText('모델명, 코드로 검색')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '2026' })).toBeInTheDocument();
+  });
+
+  it('열 필터: 화이트리스트(데이터 통화 포함)만 파싱해 쿼리에 넘기고, 페이지 링크·칩이 유지한다 (표 열 필터 §2.3)', async () => {
+    render(
+      await PricingSection({
+        mode: 'admin',
+        basePath: '/admin/policies',
+        userId: 'u1',
+        searchParams: {
+          q: 'abc',
+          'f.status.in': '운영중',
+          'f.currency.in': 'USD',
+          'f.price.gte': '100',
+          // 원가 비중·분류·품목명은 열 필터 없음, 데이터에 없는 통화·모르는 연산자는 무시
+          'f.costRatio.gte': '1',
+          'f.major.has': 'W',
+          'f.itemName.has': 'x',
+          'f.remark.like': 'x',
+          'f.priceType.in': '정상판매,할인',
+          page: '2',
+        },
+      }),
+    );
+    expect(calls.filters.at(-1)).toMatchObject({
+      q: 'abc',
+      filters: [
+        { col: 'currency', op: 'in', values: ['USD'] },
+        { col: 'price', op: 'gte', value: '100' },
+        { col: 'status', op: 'in', values: ['운영중'] },
+      ],
+    });
+    expect(screen.getByRole('link', { name: '이전' })).toHaveAttribute(
+      'href',
+      `/admin/policies?q=abc&${new URLSearchParams([
+        ['f.currency.in', 'USD'],
+        ['f.price.gte', '100'],
+        ['f.status.in', '운영중'],
+      ])}`,
+    );
+    const chips = screen.getByRole('list', { name: '적용된 필터' });
+    expect(
+      within(chips)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual([
+      expect.stringContaining('통화: USD'),
+      expect.stringContaining('판매가: ≥ 100'),
+      expect.stringContaining('상태: 운영중'),
+    ]);
+    expect(screen.getByRole('button', { name: '필터 초기화' })).toBeInTheDocument();
   });
 });
 

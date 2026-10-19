@@ -272,6 +272,8 @@ describe('DataTableFilterBar', () => {
     await user.click(within(table()).getByRole('button', { name: '필터 초기화' }));
     expect(chips()).toEqual([]);
     expect(names()).toHaveLength(4);
+    // 눌린 버튼이 사라지므로 포커스는 툴바 '＋ 필터' 로 (body 에 남지 않음, A-1 QA 백로그)
+    expect(screen.getByRole('button', { name: '＋ 필터' })).toHaveFocus();
   });
 
   it('통화가 섞인 금액 열: 통화 미선택이면 범위 비활성 + 안내, 통화를 하나 고르면 그 통화 안에서 범위', async () => {

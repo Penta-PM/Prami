@@ -59,6 +59,8 @@ type Position = { top: number; left: number; placement: 'bottom' | 'top' };
  * - Esc: 팝오버만 닫고 트리거로 포커스 복귀. keydown 의 기본 동작·전파를 막아 바깥 <dialog> 의 cancel(모달 닫힘)이
  *   일어나지 않는다. 같은 키 입력에서 cancel 이 오더라도 한 틱 동안 가로채 막는다(브라우저 차이 대비).
  * - 바깥 클릭(터치 포함 — click 은 탭에도 발생)·Tab 이탈 시 닫힌다. 트리거 클릭은 무시해 호출자의 토글과 겹치지 않는다.
+ *   비활성(disabled) 컨트롤은 click 이 오지 않으므로 pointerdown(캡처)에서 닫는다(A-1 QA 백로그 — 열린 채 포커스가 body 로 가던 문제).
+ * - 포커스가 팝오버 밖(body 등)으로 빠진 채 열려 있어도 Esc 는 문서 단위로 받아 닫는다.
  * - 모션: scaleIn (MotionProvider 의 reducedMotion="user" 로 감속 모드 준수). 퇴장 중에는 이벤트를 처리하지 않는다.
  */
 export function Popover(props: PopoverProps) {
@@ -159,8 +161,26 @@ function PopoverPanel({
       if (focusElsewhere) close();
       else closeAndRestoreFocus();
     };
+    // 비활성 컨트롤(:disabled)은 click 을 받지 않는다 — 누르는 순간(pointerdown) 닫는다. 브라우저가 mousedown 기본 동작으로
+    // 포커스를 body 로 옮길 수 있으므로 트리거 포커스 복귀는 그 다음 태스크에서 한다
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (panelRef.current?.contains(target) || anchorRef.current?.contains(target)) return;
+      if (!target.closest(':disabled')) return;
+      close();
+      setTimeout(() => {
+        const anchor = anchorRef.current;
+        const active = document.activeElement;
+        if (anchor?.isConnected && (!active || active === document.body)) anchor.focus();
+      }, 0);
+    };
     document.addEventListener('click', onClick, true);
-    return () => document.removeEventListener('click', onClick, true);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      document.removeEventListener('click', onClick, true);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+    };
   }, [isPresent, anchorRef, close, closeAndRestoreFocus]);
 
   // 트리거에서 Tab 으로 팝오버도 아닌 곳으로 나가면 닫는다 (팝오버 쪽 이탈은 onBlur 에서)
@@ -188,8 +208,21 @@ function PopoverPanel({
       suppressDialogCancelOnce();
       closeAndRestoreFocus();
     };
+    // 포커스가 팝오버 밖(body·트리거 등)에 있어도 열려 있는 동안 Esc 로 닫는다 — 문서 캡처 단계, 패널 안 Esc 는 위 리스너 몫
+    const onDocumentKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (event.target instanceof Node && panel.contains(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      suppressDialogCancelOnce();
+      closeAndRestoreFocus();
+    };
     panel.addEventListener('keydown', onKeyDown);
-    return () => panel.removeEventListener('keydown', onKeyDown);
+    document.addEventListener('keydown', onDocumentKeyDown, true);
+    return () => {
+      panel.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keydown', onDocumentKeyDown, true);
+    };
   }, [isPresent, closeAndRestoreFocus]);
 
   const style: CSSProperties = position

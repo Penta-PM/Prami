@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 
 import { getDb } from '@/db';
-import { AuditFilters } from '@/features/audit/AuditFilters';
 import { AuditPagination } from '@/features/audit/AuditPagination';
 import { AuditTable } from '@/features/audit/AuditTable';
 import { filterToQuery } from '@/features/audit/query';
@@ -14,7 +13,10 @@ type AuditPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-/** 감사 로그 (§4.5.10, audit.read): 필터(기간·행위·사용자)·정렬은 URL 상태, 페이지 50, CSV 내보내기(화면 정렬을 따름) */
+/**
+ * 감사 로그 (§4.5.10, audit.read): 열 필터(기간·행위·사용자 = 기존 파라미터 별칭, 대상·IP·결과)·정렬은 URL 상태, 페이지 50,
+ * CSV 내보내기(화면과 같은 필터·정렬 — 같은 filterToQuery·parseAuditFilter·WHERE)
+ */
 export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
   const actor = await requirePagePermission('audit.read', '/admin/audit');
   const filter = parseAuditFilter(await searchParams);
@@ -34,8 +36,13 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
           CSV 내보내기
         </a>
       </div>
-      <AuditFilters filter={filter} actions={actions} />
-      <AuditTable rows={page.rows} filter={filter} userId={actor.id} />
+      <AuditTable
+        rows={page.rows}
+        filter={filter}
+        actions={actions}
+        total={page.total}
+        userId={actor.id}
+      />
       <AuditPagination
         filter={filter}
         page={page.page}

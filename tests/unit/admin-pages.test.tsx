@@ -90,7 +90,10 @@ describe('관리자 페이지', () => {
       'href',
       '/api/audit/export.csv?action=auth.login',
     );
-    expect(screen.getByText('조건에 맞는 감사 로그가 없습니다.')).toBeInTheDocument();
+    // 행위 필터(별칭 action)가 걸린 0건 → 필터 결과 없음 빈 상태 + [필터 초기화], 옛 GET 폼은 없다 (표 열 필터 §2.4)
+    expect(screen.getByText('조건에 맞는 결과가 없습니다')).toBeInTheDocument();
+    expect(screen.getByRole('listitem')).toHaveTextContent('행위: auth.login');
+    expect(screen.queryByRole('form', { name: '감사 로그 필터' })).toBeNull();
   });
 
   it('가격정책 관리는 pricing.write 를 검사하고 임포트 패널·현재 적용 배지·최근 실패를 보인다', async () => {
