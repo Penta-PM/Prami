@@ -7,18 +7,18 @@
 
 | 역할 | 브랜치 | 경로 | Orca 워크트리 ID |
 |------|--------|------|------------------|
-| **Main** (현재) | `main` | `/home/plan1/Desktop/Prami` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/Desktop/Prami` |
-| Plan | `Plan` | `/home/plan1/orca/workspaces/Prami/Plan` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Plan` |
-| Dev | `Dev` | `/home/plan1/orca/workspaces/Prami/Dev` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Dev` |
-| QA | `QA` | `/home/plan1/orca/workspaces/Prami/QA` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/QA` |
+| **Main** (현재) | `main` | `/home/plan1/Desktop/Prami` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/Desktop/Prami` |
+| Plan | `Plan` | `/home/plan1/orca/workspaces/Prami/Plan` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/Plan` |
+| Dev | `Dev` | `/home/plan1/orca/workspaces/Prami/Dev` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/Dev` |
+| QA | `QA` | `/home/plan1/orca/workspaces/Prami/QA` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/QA` |
 
-`$REPO` = `b6875288-76f6-460f-a109-cec5f84eb966`
+`$REPO` = `3bdf9622-33af-4941-a0d8-e1d168e5a480`
 
 원격 저장소: `https://github.com/Penta-PM/Prami` (private, 기본 브랜치 `main`) — 4개 브랜치 모두 푸시됨
 
 - 목록 확인: `orca worktree list`
 - 이 4개는 **각각 별도의 Orca 터미널 세션**에서 열리며, **`orca orchestration`** 으로 통신합니다.
-- 공용 Run: **`run_8fb8ec4090f0`** (objective: "Prami — Main/Plan/Dev/QA 역할 파이프라인 (Linux)")
+- 공용 Run: **`run_b0f2def7eecf`** (objective: "Prami — Main/Plan/Dev/QA 역할 파이프라인 (Linux)")
 
 ## 파이프라인
 
@@ -70,16 +70,16 @@
 세션 시작 시 한 번 Run에 바인딩합니다:
 
 ```bash
-orca orchestration run-use --id run_8fb8ec4090f0 --json
+orca orchestration run-use --id run_b0f2def7eecf --json
 orca orchestration run-current --json          # 확인
 ```
 
 ### Plan에게 위임 보내기
 
 ```bash
-REPO=b6875288-76f6-460f-a109-cec5f84eb966
+REPO=3bdf9622-33af-4941-a0d8-e1d168e5a480
 orca orchestration send \
-  --to "@worktree:b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Plan" \
+  --to "@worktree:3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/Plan" \
   --type dispatch --subject "[요구사항] <한 줄 제목>" \
   --body "<아래 형식>" --json
 ```
@@ -103,7 +103,7 @@ orca orchestration check --ack <deliveryId> --json
 메시지만 보내면 상대는 모릅니다 (상대는 폴링하지 않습니다). **반드시 2단계**로 보내세요:
 
 ```bash
-REPO=b6875288-76f6-460f-a109-cec5f84eb966
+REPO=3bdf9622-33af-4941-a0d8-e1d168e5a480
 TARGET="/home/plan1/orca/workspaces/Prami/<역할>"   # Plan | Dev | QA
 # Main 워크트리 경로는:
 # "/home/plan1/Desktop/Prami"
@@ -123,9 +123,10 @@ orca terminal send --terminal "$H" --enter --json \
 2단계를 빠뜨리면 메시지는 메일박스에 남지만 **상대는 영영 깨어나지 않습니다.**
 
 > **Linux 전환 후 주의 (2026-10-02)**
-> - `@worktree:<id>` 메일은 그 워크트리에서 **Run 코디네이터인 터미널**에만 도착합니다. Main은 `run_8fb8ec4090f0` 의 코디네이터이고,
+> - `@worktree:<id>` 메일은 그 워크트리에서 **Run 코디네이터인 터미널**에만 도착합니다. Main은 `run_b0f2def7eecf` 의 코디네이터이고,
 >   Plan/Dev/QA 는 세션마다 자기 수신함 Run(`Prami <역할> inbox`)을 `run-create` 로 만듭니다. 역할 세션에 `run-use` 를 시키지 마세요 — 코디네이터를 빼앗깁니다.
-> - Main 세션을 새로 열면 `run-use --id run_8fb8ec4090f0` 를 다시 실행해 코디네이터를 되찾습니다.
+> - Main 세션을 새로 열면 `run-use --id run_b0f2def7eecf` 를 다시 실행해 코디네이터를 되찾습니다.
+> - Orca 가 초기화되면(2026-10-19 사례) Run 이 전부 사라져 `run-use` 가 `run_not_found` 를 냅니다. 이때는 `run-create` 로 새 Run 을 만들고 이 파일의 Run ID 를 갱신합니다.
 > - Main 워크트리에 claude 터미널이 여러 개면 위 깨우기 스크립트는 첫 번째 것을 고릅니다. 상대에게 Main 핸들을 직접 알려 주세요.
 
 ### Plan의 되묻기(ask) 처리
