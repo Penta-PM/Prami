@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: mocks.refresh }),
   usePathname: () => '/admin/parts',
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock('@/features/parts/actions', () => ({
   savePartMappingAction: mocks.save,

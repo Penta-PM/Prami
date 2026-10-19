@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import type { SortDir, SortType, SortValue } from '@/lib/table/compare';
+import type { ColumnFilterDef, FilterAccessorValue } from '@/lib/table/filter';
 
 export type { SortDir, SortType, SortValue } from '@/lib/table/compare';
 
@@ -26,6 +27,13 @@ export type DataTableColumn<T> = {
   sortValue?: (row: T) => SortValue;
   /** type 'status' 의 정의 순서 (STATUS_ORDERS) */
   statusOrder?: readonly string[];
+  /**
+   * 열 필터 (표 열 필터 스펙 §2.1). 없으면 이 열은 필터할 수 없다(관리·목록·JSON 열).
+   * id 는 URL 키 `f.<id>.<op>` 에 들어가므로 영문자만(`^[A-Za-z]+$`).
+   */
+  filter?: ColumnFilterDef;
+  /** 클라이언트 필터 값. 기본은 sortValue (배열이면 원소 중 하나라도 맞으면 통과) */
+  filterValue?: (row: T) => FilterAccessorValue;
   /** 기본 true. 터치에서는 항상 꺼진다 */
   resizable?: boolean;
   /** 기본 true. pinned 열은 항상 이동 불가 */

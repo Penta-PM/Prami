@@ -9,7 +9,11 @@ vi.mock('@/features/notices/actions', () => ({
   upsertNoticeAction: vi.fn(),
   deleteNoticeAction: vi.fn(),
 }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => '/admin/notices',
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const { NoticesAdminTable } = await import('@/features/notices/NoticesAdminTable');
 

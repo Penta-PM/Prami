@@ -48,7 +48,11 @@ vi.mock('@/server/imports/queries', () => ({
     { id: 'r2', status: 'failed', startedAt: '2026-09-23T01:00:00.000Z', error: '불변식 I-1 위반' },
   ],
 }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
+  usePathname: () => '/admin/users',
+  useSearchParams: () => new URLSearchParams(),
+}));
 // 관리 표 섹션은 비동기 서버 컴포넌트라 별도 테스트(pricing-section)에서 검증하고 여기서는 자리만 확인한다
 vi.mock('@/features/pricing/PricingSection', () => ({
   PricingSection: ({ mode, basePath }: { mode: string; basePath: string }) => (

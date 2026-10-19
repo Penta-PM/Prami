@@ -54,6 +54,7 @@ vi.mock('@/features/groups/actions', () => ({}));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/admin/parts',
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const { default: AdminPartsPage } = await import('@/app/(app)/admin/parts/page');

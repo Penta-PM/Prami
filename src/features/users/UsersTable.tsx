@@ -6,7 +6,17 @@ import { useMemo, useState, useTransition } from 'react';
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Button, Modal, Pill } from '@/components/ui';
-import { DataTable, DataTableResetButton, type DataTableColumn } from '@/components/ui/data-table';
+import {
+  DataTable,
+  DataTableFilterBar,
+  DataTableFilterEmpty,
+  DataTableResetButton,
+  filterDefsOf,
+  filterFieldsOf,
+  useUrlFilters,
+  type DataTableColumn,
+  type DataTableSort,
+} from '@/components/ui/data-table';
 import { formatAuditTime } from '@/lib/audit-format';
 import type { ActionResult } from '@/lib/result';
 import { STATUS_ORDERS } from '@/lib/table/compare';
@@ -36,6 +46,13 @@ const CREATED_VIA_LABELS: Record<UserRow['createdVia'], string> = {
 /** 열 너비·순서 저장 키의 표 구분자 (#32 스펙 §5) */
 const USERS_TABLE_ID = 'users';
 
+const ROLE_FILTER_OPTIONS = STATUS_ORDERS.role.map((role) => ({ value: role, label: role }));
+const STATUS_LABELS: Record<UserRow['status'], string> = { active: '활성', inactive: '비활성' };
+const STATUS_FILTER_OPTIONS = STATUS_ORDERS.userStatus.map((status) => ({
+  value: status,
+  label: STATUS_LABELS[status],
+}));
+
 /** 사용자 표 (디자인 "사용자 · 권한 관리"): 이름·이메일·부서·역할·상태·마지막 로그인·관리 */
 export function UsersTable({ users, currentUserId }: UsersTableProps) {
   const router = useRouter();
@@ -43,6 +60,8 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
   const [confirming, setConfirming] = useState<UserRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // 정렬은 컴포넌트 상태(#32 §5), '필터 초기화' 가 함께 해제하도록 제어형으로 둔다 (열 필터 스펙 §2.5-4)
+  const [sort, setSort] = useState<DataTableSort>(null);
 
   const handleDone = (result: ActionResult<unknown>) => {
     if (!result.ok) return setError(result.error.message);
@@ -63,6 +82,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
         header: '이름',
         type: 'text',
         sortValue: (user) => user.name,
+        filter: { kind: 'text' },
         headerClassName: 'px-5 py-3.5',
         cellClassName: 'px-5 font-semibold whitespace-nowrap',
         cell: (user) => (
@@ -79,6 +99,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
         header: '이메일',
         type: 'text',
         sortValue: (user) => user.email,
+        filter: { kind: 'text' },
         headerClassName: 'py-3.5',
         cellClassName: 'whitespace-nowrap text-text-secondary',
         cell: (user) => user.email,
@@ -88,6 +109,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
         header: '부서',
         type: 'text',
         sortValue: (user) => user.department,
+        filter: { kind: 'text' },
         headerClassName: 'py-3.5',
         cellClassName: 'whitespace-nowrap text-text-secondary',
         cell: (user) => user.department ?? '—',
@@ -98,6 +120,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
         type: 'status',
         statusOrder: STATUS_ORDERS.role,
         sortValue: (user) => user.role,
+        filter: { kind: 'enum', options: ROLE_FILTER_OPTIONS },
         align: 'center',
         headerClassName: 'py-3.5',
         cell: (user) => (
@@ -110,11 +133,12 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
         type: 'status',
         statusOrder: STATUS_ORDERS.userStatus,
         sortValue: (user) => user.status,
+        filter: { kind: 'enum', options: STATUS_FILTER_OPTIONS },
         align: 'center',
         headerClassName: 'py-3.5',
         cell: (user) => (
           <Pill tone={user.status === 'active' ? 'positive' : 'red'}>
-            {user.status === 'active' ? '활성' : '비활성'}
+            {STATUS_LABELS[user.status]}
           </Pill>
         ),
       },
@@ -124,6 +148,8 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
         type: 'date',
         // 미로그인은 빈 값 → 방향과 관계없이 맨 뒤
         sortValue: (user) => user.lastLoginAt,
+        // KST 날짜로 비교 (미로그인은 빈 값 → 기간 조건에 맞지 않음)
+        filter: { kind: 'date' },
         headerClassName: 'py-3.5',
         cellClassName: 'text-[12px] whitespace-nowrap text-text-tertiary',
         cell: (user) =>
@@ -165,6 +191,14 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
     [currentUserId],
   );
 
+  const filterFields = useMemo(() => filterFieldsOf(columns), [columns]);
+  const filterDefs = useMemo(() => filterDefsOf(filterFields), [filterFields]);
+  const { filters, setFilters } = useUrlFilters(filterDefs);
+  const resetFilters = () => {
+    setFilters([]);
+    setSort(null);
+  };
+
   return (
     <>
       <div className="mb-5 flex items-center justify-between">
@@ -189,6 +223,16 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
         ) : null}
       </Presence>
 
+      <DataTableFilterBar
+        className="mb-3"
+        fields={filterFields}
+        filters={filters}
+        onFiltersChange={setFilters}
+        onReset={resetFilters}
+        sorted={sort !== null}
+        rows={users}
+      />
+
       <div className="overflow-hidden rounded-[10px] bg-surface-card shadow-(--hairline-default)">
         <DataTable
           tableId={USERS_TABLE_ID}
@@ -198,7 +242,17 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
           getRowKey={(user) => user.id}
           aria-label="사용자 목록"
           headClassName="bg-gray-75"
+          sort={sort}
+          onSortChange={setSort}
+          filters={filters}
+          filterFields={filterFields}
+          empty={users.length > 0 ? <DataTableFilterEmpty onReset={resetFilters} /> : undefined}
         />
+        {users.length === 0 ? (
+          <p className="m-0 p-12 text-center text-[13px] text-text-tertiary">
+            등록된 사용자가 없습니다.
+          </p>
+        ) : null}
       </div>
 
       <Presence>

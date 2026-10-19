@@ -44,6 +44,7 @@ vi.mock('@/server/search/queries', async (importOriginal) => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
   notFound: () => {
     throw new Error('NOT_FOUND');
   },

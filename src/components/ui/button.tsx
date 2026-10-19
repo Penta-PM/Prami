@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes, Ref } from 'react';
 
 import { cn } from '@/lib/cn';
 
@@ -8,6 +8,8 @@ export type ButtonSize = 'sm' | 'md';
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  /** React 19 — 함수 컴포넌트도 ref 를 prop 으로 받는다 (팝오버 트리거 등) */
+  ref?: Ref<HTMLButtonElement>;
 };
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {

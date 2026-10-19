@@ -10,7 +10,11 @@ vi.mock('@/features/users/actions', () => ({
   updateUserAction: vi.fn(),
   deactivateUserAction: vi.fn(),
 }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
+  usePathname: () => '/admin/users',
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 const { UsersTable } = await import('@/features/users/UsersTable');
 
