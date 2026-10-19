@@ -117,3 +117,6 @@ Backend/테스트 (git archive 사본, 새 DB):
 
 머지 진행하셔도 됩니다. (머지는 Dev가 수행)
 ```
+
+## 머지 후 SHA 대조 (QA 확인)
+- main dd35d8c(squash, #56) 의 diff 가 검증 SHA 3d72e51(d8610ae 기준)와 동일.
