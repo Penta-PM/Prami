@@ -128,6 +128,7 @@ export function DataTableFilterBar<T>({
       <Button
         ref={triggerRef}
         size="sm"
+        data-table-filter-trigger=""
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => {
@@ -243,12 +244,31 @@ export function DataTableFilterBar<T>({
   );
 }
 
-/** 필터 결과 0건 빈 상태 (스펙 §2.5-7). 데이터 자체가 없을 때의 "등록된 … 없습니다" 와 구분한다 */
+/** 버튼에서 가장 가까운 조상 안의 툴바 '＋ 필터' (같은 표의 툴바 — 표·툴바는 같은 묶음 안에 있다) */
+function nearestFilterTrigger(from: HTMLElement): HTMLElement | null {
+  for (let node = from.parentElement; node; node = node.parentElement) {
+    const trigger = node.querySelector<HTMLElement>('[data-table-filter-trigger]');
+    if (trigger) return trigger;
+  }
+  return null;
+}
+
+/**
+ * 필터 결과 0건 빈 상태 (스펙 §2.5-7). 데이터 자체가 없을 때의 "등록된 … 없습니다" 와 구분한다.
+ * [필터 초기화] 뒤에는 이 버튼이 사라지므로 툴바의 '＋ 필터' 로 포커스를 옮긴다(툴바의 초기화와 같음, A-1 QA 백로그)
+ */
 export function DataTableFilterEmpty({ onReset }: { onReset: () => void }) {
   return (
     <div className="flex flex-col items-center gap-3 py-8 text-center">
       <p className="m-0 text-[13px] text-text-tertiary">조건에 맞는 결과가 없습니다</p>
-      <Button size="sm" onClick={onReset}>
+      <Button
+        size="sm"
+        onClick={(event) => {
+          const trigger = nearestFilterTrigger(event.currentTarget);
+          onReset();
+          trigger?.focus();
+        }}
+      >
         필터 초기화
       </Button>
     </div>
@@ -402,27 +422,36 @@ function FilterEditor<T>({ field, filters, onApply }: FilterEditorProps<T>) {
       ) : def.kind === 'enum' ? (
         <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0" aria-describedby={describedBy}>
           <legend className={cn('mb-1 p-0', LABEL_CLASS)}>{field.label}</legend>
-          {def.options.map((option) => (
-            <label key={option.value} className="flex items-center gap-2 text-[13px] text-ink-900">
-              <input
-                type="checkbox"
-                className="size-4 accent-purple-600"
-                checked={checked.includes(option.value)}
-                onChange={(event) => {
-                  setError(null);
-                  setChecked((prev) =>
-                    event.target.checked
-                      ? // 정의 순서(statusOrder·options 순)로 유지
-                        def.options
-                          .map((item) => item.value)
-                          .filter((value) => value === option.value || prev.includes(value))
-                      : prev.filter((value) => value !== option.value),
-                  );
-                }}
-              />
-              {option.label}
-            </label>
-          ))}
+          {/* 선택지가 많으면(감사 행위 등) 목록만 스크롤 — 적용 버튼이 화면 밖으로 밀리지 않게 */}
+          <div
+            data-filter-options
+            className="-mx-1 flex max-h-[min(240px,40vh)] flex-col gap-1.5 overflow-y-auto px-1"
+          >
+            {def.options.map((option) => (
+              <label
+                key={option.value}
+                className="flex items-center gap-2 text-[13px] text-ink-900"
+              >
+                <input
+                  type="checkbox"
+                  className="size-4 accent-purple-600"
+                  checked={checked.includes(option.value)}
+                  onChange={(event) => {
+                    setError(null);
+                    setChecked((prev) =>
+                      event.target.checked
+                        ? // 정의 순서(statusOrder·options 순)로 유지
+                          def.options
+                            .map((item) => item.value)
+                            .filter((value) => value === option.value || prev.includes(value))
+                        : prev.filter((value) => value !== option.value),
+                    );
+                  }}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
         </fieldset>
       ) : (
         <div className="flex flex-col gap-2">

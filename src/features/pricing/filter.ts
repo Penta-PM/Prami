@@ -1,5 +1,11 @@
 // 클라이언트(필터 UI)에서도 파싱하므로 JIT(eval) 탐지를 끈 zod 를 쓴다 (CSP, PR-11a QA L-1)
 import { z } from '@/lib/zod-jitless';
+import {
+  parseFilterParams,
+  serializeFilters,
+  type ColumnFilterDef,
+  type FilterCondition,
+} from '@/lib/table/filter';
 import { appendSortParams, parseSortParams, type SortState } from '@/lib/table/sort-param';
 
 /**
@@ -43,6 +49,8 @@ export type PriceFilter = {
   page: number;
   /** 단일 열 정렬. 없으면 기본 정렬(effective_from DESC, item_name, id) */
   sort?: SortState<PriceSortId>;
+  /** 열 필터 `f.<col>.<op>` (표 열 필터 스펙 §2) — 화이트리스트(priceFilterDefs)로 파싱한 결과. 없으면 키 생략 */
+  filters?: FilterCondition[];
 };
 
 export type FilterErrors = Partial<Record<'from' | 'to', string>>;
@@ -80,7 +88,11 @@ function first(params: Params, key: string): string | undefined {
  * URL → 필터. 잘못된 날짜는 버리고, `from > to` 이면 폼 오류로 알리고 날짜 조건을 적용하지 않는다(§4.5.2).
  * 상위 분류가 없으면 하위 분류도 무시한다(상위 변경 시 하위 초기화 규칙).
  */
-export function parsePriceFilter(params: Params): { filter: PriceFilter; errors: FilterErrors } {
+export function parsePriceFilter(
+  params: Params,
+  /** 열 필터 화이트리스트(priceFilterDefs). 생략하면 열 필터를 읽지 않는다 */
+  filterDefs: Readonly<Record<string, ColumnFilterDef>> = {},
+): { filter: PriceFilter; errors: FilterErrors } {
   const raw = Object.fromEntries(
     ['major', 'family', 'mid', 'minor', 'dateMode', 'from', 'to', 'q', 'page'].map((key) => [
       key,
@@ -101,13 +113,44 @@ export function parsePriceFilter(params: Params): { filter: PriceFilter; errors:
   const minor = mid ? parsed.minor : undefined;
   const family = parsed.major ? undefined : parsed.family;
   const sort = parseSortParams(params, PRICE_SORT_IDS);
+  const filters = parseFilterParams(params, filterDefs);
   return {
-    filter: { ...parsed, family, from, to, mid, minor, ...(sort ? { sort } : {}) },
+    filter: {
+      ...parsed,
+      family,
+      from,
+      to,
+      mid,
+      minor,
+      ...(filters.length > 0 ? { filters } : {}),
+      ...(sort ? { sort } : {}),
+    },
     errors,
   };
 }
 
-/** 필터 → 쿼리스트링 (기본값·빈 값·1페이지는 생략). sort·dir 는 항상 맨 뒤 (#32 §3, E2E URL 정규식 보호) */
+/**
+ * 기존 필터(분류 연쇄·적용기간 기준·검색) 또는 열 필터가 걸렸는가 — 정렬은 제외.
+ * 결과 0건일 때 빈 상태 2종(데이터 없음 / 필터 결과 없음) 구분과 '필터 초기화' 노출(정렬과 함께, Plan Q1 B)에 쓴다.
+ */
+export function isPriceFiltered(filter: Partial<PriceFilter>): boolean {
+  return Boolean(
+    filter.major ||
+    filter.family ||
+    filter.mid ||
+    filter.minor ||
+    filter.dateMode === 'period' ||
+    filter.from ||
+    filter.to ||
+    filter.q ||
+    (filter.filters && filter.filters.length > 0),
+  );
+}
+
+/**
+ * 필터 → 쿼리스트링 (기본값·빈 값·1페이지는 생략). 열 필터 `f.*` 는 기존 필터 뒤·page 앞,
+ * sort·dir 는 항상 맨 뒤 (#32 §3, E2E URL 정규식 보호)
+ */
 export function filterToQuery(filter: Partial<PriceFilter>): string {
   const params = new URLSearchParams();
   const entries: [string, string | number | undefined][] = [
@@ -119,10 +162,11 @@ export function filterToQuery(filter: Partial<PriceFilter>): string {
     ['from', filter.from],
     ['to', filter.to],
     ['q', filter.q],
-    ['page', filter.page && filter.page > 1 ? filter.page : undefined],
   ];
   for (const [key, value] of entries)
     if (value !== undefined && value !== '') params.set(key, String(value));
+  for (const [key, value] of serializeFilters(filter.filters ?? [])) params.append(key, value);
+  if (filter.page && filter.page > 1) params.set('page', String(filter.page));
   const query = params.toString();
   return appendSortParams(query ? `?${query}` : '', filter.sort);
 }

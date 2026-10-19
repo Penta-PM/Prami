@@ -38,6 +38,7 @@ vi.mock('@/server/cost/queries', () => ({
   },
   listCostFamilies: async () => [{ family: 'iSIGN', count: 108 }],
   listCostYears: async () => [2026, 2025],
+  listCostCurrencies: async () => ['KRW', 'USD'],
   getCurrentCostApply: async () => ({
     batchId: 'b1',
     fileName: '원자재코드 정보_260825.xlsx',

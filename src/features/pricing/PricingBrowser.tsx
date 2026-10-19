@@ -1,18 +1,24 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useState, useTransition } from 'react';
+import { useCallback, useMemo, useState, useTransition } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
-import { DataTableResetButton, type DataTableSort } from '@/components/ui/data-table';
+import {
+  DataTableFilterBar,
+  DataTableResetButton,
+  type DataTableSort,
+} from '@/components/ui/data-table';
+import type { FilterCondition } from '@/lib/table/filter';
 import { parseSortParams } from '@/lib/table/sort-param';
 
 import { getPriceRowDetailAction } from './actions';
+import { priceFilterFields } from './column-filters';
 import { layoutColumnsFor, PRICE_TABLE_IDS, type TableMode } from './columns';
 import { DeletePolicyModal } from './DeletePolicyModal';
-import { filterToQuery, PRICE_SORT_IDS, type PriceFilter } from './filter';
+import { filterToQuery, isPriceFiltered, PRICE_SORT_IDS, type PriceFilter } from './filter';
 import { EMPTY_POLICY_FORM, formFromRow, type PolicyFormValues } from './policy-form';
 import { PolicyFormModal, type PolicyFormMode } from './PolicyFormModal';
 import { PriceTable } from './PriceTable';
@@ -23,6 +29,8 @@ import type { CostRatioView, PriceRowView } from './types';
 function urlSort<Id extends string>(next: DataTableSort, allowed: readonly Id[]) {
   return parseSortParams(next ? { sort: next.id, dir: next.dir } : {}, allowed);
 }
+
+const NO_OPTIONS: readonly string[] = [];
 
 type FormState = { mode: PolicyFormMode; initial: PolicyFormValues; itemStatus: string | null };
 type Flash = { tone: 'ok' | 'error'; text: string };
@@ -125,6 +133,12 @@ type PricingBrowserProps = {
   rows: readonly PriceRowView[];
   /** 현재 URL 필터 — 정렬을 바꾸면 이 필터 그대로 sort/dir 만 바꾸고 1페이지로 간다 (#32 스펙 §3) */
   filter: PriceFilter;
+  /** 필터 결과 전체 건수 (서버) — 라이브 영역 "필터 적용 · M건". 기본: 현재 페이지 행 수 */
+  total?: number;
+  /** 통화 열 필터 선택지 (데이터에 있는 통화 코드). 없으면 통화·판매가 범위를 고를 수 없다 */
+  currencies?: readonly string[];
+  /** 단가 유형 열 필터 선택지 (데이터 distinct, 빈 값은 PRICE_TYPE_NONE). 없으면 단가 유형을 고를 수 없다 */
+  priceTypes?: readonly string[];
   /** 열 너비·순서 저장 키 (#32 스펙 §5) */
   userId: string;
   /** 관리 표 + cost.read 일 때만 — 없으면 원가 비중 열 없음 (cost-ratio-price-change §2.3) */
@@ -135,7 +149,16 @@ type PricingBrowserProps = {
  * 표 + 행 상세 드로어 (조회), 관리 모드에서는 `+ 등록`·수정·복사·삭제까지 (§4.5.3).
  * 툴바의 '열 초기화'는 필터와 별개로 열 너비·순서만 되돌린다 (#32 스펙 §5).
  */
-export function PricingBrowser({ mode, rows, filter, userId, costRatios }: PricingBrowserProps) {
+export function PricingBrowser({
+  mode,
+  rows,
+  filter,
+  total = rows.length,
+  currencies = NO_OPTIONS,
+  priceTypes = NO_OPTIONS,
+  userId,
+  costRatios,
+}: PricingBrowserProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [, startTransition] = useTransition();
@@ -144,12 +167,23 @@ export function PricingBrowser({ mode, rows, filter, userId, costRatios }: Prici
   const { openFromRow, setDeleting } = editing;
   const admin = mode === 'admin';
 
+  const go = (next: Partial<PriceFilter>) =>
+    startTransition(() => router.push(`${pathname}${filterToQuery(next)}`));
+
   const changeSort = (next: DataTableSort) =>
-    startTransition(() =>
-      router.push(
-        `${pathname}${filterToQuery({ ...filter, sort: urlSort(next, PRICE_SORT_IDS), page: 1 })}`,
-      ),
-    );
+    go({ ...filter, sort: urlSort(next, PRICE_SORT_IDS), page: 1 });
+
+  // 열 필터 (표 열 필터 스펙 §2) — 기존 필터·정렬은 그대로, 1페이지로. 기존 서버 표의 정렬·페이지 이동과 같은 router.push
+  const filterFields = useMemo(
+    () => priceFilterFields(currencies, priceTypes),
+    [currencies, priceTypes],
+  );
+  const columnFilters = filter.filters ?? [];
+  const changeFilters = (next: readonly FilterCondition[]) =>
+    go({ ...filter, filters: [...next], page: 1 });
+  // '필터 초기화' = 열 필터 + 분류 연쇄·적용기간 기준·검색 + 정렬 (§2.5-4, Plan Q1 B)
+  const resetFilters = () => go({ dateMode: 'start', page: 1 });
+  const filtered = isPriceFiltered(filter);
 
   const renderActions = useCallback(
     (row: PriceRowView) => (
@@ -165,17 +199,28 @@ export function PricingBrowser({ mode, rows, filter, userId, costRatios }: Prici
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-end gap-2">
-        <DataTableResetButton
-          tableId={PRICE_TABLE_IDS[mode]}
-          userId={userId}
-          columns={layoutColumnsFor(mode, costRatios !== undefined)}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <DataTableFilterBar
+          className="min-w-0 flex-1"
+          fields={filterFields}
+          filters={columnFilters}
+          onFiltersChange={changeFilters}
+          onReset={resetFilters}
+          sorted={filter.sort !== undefined}
+          canReset={filtered || filter.sort !== undefined}
         />
-        {admin ? (
-          <Button variant="primary" size="sm" onClick={editing.openCreate}>
-            + 등록
-          </Button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          <DataTableResetButton
+            tableId={PRICE_TABLE_IDS[mode]}
+            userId={userId}
+            columns={layoutColumnsFor(mode, costRatios !== undefined)}
+          />
+          {admin ? (
+            <Button variant="primary" size="sm" onClick={editing.openCreate}>
+              + 등록
+            </Button>
+          ) : null}
+        </div>
       </div>
       <Presence>
         {editing.flash ? <FlashMessage key="flash" flash={editing.flash} /> : null}
@@ -186,6 +231,10 @@ export function PricingBrowser({ mode, rows, filter, userId, costRatios }: Prici
         userId={userId}
         sort={filter.sort ?? null}
         onSortChange={changeSort}
+        filters={columnFilters}
+        total={total}
+        filtered={filtered}
+        onResetFilters={resetFilters}
         onRowClick={(row) => setDetailId(row.id)}
         renderActions={admin ? renderActions : undefined}
         costRatios={admin ? costRatios : undefined}

@@ -180,9 +180,25 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
     expect(screen.getAllByText('26.05.01 가격정책')).toHaveLength(5);
   });
 
-  it('빈 결과 안내', () => {
-    render(<PriceTable mode="view" rows={[]} userId="u1" onRowClick={vi.fn()} />);
-    expect(screen.getByText('검색 결과가 없습니다.')).toBeInTheDocument();
+  it('빈 상태 2종: 데이터 없음 / 필터 결과 없음 + [필터 초기화] (표 열 필터 §2.5-7)', async () => {
+    const { rerender } = render(
+      <PriceTable mode="view" rows={[]} userId="u1" onRowClick={vi.fn()} />,
+    );
+    expect(screen.getByText('등록된 가격정책이 없습니다.')).toBeInTheDocument();
+    const reset = vi.fn();
+    rerender(
+      <PriceTable
+        mode="view"
+        rows={[]}
+        userId="u1"
+        onRowClick={vi.fn()}
+        filtered
+        onResetFilters={reset}
+      />,
+    );
+    expect(screen.getByText('조건에 맞는 결과가 없습니다')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '필터 초기화' }));
+    expect(reset).toHaveBeenCalledTimes(1);
   });
 });
 

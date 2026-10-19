@@ -74,6 +74,9 @@ describe('UsersTable', () => {
     expect(screen.getByText('2026-09-23 10:02:03')).toBeInTheDocument(); // KST
     expect(screen.getByText('미로그인 · 사전 등록')).toBeInTheDocument();
     expect(screen.getByText('비활성')).toBeInTheDocument();
+    // '비활성' 필 글자는 red-600 (red-500 은 옅은 빨강 배경에서 3.7:1 — AA 미달, A-1 QA 백로그)
+    expect(screen.getByText('비활성')).toHaveClass('text-red-600');
+    expect(screen.getByText('비활성')).not.toHaveClass('text-red-500');
     // 본인·이미 비활성 사용자는 비활성화 버튼이 꺼진다
     expect(screen.getByRole('button', { name: 'admin@pentasecurity.com 비활성화' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'gone@pentasecurity.com 비활성화' })).toBeDisabled();

@@ -103,6 +103,40 @@ test('사용자 표: 열린 필터 팝오버 axe 위반 0, Esc 는 팝오버만 
   await expect(page).not.toHaveURL(/[?&]f\./);
 });
 
+test('사용자 표: 비활성 필터 결과의 상태 필 색 대비 axe 위반 0 (A-1 QA 백로그 — 비활성 필 red-600)', async ({
+  page,
+}) => {
+  await loginAs(page, FIXTURE_ADMIN, '/admin/users?f.status.in=inactive');
+  await expect(chipList(page).getByRole('listitem')).toHaveText([/상태: 비활성/]);
+  const pills = usersTable(page).locator('tbody').getByText('비활성', { exact: true });
+  // 비활성 사용자는 auth.spec(사전 등록 → 비활성화)이 만든다 — 이 파일만 따로 돌려 0건이면 검사 대상이 없다
+  test.skip((await pills.count()) === 0, '비활성 사용자 없음 (auth.spec 이후 실행 시 검사)');
+  const axe = await new AxeBuilder({ page })
+    .include('table[aria-label="사용자 목록"]')
+    .withRules(['color-contrast'])
+    .analyze();
+  expect(
+    axe.violations,
+    JSON.stringify(axe.violations.map((v) => [v.id, v.nodes.map((n) => n.html)])),
+  ).toEqual([]);
+});
+
+test('사용자 표: 팝오버가 열린 채 비활성 버튼(열 초기화)을 눌러도 닫히고, Esc 도 동작 (A-1 QA 백로그)', async ({
+  page,
+}) => {
+  await loginAs(page, FIXTURE_ADMIN, '/admin/users');
+  const reset = page.getByRole('button', { name: '열 초기화' });
+  await expect(reset).toBeDisabled();
+  await page.getByRole('button', { name: '＋ 필터' }).click();
+  const picker = page.getByRole('dialog', { name: '필터할 열 선택' });
+  await expect(picker).toBeVisible();
+  // 비활성 버튼은 click 이 오지 않는다 — 좌표로 누른다 (Playwright click 은 활성화를 기다림)
+  const box = await reset.boundingBox();
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await expect(picker).toBeHidden();
+  await expect(page.getByRole('button', { name: '＋ 필터' })).toBeFocused();
+});
+
 test('내 견적 목록 모달: 필터는 URL 이 아닌 상태, 모달 안 Esc → 팝오버만 닫히고 모달 유지', async ({
   page,
 }) => {

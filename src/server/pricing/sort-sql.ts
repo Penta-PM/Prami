@@ -29,8 +29,8 @@ export function byValue(expr: Expr, dir: SortDir): SQL {
 /** btrim 대상 공백: 스페이스·탭·LF·CR·FF·VT·NBSP (JS String.prototype.trim 의 실사용 범위) */
 const TRIM_CHARS = sql.raw(String.raw`E' \t\n\r\f\x0B\u00A0'`);
 
-/** 클라이언트 isEmptySortValue 와 같은 빈 값 판정 (null·''·공백만·'—') */
-function isEmptyText(expr: Expr): SQL {
+/** 클라이언트 isEmptySortValue 와 같은 빈 값 판정 (null·''·공백만·'—'). 열 필터(server/table/filter-sql)도 쓴다 */
+export function isEmptyText(expr: Expr): SQL {
   return sql`coalesce(btrim((${expr})::text, ${TRIM_CHARS}), '') in ('', '—')`;
 }
 

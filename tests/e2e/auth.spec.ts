@@ -57,11 +57,11 @@ test('AC-02·AC-03: ADMIN 로그인 → 감사 로그에 USER 의 /admin 접근 
   await loginAs(page, FIXTURE_ADMIN, '/admin/audit');
   await expect(page.getByRole('heading', { level: 1, name: '감사 로그' })).toBeVisible();
 
-  // 표 헤더·리사이즈 핸들도 '행위'·'사용자' 이름을 가지므로(#32) 필터 컨트롤을 역할로 고른다
-  await page.getByRole('combobox', { name: '행위' }).selectOption('auth.access_denied');
-  await page.getByRole('searchbox', { name: '사용자' }).fill(FIXTURE_USER);
-  await page.getByRole('button', { name: '조회' }).click();
-  await expect(page).toHaveURL(/action=auth\.access_denied/);
+  // 감사 GET 폼은 열 필터로 흡수됐다(표 열 필터 A-2) — 기존 URL 파라미터(action·actor)는 별칭으로 그대로 동작
+  await page.goto(
+    `/admin/audit?action=auth.access_denied&actor=${encodeURIComponent(FIXTURE_USER)}`,
+  );
+  await expect(page.getByRole('button', { name: /행위 필터 해제/ })).toBeVisible();
 
   const row = page
     .getByRole('table', { name: '감사 로그' })

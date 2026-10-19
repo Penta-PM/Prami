@@ -1,15 +1,17 @@
 import 'server-only';
 
 import { alias } from 'drizzle-orm/pg-core';
-import { and, asc, count, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 
 import type { Db } from '@/db';
 import { importBatches, materialCosts } from '@/db/schema';
+import { costFilterDefs, type CostFilterId } from '@/features/costs/column-filters';
 import type { CostSortId } from '@/features/costs/sort';
 import { MATERIAL_FAMILIES } from '@/lib/constants/material-family';
 import { STATUS_ORDERS, type SortDir } from '@/lib/table/compare';
 import { dateConditions } from '@/server/pricing/date-filter';
 import { buildOrderBy, byMoney, byStatus, byText, byValue } from '@/server/pricing/sort-sql';
+import { buildFilterSpec, filterSqlConditions } from '@/server/table/filter-sql';
 
 import { assertCostAccess, type CostAccess } from './access-token';
 import type { CostFilter } from './filter';
@@ -41,6 +43,19 @@ function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, (char) => `\\${char}`);
 }
 
+/**
+ * 원가 표 열 필터 id → 열 식 (표 열 필터 스펙 §2.3). 정렬 맵(COST_SORT_SQL)과 같은 식.
+ * 통화 선택지(데이터) 검증은 URL 파싱(parseCostFilter + costFilterDefs)에서 끝난다.
+ */
+export const COST_FILTER_SQL: Record<CostFilterId, AnyColumn | SQL> = {
+  unit: materialCosts.unit,
+  currency: materialCosts.currency,
+  cost: materialCosts.unitCost,
+  status: materialCosts.operationStatus,
+};
+
+const COST_FILTER_SPEC = buildFilterSpec(costFilterDefs([]), COST_FILTER_SQL);
+
 function buildWhere(filter: CostFilter): SQL | undefined {
   const conditions: SQL[] = [
     isNull(materialCosts.deletedAt) as SQL,
@@ -53,6 +68,8 @@ function buildWhere(filter: CostFilter): SQL | undefined {
       sql`(${materialCosts.materialName} ilike ${pattern} or ${materialCosts.materialCode} ilike ${pattern})`,
     );
   }
+  // 열 필터 — 검색·기간과 같은 의미의 열(코드·원자재명·적용시작일·적용기간)은 화이트리스트에 없다
+  conditions.push(...filterSqlConditions(filter.filters ?? [], COST_FILTER_SPEC));
   return and(...conditions);
 }
 
@@ -128,6 +145,17 @@ export async function listCostFamilies(
     family,
     count: counts.get(family) ?? 0,
   }));
+}
+
+/** 통화 열 필터 선택지: 데이터에 있는 통화 코드 (삭제 제외, 오름차순) */
+export async function listCostCurrencies(access: CostAccess, db: Db): Promise<string[]> {
+  assertCostAccess(access, 'read');
+  const rows = await db
+    .selectDistinct({ currency: sql<string>`${materialCosts.currency}::text` })
+    .from(materialCosts)
+    .where(isNull(materialCosts.deletedAt))
+    .orderBy(sql`1`);
+  return rows.map((row) => row.currency);
 }
 
 export async function listCostYears(access: CostAccess, db: Db): Promise<number[]> {

@@ -1,15 +1,22 @@
-import { and, asc, count, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, isNull, sql, type AnyColumn, type SQL } from 'drizzle-orm';
 
 import type { Db } from '@/db';
 import { ITEM_REMARK_HEADER } from '@/server/imports/schemas/items';
 import { importBatches, items, salesPrices, type SalesPrice } from '@/db/schema';
+import {
+  PRICE_TYPE_NONE,
+  priceFilterDefs,
+  type PriceFilterId,
+} from '@/features/pricing/column-filters';
 import type { PriceFilter, PriceSortId } from '@/features/pricing/filter';
 import { STATUS_ORDERS, type SortDir } from '@/lib/table/compare';
 import { productFamilyMajors } from '@/lib/constants/product-cards';
 import { ITEM_STATUS_UNKNOWN } from '@/lib/constants/item-status';
 
+import { buildFilterSpec, filterSqlConditions } from '@/server/table/filter-sql';
+
 import { dateConditions } from './date-filter';
-import { buildOrderBy, byMoney, byStatus, byText, byValue } from './sort-sql';
+import { buildOrderBy, byMoney, byStatus, byText, byValue, isEmptyText } from './sort-sql';
 
 /** 조회·관리 표 (§4.5.3) — 서버 페이지네이션 50행, 기본 정렬 effective_from DESC, item_name (+ #32 열 정렬) */
 export const PRICE_PAGE_SIZE = 50;
@@ -59,33 +66,6 @@ export function dateCondition(filter: Pick<PriceFilter, 'dateMode' | 'from' | 't
   return dateConditions(salesPrices, filter);
 }
 
-function buildWhere(filter: PriceFilter): SQL | undefined {
-  const conditions: SQL[] = [isNull(salesPrices.deletedAt) as SQL, ...dateCondition(filter)];
-  if (filter.major) conditions.push(sql`${MAJOR} = ${filter.major}`);
-  else if (filter.family) {
-    // 홈 카드 묶음 (예: iSIGN 카드 = iSIGN + iSIGN PKI, Q-10·PR-9 QA LOW-1). 모르는 값이면 결과 없음
-    const majors = productFamilyMajors(filter.family) ?? [];
-    conditions.push(
-      majors.length > 0
-        ? sql`${MAJOR} in (${sql.join(
-            majors.map((major) => sql`${major}`),
-            sql`, `,
-          )})`
-        : sql`false`,
-    );
-  }
-  if (filter.mid) conditions.push(eq(items.categoryMid, filter.mid) as SQL);
-  if (filter.minor) conditions.push(eq(items.categoryMinor, filter.minor) as SQL);
-  if (filter.q) {
-    const pattern = `%${escapeLike(filter.q)}%`;
-    // 품명 NBSP 는 검색 시에만 공백으로 정규화 (§4.3.1, R-10)
-    conditions.push(
-      sql`(replace(${salesPrices.itemName}, chr(160), ' ') ilike ${pattern} or ${salesPrices.itemCode} ilike ${pattern})`,
-    );
-  }
-  return and(...conditions);
-}
-
 /**
  * 가격 변동 (cost-ratio-price-change §2.4): 직전가는 **필터·페이지 적용 전** 전체(삭제 제외)에서 계열별 lag 로 구해
  * id 로 붙인다 — 직전 행이 다른 페이지·필터 밖이어도 같은 값. 계열 키 = 품번|단가유형|단가구분|화폐|거래처코드(series_key).
@@ -124,6 +104,60 @@ const ROW_FIELDS = {
   priceChangeRate: PRICE_CHANGE_RATE.mapWith(Number),
 };
 
+/**
+ * 가격 표 열 필터 id → 열 식 (표 열 필터 스펙 §2.3). 정렬 맵(PRICE_SORT_SQL)과 같은 식.
+ * 가격 변동은 필터·페이지 전 전체에서 구한 lag(price_prev) 기준 변동률 — 필터는 이 값을 거를 뿐 직전가 계산에 영향이 없다.
+ * enum 선택지 검증(통화 = 데이터)은 URL 파싱(parsePriceFilter + priceFilterDefs)에서 끝난다 — 여기서는 열·연산자 화이트리스트만.
+ */
+export const PRICE_FILTER_SQL: Record<PriceFilterId, AnyColumn | SQL> = {
+  priceType: salesPrices.priceType,
+  currency: salesPrices.currency,
+  price: salesPrices.unitPrice,
+  priceChange: PRICE_CHANGE_RATE,
+  itemStatus: ITEM_STATUS,
+  status: salesPrices.operationStatus,
+  remark: salesPrices.remark,
+};
+
+const PRICE_FILTER_SPEC = buildFilterSpec(priceFilterDefs([]), PRICE_FILTER_SQL, {
+  // 단가 유형 '— (없음)' = 빈 값(NULL·''·공백만·'—') — 표 칸 priceTypeLabel 의 '—' 와 같은 묶음
+  emptyValues: { priceType: PRICE_TYPE_NONE },
+});
+
+function buildWhere(filter: PriceFilter): SQL | undefined {
+  const conditions: SQL[] = [isNull(salesPrices.deletedAt) as SQL, ...dateCondition(filter)];
+  if (filter.major) conditions.push(sql`${MAJOR} = ${filter.major}`);
+  else if (filter.family) {
+    // 홈 카드 묶음 (예: iSIGN 카드 = iSIGN + iSIGN PKI, Q-10·PR-9 QA LOW-1). 모르는 값이면 결과 없음
+    const majors = productFamilyMajors(filter.family) ?? [];
+    conditions.push(
+      majors.length > 0
+        ? sql`${MAJOR} in (${sql.join(
+            majors.map((major) => sql`${major}`),
+            sql`, `,
+          )})`
+        : sql`false`,
+    );
+  }
+  if (filter.mid) conditions.push(eq(items.categoryMid, filter.mid) as SQL);
+  if (filter.minor) conditions.push(eq(items.categoryMinor, filter.minor) as SQL);
+  if (filter.q) {
+    const pattern = `%${escapeLike(filter.q)}%`;
+    // 품명 NBSP 는 검색 시에만 공백으로 정규화 (§4.3.1, R-10)
+    conditions.push(
+      sql`(replace(${salesPrices.itemName}, chr(160), ' ') ilike ${pattern} or ${salesPrices.itemCode} ilike ${pattern})`,
+    );
+  }
+  // 열 필터 (표 열 필터 스펙 §2.3) — 분류·적용기간·검색과 같은 의미의 열은 화이트리스트에 없다
+  conditions.push(...filterSqlConditions(filter.filters ?? [], PRICE_FILTER_SPEC));
+  return and(...conditions);
+}
+
+/** 가격 변동 열 필터가 있으면 count 도 직전가 윈도를 조인해야 한다 */
+function needsPreviousPrices(filter: PriceFilter): boolean {
+  return (filter.filters ?? []).some((cond) => cond.col === 'priceChange');
+}
+
 /** 기본 정렬 (§4.5.3) — 정렬을 고르면 tie-breaker 로 그대로 뒤에 붙는다(stable, 끝은 id) */
 const DEFAULT_ORDER: SQL[] = [
   desc(salesPrices.effectiveFrom),
@@ -159,11 +193,16 @@ export const PRICE_SORT_SQL: Record<PriceSortId, (dir: SortDir) => SQL[]> = {
 /** getPriceRows (§4.7) — 원가 조인 없음. 가격 변동(직전가·변동률)은 전체 기준 윈도를 id 로 조인 */
 export async function getPriceRows(db: Db, filter: PriceFilter): Promise<PricePage> {
   const where = buildWhere(filter);
-  const [counted] = await db
+  const countQuery = db
     .select({ total: count() })
     .from(salesPrices)
     .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
-    .where(where);
+    .$dynamic();
+  const [counted] = await (
+    needsPreviousPrices(filter)
+      ? countQuery.leftJoin(previousPrices, sql`price_prev.id = ${salesPrices.id}`)
+      : countQuery
+  ).where(where);
   const total = counted?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PRICE_PAGE_SIZE));
   const page = Math.min(filter.page, pageCount);
@@ -177,6 +216,35 @@ export async function getPriceRows(db: Db, filter: PriceFilter): Promise<PricePa
     .limit(PRICE_PAGE_SIZE)
     .offset((page - 1) * PRICE_PAGE_SIZE);
   return { rows, total, page, pageCount };
+}
+
+/** 통화 열 필터 선택지: 데이터에 있는 통화 코드 (삭제 제외, 오름차순) */
+export async function listPriceCurrencies(db: Db): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ currency: sql<string>`${salesPrices.currency}::text` })
+    .from(salesPrices)
+    .where(isNull(salesPrices.deletedAt))
+    .orderBy(sql`1`);
+  return rows.map((row) => row.currency);
+}
+
+/**
+ * 단가 유형 열 필터 선택지 (Plan §7 Q3 B): 데이터의 distinct 값(삭제 제외, "C" 순) + 빈 값이 있으면 맨 뒤에 PRICE_TYPE_NONE.
+ * 빈 값 판정은 정렬·필터와 같은 isEmptyText.
+ */
+export async function listPriceTypes(db: Db): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({
+      priceType: sql<
+        string | null
+      >`case when ${isEmptyText(salesPrices.priceType)} then null else ${salesPrices.priceType} end`,
+    })
+    .from(salesPrices)
+    .where(isNull(salesPrices.deletedAt));
+  const values = rows.flatMap((row) => (row.priceType === null ? [] : [row.priceType]));
+  // 코드포인트 순 (DB collation 무관)
+  values.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  return rows.some((row) => row.priceType === null) ? [...values, PRICE_TYPE_NONE] : values;
 }
 
 /** 연도 퀵칩 후보: 적용시작일에 등장하는 연도 (내림차순) */

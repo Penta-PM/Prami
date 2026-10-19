@@ -170,7 +170,7 @@ describe('CostBrowser', () => {
     expect(second).toHaveTextContent('없음');
     expect(within(table).getAllByText('수동')).toHaveLength(1);
     rerender(<CostBrowser rows={[]} {...BROWSER} />);
-    expect(screen.getByText('검색 결과가 없습니다.')).toBeInTheDocument();
+    expect(screen.getByText('등록된 원가가 없습니다.')).toBeInTheDocument();
   });
 
   it('수정 모달: 사유 필드 오류 표시 → 성공 시 status + refresh', async () => {

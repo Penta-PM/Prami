@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
+import { costFilterToQuery as clientCostFilterToQuery } from '@/features/costs/query';
 import { COST_SORT_IDS, type CostSortId } from '@/features/costs/sort';
 import { DATE_MODES, type DateMode } from '@/features/pricing/filter';
-import { appendSortParams, parseSortParams, type SortState } from '@/lib/table/sort-param';
+import { parseFilterParams, type ColumnFilterDef, type FilterCondition } from '@/lib/table/filter';
+import { parseSortParams, type SortState } from '@/lib/table/sort-param';
 
 /** 원가 관리 필터 (§4.5.5): 제품군 탭 + 날짜 두 모드(§4.5.2 공용) + 검색 + 페이지 — URL 상태 */
 export type CostFilter = {
@@ -14,6 +16,8 @@ export type CostFilter = {
   page: number;
   /** 단일 열 정렬 (#32). 없으면 기본 정렬(effective_from DESC, material_name, id) */
   sort?: SortState<CostSortId>;
+  /** 열 필터 `f.<col>.<op>` (표 열 필터 스펙 §2) — 화이트리스트(costFilterDefs)로 파싱한 결과. 없으면 키 생략 */
+  filters?: FilterCondition[];
 };
 
 export type CostFilterErrors = Partial<Record<'from' | 'to', string>>;
@@ -37,7 +41,11 @@ const schema = z.object({
 
 type Params = Record<string, string | string[] | undefined>;
 
-export function parseCostFilter(params: Params): { filter: CostFilter; errors: CostFilterErrors } {
+export function parseCostFilter(
+  params: Params,
+  /** 열 필터 화이트리스트(costFilterDefs). 생략하면 열 필터를 읽지 않는다 */
+  filterDefs: Readonly<Record<string, ColumnFilterDef>> = {},
+): { filter: CostFilter; errors: CostFilterErrors } {
   const pick = (key: string) => {
     const value = params[key];
     return Array.isArray(value) ? value[0] : value;
@@ -56,18 +64,20 @@ export function parseCostFilter(params: Params): { filter: CostFilter; errors: C
     to = undefined;
   }
   const sort = parseSortParams(params, COST_SORT_IDS);
-  return { filter: { ...parsed, from, to, ...(sort ? { sort } : {}) }, errors };
+  const filters = parseFilterParams(params, filterDefs);
+  return {
+    filter: {
+      ...parsed,
+      from,
+      to,
+      ...(filters.length > 0 ? { filters } : {}),
+      ...(sort ? { sort } : {}),
+    },
+    errors,
+  };
 }
 
-/** 필터 → 쿼리스트링. sort·dir 는 맨 뒤 (#32 §3) */
+/** 필터 → 쿼리스트링 — 클라이언트 직렬화(features/costs/query)와 같은 함수. 열 필터는 page 앞, sort·dir 는 맨 뒤 (#32 §3) */
 export function costFilterToQuery(filter: Partial<CostFilter>): string {
-  const params = new URLSearchParams();
-  if (filter.family) params.set('family', filter.family);
-  if (filter.dateMode === 'period') params.set('dateMode', 'period');
-  if (filter.from) params.set('from', filter.from);
-  if (filter.to) params.set('to', filter.to);
-  if (filter.q) params.set('q', filter.q);
-  if (filter.page && filter.page > 1) params.set('page', String(filter.page));
-  const query = params.toString();
-  return appendSortParams(query ? `?${query}` : '', filter.sort);
+  return clientCostFilterToQuery(filter);
 }

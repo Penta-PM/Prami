@@ -4,11 +4,13 @@ import { useMemo, type ReactNode } from 'react';
 
 import {
   DataTable,
+  DataTableFilterEmpty,
   type DataTableColumn,
   type DataTableSort,
   type SortType,
 } from '@/components/ui/data-table';
 import { cn } from '@/lib/cn';
+import type { FilterCondition } from '@/lib/table/filter';
 import { priceLabel, priceTypeLabel } from '@/lib/pricing/format';
 import { operationYearsLabel, periodLabel } from '@/lib/pricing/period';
 
@@ -24,6 +26,13 @@ type PriceTableProps = {
   /** URL 의 현재 정렬 (서버 정렬, #32 스펙 §3). 없으면 기본 정렬 */
   sort?: DataTableSort;
   onSortChange?: (next: DataTableSort) => void;
+  /** 열 필터 조건 (URL) — 헤더 점 표시·라이브 영역. 행은 이미 서버가 거른 결과 */
+  filters?: readonly FilterCondition[];
+  /** 필터 결과 전체 건수 (서버) */
+  total?: number;
+  /** 기존 필터·열 필터가 걸렸는가 — 0건일 때 "조건에 맞는 결과가 없습니다" + [필터 초기화] (§2.5-7) */
+  filtered?: boolean;
+  onResetFilters?: () => void;
   onRowClick: (row: PriceRowView) => void;
   /** 관리 표의 `관리` 칸 (수정·복사·삭제) */
   renderActions?: (row: PriceRowView) => ReactNode;
@@ -127,6 +136,10 @@ export function PriceTable({
   userId,
   sort = null,
   onSortChange,
+  filters,
+  total,
+  filtered = false,
+  onResetFilters,
   onRowClick,
   renderActions,
   costRatios,
@@ -172,13 +185,21 @@ export function PriceTable({
         sortMode="server"
         sort={sort}
         onSortChange={onSortChange}
+        filters={filters}
+        filteredTotal={total}
         aria-label={mode === 'admin' ? '가격정책 관리 표' : '가격정책 표'}
         headClassName="bg-gray-75"
         rowClassName={() => 'cursor-pointer'}
         onRowClick={onRowClick}
       />
       {rows.length === 0 ? (
-        <div className="p-12 text-center text-[13px] text-text-tertiary">검색 결과가 없습니다.</div>
+        filtered && onResetFilters ? (
+          <DataTableFilterEmpty onReset={onResetFilters} />
+        ) : (
+          <div className="p-12 text-center text-[13px] text-text-tertiary">
+            등록된 가격정책이 없습니다.
+          </div>
+        )
       ) : null}
     </div>
   );

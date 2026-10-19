@@ -98,11 +98,41 @@ function validateScalar(def: ColumnFilterDef, raw: string): string | undefined {
   return result.success ? result.data : undefined;
 }
 
+/**
+ * `in` 값 목록 URL 코덱 (스펙 §2.2 개정, Plan §7 — 백슬래시 이스케이프). 값 안의 `,` 는 `\,`, `\` 는 `\\` 로 쓰고,
+ * 이스케이프되지 않은 `,` 가 구분자다. 기존 URL(값에 쉼표·백슬래시가 없던 것)은 그대로 같은 뜻.
+ * 그 밖의 `\x`·끝에 홀로 남은 `\` 는 형식 오류 → undefined(그 조건만 버림).
+ */
+export function splitInValues(raw: string): string[] | undefined {
+  const values: string[] = [];
+  let current = '';
+  for (let i = 0; i < raw.length; i += 1) {
+    const char = raw[i]!;
+    if (char === '\\') {
+      const next = raw[i + 1];
+      if (next !== ',' && next !== '\\') return undefined;
+      current += next;
+      i += 1;
+    } else if (char === ',') {
+      values.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  values.push(current);
+  return values;
+}
+
+/** splitInValues 의 역 — 값 안의 `\` 와 `,` 를 이스케이프해 쉼표로 잇는다 */
+export function joinInValues(values: readonly string[]): string {
+  return values.map((value) => value.replace(/[\\,]/g, (char) => `\\${char}`)).join(',');
+}
+
 function validateIn(
   def: Extract<ColumnFilterDef, { kind: 'enum' }>,
-  raw: string,
+  parts: readonly string[],
 ): string[] | undefined {
-  const parts = raw.split(',');
   if (parts.length > FILTER_LIMITS.inMax) return undefined;
   const allowed = def.options.map((option) => option.value);
   if (allowed.length === 0) return undefined;
@@ -122,9 +152,9 @@ export function validateCondition(
   if (!isOpAllowed(def, cond.op)) return undefined;
   if (cond.op === 'in') {
     if (def.kind !== 'enum') return undefined;
-    if (cond.values.some((value) => value.length > FILTER_LIMITS.valueMax || value.includes(',')))
-      return undefined;
-    const values = validateIn(def, cond.values.join(','));
+    // 한도는 언이스케이프한 값 기준 (Plan §7)
+    if (cond.values.some((value) => value.length > FILTER_LIMITS.valueMax)) return undefined;
+    const values = validateIn(def, cond.values);
     return values ? { col: cond.col, op: 'in', values } : undefined;
   }
   const value = validateScalar(def, cond.value);
@@ -175,23 +205,29 @@ export function parseFilterParams(
     if (!match) continue;
     const col = match[1] as string;
     const op = match[2] as FilterOp;
-    const candidate: FilterCondition =
-      op === 'in' ? { col, op, values: raw.split(',') } : { col, op, value: raw };
-    // in 값에는 쉼표가 들어갈 수 없으므로 split 결과가 곧 값 목록이다 (빈 조각 'a,,b' 는 enum 검증에서 탈락)
+    let candidate: FilterCondition;
+    if (op === 'in') {
+      // 백슬래시 이스케이프를 풀어 값 목록으로 (형식 오류면 그 조건만 버림, 빈 조각 'a,,b' 는 enum 검증에서 탈락)
+      const values = splitInValues(raw);
+      if (!values) continue;
+      candidate = { col, op, values };
+    } else {
+      candidate = { col, op, value: raw };
+    }
     const cond = validateCondition(candidate, defs);
     if (cond) conds.push(cond);
   }
   return sortConditions(conds, defs).slice(0, FILTER_LIMITS.conditionsMax);
 }
 
-/** 조건 → [키, 값] 목록 (URLSearchParams 인코딩 전 원문). 쉼표가 든 `in` 값·잘못된 열 id 의 조건은 건너뛴다 */
+/** 조건 → [키, 값] 목록 (URLSearchParams 인코딩 전 원문). `in` 값은 joinInValues 로 이스케이프, 잘못된 열 id 의 조건은 건너뛴다 */
 export function serializeFilters(conds: readonly FilterCondition[]): [string, string][] {
   const out: [string, string][] = [];
   for (const cond of conds) {
     if (!COL_RE.test(cond.col)) continue;
     if (cond.op === 'in') {
-      if (cond.values.length === 0 || cond.values.some((value) => value.includes(','))) continue;
-      out.push([filterKey(cond.col, 'in'), cond.values.join(',')]);
+      if (cond.values.length === 0) continue;
+      out.push([filterKey(cond.col, 'in'), joinInValues(cond.values)]);
     } else {
       out.push([filterKey(cond.col, cond.op), cond.value]);
     }

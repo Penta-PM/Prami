@@ -10,10 +10,12 @@ import {
   filterRows,
   groupConditions,
   isMoneyRangeActive,
+  joinInValues,
   matchesFilters,
   OPS_BY_KIND,
   parseFilterParams,
   serializeFilters,
+  splitInValues,
   withFilters,
   withFiltersQuery,
   withoutColumn,
@@ -164,13 +166,13 @@ describe('serializeFilters / withFilters', () => {
     expect(parseFilterParams(new URLSearchParams(qs), DEFS)).toEqual(conds);
   });
 
-  it('쉼표가 든 in 값·잘못된 열 id 는 직렬화하지 않는다', () => {
+  it('쉼표가 든 in 값은 백슬래시로 이스케이프해 직렬화(Plan §7), 잘못된 열 id 는 직렬화하지 않는다', () => {
     expect(
       serializeFilters([
         { col: 'status', op: 'in', values: ['a,b'] },
         { col: 'x;drop', op: 'has', value: '1' },
       ]),
-    ).toEqual([]);
+    ).toEqual([['f.status.in', 'a\\,b']]);
   });
 
   it('기존 f.* 교체, page 제거, 무관 파라미터 유지, sort·dir 맨 뒤', () => {
@@ -423,5 +425,54 @@ describe('칩 표시', () => {
       { col: 'from', op: 'lte', value: '2025-12-31' },
     ];
     expect(withoutColumn(conds, 'from')).toEqual([has('a')]);
+  });
+});
+
+describe('in 값 백슬래시 이스케이프 (스펙 §2.2 개정, Plan §7)', () => {
+  const defs = {
+    priceType: {
+      kind: 'enum',
+      options: [
+        { value: 'Standby,DR', label: 'Standby,DR' },
+        { value: 'a\\b', label: 'a\\b' },
+        { value: 'ASP', label: 'ASP' },
+      ],
+    },
+    remark: { kind: 'text' },
+  } as const satisfies Record<string, ColumnFilterDef>;
+
+  it('splitInValues / joinInValues 왕복 — 값 안의 , 와 \\ 를 이스케이프', () => {
+    const values = ['Standby,DR', 'a\\b', 'ASP', ''];
+    expect(joinInValues(values)).toBe('Standby\\,DR,a\\\\b,ASP,');
+    expect(splitInValues(joinInValues(values))).toEqual(values);
+    // 기존 URL(쉼표·백슬래시 없는 값)은 그대로 같은 뜻
+    expect(splitInValues('운영중,미사용')).toEqual(['운영중', '미사용']);
+  });
+
+  it('그 밖의 \\x·끝의 홀로 남은 \\ 는 형식 오류 → 그 조건만 버림', () => {
+    expect(splitInValues('a\\xb')).toBeUndefined();
+    expect(splitInValues('abc\\')).toBeUndefined();
+    expect(
+      parseFilterParams({ 'f.priceType.in': 'Standby\\xDR', 'f.remark.has': 'r' }, defs),
+    ).toEqual([{ col: 'remark', op: 'has', value: 'r' }]);
+  });
+
+  it('URL 왕복: 쉼표·백슬래시 값을 고른 조건이 그대로 돌아온다(URLSearchParams 인코딩 포함)', () => {
+    const conds = [{ col: 'priceType', op: 'in', values: ['Standby,DR', 'a\\b'] }] as const;
+    const query = withFiltersQuery('', conds as unknown as FilterCondition[]);
+    expect(query).toContain('Standby%5C%2CDR');
+    expect(parseFilterParams(new URLSearchParams(query.slice(1)), defs)).toEqual(conds);
+  });
+
+  it('한도는 언이스케이프한 값 기준 — 이스케이프로 길어져도 100자 이하면 유지', () => {
+    const value = `${','.repeat(60)}`;
+    const longDefs = {
+      priceType: { kind: 'enum', options: [{ value, label: 'commas' }] },
+    } as const satisfies Record<string, ColumnFilterDef>;
+    const raw = joinInValues([value]);
+    expect(raw.length).toBe(120);
+    expect(parseFilterParams({ 'f.priceType.in': raw }, longDefs)).toEqual([
+      { col: 'priceType', op: 'in', values: [value] },
+    ]);
   });
 });

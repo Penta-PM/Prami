@@ -1,7 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { AuditFilters } from '@/features/audit/AuditFilters';
 import { AuditPagination } from '@/features/audit/AuditPagination';
 import { AuditTable } from '@/features/audit/AuditTable';
 import { filterToQuery } from '@/features/audit/query';
@@ -32,7 +31,13 @@ const ROW: AuditDisplayRow = {
   reason: null,
 };
 
-const FILTER = { page: 2, from: '2026-09-01', to: undefined, action: 'user.update', actor: 'kim' };
+const FILTER = {
+  page: 2,
+  from: '2026-09-01',
+  to: undefined,
+  action: ['user.update'],
+  actor: 'kim',
+};
 
 describe('AuditTable', () => {
   it('디자인 열 순서와 변경 전/후 요약, 결과 필을 렌더한다', () => {
@@ -57,19 +62,32 @@ describe('AuditTable', () => {
   });
 
   it('빈 결과 안내', () => {
-    render(<AuditTable rows={[]} filter={{ page: 1 }} userId="u1" />);
-    expect(screen.getByText('조건에 맞는 감사 로그가 없습니다.')).toBeInTheDocument();
+    const { rerender } = render(<AuditTable rows={[]} filter={{ page: 1 }} userId="u1" />);
+    expect(screen.getByText('기록된 감사 로그가 없습니다.')).toBeInTheDocument();
+    rerender(<AuditTable rows={[]} filter={FILTER} userId="u1" />);
+    expect(screen.getByText('조건에 맞는 결과가 없습니다')).toBeInTheDocument();
   });
 });
 
-describe('AuditFilters / AuditPagination', () => {
-  it('필터 폼은 현재 값을 채우고 GET 으로 제출한다', () => {
-    render(<AuditFilters filter={FILTER} actions={['auth.login', 'user.update']} />);
-    const form = screen.getByRole('form', { name: '감사 로그 필터' });
-    expect(form).toHaveAttribute('method', 'get');
-    expect(screen.getByLabelText('시작일')).toHaveValue('2026-09-01');
-    expect(screen.getByLabelText('행위')).toHaveValue('user.update');
-    expect(screen.getByLabelText('사용자')).toHaveValue('kim');
+describe('감사 열 필터 / AuditPagination', () => {
+  it('옛 폼 값(from·action·actor)은 열 필터 칩으로 보인다 — 폼 없음', () => {
+    render(
+      <AuditTable
+        rows={[ROW]}
+        filter={FILTER}
+        actions={['auth.login', 'user.update']}
+        userId="u1"
+      />,
+    );
+    expect(screen.queryByRole('form', { name: '감사 로그 필터' })).toBeNull();
+    const chips = within(screen.getByRole('list', { name: '적용된 필터' })).getAllByRole(
+      'listitem',
+    );
+    expect(chips.map((chip) => chip.textContent)).toEqual([
+      '일시: 2026-09-01 ~×',
+      '사용자: "kim" 포함×',
+      '행위: user.update×',
+    ]);
   });
 
   it('페이지 링크는 필터를 유지하고 끝에서는 비활성', () => {

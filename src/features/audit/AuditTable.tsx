@@ -1,15 +1,18 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { useMemo, useTransition } from 'react';
 
 import { Pill } from '@/components/ui';
 import {
   DataTable,
+  DataTableFilterBar,
+  DataTableFilterEmpty,
   DataTableResetButton,
   type DataTableColumn,
   type DataTableSort,
 } from '@/components/ui/data-table';
+import type { FilterCondition } from '@/lib/table/filter';
 import { parseSortParams } from '@/lib/table/sort-param';
 import {
   AUDIT_RESULT_LABELS,
@@ -18,9 +21,15 @@ import {
   summarizeJson,
   type AuditDisplayRow,
 } from '@/lib/audit-format';
-import type { AuditFilter } from '@/server/audit/queries';
 
-import { filterToQuery } from './query';
+import {
+  auditConditions,
+  auditFilterFields,
+  auditFilterFromConditions,
+  filterToQuery,
+  isAuditFiltered,
+  type AuditFilter,
+} from './filter';
 import { AUDIT_SORT_IDS } from './sort';
 
 /** 표 헤더의 정렬 → URL 정렬. 화이트리스트 파서를 그대로 거쳐 허용된 id 만 남긴다 (#32 스펙 §3) */
@@ -116,25 +125,61 @@ type AuditTableProps = {
   rows: readonly AuditDisplayRow[];
   /** 현재 URL 필터 — 정렬을 바꾸면 이 필터 그대로 sort/dir 만 바꾸고 1페이지로 간다 (#32 스펙 §3) */
   filter: AuditFilter;
+  /** 행위 열 필터 선택지 (데이터에 있는 행위, listAuditActions) */
+  actions?: readonly string[];
+  /** 필터 결과 전체 건수 (서버) — 라이브 영역 "필터 적용 · M건". 기본: 현재 페이지 행 수 */
+  total?: number;
   /** 열 너비·순서 저장 키 (#32 스펙 §5) */
   userId: string;
 };
 
-/** 감사 로그 표 — 공용 DataTable 서버 정렬 모드 (#32 PR-3). 툴바의 '열 초기화'는 필터 초기화와 별개 */
-export function AuditTable({ rows, filter, userId }: AuditTableProps) {
+const NO_ACTIONS: readonly string[] = [];
+
+/**
+ * 감사 로그 표 — 공용 DataTable 서버 정렬 모드 (#32 PR-3) + 열 필터 (표 열 필터 스펙 §2.4: 기존 GET 폼을 흡수).
+ * 일시·행위·사용자 조건은 기존 파라미터(from·to·action·actor)에 기록한다(별칭, features/audit/filter).
+ * 툴바의 '열 초기화'(너비·순서)는 '필터 초기화' 와 별개.
+ */
+export function AuditTable({
+  rows,
+  filter,
+  actions = NO_ACTIONS,
+  total = rows.length,
+  userId,
+}: AuditTableProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
 
+  const go = (next: Partial<AuditFilter>) =>
+    startTransition(() => router.push(`${AUDIT_PATH}${filterToQuery(next)}`));
+
   const changeSort = (next: DataTableSort) =>
-    startTransition(() =>
-      router.push(
-        `${AUDIT_PATH}${filterToQuery({ ...filter, sort: urlSort(next, AUDIT_SORT_IDS), page: 1 })}`,
-      ),
-    );
+    go({ ...filter, sort: urlSort(next, AUDIT_SORT_IDS), page: 1 });
+
+  // URL 에 있는데 선택지에 없는 행위(예: 아직 기록이 없는 행위)도 체크 상태로 보이게 선택지에 더한다
+  const actionKey = (filter.action ?? []).join(',');
+  const filterFields = useMemo(() => {
+    const extra = actionKey ? actionKey.split(',').filter((a) => !actions.includes(a)) : [];
+    return auditFilterFields([...actions, ...extra]);
+  }, [actions, actionKey]);
+  const conditions = useMemo(() => auditConditions(filter), [filter]);
+  const changeFilters = (next: readonly FilterCondition[]) =>
+    go({ ...filter, ...auditFilterFromConditions(next), page: 1 });
+  // '필터 초기화' = 열 필터(기간·행위·사용자 포함) + 정렬 (§2.5-4)
+  const resetFilters = () => go({ page: 1 });
+  const filtered = isAuditFiltered(filter);
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <DataTableFilterBar
+          className="min-w-0 flex-1"
+          fields={filterFields}
+          filters={conditions}
+          onFiltersChange={changeFilters}
+          onReset={resetFilters}
+          sorted={filter.sort !== undefined}
+        />
         <DataTableResetButton tableId={AUDIT_TABLE_ID} userId={userId} columns={AUDIT_COLUMNS} />
       </div>
       <div className="overflow-hidden rounded-[10px] bg-surface-card shadow-(--hairline-default)">
@@ -147,13 +192,19 @@ export function AuditTable({ rows, filter, userId }: AuditTableProps) {
           sortMode="server"
           sort={filter.sort ?? null}
           onSortChange={changeSort}
+          filters={conditions}
+          filteredTotal={total}
           aria-label="감사 로그"
           headClassName="bg-gray-75"
           rowClassName={() => 'text-[12px]'}
           empty={
-            <div className="py-7 text-center text-[13px] text-text-tertiary">
-              조건에 맞는 감사 로그가 없습니다.
-            </div>
+            filtered ? (
+              <DataTableFilterEmpty onReset={resetFilters} />
+            ) : (
+              <div className="py-7 text-center text-[13px] text-text-tertiary">
+                기록된 감사 로그가 없습니다.
+              </div>
+            )
           }
         />
       </div>
