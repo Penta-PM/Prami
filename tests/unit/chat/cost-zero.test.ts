@@ -158,6 +158,8 @@ describe('원가 키 없음 (AC-226)', () => {
     expect(() => assertNoCostKeys({ material_code: 'x' })).toThrow();
     expect(() => assertNoCostKeys({ margin: 1 })).toThrow();
     expect(() => assertNoCostKeys({ totalCostKrw: 1 })).toThrow();
+    // 원가 비중(cost-ratio-price-change §2.3-3): 필드 이름에 cost 를 넣어 도구 결과에 섞이면 차단
+    expect(() => assertNoCostKeys({ rows: [{ id: 1, costRatio: 30 }] })).toThrow(/costRatio/);
     expect(() => assertNoCostKeys({ unitPrice: '1', intent: 'cost' })).not.toThrow();
   });
 });

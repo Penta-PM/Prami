@@ -49,6 +49,7 @@ describe('PRICE_TABLE_COLUMNS (AC-12, R-03·R-12)', () => {
       '품목명',
       '판매가',
       '적용기간',
+      '가격 변동',
       '품목상태',
       '상태',
       '비고',
@@ -67,6 +68,7 @@ describe('PRICE_TABLE_COLUMNS (AC-12, R-03·R-12)', () => {
       '적용시작일',
       '적용기간',
       '운영 연도',
+      '가격 변동',
       '품목상태',
       '상태',
       '비고',
@@ -75,7 +77,11 @@ describe('PRICE_TABLE_COLUMNS (AC-12, R-03·R-12)', () => {
     expect(admin.filter((label) => !['적용시작일', '운영 연도', '관리'].includes(label))).toEqual(
       labels('view'),
     );
-    expect(PRICE_TABLE_COLUMNS).toHaveLength(13);
+    // 공용 배열 15 = 관리 14 + 원가 비중(관리 표 + cost.read 일 때만, columnsFor('admin', true))
+    expect(PRICE_TABLE_COLUMNS).toHaveLength(15);
+    expect(PRICE_TABLE_COLUMNS.filter((column) => column.cost).map((column) => column.key)).toEqual(
+      ['costRatio'],
+    );
   });
 });
 

@@ -26,6 +26,7 @@ export const PRICE_SORT_IDS = [
   'itemStatus',
   'status',
   'remark',
+  'priceChange',
 ] as const;
 export type PriceSortId = (typeof PRICE_SORT_IDS)[number];
 

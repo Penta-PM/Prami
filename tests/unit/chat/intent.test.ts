@@ -60,6 +60,9 @@ describe('classifyIntent', () => {
   it('원가는 다른 의도보다 먼저 잡힌다 (AC-81) — 가격·견적 단어가 같이 있어도', () => {
     expect(classifyIntent('Wapples-500 원가 알려줘').kind).toBe('cost');
     expect(classifyIntent('견적 원가 마진이 얼마야').kind).toBe('cost');
+    // 원가 비중 열(cost-ratio-price-change §4 챗봇 회귀): 비중 질의도 원가 의도로 거부 — 비율·원가 수치를 내지 않는다
+    expect(classifyIntent('WAPPLES-1700 원가 비중').kind).toBe('cost');
+    expect(classifyIntent('WAPPLES-1700 원가 비중 몇 퍼센트야?').kind).toBe('cost');
     expect(classifyIntent('이익률 좀').kind).toBe('cost');
   });
 

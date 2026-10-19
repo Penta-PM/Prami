@@ -42,6 +42,14 @@ import { PARITY_STRINGS } from '../../helpers/sort-strings';
 let handle: DbHandle;
 const access = costAccessForTests({ id: null, email: 'vitest-sort' });
 const N = PARITY_STRINGS.length * 3; // 3페이지 이상 (50행 페이지)
+/** 가격 변동 정렬용 계열별 시기 가격 (1번 계열 3번째 행은 삭제) */
+const CHANGE_SERIES: readonly (readonly string[])[] = [
+  ['1000.00', '1000.00', '1100.00', '0.00', '500.00'],
+  ['2000.00', '2001.00', '9999.00', '1999.00', '2200.00'],
+  ['100.00', '110.00', '99.00', '99.00', '108.90'],
+  ['3000.00', '3000.50', '3300.55', '2970.00'],
+];
+const N_PRICES = N + CHANGE_SERIES.flat().length - 1;
 const pick = (i: number): string | null => PARITY_STRINGS[i % PARITY_STRINGS.length] ?? null;
 const DIRS: readonly SortDir[] = ['asc', 'desc'];
 const IPS = ['10.0.0.2', '9.1.1.1', '192.168.0.10', '::1', '2001:db8::1', null] as const;
@@ -102,6 +110,25 @@ beforeAll(async () => {
     };
   });
   await handle.db.insert(salesPrices).values(priceRows);
+  // 가격 변동(priceChange): 여러 시기를 가진 계열 — 같은 변동률·변동 없음·0.0%·직전가 0·삭제 행 포함
+  const base = priceRows[0]!;
+  await handle.db.insert(salesPrices).values(
+    CHANGE_SERIES.flatMap((prices, s) =>
+      prices.map((price, k) => ({
+        ...base,
+        sourceId: 9000 + s * 10 + k,
+        itemCode: `C${s}`,
+        itemName: `change-${s}`,
+        priceType: '정상판매',
+        currency: s % 2 === 0 ? 'KRW' : 'USD',
+        unitPrice: price,
+        remark: null,
+        effectiveFrom: `202${k}-03-01`,
+        effectiveTo: null,
+        deletedAt: s === 1 && k === 2 ? new Date() : null,
+      })),
+    ),
+  );
   // 품목 마스터: 4건 중 3건만 (나머지는 미확인)
   await handle.db.insert(items).values(
     priceRows
@@ -191,6 +218,7 @@ const PRICE_CLIENT: Record<PriceSortId, ClientSpec<PriceRow>> = {
     { get: (row) => row.operationStatus, type: 'status', order: STATUS_ORDERS.pricingState },
   ],
   remark: [text((row) => row.remark)],
+  priceChange: [{ get: (row) => row.priceChangeRate, type: 'number' }],
 };
 
 describe('가격 표 서버 정렬', () => {
@@ -200,7 +228,7 @@ describe('가격 표 서버 정렬', () => {
     const pages = await pricePages({});
     expect(pages.length).toBeGreaterThanOrEqual(3);
     defaults = pages.flat();
-    expect(defaults).toHaveLength(N);
+    expect(defaults).toHaveLength(N_PRICES);
   });
 
   it('화이트리스트 밖(sort=id;drop 등)은 무시하고 기본 정렬로 응답한다', async () => {
@@ -274,6 +302,21 @@ describe('가격 표 서버 정렬', () => {
     ]);
     const status = (await pricePages({ sort: 'status', dir: 'asc' })).flat();
     expect([...new Set(status.map((row) => row.operationStatus))]).toEqual(['운영중', '미사용']);
+  });
+
+  it("가격 변동: 값이 있는 행이 먼저(오름·내림), '—'(null) 은 방향과 관계없이 맨 뒤", async () => {
+    for (const dir of DIRS) {
+      const rates = (await pricePages({ sort: 'priceChange', dir }))
+        .flat()
+        .map((row) => row.priceChangeRate);
+      const firstNull = rates.indexOf(null);
+      expect(firstNull).toBeGreaterThan(0);
+      expect(rates.slice(firstNull).every((rate) => rate === null)).toBe(true);
+      const filled = rates.slice(0, firstNull) as number[];
+      const sorted = [...filled].sort((a, b) => (dir === 'asc' ? a - b : b - a));
+      expect(filled).toEqual(sorted);
+      expect(dir === 'asc' ? filled[0] : filled.at(-1)).toBe(-100);
+    }
   });
 
   it('같은 정렬을 반복해도 순서가 같다 (tie-breaker 끝은 id)', async () => {

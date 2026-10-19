@@ -12,9 +12,9 @@ import { cn } from '@/lib/cn';
 import { priceLabel, priceTypeLabel } from '@/lib/pricing/format';
 import { operationYearsLabel, periodLabel } from '@/lib/pricing/period';
 
-import { ItemStatusPill, OperationStatus } from './cells';
+import { CostRatio, ItemStatusPill, OperationStatus, PriceChange } from './cells';
 import { columnsFor, PRICE_TABLE_IDS, type PriceColumnKey, type TableMode } from './columns';
-import type { PriceRowView } from './types';
+import type { CostRatioView, PriceRowView } from './types';
 
 type PriceTableProps = {
   mode: TableMode;
@@ -27,6 +27,11 @@ type PriceTableProps = {
   onRowClick: (row: PriceRowView) => void;
   /** 관리 표의 `관리` 칸 (수정·복사·삭제) */
   renderActions?: (row: PriceRowView) => ReactNode;
+  /**
+   * 원가 비중 (관리 표 + cost.read, cost-ratio-price-change §2.3). 없으면 열 자체가 없다.
+   * 현재 페이지 행만, 대상이 아닌 행은 키가 없다(칸 '—')
+   */
+  costRatios?: Readonly<Record<number, CostRatioView>>;
 };
 
 const COLUMN_TYPES: Record<PriceColumnKey, SortType> = {
@@ -36,9 +41,12 @@ const COLUMN_TYPES: Record<PriceColumnKey, SortType> = {
   minor: 'text',
   itemName: 'text',
   price: 'number',
+  // 1차는 정렬 불가(§2.3-4) — 아래 열 정의에서 sortable: false
+  costRatio: 'number',
   effectiveFrom: 'date',
   period: 'date',
   operationYears: 'number',
+  priceChange: 'number',
   itemStatus: 'status',
   status: 'status',
   remark: 'text',
@@ -49,7 +57,11 @@ const HEADER_CLASS = 'py-[13px] first:pl-4 last:pr-4';
 const CELL_CLASS =
   'px-3 py-3.5 text-[12px] whitespace-nowrap text-text-secondary first:pl-4 last:pr-4';
 
-function cellContent(key: PriceColumnKey, row: PriceRowView): ReactNode {
+function cellContent(
+  key: PriceColumnKey,
+  row: PriceRowView,
+  costRatios: Readonly<Record<number, CostRatioView>> | undefined,
+): ReactNode {
   switch (key) {
     case 'priceType':
       return priceTypeLabel(row.priceType);
@@ -68,12 +80,22 @@ function cellContent(key: PriceColumnKey, row: PriceRowView): ReactNode {
       );
     case 'price':
       return priceLabel(row.unitPrice, row.currency);
+    case 'costRatio':
+      return <CostRatio value={costRatios?.[row.id]} />;
     case 'effectiveFrom':
       return row.effectiveFrom;
     case 'period':
       return periodLabel(row.effectiveFrom, row.effectiveTo);
     case 'operationYears':
       return operationYearsLabel(row.effectiveFrom, row.effectiveTo);
+    case 'priceChange':
+      return (
+        <PriceChange
+          unitPrice={row.unitPrice}
+          previousPrice={row.previousPrice}
+          rate={row.priceChangeRate}
+        />
+      );
     case 'itemStatus':
       return <ItemStatusPill status={row.itemStatus} />;
     case 'status':
@@ -107,25 +129,36 @@ export function PriceTable({
   onSortChange,
   onRowClick,
   renderActions,
+  costRatios,
 }: PriceTableProps) {
+  const withCost = mode === 'admin' && costRatios !== undefined;
   // 열 배열은 저장 레이아웃 정규화의 기준이라 렌더마다 새로 만들지 않는다
   const columns = useMemo<DataTableColumn<PriceRowView>[]>(
     () =>
-      columnsFor(mode).map((column) => ({
+      columnsFor(mode, withCost).map((column) => ({
         id: column.key,
         header: column.label,
         type: COLUMN_TYPES[column.key],
         pinned: column.pinned,
         align: column.align,
         headerClassName: HEADER_CLASS,
+        // 원가 비중: 1차 정렬 불가(sort=costRatio 는 서버 화이트리스트 밖 — 기본 정렬), 최소 폭 72px, 헤더 줄바꿈 금지(§2.3)
+        ...(column.key === 'costRatio'
+          ? {
+              sortable: false,
+              minWidth: 72,
+              headerClassName: cn(HEADER_CLASS, 'whitespace-nowrap'),
+            }
+          : {}),
         cellClassName: cn(CELL_CLASS, EMPHASIS[column.key]),
         cell:
           column.key === 'actions'
             ? // 관리 칸(type none) 클릭은 DataTable 이 행 클릭으로 보내지 않는다
               (row: PriceRowView) => renderActions?.(row)
-            : (row: PriceRowView) => cellContent(column.key, row),
+            : (row: PriceRowView) => cellContent(column.key, row, costRatios),
       })),
-    [mode, renderActions],
+    // costRatios 는 서버가 새 페이지를 보낼 때만 바뀐다(rows 와 같은 시점) — 열 id 는 그대로라 레이아웃 정규화에 영향 없음
+    [mode, withCost, renderActions, costRatios],
   );
 
   return (

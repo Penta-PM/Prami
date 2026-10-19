@@ -8,7 +8,9 @@ import type { CostLinkFamily, CostLinkMaterial, CostLinkNoSuggestion } from './i
  * - S/W 업그레이드 품목은 제안하지 않는다.
  * - 세대(T#) 가 같은 원가가 없을 때, 그 모델 숫자의 원가가 세대 표기 없는 것 하나뿐이면 그것을 제안한다
  *   (예: `Wapples-5400 (H5400 T1)` → `WAPPLES-5400`). 다른 세대 원가가 있으면 제안하지 않는다(오탐 방지).
+ *   단 RAID 품목은 세대 대체를 하지 않는다 — RAID 원가는 세대까지 같아야 제안(Plan Q2 A).
  * - RAID 는 원가가 다르므로 RAID 여부가 같아야 한다.
+ * - 같은 키 원가가 둘 이상이면 제안하지 않고 이유 'ambiguous'(모호함).
  * - 원가 자재명 앞의 `(중복)` 은 원가표의 중복 표시라 제안 대상에서 뺀다.
  */
 export type ModelKey = {
@@ -100,7 +102,8 @@ export function suggestMaterial(
   if ('reason' in parsed) return parsed;
   const { key } = parsed;
   let hits = index.byKey.get(keyString(key));
-  if (!hits && key.generation) {
+  // RAID 는 세대까지 같아야 한다 — 세대 대체는 RAID 가 아닐 때만(Plan Q2 A, QA #53 백로그 2: 4700 T2 RAID → 4700 RAID 오제안)
+  if (!hits && key.generation && !key.raid) {
     const gens = index.generations.get(keyString({ ...key, generation: '*' }));
     // 세대 표기 없는 원가 하나뿐이면 그 모델의 본체로 본다. 다른 세대 원가가 있으면 제안하지 않는다
     if (gens && gens.size === 1 && gens.has('')) {
@@ -108,6 +111,8 @@ export function suggestMaterial(
     }
   }
   if (hits?.length === 1) return { suggestion: hits[0]! };
+  // 같은 키 원가가 둘 이상이면 모호함(직접 선택) — '같은 모델 원가 없음'과 구분 (QA #53 백로그 3)
+  if (hits && hits.length > 1) return { reason: 'ambiguous' };
   return { reason: 'no-cost' };
 }
 
@@ -120,6 +125,7 @@ export type CostLinkDryRunRow = {
   swUpgrade: number;
   noModel: number;
   noCost: number;
+  ambiguous: number;
 };
 
 /** dry-run 리포트(제품군별 개수만 — 품목명·자재명 없음, §2.1-4) */
@@ -142,6 +148,7 @@ export function summarizeSuggestions(
       swUpgrade: 0,
       noModel: 0,
       noCost: 0,
+      ambiguous: 0,
     };
     row.candidates += 1;
     if (candidate.hasNormalPrice) row.withNormalPrice += 1;
@@ -152,6 +159,7 @@ export function summarizeSuggestions(
     if (candidate.noSuggestion === 'sw-upgrade') row.swUpgrade += 1;
     if (candidate.noSuggestion === 'no-model') row.noModel += 1;
     if (candidate.noSuggestion === 'no-cost') row.noCost += 1;
+    if (candidate.noSuggestion === 'ambiguous') row.ambiguous += 1;
     rows.set(candidate.family, row);
   }
   return [...rows.values()];

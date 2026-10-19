@@ -217,6 +217,9 @@ describe('confirmCostLinks', () => {
       [{ itemCode: 'NOPE', materialCode: 'W1700T2' }],
       [{ itemCode: 'P6', materialCode: 'WOTHER' }],
       [{ itemCode: 'P6', materialCode: 'W404' }],
+      // 후보 범위 밖(파츠·SA) — Plan Q1 A
+      [{ itemCode: 'P8', materialCode: 'W1700T2' }],
+      [{ itemCode: 'P5', materialCode: 'WKMS1700' }],
       [
         { itemCode: 'P6', materialCode: 'WISIGN1700' },
         { itemCode: 'P6', materialCode: 'W1700T2' },
@@ -265,15 +268,34 @@ describe('고아 링크·해제', () => {
     expect(view.candidates.some((c) => c.itemCode === 'GONE')).toBe(false);
   });
 
+  it('후보 밖 링크(품목은 있지만 범위 밖 — 확정 검사 전에 저장된 것)는 outOfScope 로 따로, 해제 가능', async () => {
+    await handle.db.insert(costItemLinks).values({ itemCode: 'P8', materialCode: 'W1700T2' });
+    const view = await listCostLinkView(read, handle.db);
+    expect(view.outOfScope).toEqual([
+      {
+        itemCode: 'P8',
+        itemName: 'NIC 10G',
+        materialCode: 'W1700T2',
+        materialName: 'WAPPLES-1700 T2',
+        updatedAt: expect.any(String),
+      },
+    ]);
+    expect(view.orphans.some((o) => o.itemCode === 'P8')).toBe(false);
+    expect(view.candidates.some((c) => c.itemCode === 'P8')).toBe(false);
+    expect(await deleteCostLink(ctx(), { itemCode: 'P8' })).toEqual({ deleted: true });
+    expect((await listCostLinkView(read, handle.db)).outOfScope).toEqual([]);
+  });
+
   it('해제: 링크 삭제 + 감사(변경 전 자재번호), 없는 품목은 deleted=false·감사 없음', async () => {
+    const before = (await auditByAction(handle, 'cost_link.delete')).length;
     expect(await deleteCostLink(ctx(), { itemCode: 'GONE' })).toEqual({ deleted: true });
     expect(
       await handle.db.select().from(costItemLinks).where(eq(costItemLinks.itemCode, 'GONE')),
     ).toEqual([]);
     const audits = await auditByAction(handle, 'cost_link.delete');
-    expect(audits).toHaveLength(1);
-    expect(audits[0]).toMatchObject({ before: { materialCode: 'W404' } });
+    expect(audits).toHaveLength(before + 1);
+    expect(audits.at(-1)).toMatchObject({ targetId: 'GONE', before: { materialCode: 'W404' } });
     expect(await deleteCostLink(ctx(), { itemCode: 'GONE' })).toEqual({ deleted: false });
-    expect(await auditByAction(handle, 'cost_link.delete')).toHaveLength(1);
+    expect(await auditByAction(handle, 'cost_link.delete')).toHaveLength(before + 1);
   });
 });

@@ -32,6 +32,7 @@ const NO_SUGGESTION_TEXT: Record<CostLinkNoSuggestion, string> = {
   'sw-upgrade': 'S/W 업그레이드 — 제안 없음',
   'no-model': '모델을 읽을 수 없음',
   'no-cost': '같은 모델 원가 없음',
+  ambiguous: '같은 모델 원가가 여럿 — 직접 선택',
 };
 
 type FamilyFilter = 'all' | CostLinkFamily;
@@ -83,7 +84,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
   const [unlinking, setUnlinking] = useState<Unlinking | null>(null);
   const searchId = useId();
 
-  const { candidates, orphans, materials } = view;
+  const { candidates, orphans, outOfScope, materials } = view;
 
   const selectable = (row: CostLinkCandidate) =>
     canWrite && row.suggestion !== null && !linkedToSuggestion(row);
@@ -429,47 +430,65 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
         ) : null}
       </div>
 
-      {orphans.length > 0 ? (
-        <section aria-labelledby="cost-link-orphans" className="mt-4 flex flex-col gap-2">
-          <h2 id="cost-link-orphans" className="m-0 [font:var(--text-h2)]">
-            품목 없음 (가격 품목이 사라진 매핑)
-          </h2>
-          <p className="m-0 text-[12px] text-text-tertiary">
-            가격 임포트로 품목이 사라져도 매핑은 자동으로 지우지 않습니다.
-          </p>
-          <ul className="m-0 flex list-none flex-col gap-0 rounded-[10px] bg-surface-card p-0 shadow-(--hairline-default)">
-            {orphans.map((orphan) => (
-              <li
-                key={orphan.itemCode}
-                className="flex flex-wrap items-center gap-3 border-b border-border-subtle px-5 py-3 text-[13px] last:border-b-0"
-              >
-                <span className="text-[12px] text-text-tertiary">{orphan.itemCode}</span>
-                <span className="text-ink-900">
-                  {materialLabel(orphan.materialCode, orphan.materialName)}
-                </span>
-                <span className="text-[12px] text-text-tertiary">
-                  {formatAuditTime(new Date(orphan.updatedAt))}
-                </span>
-                {canWrite ? (
-                  <button
-                    type="button"
-                    aria-label={`${orphan.itemCode} 해제`}
-                    className={`${ACTION} ml-auto text-red-500`}
-                    disabled={isPending}
-                    onClick={() =>
-                      openModal(() =>
-                        setUnlinking({ itemCode: orphan.itemCode, label: orphan.itemCode }),
-                      )
-                    }
-                  >
-                    해제
-                  </button>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      {(
+        [
+          {
+            id: 'cost-link-orphans',
+            title: '품목 없음 (가격 품목이 사라진 매핑)',
+            note: '가격 임포트로 품목이 사라져도 매핑은 자동으로 지우지 않습니다.',
+            entries: orphans.map((entry) => ({ ...entry, label: entry.itemCode })),
+          },
+          {
+            id: 'cost-link-out-of-scope',
+            title: '후보 밖 링크 (원가 비중에 쓰이지 않음)',
+            note: '품목이 원가 매핑 후보 범위(H/W 본품) 밖으로 바뀐 매핑입니다. 원가 비중 계산에 쓰이지 않으며 해제만 할 수 있습니다.',
+            entries: outOfScope.map((entry) => ({
+              ...entry,
+              label: `${entry.itemCode} ${entry.itemName}`,
+            })),
+          },
+        ] as const
+      ).map((list) =>
+        list.entries.length > 0 ? (
+          <section key={list.id} aria-labelledby={list.id} className="mt-4 flex flex-col gap-2">
+            <h2 id={list.id} className="m-0 [font:var(--text-h2)]">
+              {list.title}
+            </h2>
+            <p className="m-0 text-[12px] text-text-tertiary">{list.note}</p>
+            <ul className="m-0 flex list-none flex-col gap-0 rounded-[10px] bg-surface-card p-0 shadow-(--hairline-default)">
+              {list.entries.map((entry) => (
+                <li
+                  key={entry.itemCode}
+                  className="flex flex-wrap items-center gap-3 border-b border-border-subtle px-5 py-3 text-[13px] last:border-b-0"
+                >
+                  <span className="text-[12px] text-text-tertiary">{entry.label}</span>
+                  <span className="text-ink-900">
+                    {materialLabel(entry.materialCode, entry.materialName)}
+                  </span>
+                  <span className="text-[12px] text-text-tertiary">
+                    {formatAuditTime(new Date(entry.updatedAt))}
+                  </span>
+                  {canWrite ? (
+                    <button
+                      type="button"
+                      aria-label={`${entry.itemCode} 해제`}
+                      className={`${ACTION} ml-auto text-red-500`}
+                      disabled={isPending}
+                      onClick={() =>
+                        openModal(() =>
+                          setUnlinking({ itemCode: entry.itemCode, label: entry.label }),
+                        )
+                      }
+                    >
+                      해제
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null,
+      )}
 
       <Presence>
         {choosing ? (

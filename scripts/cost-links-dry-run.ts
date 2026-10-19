@@ -29,12 +29,12 @@ async function main(): Promise<void> {
     });
     const rows = suggest.summarizeSuggestions(view.candidates);
     console.log(
-      '| 제품군 | 후보 | 정상판매 있음 | 제안 | 제안(정상판매 있음) | S/W 업그레이드 | 모델 못 읽음 | 같은 모델 원가 없음 |',
+      '| 제품군 | 후보 | 정상판매 있음 | 제안 | 제안(정상판매 있음) | S/W 업그레이드 | 모델 못 읽음 | 같은 모델 원가 없음 | 모호함 |',
     );
-    console.log('|---|---|---|---|---|---|---|---|');
+    console.log('|---|---|---|---|---|---|---|---|---|');
     for (const row of rows) {
       console.log(
-        `| ${row.family} | ${row.candidates} | ${row.withNormalPrice} | ${row.suggested} | ${row.suggestedWithNormalPrice} | ${row.swUpgrade} | ${row.noModel} | ${row.noCost} |`,
+        `| ${row.family} | ${row.candidates} | ${row.withNormalPrice} | ${row.suggested} | ${row.suggestedWithNormalPrice} | ${row.swUpgrade} | ${row.noModel} | ${row.noCost} | ${row.ambiguous} |`,
       );
     }
     console.log(

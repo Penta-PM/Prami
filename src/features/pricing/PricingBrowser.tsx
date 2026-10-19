@@ -17,7 +17,7 @@ import { EMPTY_POLICY_FORM, formFromRow, type PolicyFormValues } from './policy-
 import { PolicyFormModal, type PolicyFormMode } from './PolicyFormModal';
 import { PriceTable } from './PriceTable';
 import { RowDetailDrawer } from './RowDetailDrawer';
-import type { PriceRowView } from './types';
+import type { CostRatioView, PriceRowView } from './types';
 
 /** 표 헤더의 정렬 → URL 정렬. 화이트리스트 파서를 그대로 거쳐 허용된 id 만 남긴다 (#32 스펙 §3) */
 function urlSort<Id extends string>(next: DataTableSort, allowed: readonly Id[]) {
@@ -127,13 +127,15 @@ type PricingBrowserProps = {
   filter: PriceFilter;
   /** 열 너비·순서 저장 키 (#32 스펙 §5) */
   userId: string;
+  /** 관리 표 + cost.read 일 때만 — 없으면 원가 비중 열 없음 (cost-ratio-price-change §2.3) */
+  costRatios?: Readonly<Record<number, CostRatioView>>;
 };
 
 /**
  * 표 + 행 상세 드로어 (조회), 관리 모드에서는 `+ 등록`·수정·복사·삭제까지 (§4.5.3).
  * 툴바의 '열 초기화'는 필터와 별개로 열 너비·순서만 되돌린다 (#32 스펙 §5).
  */
-export function PricingBrowser({ mode, rows, filter, userId }: PricingBrowserProps) {
+export function PricingBrowser({ mode, rows, filter, userId, costRatios }: PricingBrowserProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [, startTransition] = useTransition();
@@ -167,7 +169,7 @@ export function PricingBrowser({ mode, rows, filter, userId }: PricingBrowserPro
         <DataTableResetButton
           tableId={PRICE_TABLE_IDS[mode]}
           userId={userId}
-          columns={layoutColumnsFor(mode)}
+          columns={layoutColumnsFor(mode, costRatios !== undefined)}
         />
         {admin ? (
           <Button variant="primary" size="sm" onClick={editing.openCreate}>
@@ -186,6 +188,7 @@ export function PricingBrowser({ mode, rows, filter, userId }: PricingBrowserPro
         onSortChange={changeSort}
         onRowClick={(row) => setDetailId(row.id)}
         renderActions={admin ? renderActions : undefined}
+        costRatios={admin ? costRatios : undefined}
       />
       <RowDetailDrawer rowId={detailId} onClose={() => setDetailId(null)} />
       <Presence>

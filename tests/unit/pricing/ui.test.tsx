@@ -49,6 +49,8 @@ const ROW: PriceRowView = {
   operationStatus: '미사용',
   remark: '26.05.01 가격정책',
   source: 'erp',
+  previousPrice: null,
+  priceChangeRate: null,
 };
 
 const DETAIL_ROW = {
@@ -121,6 +123,7 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
       '품목명',
       '판매가',
       '적용기간',
+      '가격 변동',
       '품목상태',
       '상태',
       '비고',
@@ -149,6 +152,32 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
     expect(onRowClick).not.toHaveBeenCalled();
     await userEvent.click(screen.getByText('Wapples-500 (H500 T2)'));
     expect(onRowClick).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
+  });
+
+  it('가격 변동 열: 상승·하락·변동 없음·— 4상태, 화살표는 aria-hidden, 비고는 그대로', () => {
+    const rows: PriceRowView[] = [
+      { ...ROW, id: 1, unitPrice: '1100.00', previousPrice: '1000.00', priceChangeRate: 10 },
+      { ...ROW, id: 2, unitPrice: '990.00', previousPrice: '1100.00', priceChangeRate: -10 },
+      { ...ROW, id: 3, unitPrice: '990.00', previousPrice: '990.00', priceChangeRate: 0 },
+      { ...ROW, id: 4, previousPrice: null, priceChangeRate: null },
+      { ...ROW, id: 5, previousPrice: '0.00', priceChangeRate: null },
+    ];
+    render(<PriceTable mode="view" rows={rows} userId="u1" onRowClick={vi.fn()} />);
+    const cells = Array.from(document.querySelectorAll('[data-price-change]'));
+    expect(cells.map((cell) => [cell.getAttribute('data-price-change'), cell.textContent])).toEqual(
+      [
+        ['up', '▲이전 대비 10.0% 상승'],
+        ['down', '▼이전 대비 10.0% 하락'],
+        ['same', '변동 없음'],
+        ['none', '—'],
+        ['none', '—'],
+      ],
+    );
+    for (const arrow of ['▲', '▼'])
+      expect(screen.getByText(arrow)).toHaveAttribute('aria-hidden', 'true');
+    expect(cells[0]).toHaveClass('text-text-danger');
+    expect(cells[1]).toHaveClass('text-purple-600');
+    expect(screen.getAllByText('26.05.01 가격정책')).toHaveLength(5);
   });
 
   it('빈 결과 안내', () => {
