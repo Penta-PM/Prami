@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Pill } from '@/components/ui';
 import { computeLine, rateFromTarget, roundRate } from '@/lib/pricing/quote';
 
@@ -20,6 +22,7 @@ import { StepCategory, StepDiscount, StepItems, StepOptions, StepPriceType } fro
 import { ShareModal } from './ShareModal';
 import type {
   CartLine,
+  CategoryChipsView,
   FamilyPreload,
   PriceAdjustmentView,
   QuoteItemView,
@@ -28,6 +31,8 @@ import type {
 import { useCart } from './useCart';
 
 type QuoteCalculatorProps = {
+  /** 현재 사용자 id — 내 견적 목록 표의 열 설정 저장 키 (#32) */
+  userId: string;
   preload: readonly FamilyPreload[];
   savedQuotes: readonly SavedQuoteView[];
   /** 챗봇 견적 시작 링크(§4.5.9): 제품군을 먼저 고르고 품번이 목록에 있으면 선택해 둔다 */
@@ -39,12 +44,7 @@ type Options = { parts: QuoteItemView[]; bundles: QuoteItemView[]; mapped: boole
 type Loaded<T> = { key: string; data: T };
 
 const NO_OPTIONS: Options = { parts: [], bundles: [], mapped: false };
-const EMPTY_CHIPS = {
-  majors: [] as string[],
-  mids: [] as string[],
-  minors: [] as string[],
-  hasMaster: false,
-};
+const EMPTY_CHIPS: CategoryChipsView = { majors: [], mids: [], minorsByMid: {}, hasMaster: false };
 
 function toLineInput(line: CartLine) {
   return {
@@ -79,7 +79,7 @@ function toggle(set: ReadonlySet<string>, code: string, on: boolean): ReadonlySe
  * → STEP6 할인율/목표금액 → 장바구니 → 견적 저장/목록/담기/삭제. 금액은 lib/pricing/quote.ts 순수 함수.
  * 서버 조회 결과는 "요청 키" 와 함께 보관해 선택이 바뀌면 이전 결과를 보여 주지 않는다 (effect 안에서 동기 setState 없음).
  */
-export function QuoteCalculator({ preload, savedQuotes, initial }: QuoteCalculatorProps) {
+export function QuoteCalculator({ userId, preload, savedQuotes, initial }: QuoteCalculatorProps) {
   const [family, setFamily] = useState(() =>
     initial?.family && preload.some((entry) => entry.family === initial.family)
       ? initial.family
@@ -277,18 +277,21 @@ export function QuoteCalculator({ preload, savedQuotes, initial }: QuoteCalculat
           제품과 옵션을 선택해 장바구니에 담으면, 여러 품목을 함께 견적으로 계산할 수 있습니다.
         </p>
       </div>
-      {flash ? (
-        <p
-          role={flash.tone === 'error' ? 'alert' : 'status'}
-          className={
-            flash.tone === 'error'
-              ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
-              : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
-          }
-        >
-          {flash.text}
-        </p>
-      ) : null}
+      <Presence>
+        {flash ? (
+          <Collapse key="flash" role={flash.tone === 'error' ? 'alert' : 'status'}>
+            <p
+              className={
+                flash.tone === 'error'
+                  ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
+                  : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
+              }
+            >
+              {flash.text}
+            </p>
+          </Collapse>
+        ) : null}
+      </Presence>
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col gap-6">
           <section
@@ -389,6 +392,7 @@ export function QuoteCalculator({ preload, savedQuotes, initial }: QuoteCalculat
           </button>
         </div>
         <CartPanel
+          userId={userId}
           lines={cart.lines}
           saved={saved}
           isPending={isPending}
@@ -401,7 +405,9 @@ export function QuoteCalculator({ preload, savedQuotes, initial }: QuoteCalculat
           onShare={setSharing}
         />
       </div>
-      {sharing ? <ShareModal quote={sharing} onClose={() => setSharing(null)} /> : null}
+      <Presence>
+        {sharing ? <ShareModal quote={sharing} onClose={() => setSharing(null)} /> : null}
+      </Presence>
     </div>
   );
 }

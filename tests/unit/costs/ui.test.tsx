@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -43,6 +43,8 @@ const ROW: CostRowView = {
   remark: null,
   source: 'erp',
 };
+/** CostBrowser 공통 props — 기본 필터(정렬 없음)·로그인 사용자 */
+const BROWSER = { filter: { dateMode: 'start' as const, page: 1 }, userId: 'u1' };
 const FAMILIES = [
   { family: 'WAPPLES', count: 294 },
   { family: 'D.AMO', count: 80 },
@@ -140,7 +142,10 @@ describe('CostFilters', () => {
 describe('CostBrowser', () => {
   it('디자인 헤더 8개, 원가·기간·상태 라벨, 기간 0일은 없음, 빈 결과 문구', () => {
     const { rerender } = render(
-      <CostBrowser rows={[ROW, { ...ROW, id: 4, source: 'manual', effectiveTo: '2024-01-01' }]} />,
+      <CostBrowser
+        rows={[ROW, { ...ROW, id: 4, source: 'manual', effectiveTo: '2024-01-01' }]}
+        {...BROWSER}
+      />,
     );
     const table = screen.getByRole('table', { name: '원가 표' });
     expect(
@@ -151,7 +156,7 @@ describe('CostBrowser', () => {
     expect(COST_COLUMNS.map((column) => column.label)).toEqual([
       '원자재 코드',
       '원자재명',
-      '분류',
+      '단위',
       '원가',
       '적용시작일',
       '적용기간',
@@ -164,7 +169,7 @@ describe('CostBrowser', () => {
     expect(first).toHaveTextContent('미사용');
     expect(second).toHaveTextContent('없음');
     expect(within(table).getAllByText('수동')).toHaveLength(1);
-    rerender(<CostBrowser rows={[]} />);
+    rerender(<CostBrowser rows={[]} {...BROWSER} />);
     expect(screen.getByText('검색 결과가 없습니다.')).toBeInTheDocument();
   });
 
@@ -179,7 +184,7 @@ describe('CostBrowser', () => {
         },
       })
       .mockResolvedValueOnce({ ok: true, data: { id: 3, operationStatus: '운영중' } });
-    render(<CostBrowser rows={[ROW]} />);
+    render(<CostBrowser rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByRole('button', { name: 'WAPPLES-100 (H100 T2) 수정' }));
     const dialog = screen.getByRole('dialog', { name: '원가 수정' });
     expect(within(dialog).getByText(/ERP 임포트 행을 수정하면/)).toBeInTheDocument();
@@ -198,7 +203,8 @@ describe('CostBrowser', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: '저장' }));
     expect(await screen.findByRole('status')).toHaveTextContent('수정했습니다. 상태: 운영중');
     expect(mocks.refresh).toHaveBeenCalled();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // 모달은 <Presence> 퇴장을 거쳐 제거된다(Motion 도입 스펙 §3.6) — 사라짐은 기다려서 단언한다
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
   it('+ 등록 → 원가 등록 모달: 같은 계열·적용시작일 필드 오류 → 성공 시 status (AC-40 ⑦)', async () => {
@@ -214,7 +220,7 @@ describe('CostBrowser', () => {
         },
       })
       .mockResolvedValueOnce({ ok: true, data: { id: 9, operationStatus: '운영중' } });
-    render(<CostBrowser rows={[ROW]} />);
+    render(<CostBrowser rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByRole('button', { name: '+ 등록' }));
     const dialog = screen.getByRole('dialog', { name: '원가 등록' });
     expect(within(dialog).getByLabelText('단위 *')).toHaveValue('EA');
@@ -250,7 +256,7 @@ describe('CostBrowser', () => {
         },
       })
       .mockResolvedValueOnce({ ok: true, data: { id: 3 } });
-    render(<CostBrowser rows={[ROW]} />);
+    render(<CostBrowser rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByRole('button', { name: 'WAPPLES-100 (H100 T2) 삭제' }));
     const dialog = screen.getByRole('dialog', { name: '원가 삭제' });
     expect(dialog).toHaveTextContent('984,000원');
@@ -266,7 +272,7 @@ describe('CostBrowser', () => {
 describe('CostImportPanel', () => {
   it('현재 적용 배치가 있으면 재사용 기본, 적용 → 통계 + 같은 날짜 중복 그룹(전부/값 다름) + refresh', async () => {
     mocks.apply.mockResolvedValue({ ok: true, data: APPLY_RESULT });
-    render(<CostImportPanel options={[BATCH]} currentBatchId={BATCH.id} />);
+    render(<CostImportPanel userId="u" options={[BATCH]} currentBatchId={BATCH.id} />);
     expect(screen.getByLabelText('원가 파일 기존 배치')).toHaveValue(BATCH.id);
     await userEvent.click(screen.getByRole('button', { name: '원가 적용' }));
     expect(mocks.apply).toHaveBeenCalledWith({ batchId: BATCH.id, reused: true });
@@ -281,7 +287,7 @@ describe('CostImportPanel', () => {
   });
 
   it('적용 이력이 없으면 신규 업로드 모드이고 업로드 전에는 적용 불가', () => {
-    render(<CostImportPanel options={[]} currentBatchId={null} />);
+    render(<CostImportPanel userId="u" options={[]} currentBatchId={null} />);
     expect(screen.getByRole('button', { name: '원가 적용' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '구매단가 엑셀 업로드' })).toBeInTheDocument();
     expect(

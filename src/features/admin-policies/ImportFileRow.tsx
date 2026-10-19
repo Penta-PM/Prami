@@ -2,8 +2,11 @@
 
 import { useRef, useState, type ReactNode } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button, Segmented, Select } from '@/components/ui';
 import { checkUploadFiles, PLATFORM_TOO_LARGE_MESSAGE } from '@/lib/constants/upload-limits';
+import { formatDate } from '@/lib/date-format';
 
 import type {
   BatchOption,
@@ -31,6 +34,8 @@ type ImportFileRowProps = {
   /** 여러 파일을 한 배치로 (품목조회 1~5개, PRAMI-003 §4.2.3) */
   multiple?: boolean;
   note?: ReactNode;
+  /** 현재 사용자 id — 업로드 미리보기 표의 열 설정 저장 키 (#32 스펙 §5) */
+  userId: string;
 };
 
 type UploadResponse =
@@ -65,7 +70,8 @@ async function readUploadResponse(response: Response): Promise<UploadResponse> {
 }
 
 function optionLabel(option: BatchOption): string {
-  const date = option.createdAt.slice(0, 10);
+  // 업로드일은 한국 시간 기준 (UTC 문자열 slice 는 KST 00~09시 업로드를 전날로 표시했다 — Linux 하이드레이션 수정 스펙 §3.3)
+  const date = formatDate(option.createdAt);
   return `${option.fileName} · ${date} · ${option.rowCount.toLocaleString('ko-KR')}행 · ${STATUS_LABELS[option.status]}`;
 }
 
@@ -158,32 +164,36 @@ export function ImportFileRow(props: ImportFileRowProps) {
         )}
         {note}
       </div>
-      {message ? (
-        <p role="alert" className="m-0 text-[12px] text-red-500">
-          {message}
-          {existingId ? (
-            <button
-              type="button"
-              className="ml-2 border-0 bg-transparent p-0 text-[12px] font-semibold text-purple-600 underline"
-              onClick={() => onChange({ ...selection, mode: 'reuse', reuseId: existingId })}
-            >
-              기존 파일 선택
-            </button>
-          ) : null}
-          {fileErrors.length > 0 ? (
-            <span className="mt-1 block">
-              {fileErrors.slice(0, 10).map((error, index) => (
-                <span key={index} className="block">
-                  {error.file ? `${error.file} · ` : ''}
-                  {error.message}
+      <Presence>
+        {message ? (
+          <Collapse key="message" role="alert">
+            <p className="m-0 text-[12px] text-red-500">
+              {message}
+              {existingId ? (
+                <button
+                  type="button"
+                  className="ml-2 border-0 bg-transparent p-0 text-[12px] font-semibold text-purple-600 underline"
+                  onClick={() => onChange({ ...selection, mode: 'reuse', reuseId: existingId })}
+                >
+                  기존 파일 선택
+                </button>
+              ) : null}
+              {fileErrors.length > 0 ? (
+                <span className="mt-1 block">
+                  {fileErrors.slice(0, 10).map((error, index) => (
+                    <span key={index} className="block">
+                      {error.file ? `${error.file} · ` : ''}
+                      {error.message}
+                    </span>
+                  ))}
                 </span>
-              ))}
-            </span>
-          ) : null}
-        </p>
-      ) : null}
+              ) : null}
+            </p>
+          </Collapse>
+        ) : null}
+      </Presence>
       {selection.mode === 'new' && selection.upload ? (
-        <UploadSummary kind={kind} data={selection.upload} />
+        <UploadSummary kind={kind} data={selection.upload} userId={props.userId} />
       ) : null}
     </div>
   );

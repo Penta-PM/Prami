@@ -32,7 +32,14 @@ export const E2E_ENV = {
   LLM_CREDENTIALS_KEKS: `1:${Buffer.alloc(32, 'test-kek-e2e').toString('base64')}`,
   LLM_CREDENTIALS_ACTIVE_KEK: '1',
   LLM_VENDOR_MODE: 'fake',
+  // 키 검증 리미터(사용자별 분당, 메모리)는 dev 서버 한 프로세스에서 스펙 간에 누적된다 — 여러 스펙이 같은 픽스처 사용자로
+  // 1분 안에 키를 저장하면 RATE_LIMITED 로 실패한다. unit env 와 같은 관례로 E2E 에서는 넉넉히 둔다(리미터 동작은 단위 테스트가 검증).
+  // 운영 기본값(src/env.ts 5)은 그대로 (Linux 하이드레이션 수정 스펙 §8)
+  LLM_VERIFY_PER_MIN: '1000',
   E2E_SERVER_LOG: '.e2e-logs/next-dev.log',
+  // Motion 도입 스펙 §3.6: 서버 빌드에서 Motion 애니메이션을 끈다 (skipAnimations + reducedMotion="always").
+  // 아래 use.reducedMotion 과 두 겹으로, toBeHidden/toHaveCount(0) 동기 단언이 flaky 해지지 않게 한다
+  NEXT_PUBLIC_MOTION_DISABLED: '1',
 } as const;
 
 /**
@@ -67,6 +74,8 @@ export default defineConfig({
     baseURL: BASE_URL,
     trace: 'on-first-retry',
     locale: 'ko-KR',
+    // 브라우저 prefers-reduced-motion → globals.css 전역 규칙으로 CSS transition 도 즉시 종료 (Motion 도입 스펙 §3.6)
+    reducedMotion: 'reduce',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [

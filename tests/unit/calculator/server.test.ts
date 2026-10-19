@@ -72,7 +72,7 @@ describe('품목 마스터 없음 (stub = 기타, PRAMI-003 AC-313)', () => {
     expect(await listQuoteCategories(handle.db, 'WAPPLES')).toEqual({
       majors: ['WAPPLES'],
       mids: [],
-      minors: [],
+      minorsByMid: {},
       hasMaster: false,
     });
   });
@@ -124,6 +124,69 @@ describe('STEP1~5 후보 (품목 마스터 적용 후)', () => {
     expect(await listQuoteItems(handle.db, { family: 'WAPPLES', priceType: '없는유형' })).toEqual(
       [],
     );
+  });
+
+  it('STEP2: 소분류는 중분류별로 미리 적재 — 그 중분류 소분류만 정렬, null·빈 값·공백 제외', async () => {
+    const chips = await listQuoteCategories(handle.db, 'WAPPLES');
+    expect(chips.hasMaster).toBe(true);
+    // 실데이터: 키는 중분류 목록의 부분집합, 각 배열은 SQL 대조(그 중분류의 마스터 적용 소분류, DB 정렬)
+    expect(Object.keys(chips.minorsByMid).length).toBeGreaterThan(0);
+    for (const [mid, minors] of Object.entries(chips.minorsByMid)) {
+      expect(chips.mids).toContain(mid);
+      const rows = await queryRows<{ minor: string }>(
+        handle.db,
+        sql`select distinct i.category_minor as minor from items i join sales_prices s on s.item_code = i.item_code
+            where s.deleted_at is null and s.product_family = 'WAPPLES' and i.category_mid = ${mid}
+              and btrim(i.category_minor) <> '' order by 1`,
+      );
+      expect(minors).toEqual(rows.map((row) => row.minor));
+    }
+
+    // 합성: 한 중분류에 소분류 B·A·빈 문자열·공백·null 을 섞고, 다른 중분류에 다른 소분류를 둔다
+    const codes = (
+      await queryRows<{ code: string }>(
+        handle.db,
+        sql`select distinct i.item_code as code from items i join sales_prices s on s.item_code = i.item_code
+            where s.deleted_at is null and s.product_family = 'WAPPLES' order by 1 limit 6`,
+      )
+    ).map((row) => row.code);
+    expect(codes).toHaveLength(6);
+    const original = await handle.db
+      .select({ code: items.itemCode, mid: items.categoryMid, minor: items.categoryMinor })
+      .from(items)
+      .where(sql`${items.itemCode} in ${codes}`);
+    const plan: [string, string | null][] = [
+      ['테스트중분류', 'B소분류'],
+      ['테스트중분류', 'A소분류'],
+      ['테스트중분류', ''],
+      ['테스트중분류', '   '],
+      ['테스트중분류', null],
+      ['테스트다른중분류', 'C소분류'],
+    ];
+    try {
+      for (const [index, [mid, minor]] of plan.entries()) {
+        await handle.db
+          .update(items)
+          .set({ categoryMid: mid, categoryMinor: minor })
+          .where(eq(items.itemCode, codes[index]!));
+      }
+      const { mids, minorsByMid } = await listQuoteCategories(handle.db, 'WAPPLES');
+      expect(mids).toContain('테스트중분류');
+      expect(minorsByMid['테스트중분류']).toEqual(['A소분류', 'B소분류']);
+      expect(minorsByMid['테스트다른중분류']).toEqual(['C소분류']);
+      expect(
+        Object.values(minorsByMid)
+          .flat()
+          .every((minor) => minor.trim() !== ''),
+      ).toBe(true);
+    } finally {
+      for (const row of original) {
+        await handle.db
+          .update(items)
+          .set({ categoryMid: row.mid, categoryMinor: row.minor })
+          .where(eq(items.itemCode, row.code));
+      }
+    }
   });
 
   it('AC-62: part_mappings 가 있으면 그 파츠만, 없으면 제품군 파츠 전체(fallback)', async () => {

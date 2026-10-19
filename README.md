@@ -67,6 +67,10 @@ pnpm dev            # http://localhost:3000 (127.0.0.1 에만 바인드)
 > `AUTH_TEST_PASSWORD` 로 누구나 ADMIN 픽스처 계정에 로그인할 수 있습니다. 2차 방어로 테스트 로그인은 `AUTH_TEST_ALLOWED_HOSTS`
 > (기본 `localhost,127.0.0.1`) 밖의 Host 에서 거부되고 감사 `auth.denied_test_mode` 가 남으며, `VERCEL_ENV` 가 있는 환경에서는
 > 기동 자체가 거부됩니다. 테스트 모드가 켜지면 로그인 화면·헤더에 **TEST MODE** 배너가 보입니다.
+>
+> 내부망 전용 호스트에서 **의도적으로** 테스트 모드를 켠 채 LAN 에 열어야 한다면(팀 내 검증 등) `pnpm dev:lan` 으로 띄우고,
+> `.env.local` 에 `NEXT_DEV_ALLOWED_ORIGINS=<서버 주소 hostname>` 과 `AUTH_TEST_ALLOWED_HOSTS` 에 LAN 주소를 추가하며, 강한
+> `AUTH_TEST_PASSWORD` 를 쓰세요. 절차와 미설정 시 증상은 [`docs/deploy/local.md` §6](docs/deploy/local.md) 에 있습니다.
 
 모든 화면은 로그인이 필요합니다(비로그인은 `/login` 으로 이동). `AUTH_TEST_MODE=true` 이면 로그인 화면의
 **테스트 모드** 폼에서 픽스처 계정(`fixture-admin@pentasecurity.com` = ADMIN, `fixture-user@pentasecurity.com`
@@ -95,7 +99,8 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 | 명령                      | 설명                                                                                                                                                                                                                             |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm dev`                | 개발 서버 (`127.0.0.1` 바인드, LAN 노출은 `-H 0.0.0.0` 명시 + 테스트 모드 끄기)                                                                                                                                                  |
-| `pnpm check:secrets`      | 추적 파일 비밀값 검사 (원격 DB 자격 증명·`AUTH_SECRET=` 값·OAuth 시크릿·LLM 벤더 키·KEK 값, CI `secret scan` 잡, AC-96·211)                                                                                                      |
+| `pnpm dev:lan`            | 개발 서버를 `0.0.0.0` 에 바인드 (LAN). `.env.local` 의 `NEXT_DEV_ALLOWED_ORIGINS`·`AUTH_TEST_ALLOWED_HOSTS` 필요 — `docs/deploy/local.md` §6                                                                                     |
+| `pnpm check:secrets`      | 추적 파일 비밀값 검사 (원격 DB 자격 증명·`AUTH_SECRET=` 값·OAuth 시크릿·LLM 벤더 키·KEK 값, CI quality 잡의 `Secret scan` 단계(라벨과 무관하게 항상), AC-96·211)                                                                 |
 | `pnpm build`              | 프로덕션 빌드 (빌드 전 `src/env.ts` 가 환경변수를 검증)                                                                                                                                                                          |
 | `pnpm start`              | 빌드 결과 실행                                                                                                                                                                                                                   |
 | `pnpm lint`               | ESLint                                                                                                                                                                                                                           |
@@ -116,9 +121,11 @@ Docker 컨테이너의 사용자/비밀번호/DB 이름은 `prami`/`prami`/`pram
 | `pnpm credentials:rewrap` | LLM 키 DEK 를 활성 KEK 로 다시 감싼다 (KEK 회전, PRAMI-002). `--yes` 없으면 대상·건수만 출력                                                                                                                                     |
 | `pnpm check`              | lint + typecheck + format:check + test 일괄                                                                                                                                                                                      |
 
-CI(`.github/workflows/ci.yml`)는 PR 마다 lint → typecheck → format → 단위(커버리지, PGlite) → build,
-이어서 PostgreSQL 16 service container 에서 `db:migrate` → `seed` → 통합 테스트, 그리고 같은 service container 와
-`AUTH_TEST_MODE` 로 Playwright E2E(로그인·권한·감사 로그)를 실행합니다.
+CI(`.github/workflows/ci.yml`)는 PR 에서만 돕니다(main push 실행 없음). secret scan 은 항상 돌고, 무거운 단계는 PR 에
+`ci:run` 라벨이 있을 때만 돕니다: lint → typecheck → format → 단위(커버리지, PGlite) → build, 이어서 PostgreSQL 16 service
+container 에서 `db:migrate` → `seed` → 통합 테스트, 같은 container(DB 이름만 분리)와 `AUTH_TEST_MODE` 로 Playwright E2E.
+`CLAUDE.md`·`README.md`·`docs/specs/**`·`docs/qa/**`·`docs/pipeline/**` 만 바꾼 PR 은 라벨이 있어도 secret scan 만 돕니다.
+라벨은 QA 통과 후 머지 직전에 붙여 1회 돌립니다.
 
 E2E 를 로컬에서 처음 돌릴 때는 E2E 전용 DB 를 한 번 만듭니다:
 `docker exec prami-postgres-1 psql -U prami -d prami -c "create database prami_e2e"`.
@@ -290,7 +297,7 @@ QA 는 `IMPORT_FAULT_INJECTION=<단계>`(개발·테스트 전용)로 적용 중
 
 > PRAMI-002 PR-B 이후 이 규칙 엔진은 LangGraph 그래프의 `ruleAnswer` 노드(키 없음·킬스위치·벤더 일시 오류 폴백)로 그대로 쓰인다 — 아래 "챗봇 LangGraph" 절.
 
-- 헤더 챗봇 버튼 · 우하단 플로팅 버튼 → 사이드 패널(`src/features/chat/`). 인사말·예시 질문 칩("Wapples-500 가격 알려줘", "작년보다 올랐어?",
+- 헤더 챗봇 버튼 → 사이드 패널(`src/features/chat/`, Escape·× 로 닫으면 포커스가 헤더 버튼으로 돌아온다 — #30 에서 우하단 플로팅 버튼 제거). 인사말·예시 질문 칩("Wapples-500 가격 알려줘", "작년보다 올랐어?",
   "견적 뽑아줘"), 제품 퀵칩(WAPPLES · D.AMO · iSIGN · Cloudbric), 모호할 때 후보 품목 칩, 견적 시작 링크. **대화는 저장하지 않는다**(감사도 없음).
 - `POST /api/chat`(`chat.use` = 로그인 사용자, 비로그인 401): 본문 `{ message }` → 공백·제어 문자 정리·200자 제한(검색과 같은 규칙, ILIKE 는
   파라미터 바인딩 + 와일드카드 이스케이프) → 의도 분류(`src/server/chat/intent.ts`, 정규식·키워드, **LLM 호출 없음** Q-04b) → `sales_prices` 만 읽어
@@ -347,7 +354,7 @@ QA 는 `IMPORT_FAULT_INJECTION=<단계>`(개발·테스트 전용)로 적용 중
 - **로그**: `src/server/log.ts` — 한 줄 JSON(`level`·`event`·`time`·`requestId`…), 비밀 키 이름(password·secret·token·cookie·
   database_url…)과 값 속 URL userinfo·Bearer 토큰을 `[REDACTED]` 로 가린다. 예상 밖 오류는 `request.failed` 로 남고 응답 봉투에는
   `details.requestId` 만 준다. 외부 의존(pino)은 번들 크기 때문에 쓰지 않았다.
-- **비밀값 검사 (AC-96)**: `pnpm check:secrets` (CI `secret scan` 잡). 로컬 docker 기본값(`prami:prami@localhost`)·가짜 비밀번호
+- **비밀값 검사 (AC-96)**: `pnpm check:secrets` (CI quality 잡의 `Secret scan` 단계(라벨과 무관하게 항상)). 로컬 docker 기본값(`prami:prami@localhost`)·가짜 비밀번호
   픽스처(`user:pw@…`)·빈 값·`$(…)`/`<…>` 자리표시자는 허용한다.
 
 ## 사용자 설정 · LLM 키 (PRAMI-002 PR-A)

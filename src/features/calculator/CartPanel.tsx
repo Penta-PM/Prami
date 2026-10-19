@@ -1,18 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { m } from 'motion/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  Button,
-  Modal,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-} from '@/components/ui';
-import { formatAuditTime } from '@/lib/audit-format';
+import { Button, Modal } from '@/components/ui';
+import { DataTable, DataTableResetButton, type DataTableColumn } from '@/components/ui/data-table';
+import { Presence } from '@/components/motion/Presence';
+import { formatDate } from '@/lib/date-format';
+import { VARIANT_KEYS, listItem, transition } from '@/lib/motion/tokens';
 import { priceLabel } from '@/lib/pricing/format';
 import { cartTotals } from '@/lib/pricing/quote';
 
@@ -20,6 +15,8 @@ import { describeLine } from './cart';
 import type { CartLine, SavedQuoteView } from './types';
 
 type CartPanelProps = {
+  /** 현재 사용자 id — 견적 목록 표의 열 너비·순서 저장 키 (#32 스펙 §5) */
+  userId: string;
   lines: readonly CartLine[];
   saved: readonly SavedQuoteView[];
   isPending: boolean;
@@ -54,30 +51,44 @@ export function CartPanel(props: CartPanelProps) {
       >
         <h2 className="m-0 mb-3 text-[13px] font-semibold">장바구니 ({lines.length})</h2>
         <ul className="m-0 flex list-none flex-col p-0">
-          {lines.map((line) => (
-            <li
-              key={line.id}
-              className="flex items-start justify-between gap-2 border-t border-border-subtle py-2.5"
-            >
-              <div className="min-w-0">
-                <div className="text-[12px] font-semibold">{line.name}</div>
-                <div className="text-[11px] text-text-tertiary">{describeLine(line)}</div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="text-[12px] font-semibold">
-                  {priceLabel(line.lineTotal, line.currency)}
-                </span>
-                <button
-                  type="button"
-                  aria-label={`${line.name} 삭제`}
-                  className="border-0 bg-transparent text-[14px] font-semibold text-red-500"
-                  onClick={() => props.onRemove(line.id)}
-                >
-                  ×
-                </button>
-              </div>
-            </li>
-          ))}
+          {/* 담기·삭제는 height 접힘 + fade, 나머지는 layout 재배치 (Motion 도입 스펙 §3.3 클라이언트 목록).
+              Presence initial={false} 라 페이지 로드·복원 시 이미 있는 항목은 애니메이션 없이 최종 상태 */}
+          <Presence>
+            {lines.map((line) => (
+              <m.li
+                key={line.id}
+                layout
+                variants={listItem}
+                initial={VARIANT_KEYS.initial}
+                animate={VARIANT_KEYS.animate}
+                exit={VARIANT_KEYS.exit}
+                transition={{ layout: transition.layout }}
+                // shrink-0: overflow:hidden 인 flex 아이템은 min-height 가 0 이 되어 넘치는 세로 flex 안에서 높이 0 으로
+                // 줄 수 있다 (PR-3 Collapse 회귀). 테두리·패딩은 안쪽 div 에 두어 접힐 때 패딩만 남지 않게 한다
+                className="shrink-0 overflow-hidden"
+              >
+                <div className="flex items-start justify-between gap-2 border-t border-border-subtle py-2.5">
+                  <div className="min-w-0">
+                    <div className="text-[12px] font-semibold">{line.name}</div>
+                    <div className="text-[11px] text-text-tertiary">{describeLine(line)}</div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-[12px] font-semibold">
+                      {priceLabel(line.lineTotal, line.currency)}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`${line.name} 삭제`}
+                      className="border-0 bg-transparent text-[14px] font-semibold text-red-500"
+                      onClick={() => props.onRemove(line.id)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              </m.li>
+            ))}
+          </Presence>
           {lines.length === 0 ? (
             <li className="py-4 text-center text-[12px] text-text-tertiary">
               담긴 품목이 없습니다.
@@ -225,18 +236,21 @@ export function CartPanel(props: CartPanelProps) {
         </div>
       </section>
 
-      {listOpen ? (
-        <SavedQuotesModal
-          saved={saved}
-          onClose={() => setListOpen(false)}
-          onReload={props.onReload}
-          onDelete={props.onDelete}
-          onShare={(quote) => {
-            setListOpen(false);
-            props.onShare(quote);
-          }}
-        />
-      ) : null}
+      <Presence>
+        {listOpen ? (
+          <SavedQuotesModal
+            userId={props.userId}
+            saved={saved}
+            onClose={() => setListOpen(false)}
+            onReload={props.onReload}
+            onDelete={props.onDelete}
+            onShare={(quote) => {
+              setListOpen(false);
+              props.onShare(quote);
+            }}
+          />
+        ) : null}
+      </Presence>
     </div>
   );
 }
@@ -246,91 +260,150 @@ function totalLabel(quote: SavedQuoteView): string {
   return '통화 혼합';
 }
 
+/** 열 너비·순서 저장 키의 표 구분자 (#32 스펙 §5) */
+const MY_QUOTES_TABLE_ID = 'my-quotes';
+
 function SavedQuotesModal({
+  userId,
   saved,
   onClose,
   onReload,
   onDelete,
   onShare,
 }: {
+  userId: string;
   saved: readonly SavedQuoteView[];
   onClose: () => void;
   onReload: (quote: SavedQuoteView) => void;
   onDelete: (quote: SavedQuoteView) => void;
   onShare: (quote: SavedQuoteView) => void;
 }) {
+  // 부모가 넘기는 콜백은 렌더마다 새 함수라, 열 배열(저장 레이아웃 정규화 기준)을 고정하려고 최신 값을 ref 로 읽는다.
+  // ref 는 클릭 핸들러 안에서만 읽는다(렌더 중 읽기 없음)
+  const handlersRef = useRef({ onClose, onReload, onDelete, onShare });
+  useEffect(() => {
+    handlersRef.current = { onClose, onReload, onDelete, onShare };
+  });
+
+  // 열 배열은 저장 레이아웃 정규화의 기준이라 렌더마다 새로 만들지 않는다
+  const columns = useMemo<DataTableColumn<SavedQuoteView>[]>(
+    () => [
+      {
+        id: 'quoteNo',
+        header: '견적 번호',
+        type: 'text',
+        sortValue: (quote) => quote.quoteNo,
+        headerClassName: 'pl-5',
+        cellClassName: 'pl-5 whitespace-nowrap text-text-tertiary',
+        cell: (quote) => quote.quoteNo,
+      },
+      {
+        id: 'createdAt',
+        header: '일자',
+        type: 'date',
+        sortValue: (quote) => quote.createdAt,
+        cellClassName: 'whitespace-nowrap text-text-tertiary',
+        cell: (quote) => formatDate(quote.createdAt),
+      },
+      {
+        id: 'productFamily',
+        header: '제품',
+        type: 'text',
+        sortValue: (quote) => quote.productFamily,
+        cellClassName: 'font-semibold whitespace-nowrap',
+        cell: (quote) => quote.productFamily,
+      },
+      {
+        id: 'summary',
+        header: '내용',
+        type: 'text',
+        sortValue: (quote) => quote.summary,
+        cellClassName: 'text-text-secondary',
+        cell: (quote) => quote.summary,
+      },
+      {
+        id: 'totalAmount',
+        header: '금액',
+        type: 'number',
+        // 통화가 섞이면 통화로 먼저 묶고 같은 통화 안에서 금액순 (#32 스펙 §2). '통화 혼합' 견적은 빈 값 → 맨 뒤
+        sortValue: (quote) =>
+          quote.totalAmount && quote.currency
+            ? { amount: Number(quote.totalAmount), currency: quote.currency }
+            : null,
+        align: 'right',
+        cellClassName: 'font-semibold whitespace-nowrap',
+        cell: (quote) => totalLabel(quote),
+      },
+      {
+        id: 'actions',
+        header: ' ',
+        label: '관리',
+        type: 'none',
+        pinned: 'end',
+        align: 'right',
+        headerClassName: 'pr-5',
+        cellClassName: 'pr-5 whitespace-nowrap',
+        cell: (quote) => (
+          <>
+            <a
+              className="mr-1.5 text-[12px] font-semibold text-purple-600"
+              href={quotePdfHref(quote)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`${quote.quoteNo} PDF`}
+            >
+              PDF
+            </a>
+            <button
+              type="button"
+              aria-label={`${quote.quoteNo} 공유`}
+              className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-600"
+              onClick={() => handlersRef.current.onShare(quote)}
+            >
+              공유
+            </button>
+            <button
+              type="button"
+              aria-label={`${quote.quoteNo} 장바구니 담기`}
+              className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-600"
+              onClick={() => {
+                handlersRef.current.onReload(quote);
+                handlersRef.current.onClose();
+              }}
+            >
+              장바구니 담기
+            </button>
+            <button
+              type="button"
+              aria-label={`${quote.quoteNo} 삭제`}
+              className="border-0 bg-transparent text-[12px] font-semibold text-red-500"
+              onClick={() => handlersRef.current.onDelete(quote)}
+            >
+              삭제
+            </button>
+          </>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
     <Modal open onClose={onClose} title="내 견적 목록" className="w-[min(860px,calc(100vw-32px))]">
+      <div className="mb-2 flex justify-end">
+        <DataTableResetButton tableId={MY_QUOTES_TABLE_ID} userId={userId} columns={columns} />
+      </div>
       <div className="rounded-xl bg-surface-card shadow-(--hairline-default)">
-        <Table aria-label="견적 목록 표">
-          <TableHead className="bg-gray-75">
-            <TableRow>
-              <TableHeaderCell className="pl-5">견적 번호</TableHeaderCell>
-              <TableHeaderCell>일자</TableHeaderCell>
-              <TableHeaderCell>제품</TableHeaderCell>
-              <TableHeaderCell>내용</TableHeaderCell>
-              <TableHeaderCell className="text-right">금액</TableHeaderCell>
-              <TableHeaderCell className="pr-5 text-right"> </TableHeaderCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {saved.map((quote) => (
-              <TableRow key={quote.id}>
-                <TableCell className="pl-5 whitespace-nowrap text-text-tertiary">
-                  {quote.quoteNo}
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-text-tertiary">
-                  {formatAuditTime(new Date(quote.createdAt)).slice(0, 10)}
-                </TableCell>
-                <TableCell className="font-semibold whitespace-nowrap">
-                  {quote.productFamily}
-                </TableCell>
-                <TableCell className="text-text-secondary">{quote.summary}</TableCell>
-                <TableCell className="text-right font-semibold whitespace-nowrap">
-                  {totalLabel(quote)}
-                </TableCell>
-                <TableCell className="pr-5 text-right whitespace-nowrap">
-                  <a
-                    className="mr-1.5 text-[12px] font-semibold text-purple-600"
-                    href={quotePdfHref(quote)}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`${quote.quoteNo} PDF`}
-                  >
-                    PDF
-                  </a>
-                  <button
-                    type="button"
-                    aria-label={`${quote.quoteNo} 공유`}
-                    className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-600"
-                    onClick={() => onShare(quote)}
-                  >
-                    공유
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`${quote.quoteNo} 장바구니 담기`}
-                    className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-600"
-                    onClick={() => {
-                      onReload(quote);
-                      onClose();
-                    }}
-                  >
-                    장바구니 담기
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`${quote.quoteNo} 삭제`}
-                    className="border-0 bg-transparent text-[12px] font-semibold text-red-500"
-                    onClick={() => onDelete(quote)}
-                  >
-                    삭제
-                  </button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        {/* 행에는 transform·layout 애니메이션을 걸지 않는다 (#32 스펙 §5, Motion 스펙 금지 2) */}
+        <DataTable
+          tableId={MY_QUOTES_TABLE_ID}
+          userId={userId}
+          columns={columns}
+          rows={saved}
+          getRowKey={(quote) => quote.id}
+          aria-label="견적 목록 표"
+          headClassName="bg-gray-75"
+        />
         {saved.length === 0 ? (
           <p className="m-0 p-8 text-center text-[13px] text-text-tertiary">
             저장된 견적이 없습니다.

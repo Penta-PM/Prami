@@ -1,8 +1,15 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 /** 조회·관리 공용 서버 섹션 + /pricing 페이지 가드 — 쿼리·권한은 모킹 */
-const calls = vi.hoisted(() => ({ filters: [] as unknown[], guards: [] as string[] }));
+const calls = vi.hoisted(() => ({
+  filters: [] as unknown[],
+  guards: [] as string[],
+  ratioIds: [] as number[][],
+  // null = cost.read 없음(열 없음), 객체 = 원가 비중
+  ratios: null as Record<number, unknown> | null,
+}));
 
 vi.mock('@/db', () => ({ getDb: async () => ({}) }));
 vi.mock('@/server/pricing/categories', () => ({
@@ -30,6 +37,8 @@ vi.mock('@/server/pricing/queries', () => ({
           operationStatus: '운영중',
           remark: null,
           source: 'erp',
+          previousPrice: null,
+          priceChangeRate: null,
         },
       ],
       total: 51,
@@ -41,11 +50,19 @@ vi.mock('@/server/pricing/queries', () => ({
 vi.mock('@/server/auth/rbac', () => ({
   requirePagePermission: async (permission: string, path: string) => {
     calls.guards.push(`${permission}:${path}`);
+    return { id: 'u1', email: 'admin@pentasecurity.com', role: 'ADMIN' };
   },
 }));
 vi.mock('@/features/pricing/actions', () => ({}));
+vi.mock('@/features/costs/price-ratios', () => ({
+  loadPolicyCostRatios: async (ids: number[]) => {
+    calls.ratioIds.push(ids);
+    return calls.ratios;
+  },
+}));
+const push = vi.hoisted(() => vi.fn());
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push, refresh: vi.fn() }),
   usePathname: () => '/pricing',
 }));
 
@@ -57,6 +74,7 @@ describe('PricingSection', () => {
       await PricingSection({
         mode: 'admin',
         basePath: '/admin/policies',
+        userId: 'u1',
         searchParams: { dateMode: 'period', from: '2025-01-01', to: '2025-12-31', page: '2' },
       }),
     );
@@ -70,6 +88,52 @@ describe('PricingSection', () => {
     );
     expect(screen.getByPlaceholderText('모델명, 코드로 검색')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '2026' })).toBeInTheDocument();
+  });
+});
+
+describe('원가 비중 열 (cost-ratio-price-change §2.3)', () => {
+  const render2 = async (mode: 'admin' | 'view') =>
+    render(
+      await PricingSection({
+        mode,
+        basePath: mode === 'admin' ? '/admin/policies' : '/pricing',
+        userId: 'u1',
+        searchParams: {},
+      }),
+    );
+
+  it('관리 표 + cost.read: 현재 페이지 행 id 로 계산을 부르고, 판매가 바로 뒤 "원가 비중" 헤더·NN.N%·원가 적용일 툴팁', async () => {
+    calls.ratioIds = [];
+    calls.ratios = { 1: { costRatio: 30, costFrom: '2026-05-01' } };
+    await render2('admin');
+    expect(calls.ratioIds).toEqual([[1]]);
+    const headers = screen.getAllByRole('columnheader').map((th) => th.textContent?.trim());
+    expect(headers.indexOf('원가 비중')).toBe(headers.indexOf('판매가') + 1);
+    // 1차 정렬 불가: 헤더(이동용 버튼만 있음)를 눌러도 정렬되지 않고 aria-sort·정렬 아이콘이 없다
+    const header = screen.getByRole('columnheader', { name: /원가 비중/ });
+    await userEvent.click(within(header).getByRole('button'));
+    expect(header).not.toHaveAttribute('aria-sort');
+    expect(header.querySelector('svg')).toBeNull();
+    expect(push).not.toHaveBeenCalled();
+    const cell = screen.getByText('30.0%');
+    expect(cell.closest('[title]')).toHaveAttribute('title', '원가 적용일 2026-05-01');
+  });
+
+  it('관리 표 + cost.read 없음: 열 정의·헤더 없음', async () => {
+    calls.ratioIds = [];
+    calls.ratios = null;
+    await render2('admin');
+    expect(calls.ratioIds).toEqual([[1]]);
+    expect(screen.queryByRole('columnheader', { name: /원가 비중/ })).toBeNull();
+  });
+
+  it('조회 표(/pricing): 원가 비중 계산을 부르지 않고 열도 없다', async () => {
+    calls.ratioIds = [];
+    calls.ratios = { 1: { costRatio: 30, costFrom: '2026-05-01' } };
+    await render2('view');
+    expect(calls.ratioIds).toEqual([]);
+    expect(screen.queryByRole('columnheader', { name: /원가 비중/ })).toBeNull();
+    expect(screen.queryByText('30.0%')).toBeNull();
   });
 });
 

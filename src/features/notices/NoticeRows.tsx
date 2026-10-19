@@ -5,11 +5,15 @@ import { cn } from '@/lib/cn';
 import type { NoticeView } from './types';
 
 /** 디자인의 `중요` 배지 (accent-red 위 #fdeaec) */
+/**
+ * '중요' 배지. 글자는 red-600 — red-500 은 옅은 빨강 배경(bg-red-500/12)에서 axe 대비 3.7:1(알림 드롭다운 미읽음 틴트 위 3.4:1)로
+ * AA 미달이었다(#31 PR-3, QA #52). red-600 은 흰 배경 5.05:1·미읽음 틴트 위 4.6:1.
+ */
 export function ImportantBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center rounded-pill bg-red-500/12 px-2 py-[3px] text-[11px] font-semibold text-red-500',
+        'inline-flex shrink-0 items-center rounded-pill bg-red-500/12 px-2 py-[3px] text-[11px] font-semibold text-red-600',
         className,
       )}
     >

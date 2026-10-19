@@ -8,7 +8,7 @@ import { EXAMPLE_QUESTIONS, GREETING } from '@/features/chat/ChatPanel';
 import type { ChatReplyView } from '@/features/chat/types';
 
 /**
- * 챗봇 패널 UI (§4.5.9 디자인): 헤더/플로팅 버튼으로 열고 닫기, 인사·예시 칩, 질문 → 말풍선, 제품 퀵칩·후보 칩·견적 링크,
+ * 챗봇 패널 UI (§4.5.9 디자인): 헤더 챗봇 버튼으로 열고 닫기(#30 — 플로팅 버튼 제거, Escape 닫기·포커스 복원), 인사·예시 칩, 질문 → 말풍선, 제품 퀵칩·후보 칩·견적 링크,
  * 오류 응답은 빨간 말풍선. fetch 는 모킹 — 서버 형태(ChatReplyView)만 따른다.
  */
 const fetchMock = vi.fn();
@@ -51,10 +51,12 @@ afterEach(() => {
 });
 
 describe('ChatPanel', () => {
-  it('헤더 버튼으로 열면 인사말·예시 칩, 닫기 버튼으로 닫힌다; 플로팅 버튼도 연다', async () => {
+  it('헤더 버튼으로 열면 인사말·예시 칩, 닫기 버튼으로 닫힌다; 다시 열면 aria-pressed true', async () => {
     renderDock();
     expect(screen.queryByRole('complementary', { name: '가격정책 챗봇' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '챗봇 열기' }));
+    const launcher = screen.getByRole('button', { name: '챗봇' });
+    expect(launcher).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(launcher);
     const panel = screen.getByRole('complementary', { name: '가격정책 챗봇' });
     expect(panel).toHaveTextContent('원가 데이터는 표시되지 않습니다');
     expect(within(panel).getByRole('log', { name: '대화' })).toHaveTextContent(GREETING);
@@ -64,9 +66,70 @@ describe('ChatPanel', () => {
     }
     await userEvent.click(within(panel).getByRole('button', { name: '챗봇 닫기' }));
     expect(screen.queryByRole('complementary', { name: '가격정책 챗봇' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '챗봇' }));
+    await userEvent.click(launcher);
     expect(screen.getByRole('complementary', { name: '가격정책 챗봇' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '챗봇' })).toHaveAttribute('aria-pressed', 'true');
+    expect(launcher).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('#30 회귀: 우하단 플로팅 버튼(챗봇 열기)이 없다 — 닫혀 있을 때도 열려 있을 때도', async () => {
+    renderDock();
+    expect(screen.queryByRole('button', { name: '챗봇 열기' })).not.toBeInTheDocument();
+    expect(document.querySelector('.fixed.bottom-7, [class*="bottom-7"]')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: '챗봇' }));
+    expect(screen.queryByRole('button', { name: '챗봇 열기' })).not.toBeInTheDocument();
+    // 헤더 버튼은 하나뿐
+    expect(
+      screen.getAllByRole('button', { name: /챗봇/ }).map((b) => b.getAttribute('aria-label')),
+    ).toEqual(['챗봇', '챗봇 닫기']);
+  });
+
+  it('#30: × 로 닫으면 포커스가 헤더 챗봇 버튼으로 돌아온다', async () => {
+    renderDock();
+    const launcher = screen.getByRole('button', { name: '챗봇' });
+    await userEvent.click(launcher);
+    const panel = screen.getByRole('complementary', { name: '가격정책 챗봇' });
+    within(panel).getByRole('button', { name: '챗봇 닫기' }).focus();
+    await userEvent.click(within(panel).getByRole('button', { name: '챗봇 닫기' }));
+    expect(screen.queryByRole('complementary', { name: '가격정책 챗봇' })).not.toBeInTheDocument();
+    expect(launcher).toHaveFocus();
+  });
+
+  it('#30: Escape 로 패널이 닫히고 포커스가 헤더 챗봇 버튼으로 돌아온다 (패널 안·밖 포커스 모두)', async () => {
+    renderDock();
+    const launcher = screen.getByRole('button', { name: '챗봇' });
+    await userEvent.click(launcher);
+    // 패널 안(입력란)에 포커스
+    await userEvent.click(screen.getByLabelText('질문 입력'));
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('complementary', { name: '가격정책 챗봇' })).not.toBeInTheDocument();
+    expect(launcher).toHaveFocus();
+    expect(launcher).toHaveAttribute('aria-pressed', 'false');
+    // 패널 밖(body)에 포커스여도 열려 있으면 Escape 로 닫힌다
+    await userEvent.click(launcher);
+    (document.activeElement as HTMLElement | null)?.blur();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('complementary', { name: '가격정책 챗봇' })).not.toBeInTheDocument();
+    expect(launcher).toHaveFocus();
+  });
+
+  it('#30: 모달(dialog open)·드로어(aria-modal)가 열려 있으면 Escape 는 패널을 닫지 않는다 (모달 우선)', async () => {
+    renderDock();
+    await userEvent.click(screen.getByRole('button', { name: '챗봇' }));
+    const dialog = document.createElement('dialog');
+    dialog.setAttribute('open', '');
+    document.body.appendChild(dialog);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('complementary', { name: '가격정책 챗봇' })).toBeInTheDocument();
+    dialog.remove();
+    const drawer = document.createElement('aside');
+    drawer.setAttribute('role', 'dialog');
+    drawer.setAttribute('aria-modal', 'true');
+    document.body.appendChild(drawer);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('complementary', { name: '가격정책 챗봇' })).toBeInTheDocument();
+    drawer.remove();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('complementary', { name: '가격정책 챗봇' })).not.toBeInTheDocument();
   });
 
   it('질문을 보내면 POST /api/chat 로 보내고 답 말풍선·견적 링크·후보 칩·제품 칩을 보여 준다', async () => {

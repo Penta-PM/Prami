@@ -57,7 +57,15 @@ describe('PartsManager (AC-30·31)', () => {
       ok: true,
       data: { modelItemCode: 'P1010010004', partItemCodes: ['P10800011'], replaced: false },
     });
-    render(<PartsManager models={MODELS} parts={PARTS} mappings={[MAPPING]} batchOptions={[]} />);
+    render(
+      <PartsManager
+        models={MODELS}
+        parts={PARTS}
+        mappings={[MAPPING]}
+        batchOptions={[]}
+        userId="u1"
+      />,
+    );
     const table = screen.getByRole('table', { name: '등록된 매핑 표' });
     expect(within(table).getAllByRole('row')).toHaveLength(2);
     expect(table).toHaveTextContent('N_51240 - 1G UTP 4포트(바이패스) (P10800009)');
@@ -92,7 +100,15 @@ describe('PartsManager (AC-30·31)', () => {
       ok: true,
       data: { modelItemCode: 'P1010010005', removed: 1 },
     });
-    render(<PartsManager models={MODELS} parts={PARTS} mappings={[MAPPING]} batchOptions={[]} />);
+    render(
+      <PartsManager
+        models={MODELS}
+        parts={PARTS}
+        mappings={[MAPPING]}
+        batchOptions={[]}
+        userId="u1"
+      />,
+    );
     await userEvent.click(
       screen.getByRole('button', { name: 'Wapples-2700 (H2700)-RAID (P1010010005)' }),
     );
@@ -132,7 +148,9 @@ describe('PartsManager (AC-30·31)', () => {
   });
 
   it('엑셀 등록 모드: 업로드 버튼과 적용 버튼(업로드 전 비활성)', async () => {
-    render(<PartsManager models={MODELS} parts={PARTS} mappings={[]} batchOptions={[]} />);
+    render(
+      <PartsManager models={MODELS} parts={PARTS} mappings={[]} batchOptions={[]} userId="u1" />,
+    );
     await userEvent.click(screen.getByRole('radio', { name: '엑셀 등록' }));
     expect(screen.getByRole('button', { name: '파츠 엑셀 업로드' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '매핑 적용' })).toBeDisabled();

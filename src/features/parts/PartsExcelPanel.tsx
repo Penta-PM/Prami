@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import { ImportFileRow } from '@/features/admin-policies/ImportFileRow';
 import {
@@ -13,7 +15,12 @@ import {
 
 import { applyPartImportAction } from './actions';
 
-type PartsExcelPanelProps = { options: readonly BatchOption[]; onApplied: (text: string) => void };
+type PartsExcelPanelProps = {
+  options: readonly BatchOption[];
+  onApplied: (text: string) => void;
+  /** 업로드 미리보기 표 열 설정 저장 키 (#32 스펙 §5) */
+  userId: string;
+};
 
 type Stats = Extract<Awaited<ReturnType<typeof applyPartImportAction>>, { ok: true }>['data'];
 
@@ -21,7 +28,7 @@ type Stats = Extract<Awaited<ReturnType<typeof applyPartImportAction>>, { ok: tr
  * 엑셀 등록 (§4.5.6, AC-32): 2컬럼(모델품번, 파츠품번) 업로드 → 미리보기(존재하지 않는 품번은 오류 목록)
  * → 적용(모델별 전체 교체). PR-3 ImportFileRow 재사용.
  */
-export function PartsExcelPanel({ options, onApplied }: PartsExcelPanelProps) {
+export function PartsExcelPanel({ options, onApplied, userId }: PartsExcelPanelProps) {
   const [selection, setSelection] = useState<FileSelection>({
     mode: 'new',
     upload: null,
@@ -68,6 +75,7 @@ export function PartsExcelPanel({ options, onApplied }: PartsExcelPanelProps) {
         options={options}
         selection={selection}
         onChange={setSelection}
+        userId={userId}
       />
       <div className="flex items-center justify-end gap-2.5">
         {blocked ? (
@@ -79,24 +87,23 @@ export function PartsExcelPanel({ options, onApplied }: PartsExcelPanelProps) {
           {isPending ? '적용 중…' : '매핑 적용'}
         </Button>
       </div>
-      {error ? (
-        <p
-          role="alert"
-          className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500"
-        >
-          {error}
-        </p>
-      ) : null}
-      {stats ? (
-        <p
-          role="status"
-          aria-label="매핑 적용 완료"
-          className="m-0 text-[12px] font-semibold text-green-700"
-        >
-          적용 완료 — 모델 {stats.models}개 · 매핑 {stats.mappings}건 · 덮어쓴 모델{' '}
-          {stats.replacedModels}개
-        </p>
-      ) : null}
+      <Presence>
+        {error ? (
+          <Collapse key="error" role="alert">
+            <p className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500">
+              {error}
+            </p>
+          </Collapse>
+        ) : null}
+        {stats ? (
+          <Collapse key="stats" role="status" aria-label="매핑 적용 완료">
+            <p className="m-0 text-[12px] font-semibold text-green-700">
+              적용 완료 — 모델 {stats.models}개 · 매핑 {stats.mappings}건 · 덮어쓴 모델{' '}
+              {stats.replacedModels}개
+            </p>
+          </Collapse>
+        ) : null}
+      </Presence>
     </section>
   );
 }

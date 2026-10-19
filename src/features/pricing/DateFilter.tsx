@@ -1,7 +1,11 @@
 'use client';
 
+import { m } from 'motion/react';
+
+import { Presence } from '@/components/motion/Presence';
 import { Segmented } from '@/components/ui';
 import { cn } from '@/lib/cn';
+import { fade } from '@/lib/motion/tokens';
 
 import { activeYear, ALL, yearRange, type DateMode, type FilterErrors } from './filter';
 
@@ -86,11 +90,21 @@ export function DateControls({ filter, errors, years, onChange }: DateControlsPr
         key={`to-${filter.to ?? ''}`}
         onChange={(event) => onChange({ to: event.target.value || undefined })}
       />
-      {message ? (
-        <span role="alert" className="text-[12px] text-red-500">
-          {message}
-        </span>
-      ) : null}
+      <Presence>
+        {message ? (
+          <m.span
+            key="message"
+            role="alert"
+            variants={fade}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="text-[12px] text-red-500"
+          >
+            {message}
+          </m.span>
+        ) : null}
+      </Presence>
     </div>
   );
 }

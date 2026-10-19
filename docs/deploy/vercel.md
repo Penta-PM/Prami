@@ -12,7 +12,7 @@ PRAMI-001 PR-11a 문서를 PRAMI-003 스펙 §4.3(운영 하드닝)·§4.9(실�
 ## 1. 대상 구성 (§4.3.1)
 
 ```
-GitHub (main) ──CI(lint·typecheck·unit·integration·e2e·secret scan)
+GitHub PR ──CI(secret scan 항상 · `ci:run` 라벨이면 lint·typecheck·unit·build → integration·e2e)
     ├─ PR → Vercel Preview (Git 연동, 자동) — DB: Neon `preview` 브랜치(고정 1개)
     └─ main 머지 → 운영자가 Actions `deploy-production` 수동 실행(PR-4): 점검 판정 → 마이그레이션 → vercel deploy --prebuilt --prod → 스모크
 Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
@@ -125,7 +125,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
 | 롤백 | 앱: Vercel instant rollback. DB: forward-only(expand/contract) — 손상 시만 PITR(런북 R-3) |
 
 - 마이그레이션은 **앱 배포 전에** 적용한다: `DB_DRIVER=neon DATABASE_URL_UNPOOLED=<직접 연결> pnpm db:migrate` (값은 셸 환경변수로만).
-  현재 `0000`~`0007`(PR-3 `0007_llm_credential_expiry`).
+  현재 `0000`~`0009`(원가 매핑 `0009_cost_item_links`).
 - **기동 시 스키마 버전 검사**(`src/instrumentation.ts` → `src/server/ops/schema-version.ts`): 번들의 `drizzle/meta/_journal.json`
   마지막 항목과 DB `drizzle.__drizzle_migrations` 최신 항목을 비교한다. DB 가 뒤처지면 `db.schema_behind` 오류 로그 + `/api/health` 503,
   앞서면(롤백한 구버전 앱) `db.schema_ahead` 경고 + 200.
@@ -209,7 +209,7 @@ Vercel Production ── Neon `main`(pooled) ── Upstash Redis(rate limit)
   - Free(현재): Environment·reviewers·브랜치 보호를 쓸 수 없다 → 시크릿은 저장소 시크릿, write 권한자를 운영 비밀값 보유자로 한정, `main` 직접 push 금지·
     배포 실행자 한정은 운영 규칙. write 권한자가 자기 브랜치에 워크플로를 추가하면 저장소 시크릿을 받을 수 있다 — YAML 로 막을 수 없는 **남는 위험**이다.
   - Team: Environment `production`·`production-rollback`·`preview`(Deployment branches `main` 만)로 시크릿을 옮기고 같은 이름 저장소 시크릿 삭제,
-    `main` 브랜치 보호(CI 4잡 통과 필수 — `deploy-production` 은 CI 결과를 다시 확인하지 않는다, 보안 리뷰 L-1)·CODEOWNERS.
+    `main` 브랜치 보호(CI 2잡 quality·e2e 통과 필수 — `deploy-production` 은 CI 결과를 다시 확인하지 않는다, 보안 리뷰 L-1)·CODEOWNERS.
   - Enterprise Cloud: Team + `production`·`preview` Required reviewers ≥ 1·Prevent self-review(`production-rollback` 은 reviewers 없음).
 - **우회 시크릿 수용 (L2-11)**: `VERCEL_AUTOMATION_BYPASS_SECRET` 은 Vercel 이 모든 배포의 빌드·런타임 system env 로 넣으므로 PR 코드에는 원래 비밀이 아니다
   (영향: preview 배포 보호 우회만). 저장소 시크릿으로 두는 것을 수용하고, 유출이 의심되면 재생성 → preview 재배포(런북 R-5). reviewers 를 쓰게 되더라도

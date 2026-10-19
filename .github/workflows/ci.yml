@@ -1,12 +1,19 @@
 name: CI
 
+# CI 사용량 절감 (docs/specs/ci-usage-reduction.md §2 PR-A — Free 플랜 월 2,000분):
+# - main push 트리거 없음. PR CI 가 refs/pull/N/merge 를 검증하고 머지 전 "최신 main 포함"을 규칙으로 확인하므로 push 실행은 중복이다.
+# - 무거운 단계(quality 의 lint~build, e2e·integration)는 PR 에 `ci:run` 라벨이 있을 때만 돈다. QA 통과 후 라벨을 붙여 1회 돌린다.
+# - secret scan 은 라벨과 무관하게 항상 돈다. 문서 전용 PR(CLAUDE.md·README.md·docs/specs/**·docs/qa/**·docs/pipeline/**)은 라벨이 있어도 secret scan 만.
+# - pull_request_target 은 쓰지 않는다(시크릿·쓰기 토큰이 PR 코드에 닿는다). 워크플로 단위 paths-ignore 도 쓰지 않는다(필수 검사 영구 대기).
 on:
-  push:
-    branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # ci:run 이 아닌 라벨이 붙어 생긴 실행은 별도 그룹 — 진행 중인 ci:run 실행을 취소하지 않게 한다
+  group: >-
+    ci-${{ github.workflow }}-${{ github.ref }}-${{
+    github.event.action == 'labeled' && github.event.label.name != 'ci:run' && 'other-label' || 'run' }}
   cancel-in-progress: true
 
 # 최소 권한 — PR 이벤트를 받는 워크플로라 쓰기 권한·시크릿을 두지 않는다 (PR #26 I2-9)
@@ -16,42 +23,23 @@ permissions:
 env:
   NEXT_TELEMETRY_DISABLED: '1'
   NEXT_PUBLIC_APP_URL: http://localhost:3000
-  # 스펙 §4.9.2 CI 열: 단위 테스트는 PGlite, 통합 테스트는 아래 integration 잡의 Postgres service container
+  # 스펙 §4.9.2 CI 열: 단위 테스트는 PGlite, 통합 테스트는 아래 e2e 잡의 Postgres service container
   DB_DRIVER: pglite
   PGLITE_DATA_DIR: memory://
 
 jobs:
-  secrets:
-    # AC-96: 추적 파일에 원격 DB 자격 증명·AUTH_SECRET 값·OAuth 시크릿이 없는지 (scripts/secret-scan.ts)
-    name: secret scan
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Secret scan
-        run: pnpm check:secrets
-
   quality:
-    name: lint · typecheck · unit · build
+    name: secret scan · lint · typecheck · unit · build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      heavy: ${{ steps.gate.outputs.heavy }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          # PR 머지 커밋과 그 첫 부모(base) — 문서 전용 판정의 git diff 에 필요한 만큼만
+          fetch-depth: 2
 
       - uses: pnpm/action-setup@v4 # package.json 의 packageManager 버전을 사용
 
@@ -63,19 +51,63 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # AC-96: 추적 파일에 원격 DB 자격 증명·AUTH_SECRET 값·OAuth 시크릿이 없는지 (scripts/secret-scan.ts) — 라벨과 무관하게 항상
+      - name: Secret scan
+        run: pnpm check:secrets
+
+      - name: 판정 (문서 전용 / ci:run 라벨)
+        id: gate
+        env:
+          # 라벨 이름은 run 에 직접 넣지 않고 불리언만 넘긴다
+          HAS_RUN_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci:run') }}
+          # labeled 이벤트는 붙은 라벨이 ci:run 일 때만 무거운 실행 대상 — 다른 라벨을 추가할 때 전체(약 18분)를 다시 돌리지 않는다
+          RUN_LABEL_EVENT: ${{ github.event.action != 'labeled' || github.event.label.name == 'ci:run' }}
+        run: |
+          set -euo pipefail
+          # PR 머지 커밋(HEAD)의 첫 부모 = base. 이 PR 이 바꾼 파일만 본다 (토큰·API·외부 action 없음)
+          # --no-renames: 이름 바꾸기도 옛 경로(삭제)·새 경로(추가)로 센다 — src 파일을 docs/qa 로 옮겨 "문서 전용"이 되는 우회 차단
+          # core.quotePath=false: 한글 등 비 ASCII 파일명을 따옴표·8진수로 감싸지 않는다(docs/qa/검증.md 가 문서 전용으로 판정되게)
+          changed="$(git -c core.quotePath=false diff --no-renames --name-only HEAD^1 HEAD)"
+          # 생략 대상: CLAUDE.md · README.md · docs/specs/** · docs/qa/** · docs/pipeline/** 만. docs/** 전체가 아니다(단위 테스트가 docs/ops·deploy·chat 을 읽음)
+          # ⚠ 이 목록의 경로를 읽는 테스트가 생기면 목록에서 뺄 것 (CI 사용량 절감 스펙 §2-4 — workflows.test.ts 가 목록을 고정한다)
+          code="$(printf '%s\n' "$changed" | grep -Ev '^(CLAUDE\.md|README\.md|docs/specs/.*|docs/qa/.*|docs/pipeline/.*)$' | grep -v '^$' || true)"
+          if [ -z "$code" ]; then
+            verdict='문서 전용: secret scan만'; heavy=false
+          elif [ "$HAS_RUN_LABEL" != 'true' ]; then
+            verdict='ci:run 없음: 경량'; heavy=false
+          elif [ "$RUN_LABEL_EVENT" != 'true' ]; then
+            verdict='다른 라벨 추가: 경량'; heavy=false
+          else
+            verdict='전체'; heavy=true
+          fi
+          echo "heavy=$heavy" >> "$GITHUB_OUTPUT"
+          # 로그에도 남긴다 — Job Summary 는 API 로 읽을 수 없어 gh run view --log 로 판정을 확인한다
+          echo "CI 판정: $verdict (heavy=$heavy, ci:run=$HAS_RUN_LABEL, run-label-event=$RUN_LABEL_EVENT)"
+          {
+            echo "### CI 판정: $verdict"
+            echo
+            echo "- ci:run 라벨: $HAS_RUN_LABEL"
+            echo "- 변경 파일 $(printf '%s\n' "$changed" | grep -vc '^$' || true)개, 문서 전용 생략 대상 밖 $(printf '%s\n' "$code" | grep -vc '^$' || true)개"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Lint
+        if: steps.gate.outputs.heavy == 'true'
         run: pnpm lint
 
       - name: Typecheck
+        if: steps.gate.outputs.heavy == 'true'
         run: pnpm typecheck
 
       - name: Format check
+        if: steps.gate.outputs.heavy == 'true'
         run: pnpm format:check
 
       - name: Unit tests (coverage ≥ 80%)
+        if: steps.gate.outputs.heavy == 'true'
         run: pnpm test:coverage
 
       - name: Build (DB_DRIVER=neon — 운영과 같은 드라이버 경로)
+        if: steps.gate.outputs.heavy == 'true'
         run: pnpm build
         env:
           # PRAMI-002 §4.13: production 빌드는 KEK 가 없으면 LLM 킬스위치를 꺼야 env 검증을 통과한다 (CI 는 KEK 를 두지 않음)
@@ -85,72 +117,28 @@ jobs:
           DATABASE_URL: postgresql://ci:pw@ep-ci-build.example.neon.tech/prami
 
       - name: 정적 프리렌더 페이지 없음 (CSP nonce, PR-11a QA M-1)
+        if: steps.gate.outputs.heavy == 'true'
         run: pnpm check:prerender
 
       - name: 함수 번들에 PGlite 없음 (PRAMI-003 AC-330 ③)
+        if: steps.gate.outputs.heavy == 'true'
         run: pnpm check:trace
 
       - name: Upload coverage
-        if: always()
+        if: always() && steps.gate.outputs.heavy == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage/lcov.info
           if-no-files-found: ignore
 
-  integration:
-    name: integration (PostgreSQL 16 service)
-    runs-on: ubuntu-latest
-    needs: quality
-    timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: prami
-          POSTGRES_PASSWORD: prami
-          POSTGRES_DB: prami
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U prami -d prami"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-    env:
-      DB_DRIVER: pg
-      DATABASE_URL: postgres://prami:prami@localhost:5432/prami
-      # PRAMI-003 §4.9.3 L2: seed 는 CI·격리 DB 에서만 이 표식으로 허용된다
-      PRAMI_ALLOW_SEED: '1'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Migrate (drizzle/*.sql → Postgres)
-        run: pnpm db:migrate
-
-      - name: Seed (픽스처 ADMIN·USER, 공지, audit user.seed)
-        run: pnpm seed
-
-      - name: Integration tests (schema snapshot · seed)
-        run: pnpm test:integration
-
   e2e:
-    name: e2e (Playwright · PostgreSQL 16 · AUTH_TEST_MODE)
+    # integration 은 같은 Postgres 서비스에서 DB 이름만 나눠 이 잡 안에서 돈다 (서비스·설치 1회)
+    name: e2e · integration (Playwright · PostgreSQL 16 · AUTH_TEST_MODE)
     runs-on: ubuntu-latest
     needs: quality
-    timeout-minutes: 20
+    if: needs.quality.outputs.heavy == 'true'
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16
@@ -168,7 +156,7 @@ jobs:
     env:
       # playwright.config.ts 가 나머지 E2E 환경(AUTH_TEST_MODE 등)을 webServer·globalSetup 에 주입한다.
       # AUTH_TEST_MODE 는 production 빌드에서 거부되므로(AC-07) E2E 는 next dev 로 띄운다.
-      E2E_DATABASE_URL: postgres://prami:prami@localhost:5432/prami
+      E2E_DATABASE_URL: postgres://prami:prami@localhost:5432/prami_e2e
     steps:
       - uses: actions/checkout@v4
         with:
@@ -183,6 +171,30 @@ jobs:
 
       - name: Install
         run: pnpm install --frozen-lockfile
+
+      - name: Migrate (drizzle/*.sql → Postgres, integration DB)
+        run: pnpm db:migrate
+        env:
+          DB_DRIVER: pg
+          DATABASE_URL: postgres://prami:prami@localhost:5432/prami
+
+      - name: Seed (픽스처 ADMIN·USER, 공지, audit user.seed)
+        run: pnpm seed
+        env:
+          DB_DRIVER: pg
+          DATABASE_URL: postgres://prami:prami@localhost:5432/prami
+          # PRAMI-003 §4.9.3 L2: seed 는 CI·격리 DB 에서만 이 표식으로 허용된다
+          PRAMI_ALLOW_SEED: '1'
+
+      - name: Integration tests (schema snapshot · seed)
+        run: pnpm test:integration
+        env:
+          DB_DRIVER: pg
+          DATABASE_URL: postgres://prami:prami@localhost:5432/prami
+          PRAMI_ALLOW_SEED: '1'
+
+      - name: E2E DB 생성 (integration 과 분리)
+        run: docker exec "${{ job.services.postgres.id }}" psql -U prami -d prami -c 'CREATE DATABASE prami_e2e'
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium

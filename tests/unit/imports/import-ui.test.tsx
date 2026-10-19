@@ -20,6 +20,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }
 
 const { ImportPanel } = await import('@/features/admin-policies/ImportPanel');
 const { ApplyStatsView } = await import('@/features/admin-policies/ApplyStatsView');
+const { ImportFileRow } = await import('@/features/admin-policies/ImportFileRow');
 
 const SALES_BATCH: BatchOption = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -99,6 +100,7 @@ describe('ImportPanel', () => {
     mocks.applyPolicyAction.mockResolvedValue({ ok: true, data: { runId: 'r', stats: STATS } });
     render(
       <ImportPanel
+        userId="u"
         salesOptions={[SALES_BATCH]}
         itemOptions={[ITEM_BATCH]}
         currentSalesId={SALES_BATCH.id}
@@ -130,7 +132,13 @@ describe('ImportPanel', () => {
       error: { code: 'INTERNAL', message: '가격정책 적용에 실패했습니다: 불변식 I-1 위반' },
     });
     render(
-      <ImportPanel salesOptions={[]} itemOptions={[]} currentSalesId={null} currentItemId={null} />,
+      <ImportPanel
+        userId="u"
+        salesOptions={[]}
+        itemOptions={[]}
+        currentSalesId={null}
+        currentItemId={null}
+      />,
     );
     const apply = screen.getByRole('button', { name: '가격정책 적용' });
     expect(apply).toBeDisabled();
@@ -181,7 +189,13 @@ describe('ImportPanel', () => {
       },
     });
     render(
-      <ImportPanel salesOptions={[]} itemOptions={[]} currentSalesId={null} currentItemId={null} />,
+      <ImportPanel
+        userId="u"
+        salesOptions={[]}
+        itemOptions={[]}
+        currentSalesId={null}
+        currentItemId={null}
+      />,
     );
     await chooseFile('판매단가 엑셀 업로드');
     const alert = await screen.findByRole('alert');
@@ -203,6 +217,7 @@ describe('ImportPanel', () => {
     });
     render(
       <ImportPanel
+        userId="u"
         salesOptions={[SALES_BATCH]}
         itemOptions={[]}
         currentSalesId={null}
@@ -221,7 +236,13 @@ describe('ImportPanel', () => {
       vi.fn(async () => Promise.reject(new Error('offline'))),
     );
     render(
-      <ImportPanel salesOptions={[]} itemOptions={[]} currentSalesId={null} currentItemId={null} />,
+      <ImportPanel
+        userId="u"
+        salesOptions={[]}
+        itemOptions={[]}
+        currentSalesId={null}
+        currentItemId={null}
+      />,
     );
     await chooseFile('품목조회 파일 업로드 (1~5개, 제품군별)');
     expect(await screen.findByRole('alert')).toHaveTextContent('업로드하지 못했습니다');
@@ -267,6 +288,7 @@ describe('ImportPanel 업로드 상한·병합 미리보기 (PRAMI-003 QA M-2·L
     );
     render(
       <ImportPanel
+        userId="u"
         salesOptions={[SALES_BATCH]}
         itemOptions={[ITEM_BATCH]}
         currentSalesId={SALES_BATCH.id}
@@ -290,6 +312,7 @@ describe('ImportPanel 업로드 상한·병합 미리보기 (PRAMI-003 QA M-2·L
     });
     render(
       <ImportPanel
+        userId="u"
         salesOptions={[SALES_BATCH]}
         itemOptions={[ITEM_BATCH]}
         currentSalesId={SALES_BATCH.id}
@@ -304,7 +327,13 @@ describe('ImportPanel 업로드 상한·병합 미리보기 (PRAMI-003 QA M-2·L
   it('M-2: 파일당 10MB·품목 합계 25MB·5개 초과는 보내기 전에 안내하고 요청하지 않는다', async () => {
     const fetchMock = mockFetch({ ok: true, data: UPLOAD_OK });
     render(
-      <ImportPanel salesOptions={[]} itemOptions={[]} currentSalesId={null} currentItemId={null} />,
+      <ImportPanel
+        userId="u"
+        salesOptions={[]}
+        itemOptions={[]}
+        currentSalesId={null}
+        currentItemId={null}
+      />,
     );
     await userEvent.upload(
       screen.getByLabelText('판매단가 엑셀 업로드'),
@@ -341,7 +370,13 @@ describe('ImportPanel 업로드 상한·병합 미리보기 (PRAMI-003 QA M-2·L
     );
     vi.stubGlobal('fetch', fetchMock);
     render(
-      <ImportPanel salesOptions={[]} itemOptions={[]} currentSalesId={null} currentItemId={null} />,
+      <ImportPanel
+        userId="u"
+        salesOptions={[]}
+        itemOptions={[]}
+        currentSalesId={null}
+        currentItemId={null}
+      />,
     );
     await userEvent.upload(screen.getByLabelText('품목조회 파일 업로드 (1~5개, 제품군별)'), [
       sizedFile('a.xlsx', 10 * MB),
@@ -360,5 +395,24 @@ describe('ApplyStatsView', () => {
     render(<ApplyStatsView title="적용 완료" stats={STATS} />);
     expect(screen.getByText('폐기로 미사용 처리')).toBeInTheDocument();
     expect(screen.getByText('3,808')).toBeInTheDocument();
+  });
+});
+
+describe('ImportFileRow 기존 파일 목록 (Linux 하이드레이션 수정 §3.3)', () => {
+  it('업로드일은 KST 기준 날짜 — UTC 20시 업로드가 전날로 표시되지 않는다', () => {
+    render(
+      <ImportFileRow
+        kind="sales"
+        label="판매단가 파일"
+        uploadLabel="판매단가 업로드"
+        options={[{ ...SALES_BATCH, createdAt: '2026-10-01T20:00:00Z' }]}
+        selection={{ mode: 'reuse', upload: null, reuseId: SALES_BATCH.id }}
+        onChange={() => {}}
+        userId="u"
+      />,
+    );
+    const option = screen.getByRole('option', { name: /병합_가격_raw\.xlsx/ });
+    expect(option).toHaveTextContent('2026-10-02');
+    expect(option).not.toHaveTextContent('2026-10-01');
   });
 });

@@ -2,6 +2,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { DbHandle } from '@/db';
+import { filterToQuery } from '@/features/audit/query';
 import { auditLogs } from '@/db/schema';
 import { normalizeIp, toAuditRow, writeAudit } from '@/server/audit/log';
 import {
@@ -47,6 +48,23 @@ describe('parseAuditFilter', () => {
       }),
     ).toEqual({ from: '2026-09-01', to: undefined, action: undefined, actor: 'kim', page: 1 });
     expect(parseAuditFilter({ page: '2' }).page).toBe(2);
+  });
+
+  it('정렬 sort·dir: 화이트리스트만 받고 filterToQuery 는 맨 뒤에 붙인다 (#32 §3)', () => {
+    const filter = parseAuditFilter({ actor: 'kim', page: '2', sort: 'result', dir: 'desc' });
+    expect(filter).toEqual({
+      from: undefined,
+      to: undefined,
+      action: undefined,
+      actor: 'kim',
+      page: 2,
+      sort: { id: 'result', dir: 'desc' },
+    });
+    expect(filterToQuery(filter)).toBe('?actor=kim&page=2&sort=result&dir=desc');
+    expect(filterToQuery({ page: 1, sort: { id: 'ip', dir: 'asc' } })).toBe('?sort=ip&dir=asc');
+    expect(parseAuditFilter({ sort: 'id;drop', dir: 'asc' }).sort).toBeUndefined();
+    expect(parseAuditFilter({ sort: 'before' }).sort).toBeUndefined();
+    expect('sort' in parseAuditFilter({})).toBe(false);
   });
 });
 

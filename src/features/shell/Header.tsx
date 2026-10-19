@@ -4,8 +4,9 @@ import { Input } from '@/components/ui/input';
 import { signOutAction } from '@/features/auth/actions';
 import { TestModeBanner } from '@/features/auth/TestModeBanner';
 import { ChatLauncher } from '@/features/chat/ChatDock';
+import { NotificationBell } from '@/features/notifications/NotificationBell';
 
-import { Icon, type IconName } from './icons';
+import { Icon } from './icons';
 
 export type HeaderUser = {
   name: string;
@@ -20,7 +21,7 @@ export type HeaderProps = {
   testMode?: boolean;
 };
 
-/** 앱 셸 헤더: 통합 검색, 챗봇/공지 버튼, 사용자 표시·로그아웃 */
+/** 앱 셸 헤더: 통합 검색, 챗봇/알림 버튼, 사용자 표시·로그아웃 */
 export function Header({ user, testMode = false }: HeaderProps) {
   const initial = user?.name.trim().charAt(0) || '?';
 
@@ -38,7 +39,7 @@ export function Header({ user, testMode = false }: HeaderProps) {
       <div className="flex-1 max-md:hidden" />
       {testMode ? <TestModeBanner variant="inline" /> : null}
       <ChatLauncher />
-      <IconButton label="공지사항" icon="bell" />
+      <NotificationBell />
       <div className="flex items-center gap-2.5 border-l border-border-subtle pl-3.5 max-md:gap-1 max-md:pl-2">
         <div
           aria-hidden="true"
@@ -70,18 +71,5 @@ export function Header({ user, testMode = false }: HeaderProps) {
         ) : null}
       </div>
     </header>
-  );
-}
-
-function IconButton({ label, icon }: { label: string; icon: IconName }) {
-  return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      className="flex size-9 items-center justify-center rounded-pill border-0 bg-gray-75 text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900"
-    >
-      <Icon name={icon} className="size-4" />
-    </button>
   );
 }

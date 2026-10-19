@@ -2,6 +2,8 @@
 
 import { useState, useTransition, type FormEvent, type ReactNode } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button, Input, Modal } from '@/components/ui';
 
 import { upsertMaterialCostAction } from './actions';
@@ -73,14 +75,15 @@ export function CostEditModal({ row, onClose, onSaved }: CostEditModalProps) {
             자재·적용시작일의 ERP 값으로 대체될 수 있습니다.
           </p>
         ) : null}
-        {error ? (
-          <p
-            role="alert"
-            className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-500"
-          >
-            {error}
-          </p>
-        ) : null}
+        <Presence>
+          {error ? (
+            <Collapse key="error" role="alert">
+              <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-500">
+                {error}
+              </p>
+            </Collapse>
+          ) : null}
+        </Presence>
         <CostEditFields row={row} values={values} fieldErrors={fieldErrors} onChange={set} />
       </form>
     </Modal>

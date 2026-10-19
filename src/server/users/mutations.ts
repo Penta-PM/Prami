@@ -10,6 +10,8 @@ import { AppError } from '@/lib/result';
 import { AUDIT_ACTIONS, writeAudit, type RequestMeta } from '@/server/audit/log';
 import { isAllowedDomain } from '@/server/auth/callbacks';
 import { invalidateSessionUser } from '@/server/auth/session-user';
+import { insertForUser } from '@/server/notifications/audience';
+import { NOTIFICATION_REF, notificationContent } from '@/server/notifications/types';
 
 import {
   createUserSchema,
@@ -141,6 +143,16 @@ export async function updateUser(ctx: MutationContext, raw: UpdateUserInput): Pr
       ...diff,
       meta: ctx.meta,
     });
+    // #31: 역할이 실제로 바뀌었을 때만 대상 본인에게 (활성일 때만, 본인이 바꾼 경우는 제외 — insertForUser)
+    if (target.role !== row.role) {
+      await insertForUser(tx, row.id, {
+        type: 'user.role_changed',
+        ...notificationContent.roleChanged(row.role),
+        refType: NOTIFICATION_REF.user,
+        refId: row.id,
+        actorUserId: ctx.actor.id,
+      });
+    }
     return row;
   }, ctx.handle);
   invalidateSessionUser(updated.id);

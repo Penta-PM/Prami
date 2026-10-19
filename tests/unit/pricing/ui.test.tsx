@@ -49,6 +49,8 @@ const ROW: PriceRowView = {
   operationStatus: '미사용',
   remark: '26.05.01 가격정책',
   source: 'erp',
+  previousPrice: null,
+  priceChangeRate: null,
 };
 
 const DETAIL_ROW = {
@@ -94,6 +96,9 @@ const DETAIL = {
   ],
 };
 
+/** PricingBrowser 공통 props — 기본 필터(정렬 없음)·로그인 사용자 */
+const BROWSER = { filter: { dateMode: 'start' as const, page: 1 }, userId: 'u1' };
+
 const headers = () =>
   screen
     .getByRole('table')
@@ -109,7 +114,7 @@ beforeEach(() => {
 
 describe('PriceTable (AC-12~14, AC-22)', () => {
   it('조회 표: 적용기간만, 판매가 포맷, 품목상태 색상 필, 운영상태 텍스트', () => {
-    render(<PriceTable mode="view" rows={[ROW]} onRowClick={vi.fn()} />);
+    render(<PriceTable mode="view" rows={[ROW]} userId="u1" onRowClick={vi.fn()} />);
     expect(headers()).toEqual([
       '단가 유형',
       '대분류',
@@ -118,6 +123,7 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
       '품목명',
       '판매가',
       '적용기간',
+      '가격 변동',
       '품목상태',
       '상태',
       '비고',
@@ -134,6 +140,7 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
       <PriceTable
         mode="admin"
         rows={[{ ...ROW, itemStatus: '미확인', priceType: null }]}
+        userId="u1"
         onRowClick={onRowClick}
         renderActions={() => <button type="button">수정</button>}
       />,
@@ -147,8 +154,34 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
     expect(onRowClick).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
   });
 
+  it('가격 변동 열: 상승·하락·변동 없음·— 4상태, 화살표는 aria-hidden, 비고는 그대로', () => {
+    const rows: PriceRowView[] = [
+      { ...ROW, id: 1, unitPrice: '1100.00', previousPrice: '1000.00', priceChangeRate: 10 },
+      { ...ROW, id: 2, unitPrice: '990.00', previousPrice: '1100.00', priceChangeRate: -10 },
+      { ...ROW, id: 3, unitPrice: '990.00', previousPrice: '990.00', priceChangeRate: 0 },
+      { ...ROW, id: 4, previousPrice: null, priceChangeRate: null },
+      { ...ROW, id: 5, previousPrice: '0.00', priceChangeRate: null },
+    ];
+    render(<PriceTable mode="view" rows={rows} userId="u1" onRowClick={vi.fn()} />);
+    const cells = Array.from(document.querySelectorAll('[data-price-change]'));
+    expect(cells.map((cell) => [cell.getAttribute('data-price-change'), cell.textContent])).toEqual(
+      [
+        ['up', '▲이전 대비 10.0% 상승'],
+        ['down', '▼이전 대비 10.0% 하락'],
+        ['same', '변동 없음'],
+        ['none', '—'],
+        ['none', '—'],
+      ],
+    );
+    for (const arrow of ['▲', '▼'])
+      expect(screen.getByText(arrow)).toHaveAttribute('aria-hidden', 'true');
+    expect(cells[0]).toHaveClass('text-text-danger');
+    expect(cells[1]).toHaveClass('text-purple-600');
+    expect(screen.getAllByText('26.05.01 가격정책')).toHaveLength(5);
+  });
+
   it('빈 결과 안내', () => {
-    render(<PriceTable mode="view" rows={[]} onRowClick={vi.fn()} />);
+    render(<PriceTable mode="view" rows={[]} userId="u1" onRowClick={vi.fn()} />);
     expect(screen.getByText('검색 결과가 없습니다.')).toBeInTheDocument();
   });
 });
@@ -221,7 +254,7 @@ describe('PricingFilters (AC-10·11, R-01·R-13)', () => {
 
 describe('PricingBrowser — 드로어·관리 동작 (AC-15·16)', () => {
   it('행 클릭 → 행 상세 드로어: 원본 20컬럼 + 계열 이력', async () => {
-    render(<PricingBrowser mode="view" rows={[ROW]} />);
+    render(<PricingBrowser mode="view" rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByText('Wapples-500 (H500 T2)'));
     const drawer = await screen.findByRole('dialog', { name: '행 상세' });
     const source = await within(drawer).findByRole('region', { name: '원본 20컬럼' });
@@ -245,7 +278,7 @@ describe('PricingBrowser — 드로어·관리 동작 (AC-15·16)', () => {
         fieldErrors: { reason: ['변경 사유를 입력하세요'] },
       },
     });
-    render(<PricingBrowser mode="admin" rows={[ROW]} />);
+    render(<PricingBrowser mode="admin" rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByRole('button', { name: '+ 등록' }));
     const dialog = screen.getByRole('dialog', { name: '가격정책 등록' });
     await userEvent.click(within(dialog.closest('dialog')!).getByRole('button', { name: '저장' }));
@@ -258,7 +291,7 @@ describe('PricingBrowser — 드로어·관리 동작 (AC-15·16)', () => {
       ok: true,
       data: { id: 7, operationStatus: '미사용', discarded: true },
     });
-    render(<PricingBrowser mode="admin" rows={[ROW]} />);
+    render(<PricingBrowser mode="admin" rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByRole('button', { name: `${ROW.itemName} 수정` }));
     const dialog = await screen.findByRole('dialog', { name: '가격정책 수정' });
     expect(within(dialog).getByRole('note')).toHaveTextContent('폐기 품목입니다');
@@ -286,7 +319,7 @@ describe('PricingBrowser — 드로어·관리 동작 (AC-15·16)', () => {
         },
       })
       .mockResolvedValueOnce({ ok: true, data: { id: 7 } });
-    render(<PricingBrowser mode="admin" rows={[ROW]} />);
+    render(<PricingBrowser mode="admin" rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByRole('button', { name: `${ROW.itemName} 복사` }));
     const copy = await screen.findByRole('dialog', { name: '가격정책 등록' });
     expect(within(copy).getByLabelText('적용시작일 *')).toHaveValue('');
@@ -313,7 +346,7 @@ describe('PricingBrowser — 드로어·관리 동작 (AC-15·16)', () => {
       ok: false,
       error: { code: 'NOT_FOUND', message: '가격정책을 찾을 수 없습니다' },
     });
-    render(<PricingBrowser mode="admin" rows={[ROW]} />);
+    render(<PricingBrowser mode="admin" rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByRole('button', { name: `${ROW.itemName} 수정` }));
     expect(await screen.findByRole('alert')).toHaveTextContent('가격정책을 찾을 수 없습니다');
   });

@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button, Modal } from '@/components/ui';
 import type { ActionResult } from '@/lib/result';
 
@@ -46,11 +48,13 @@ export function NoticeDeleteModal({ notice, onClose, onDone }: NoticeDeleteModal
         <strong className="text-ink-900">{notice.title}</strong> ({notice.publishedAt} ·{' '}
         {notice.authorName}) 공지를 삭제합니다. 목록과 홈에서 바로 사라지며 감사 로그에 남습니다.
       </p>
-      {error ? (
-        <p role="alert" className="m-0 mt-3 text-[12px] text-red-500">
-          {error}
-        </p>
-      ) : null}
+      <Presence>
+        {error ? (
+          <Collapse key="error" role="alert">
+            <p className="m-0 mt-3 text-[12px] text-red-500">{error}</p>
+          </Collapse>
+        ) : null}
+      </Presence>
     </Modal>
   );
 }

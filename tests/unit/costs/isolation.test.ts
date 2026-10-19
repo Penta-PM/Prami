@@ -146,7 +146,71 @@ describe('AC-42 server/cost import 제한', () => {
     }
   }, 90_000);
 
-  it('소스 스캔: 허용 목록 밖 src 에 material_costs·materialCosts 참조가 없다 (lint 우회 가드)', () => {
+  it('원가 매핑(cost_item_links, 스펙 cost-ratio-price-change §2.1-1)도 원가 영역: 스키마·관계형 쿼리·raw SQL 을 막는다', async () => {
+    const cases: [string, string][] = [
+      [
+        'link-schema',
+        [
+          "import { costItemLinks } from '@/db/schema';",
+          'export const t = costItemLinks;',
+          '',
+        ].join('\n'),
+      ],
+      [
+        'link-schema-file',
+        [
+          "import { costItemLinks } from '@/db/schema/cost-item-links';",
+          'export const t = costItemLinks;',
+          '',
+        ].join('\n'),
+      ],
+      [
+        'link-relational',
+        [
+          "import { getDb } from '@/db';",
+          'export async function f() {',
+          '  return (await getDb()).query.costItemLinks.findMany();',
+          '}',
+          '',
+        ].join('\n'),
+      ],
+      [
+        'link-rawsql',
+        [
+          "import { sql } from 'drizzle-orm';",
+          'export const q = sql`select material_code from cost_item_links`;',
+          '',
+        ].join('\n'),
+      ],
+      ['link-rawsql-literal', "export const s = 'select * from cost_item_links';\n"],
+      [
+        'link-module',
+        [
+          "import { listCostLinkView } from '@/server/cost/item-links';",
+          'export const keep = listCostLinkView;',
+          '',
+        ].join('\n'),
+      ],
+    ];
+    for (const [name, source] of cases) {
+      const file = path.join(ROOT, `src/features/pricing/__cost_${name}.tmp.ts`);
+      writeFileSync(file, source);
+      try {
+        const [result] = await eslint.lintFiles([file]);
+        expect(result?.errorCount, name).toBeGreaterThanOrEqual(1);
+        expect(
+          result?.messages.some(
+            (m) => m.ruleId === 'no-restricted-syntax' || m.ruleId === 'no-restricted-imports',
+          ),
+          name,
+        ).toBe(true);
+      } finally {
+        rmSync(file, { force: true });
+      }
+    }
+  }, 90_000);
+
+  it('소스 스캔: 허용 목록 밖 src 에 material_costs·materialCosts·cost_item_links·costItemLinks 참조가 없다 (lint 우회 가드)', () => {
     const offenders: string[] = [];
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -162,7 +226,12 @@ describe('AC-42 server/cost import 제한', () => {
         const code = readFileSync(full, 'utf8')
           .replace(/\/\*[\s\S]*?\*\//g, '')
           .replace(/\/\/.*$/gm, '');
-        if (/(^|[^_a-zA-Z])material_costs|\bmaterialCosts\b/.test(code)) offenders.push(rel);
+        if (
+          /(^|[^_a-zA-Z])(material_costs|cost_item_links)|\b(materialCosts|costItemLinks)\b/.test(
+            code,
+          )
+        )
+          offenders.push(rel);
       }
     };
     walk(path.join(ROOT, 'src'));
@@ -230,6 +299,8 @@ describe('AC-43 공개 쿼리 응답에 unit_cost·material_code 없음', () => 
         'mid',
         'minor',
         'operationStatus',
+        'previousPrice',
+        'priceChangeRate',
         'priceType',
         'remark',
         'source',

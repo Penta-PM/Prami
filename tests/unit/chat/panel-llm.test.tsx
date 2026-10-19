@@ -54,7 +54,8 @@ async function openPanel() {
       <ChatDock />
     </ChatProvider>,
   );
-  await userEvent.click(screen.getByRole('button', { name: '챗봇 열기' }));
+  // 진입점은 헤더 챗봇 버튼 하나 (#30 — 우하단 플로팅 버튼 제거)
+  await userEvent.click(screen.getByRole('button', { name: '챗봇' }));
   return screen.getByRole('complementary', { name: '가격정책 챗봇' });
 }
 

@@ -1,5 +1,5 @@
 import { Pill } from '@/components/ui';
-import { formatAuditTime } from '@/lib/audit-format';
+import { formatDate } from '@/lib/date-format';
 import { priceLabel } from '@/lib/pricing/format';
 
 import type { QuoteDocumentView } from './types';
@@ -22,10 +22,7 @@ export function QuoteSheet({ document }: { document: QuoteDocumentView }) {
       </header>
       <dl className="m-0 grid grid-cols-2 gap-3 rounded-xl bg-surface-card p-4 text-[13px] shadow-(--hairline-default) sm:grid-cols-4">
         <Meta label="견적 번호" value={document.quoteNo} />
-        <Meta
-          label="견적 일자"
-          value={formatAuditTime(new Date(document.createdAt)).slice(0, 10)}
-        />
+        <Meta label="견적 일자" value={formatDate(document.createdAt)} />
         <Meta label="제품군" value={document.productFamily ?? '—'} />
         <Meta label="작성자" value={document.ownerName} />
       </dl>

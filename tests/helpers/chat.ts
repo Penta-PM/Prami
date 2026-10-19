@@ -22,6 +22,17 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   historyMaxTurns: 10,
 };
 
+/**
+ * 벤더 오류 재시도 경로 전용 설정. LangChain AsyncCaller(p-retry, randomize)의 첫 재시도 대기가 1000~2000ms 라
+ * 기본 timeoutMs 2000 과 경합해, 고부하·운 나쁜 지터에서 5xx·429·fetch failed 가 'timeout' 으로 분류되던 타이밍 flake 를
+ * 막는다 (CI 사용량 절감 PR-C — xai-adapter 503, llm-diagnostics-r2 attempts). 재시도 1회 + 응답이 여유 있게 들어간다.
+ * 8000 의 근거: 벤더 모델은 maxRetries: 1(src/server/llm/vendors/*)이고 @langchain/openai 는 SDK 재시도를 끈다(maxRetries: 0).
+ * p-retry 대기는 randomize(1~2배) × minTimeout 1000 × factor 2^(n-1) 이라 재시도 1회의 최악 누적 대기는 2000ms 다 —
+ * 8000 은 그 4배라 고부하에서도 첫 시도·재시도 응답 시간까지 들어간다. maxRetries 를 올리면 이 값도 다시 계산한다.
+ * 타임아웃 자체를 검증하는 테스트는 기본값(2000)을 그대로 쓴다.
+ */
+export const RETRY_SAFE_SETTINGS: Partial<ChatSettings> = { timeoutMs: 8000 };
+
 export type ChatTestDb = { handle: DbHandle; userId: string; adminId: string };
 
 export async function setupChatDb(): Promise<ChatTestDb> {

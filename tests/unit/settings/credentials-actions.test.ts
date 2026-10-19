@@ -39,6 +39,8 @@ const { rateLimiters } = await import('@/server/rate-limit');
 const { getMySettings } = await import('@/server/llm/credentials/settings');
 const { keyringFromEnv } = await import('@/server/llm/credentials/keyring');
 const { env } = await import('@/env');
+const { chatStatus } = await import('@/server/chat/graph/runtime');
+const { MISSING_MESSAGE } = await import('@/server/chat/graph/messages');
 
 let userA: string;
 let userB: string;
@@ -485,6 +487,154 @@ describe('사용 가능 모델 저장·기본값 교집합 (AC-207 ⑦·AC-208, 
         .filter((model) => model.lifecycleLabel === '레거시')
         .map((model) => model.id),
     ).toEqual(['claude-opus-5', 'claude-sonnet-5']);
+  });
+});
+
+describe('자격 증명 삭제 시 기본 벤더 정리 (#17 I-3)', () => {
+  let seq = 0;
+  const freshUser = async () =>
+    (await insertUser(state.handle!, { email: `i3-${(seq += 1)}@pentasecurity.com`, role: 'USER' }))
+      .id;
+  const defaultsOf = async (userId: string) =>
+    (
+      await queryRows<{ vendor: string | null; model: string | null }>(
+        state.handle!.db,
+        sql`select chat_default_vendor vendor, chat_default_model model from user_settings where user_id = ${userId}`,
+      )
+    )[0];
+  const auditsOf = async (userId: string) =>
+    queryRows<{ action: string; before: unknown; after: unknown }>(
+      state.handle!.db,
+      sql`select action, before, after from audit_logs where actor_user_id = ${userId} order by id`,
+    );
+  const viewOf = (userId: string) =>
+    getMySettings({
+      db: state.handle!.db,
+      userId,
+      keys: keyringFromEnv(env),
+      mode: 'fake',
+      testMode: true,
+    });
+  /** anthropic(기본값 claude-opus-5-5) + openai 정상 키 */
+  const withDefault = async () => {
+    const userId = await freshUser();
+    as(userId);
+    await actions.saveLlmCredentialAction({ vendor: 'anthropic', apiKey: makeFakeKey() });
+    await actions.saveLlmCredentialAction({ vendor: 'openai', apiKey: makeFakeKey() });
+    expect(
+      await actions.updateChatDefaultsAction({ vendor: 'anthropic', model: 'claude-opus-5-5' }),
+    ).toMatchObject({ ok: true });
+    return userId;
+  };
+
+  it('(1) 기본 벤더의 키를 삭제하면 vendor·model 이 null, 감사 2건(credential delete·default update)', async () => {
+    const userId = await withDefault();
+    const before = (await auditsOf(userId)).length;
+    expect(await actions.deleteLlmCredentialAction({ vendor: 'anthropic' })).toEqual({
+      ok: true,
+      data: { deleted: true },
+    });
+    expect(await defaultsOf(userId)).toEqual({ vendor: null, model: null });
+    expect((await auditsOf(userId)).slice(before)).toEqual([
+      {
+        action: 'settings.llm_credential.delete',
+        before: { vendor: 'anthropic', authType: 'api_key' },
+        after: null,
+      },
+      {
+        action: 'settings.llm_default.update',
+        before: { vendor: 'anthropic', model: 'claude-opus-5-5' },
+        after: { vendor: null, model: null },
+      },
+    ]);
+    expect((await viewOf(userId)).defaults).toEqual({
+      vendor: null,
+      model: null,
+      modelReplaced: false,
+    });
+  });
+
+  it('(2) 다른 벤더 키를 삭제하면 기본값 그대로, default update 감사 없음', async () => {
+    const userId = await withDefault();
+    const before = (await auditsOf(userId)).length;
+    expect(await actions.deleteLlmCredentialAction({ vendor: 'openai' })).toMatchObject({
+      ok: true,
+    });
+    expect(await defaultsOf(userId)).toEqual({ vendor: 'anthropic', model: 'claude-opus-5-5' });
+    expect((await auditsOf(userId)).slice(before).map((row) => row.action)).toEqual([
+      'settings.llm_credential.delete',
+    ]);
+  });
+
+  it('(3) 기본 벤더 키를 교체하면 기본값 그대로 (storeSealed 경로는 정리하지 않음)', async () => {
+    const userId = await withDefault();
+    const before = (await auditsOf(userId)).length;
+    expect(
+      await actions.saveLlmCredentialAction({ vendor: 'anthropic', apiKey: makeFakeKey() }),
+    ).toMatchObject({ ok: true, data: { status: 'valid' } });
+    expect(await defaultsOf(userId)).toEqual({ vendor: 'anthropic', model: 'claude-opus-5-5' });
+    const added = (await auditsOf(userId)).slice(before).map((row) => row.action);
+    expect(added).toContain('settings.llm_credential.replace');
+    expect(added).not.toContain('settings.llm_default.update');
+  });
+
+  it('(4) 삭제한 뒤 같은 벤더 키를 다시 등록해도 기본값이 되살아나지 않는다', async () => {
+    const userId = await withDefault();
+    await actions.deleteLlmCredentialAction({ vendor: 'anthropic' });
+    expect(
+      await actions.saveLlmCredentialAction({ vendor: 'anthropic', apiKey: makeFakeKey() }),
+    ).toMatchObject({ ok: true, data: { status: 'valid' } });
+    expect(await defaultsOf(userId)).toEqual({ vendor: null, model: null });
+    expect((await viewOf(userId)).defaults).toEqual({
+      vendor: null,
+      model: null,
+      modelReplaced: false,
+    });
+  });
+
+  it('(5) 정상 키가 하나도 없으면 설정은 빈 상태(키 0건), 챗봇 상태는 missing + MISSING 배너 문구', async () => {
+    const userId = await withDefault();
+    await actions.deleteLlmCredentialAction({ vendor: 'anthropic' });
+    await actions.deleteLlmCredentialAction({ vendor: 'openai' });
+    const view = await viewOf(userId);
+    // LlmSection 은 credentials 가 비면 NO_CREDENTIAL_NOTICE 를 보인다 (렌더 단언은 settings-page.test.tsx)
+    expect(view.credentials).toEqual([]);
+    expect(view.defaults).toEqual({ vendor: null, model: null, modelReplaced: false });
+    const status = await chatStatus({ db: state.handle!.db, userId, env });
+    expect(status.llm).toMatchObject({ status: 'missing', vendor: null, model: null });
+    expect('setup' in status ? status.setup?.message : undefined).toBe(MISSING_MESSAGE);
+  });
+
+  it('기본값 정리가 실패하면 키 삭제·감사도 롤백된다 (같은 트랜잭션)', async () => {
+    const userId = await withDefault();
+    const before = await auditsOf(userId);
+    // 이 사용자의 기본값을 비우는 UPDATE 만 실패시키는 트리거
+    await state.handle!.db.execute(
+      sql.raw(`create or replace function i3_fail_clear() returns trigger language plpgsql as $body$
+        begin raise exception 'i3 forced failure'; end $body$`),
+    );
+    await state.handle!.db.execute(
+      sql.raw(`create trigger i3_fail_clear before update on user_settings for each row
+        when (old.user_id = '${userId}' and new.chat_default_vendor is null)
+        execute function i3_fail_clear()`),
+    );
+    try {
+      expect(await actions.deleteLlmCredentialAction({ vendor: 'anthropic' })).toMatchObject({
+        ok: false,
+      });
+    } finally {
+      await state.handle!.db.execute(
+        sql.raw('drop trigger if exists i3_fail_clear on user_settings'),
+      );
+      await state.handle!.db.execute(sql.raw('drop function if exists i3_fail_clear()'));
+    }
+    const rows = await queryRows<{ n: number }>(
+      state.handle!.db,
+      sql`select count(*)::int n from user_llm_credentials where user_id = ${userId} and vendor = 'anthropic'`,
+    );
+    expect(rows[0]!.n).toBe(1);
+    expect(await defaultsOf(userId)).toEqual({ vendor: 'anthropic', model: 'claude-opus-5-5' });
+    expect(await auditsOf(userId)).toEqual(before);
   });
 });
 

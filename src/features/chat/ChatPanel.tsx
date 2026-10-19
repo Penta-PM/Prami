@@ -1,9 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { m, type Variants } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
+import { PRESS_CLASSES } from '@/components/ui/button';
+import { cn } from '@/lib/cn';
+import { slideRight, transition, VARIANT_KEYS } from '@/lib/motion/tokens';
 
 import { useChatPanel } from './ChatContext';
 import { BillingNotice, SetupBanner, SetupLink } from './SetupBanner';
@@ -24,8 +29,25 @@ export const EXAMPLE_QUESTIONS = [
 ] as const;
 export { askChat, GREETING } from './useChatConversation';
 
+/**
+ * 새 메시지 버블·"답변을 찾는 중…" 진입 (Motion 도입 스펙 §3.3 챗 메시지): 아래에서 8px 올라오며 fade, `transition.base`.
+ * 프리셋 `fadeUp` 은 6px 이라 같은 토큰으로 8px 만 바꿔 조합한다. 퇴장은 두지 않는다(즉시 제거).
+ * `layout` 은 쓰지 않는다 — 스트리밍 토큰마다 레이아웃을 다시 재므로 금지(§3.4-3).
+ */
+const bubbleEnter: Variants = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: transition.base },
+};
+
 export function ChatPanel() {
-  const { isOpen, close, statusEndpoint } = useChatPanel();
+  // 패널 동작은 '그리는지'(isShown) 기준 — 알림 드롭다운 퇴장을 기다리는 동안은 닫힌 패널과 같다 (#31)
+  const {
+    isShown: isOpen,
+    close,
+    launcherRef,
+    statusEndpoint,
+    onPanelExitComplete,
+  } = useChatPanel();
   const { status, applyLlm } = useChatStatus(statusEndpoint, isOpen);
   const [input, setInput] = useState('');
   const [showProductChips, setShowProductChips] = useState(false);
@@ -45,7 +67,23 @@ export function ChatPanel() {
     logRef.current?.scrollTo?.({ top: logRef.current.scrollHeight });
   }, [messages]);
 
-  if (!isOpen) return null;
+  // ×·Escape 로 닫으면 포커스를 헤더 챗봇 버튼으로 돌려준다 — 없으면 body 로 빠진다 (#30)
+  const closeAndRestoreFocus = useCallback(() => {
+    close();
+    launcherRef.current?.focus();
+  }, [close, launcherRef]);
+
+  // Escape 로 닫기 (#30, Main 결정 A). 모달(<dialog open>)·드로어(aria-modal) 가 열려 있으면 그쪽 Escape 가 우선이다
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (document.querySelector('dialog[open], [aria-modal="true"]')) return;
+      closeAndRestoreFocus();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, closeAndRestoreFocus]);
 
   const send = async (raw: string) => {
     const text = raw.trim();
@@ -58,95 +96,124 @@ export function ChatPanel() {
 
   const askedByUser = messages.some((message) => message.from === 'user');
 
+  // 패널은 slideRight(x 24 + fade) 로 진입·퇴장한다 (Motion 도입 스펙 §3.3 챗 패널). 대화 상태는 이 컴포넌트에 남으므로
+  // 패널을 닫았다 열어도 메시지는 유지된다. 버블은 패널과 함께 마운트되는 Presence(initial={false}) 안에 있어
+  // 패널을 다시 열 때 기존 메시지는 애니메이션 없이 최종 상태로, 열린 뒤 추가된 버블만 1회 fadeUp 한다 (§3.3 챗 메시지)
   return (
-    <aside
-      aria-label="가격정책 챗봇"
-      className="fixed top-0 right-0 z-30 flex h-screen w-[min(400px,100vw)] flex-col border-l border-border-subtle bg-surface-page shadow-(--shadow-elevated)"
-    >
-      <header className="flex items-start justify-between gap-3 border-b border-border-subtle px-5 py-4">
-        <div>
-          <h2 className="m-0 text-[14px] font-semibold">가격정책 챗봇</h2>
-          <p className="m-0 text-[11px] text-text-tertiary">원가 데이터는 표시되지 않습니다</p>
-        </div>
-        <button
-          type="button"
-          aria-label="챗봇 닫기"
-          onClick={close}
-          className="border-0 bg-transparent text-[16px] font-semibold text-text-tertiary hover:text-ink-900"
+    <Presence onExitComplete={onPanelExitComplete}>
+      {isOpen ? (
+        <m.aside
+          key="chat-panel"
+          aria-label="가격정책 챗봇"
+          variants={slideRight}
+          initial={VARIANT_KEYS.initial}
+          animate={VARIANT_KEYS.animate}
+          exit={VARIANT_KEYS.exit}
+          className="fixed top-0 right-0 z-30 flex h-screen w-[min(400px,100vw)] flex-col border-l border-border-subtle bg-surface-page shadow-(--shadow-elevated)"
         >
-          ×
-        </button>
-      </header>
-      {status?.setup ? <SetupBanner setup={status.setup} /> : null}
-      {status?.llm.status === 'ready' && !billingDismissed ? (
-        <BillingNotice onClose={() => setBillingDismissed(true)} />
+          <header className="flex items-start justify-between gap-3 border-b border-border-subtle px-5 py-4">
+            <div>
+              <h2 className="m-0 text-[14px] font-semibold">가격정책 챗봇</h2>
+              <p className="m-0 text-[11px] text-text-tertiary">원가 데이터는 표시되지 않습니다</p>
+            </div>
+            <button
+              type="button"
+              aria-label="챗봇 닫기"
+              onClick={closeAndRestoreFocus}
+              className="border-0 bg-transparent text-[16px] font-semibold text-text-tertiary hover:text-ink-900"
+            >
+              ×
+            </button>
+          </header>
+          {status?.setup ? <SetupBanner setup={status.setup} /> : null}
+          {status?.llm.status === 'ready' && !billingDismissed ? (
+            <BillingNotice onClose={() => setBillingDismissed(true)} />
+          ) : null}
+          <div
+            ref={logRef}
+            role="log"
+            aria-label="대화"
+            aria-live="polite"
+            className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4"
+          >
+            <Presence>
+              {messages.map((message) => (
+                <Bubble key={message.id} message={message} />
+              ))}
+            </Presence>
+            {/* Presence 밖에 두어 isSending=false 와 같은 커밋에서 즉시 사라진다 — 퇴장 fade 를 두면 그동안 새 답변 버블
+                아래에 남아 칩 행이 160ms 뒤에 한 번 더 밀려 올라간다(떨림). 등장만 버블과 같은 fadeUp */}
+            {isSending ? (
+              <m.p
+                role="status"
+                variants={bubbleEnter}
+                initial={VARIANT_KEYS.initial}
+                animate={VARIANT_KEYS.animate}
+                className="m-0 text-[11px] text-text-tertiary"
+              >
+                답변을 찾는 중…
+              </m.p>
+            ) : null}
+            {!askedByUser ? (
+              <ChipRow
+                label="예시 질문"
+                chips={[...EXAMPLE_QUESTIONS]}
+                onPick={(chip) => void send(chip)}
+              />
+            ) : null}
+            {showProductChips ? (
+              <ChipRow
+                label="제품 선택"
+                chips={[...PRODUCT_CHIPS]}
+                onPick={(chip) => void send(`${chip} 견적`)}
+              />
+            ) : null}
+            {candidates.length > 0 ? (
+              <ChipRow
+                label="후보 품목"
+                chips={candidates.map(
+                  (candidate) => `${candidate.itemName.trim()} (${candidate.itemCode})`,
+                )}
+                onPick={(chip) => void send(chip.replace(/^.*\(([^)]+)\)$/, '$1'))}
+              />
+            ) : null}
+          </div>
+          <form
+            className="flex gap-2 border-t border-border-subtle px-4 py-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void send(input);
+            }}
+          >
+            <input
+              aria-label="질문 입력"
+              value={input}
+              maxLength={200}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="예: SA-500 가격이 얼마야?"
+              className="flex-1 rounded-xl border-0 bg-surface-card px-3.5 py-2.5 text-[12px] shadow-(--hairline-default) outline-none"
+            />
+            <Button type="submit" variant="primary" disabled={isSending || input.trim() === ''}>
+              보내기
+            </Button>
+          </form>
+        </m.aside>
       ) : null}
-      <div
-        ref={logRef}
-        role="log"
-        aria-label="대화"
-        aria-live="polite"
-        className="flex flex-1 flex-col gap-2.5 overflow-y-auto px-4 py-4"
-      >
-        {messages.map((message) => (
-          <Bubble key={message.id} message={message} />
-        ))}
-        {isSending ? (
-          <p role="status" className="m-0 text-[11px] text-text-tertiary">
-            답변을 찾는 중…
-          </p>
-        ) : null}
-        {!askedByUser ? (
-          <ChipRow
-            label="예시 질문"
-            chips={[...EXAMPLE_QUESTIONS]}
-            onPick={(chip) => void send(chip)}
-          />
-        ) : null}
-        {showProductChips ? (
-          <ChipRow
-            label="제품 선택"
-            chips={[...PRODUCT_CHIPS]}
-            onPick={(chip) => void send(`${chip} 견적`)}
-          />
-        ) : null}
-        {candidates.length > 0 ? (
-          <ChipRow
-            label="후보 품목"
-            chips={candidates.map(
-              (candidate) => `${candidate.itemName.trim()} (${candidate.itemCode})`,
-            )}
-            onPick={(chip) => void send(chip.replace(/^.*\(([^)]+)\)$/, '$1'))}
-          />
-        ) : null}
-      </div>
-      <form
-        className="flex gap-2 border-t border-border-subtle px-4 py-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send(input);
-        }}
-      >
-        <input
-          aria-label="질문 입력"
-          value={input}
-          maxLength={200}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="예: SA-500 가격이 얼마야?"
-          className="flex-1 rounded-xl border-0 bg-surface-card px-3.5 py-2.5 text-[12px] shadow-(--hairline-default) outline-none"
-        />
-        <Button type="submit" variant="primary" disabled={isSending || input.trim() === ''}>
-          보내기
-        </Button>
-      </form>
-    </aside>
+    </Presence>
   );
 }
 
 function Bubble({ message }: { message: ChatMessage }) {
   const isUser = message.from === 'user';
+  // key=message.id 는 스트리밍 내내 같다(push 시 발급, patch 는 id 유지) — 글자가 늘어도 재마운트·재진입하지 않는다.
+  // animate 값이 바뀌지 않으므로 리렌더돼도 다시 재생되지 않는다
   return (
-    <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
+    <m.div
+      variants={bubbleEnter}
+      initial={VARIANT_KEYS.initial}
+      animate={VARIANT_KEYS.animate}
+      className={isUser ? 'flex justify-end' : 'flex justify-start'}
+    >
       <div
         data-from={message.from}
         className={
@@ -192,7 +259,7 @@ function Bubble({ message }: { message: ChatMessage }) {
           </Link>
         ) : null}
       </div>
-    </div>
+    </m.div>
   );
 }
 
@@ -212,7 +279,10 @@ function ChipRow({
           key={chip}
           type="button"
           onClick={() => onPick(chip)}
-          className="rounded-pill border border-border-subtle bg-surface-card px-3 py-1.5 text-[12px] font-semibold text-text-secondary hover:text-ink-900"
+          className={cn(
+            'rounded-pill border border-border-subtle bg-surface-card px-3 py-1.5 text-[12px] font-semibold text-text-secondary hover:text-ink-900',
+            PRESS_CLASSES,
+          )}
         >
           {chip}
         </button>

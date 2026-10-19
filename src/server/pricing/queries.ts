@@ -3,13 +3,15 @@ import { and, asc, count, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '@/db';
 import { ITEM_REMARK_HEADER } from '@/server/imports/schemas/items';
 import { importBatches, items, salesPrices, type SalesPrice } from '@/db/schema';
-import type { PriceFilter } from '@/features/pricing/filter';
+import type { PriceFilter, PriceSortId } from '@/features/pricing/filter';
+import { STATUS_ORDERS, type SortDir } from '@/lib/table/compare';
 import { productFamilyMajors } from '@/lib/constants/product-cards';
 import { ITEM_STATUS_UNKNOWN } from '@/lib/constants/item-status';
 
 import { dateConditions } from './date-filter';
+import { buildOrderBy, byMoney, byStatus, byText, byValue } from './sort-sql';
 
-/** 조회·관리 표 (§4.5.3) — 서버 페이지네이션 50행, 정렬 effective_from DESC, item_name */
+/** 조회·관리 표 (§4.5.3) — 서버 페이지네이션 50행, 기본 정렬 effective_from DESC, item_name (+ #32 열 정렬) */
 export const PRICE_PAGE_SIZE = 50;
 
 export type ItemStatusLabel = '임시' | '폐기' | '사용' | typeof ITEM_STATUS_UNKNOWN;
@@ -30,6 +32,10 @@ export type PriceRow = {
   operationStatus: '운영중' | '미사용';
   remark: string | null;
   source: 'erp' | 'manual';
+  /** 같은 계열(series_key)의 직전 적용시작일 행 판매가 (삭제 행 제외, 필터·페이지 무관). 첫 시기 = null */
+  previousPrice: string | null;
+  /** (현재 − 직전) / 직전 × 100, 소수 1자리 반올림(절댓값 기준 half-up). 첫 시기·직전가 0 = null */
+  priceChangeRate: number | null;
 };
 
 export type PricePage = {
@@ -80,6 +86,23 @@ function buildWhere(filter: PriceFilter): SQL | undefined {
   return and(...conditions);
 }
 
+/**
+ * 가격 변동 (cost-ratio-price-change §2.4): 직전가는 **필터·페이지 적용 전** 전체(삭제 제외)에서 계열별 lag 로 구해
+ * id 로 붙인다 — 직전 행이 다른 페이지·필터 밖이어도 같은 값. 계열 키 = 품번|단가유형|단가구분|화폐|거래처코드(series_key).
+ * (계열·적용시작일은 삭제 제외 유니크라 lag 순서가 결정적이다)
+ */
+const previousPrices = sql`(select ${salesPrices.id} as id,
+    lag(${salesPrices.unitPrice}) over (partition by ${salesPrices.seriesKey} order by ${salesPrices.effectiveFrom}) as previous_price
+  from ${salesPrices} where ${salesPrices.deletedAt} is null) as price_prev`;
+const PREVIOUS_PRICE = sql<string | null>`price_prev.previous_price`;
+/**
+ * 변동률: numeric 그대로 계산해 소수 1자리 round (Postgres numeric round = 0.5 는 0 에서 먼 쪽 → 절댓값 half-up).
+ * 정렬도 같은 반올림 값으로 한다 — 화면에 보이는 값과 클라이언트 비교(number)가 서버 ORDER BY 와 같은 순서를 낸다.
+ */
+const PRICE_CHANGE_RATE = sql<
+  number | null
+>`round((${salesPrices.unitPrice} - ${PREVIOUS_PRICE}) * 100 / nullif(${PREVIOUS_PRICE}, 0), 1)`;
+
 const ROW_FIELDS = {
   id: salesPrices.id,
   priceType: salesPrices.priceType,
@@ -96,9 +119,44 @@ const ROW_FIELDS = {
   operationStatus: salesPrices.operationStatus,
   remark: salesPrices.remark,
   source: salesPrices.source,
+  previousPrice: PREVIOUS_PRICE,
+  // pg·PGlite 모두 numeric 을 문자열로 준다 → number (NULL 은 매핑하지 않는다)
+  priceChangeRate: PRICE_CHANGE_RATE.mapWith(Number),
 };
 
-/** getPriceRows (§4.7) — 원가 조인 없음 */
+/** 기본 정렬 (§4.5.3) — 정렬을 고르면 tie-breaker 로 그대로 뒤에 붙는다(stable, 끝은 id) */
+const DEFAULT_ORDER: SQL[] = [
+  desc(salesPrices.effectiveFrom),
+  asc(salesPrices.itemName),
+  asc(salesPrices.id),
+];
+
+/** 운영 연도 라벨(operationYearsLabel)의 연도: 시작 연도, 끝 연도 = 배타적 종료일 하루 전의 연도 (NULL = 현재) */
+const START_YEAR = sql`extract(year from ${salesPrices.effectiveFrom})`;
+const END_YEAR = sql`extract(year from (${salesPrices.effectiveTo} - 1))`;
+
+/** 가격 표 정렬 id → ORDER BY 키 (#32 스펙 §2·§3). 화이트리스트 PRICE_SORT_IDS 와 1:1 */
+export const PRICE_SORT_SQL: Record<PriceSortId, (dir: SortDir) => SQL[]> = {
+  priceType: (dir) => byText(salesPrices.priceType, dir),
+  major: (dir) => byText(MAJOR, dir),
+  mid: (dir) => byText(items.categoryMid, dir),
+  minor: (dir) => byText(items.categoryMinor, dir),
+  itemName: (dir) => byText(salesPrices.itemName, dir),
+  price: (dir) => byMoney(salesPrices.currency, salesPrices.unitPrice, dir),
+  effectiveFrom: (dir) => [byValue(salesPrices.effectiveFrom, dir)],
+  // 적용기간 = 시작일 기준, 같으면 종료일 (NULL = 현재 → NULLS LAST, 스펙 §2)
+  period: (dir) => [byValue(salesPrices.effectiveFrom, dir), byValue(salesPrices.effectiveTo, dir)],
+  // 표시 라벨 `시작 ~ 끝`/`시작 ~ 현재`/`시작` 의 문자열 순과 같다: 시작 연도 → 끝 연도(현재 = 맨 뒤)
+  operationYears: (dir) => [byValue(START_YEAR, dir), byValue(END_YEAR, dir)],
+  // 사용 → 임시 → 폐기 → 미확인 (스펙 §9.2 Q3)
+  itemStatus: (dir) => byStatus(ITEM_STATUS, STATUS_ORDERS.partMapping, dir),
+  status: (dir) => byStatus(salesPrices.operationStatus, STATUS_ORDERS.pricingState, dir),
+  remark: (dir) => byText(salesPrices.remark, dir),
+  // 가격 변동: 반올림한 변동률 숫자순, '—'(첫 시기·직전가 0) 은 방향과 관계없이 맨 뒤
+  priceChange: (dir) => [byValue(PRICE_CHANGE_RATE, dir)],
+};
+
+/** getPriceRows (§4.7) — 원가 조인 없음. 가격 변동(직전가·변동률)은 전체 기준 윈도를 id 로 조인 */
 export async function getPriceRows(db: Db, filter: PriceFilter): Promise<PricePage> {
   const where = buildWhere(filter);
   const [counted] = await db
@@ -113,8 +171,9 @@ export async function getPriceRows(db: Db, filter: PriceFilter): Promise<PricePa
     .select(ROW_FIELDS)
     .from(salesPrices)
     .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
+    .leftJoin(previousPrices, sql`price_prev.id = ${salesPrices.id}`)
     .where(where)
-    .orderBy(desc(salesPrices.effectiveFrom), asc(salesPrices.itemName), asc(salesPrices.id))
+    .orderBy(...buildOrderBy(filter.sort, PRICE_SORT_SQL, DEFAULT_ORDER))
     .limit(PRICE_PAGE_SIZE)
     .offset((page - 1) * PRICE_PAGE_SIZE);
   return { rows, total, page, pageCount };

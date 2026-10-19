@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import type { PolicyApplyStats } from '@/db/schema';
 
@@ -23,6 +25,8 @@ import {
 } from './types';
 
 type ImportPanelProps = {
+  /** 현재 사용자 id — 업로드 미리보기 표의 열 설정 저장 키 (#32) */
+  userId: string;
   salesOptions: readonly BatchOption[];
   itemOptions: readonly BatchOption[];
   /** 현재 적용 중인 배치 (기존 파일 재사용의 기본 선택) */
@@ -49,6 +53,7 @@ function initialSelection(currentId: string | null): FileSelection {
  * 판매단가/품목상태 파일을 각각 신규 업로드 또는 기존 파일 재사용으로 고른 뒤 "가격정책 적용".
  */
 export function ImportPanel({
+  userId,
   salesOptions,
   itemOptions,
   currentSalesId,
@@ -123,6 +128,7 @@ export function ImportPanel({
   return (
     <section aria-label="가격정책 파일 적용" className="flex flex-col gap-2.5">
       <ImportFileRow
+        userId={userId}
         kind="sales"
         label="판매단가 파일"
         uploadLabel="판매단가 엑셀 업로드"
@@ -131,6 +137,7 @@ export function ImportPanel({
         onChange={setSales}
       />
       <ImportFileRow
+        userId={userId}
         kind="items"
         label="품목상태 파일"
         uploadLabel="품목조회 파일 업로드 (1~5개, 제품군별)"
@@ -165,15 +172,20 @@ export function ImportPanel({
           {isPending ? '적용 중…' : '가격정책 적용'}
         </Button>
       </div>
-      {outcome?.ok === false ? (
-        <p
-          role="alert"
-          className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500"
-        >
-          {outcome.message}
-        </p>
-      ) : null}
-      {outcome?.ok ? <ApplyStatsView title="적용 완료" stats={outcome.stats} /> : null}
+      <Presence>
+        {outcome?.ok === false ? (
+          <Collapse key="error" role="alert">
+            <p className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500">
+              {outcome.message}
+            </p>
+          </Collapse>
+        ) : null}
+        {outcome?.ok ? (
+          <Collapse key="applied">
+            <ApplyStatsView title="적용 완료" stats={outcome.stats} />
+          </Collapse>
+        ) : null}
+      </Presence>
     </section>
   );
 }

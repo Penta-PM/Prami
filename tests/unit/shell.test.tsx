@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AppLayout from '@/app/(app)/layout';
 import { ChatProvider } from '@/features/chat/ChatContext';
@@ -16,8 +16,18 @@ const getSessionUserMock = vi.fn();
 vi.mock('next/navigation', () => ({
   usePathname: () => usePathnameMock(),
   redirect: (url: string) => redirectMock(url),
+  useRouter: () => ({ push: vi.fn() }),
 }));
 vi.mock('@/features/auth/actions', () => ({ signOutAction: vi.fn() }));
+// #31: 헤더 알림 버튼은 마운트 시 GET /api/notifications 를 부른다 — fetch·서버 액션은 모킹
+vi.mock('@/features/notifications/actions', () => ({
+  markNotificationReadAction: vi.fn(),
+  markAllNotificationsReadAction: vi.fn(),
+}));
+const fetchMock = vi.fn(
+  async () =>
+    ({ ok: true, status: 200, json: async () => ({ unreadCount: 0, items: [] }) }) as Response,
+);
 vi.mock('@/server/auth/rbac', () => ({ getSessionUser: () => getSessionUserMock() }));
 
 const ADMIN = {
@@ -30,6 +40,11 @@ const ADMIN = {
 
 beforeEach(() => {
   usePathnameMock.mockReturnValue('/');
+  vi.stubGlobal('fetch', fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('Sidebar', () => {
@@ -105,7 +120,7 @@ describe('Sidebar', () => {
 });
 
 describe('Header', () => {
-  it('검색·챗봇·공지 컨트롤과 게스트 상태를 렌더한다', () => {
+  it('검색·챗봇·알림 컨트롤과 게스트 상태를 렌더한다', async () => {
     // 헤더의 챗봇 런처는 ChatProvider 컨텍스트를 쓴다 (PR-10)
     render(
       <ChatProvider>
@@ -114,7 +129,13 @@ describe('Header', () => {
     );
     expect(screen.getByRole('searchbox', { name: '통합 검색' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '챗봇' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '공지사항' })).toBeInTheDocument();
+    // #31: 장식용 "공지사항" 종 → 알림 버튼 (안 읽은 알림 0 → 이름 "알림", 배지 없음)
+    const bell = screen.getByRole('button', { name: '알림' });
+    expect(bell).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(bell).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: '공지사항' })).not.toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.getByRole('button', { name: '알림' })).toBeInTheDocument();
     expect(screen.getByText('로그인 필요')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '로그아웃' })).not.toBeInTheDocument();
   });

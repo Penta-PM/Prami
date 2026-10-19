@@ -28,7 +28,7 @@ type AdminPoliciesPageProps = {
 };
 
 export default async function AdminPoliciesPage({ searchParams }: AdminPoliciesPageProps) {
-  await requirePagePermission('pricing.write', '/admin/policies');
+  const user = await requirePagePermission('pricing.write', '/admin/policies');
   const db = await getDb();
   const [current, salesOptions, itemOptions, runs] = await Promise.all([
     getCurrentApply(db),
@@ -46,13 +46,19 @@ export default async function AdminPoliciesPage({ searchParams }: AdminPoliciesP
         <CurrentApplyBadge current={current} />
       </div>
       <ImportPanel
+        userId={user.id}
         salesOptions={salesOptions}
         itemOptions={itemOptions}
         currentSalesId={current?.sales.id ?? null}
         currentItemId={current?.item?.id ?? null}
       />
       <RecentRuns runs={runs} />
-      <PricingSection mode="admin" basePath="/admin/policies" searchParams={await searchParams} />
+      <PricingSection
+        mode="admin"
+        basePath="/admin/policies"
+        searchParams={await searchParams}
+        userId={user.id}
+      />
     </section>
   );
 }

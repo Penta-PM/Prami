@@ -9,7 +9,10 @@ import {
 } from '@/lib/constants/material-family';
 import { hasFinalConsonant, withParticle } from '@/lib/korean';
 import { computeNetSales } from '@/lib/pricing/margin';
-import { parseCostFilter } from '@/server/cost/filter';
+import {
+  costFilterToQuery as serverCostFilterToQuery,
+  parseCostFilter,
+} from '@/server/cost/filter';
 import { costSeriesKey } from '@/server/cost/series';
 
 describe('한국어 조사 (PR-4 QA INFO "사유을(를)" 수정)', () => {
@@ -76,6 +79,24 @@ describe('원가 필터 URL 상태 (§4.5.5, 요구 14 날짜 두 모드)', () =
     expect(swapped.errors.to).toContain('종료일');
     expect(swapped.filter.from).toBeUndefined();
     expect(costFilterToQuery({ dateMode: 'start', page: 1 })).toBe('');
+  });
+
+  it('정렬 sort·dir 왕복 — 서버·클라이언트 직렬화 모두 맨 뒤, id;drop 무시 (#32 §3)', () => {
+    const { filter } = parseCostFilter({ family: 'WAPPLES', page: '2', sort: 'unit', dir: 'desc' });
+    expect(filter).toEqual({
+      family: 'WAPPLES',
+      dateMode: 'start',
+      page: 2,
+      sort: { id: 'unit', dir: 'desc' },
+    });
+    expect(serverCostFilterToQuery(filter)).toBe('?family=WAPPLES&page=2&sort=unit&dir=desc');
+    expect(costFilterToQuery(filter)).toBe('?family=WAPPLES&page=2&sort=unit&dir=desc');
+    expect(
+      costFilterToQuery({ dateMode: 'start', page: 1, sort: { id: 'cost', dir: 'asc' } }),
+    ).toBe('?sort=cost&dir=asc');
+    expect(parseCostFilter({ sort: 'id;drop', dir: 'asc' }).filter.sort).toBeUndefined();
+    // '분류' 열은 '단위'(unit)로 바뀌었다 — 옛 id 는 받지 않는다
+    expect(parseCostFilter({ sort: 'category' }).filter.sort).toBeUndefined();
   });
 });
 

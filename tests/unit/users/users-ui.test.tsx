@@ -159,6 +159,8 @@ describe('PermissionMatrix', () => {
     const table = screen.getByRole('table', { name: '역할별 권한' });
     const row = (label: string) => within(table).getByText(label).closest('tr') as HTMLElement;
     expect(within(row('가격정책 조회')).getAllByLabelText('허용')).toHaveLength(2);
+    // #31: notification.self 행 (USER·ADMIN 모두 허용)
+    expect(within(row('내 알림')).getAllByLabelText('허용')).toHaveLength(2);
     expect(within(row('사용자 · 권한 관리')).getByLabelText('불가')).toBeInTheDocument();
     expect(
       within(row('원가 조회 · 등록 · 수정 · 삭제')).getByLabelText('허용'),

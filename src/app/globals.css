@@ -261,3 +261,19 @@
     border-radius: 8px;
   }
 }
+
+/*
+ * 모션 감소 (Motion 도입 스펙 §3.5): OS 가 모션 감소를 요청하면 CSS transition·animation 을 사실상 즉시 끝낸다.
+ * Motion 쪽은 MotionConfig reducedMotion="user" 가 담당한다. Tailwind 유틸리티는 motion-reduce: 변형을 함께 쓴다.
+ * (CSS 변수 선언 없음 — tokens.test.ts 의 토큰 개수 검사에 영향 없음)
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

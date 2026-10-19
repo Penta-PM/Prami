@@ -27,6 +27,14 @@ const nextConfig: NextConfig = {
   // E2E 는 같은 워크트리에서 도는 개발 서버(.next)와 잠금·캐시가 겹치지 않도록 별도 폴더를 쓴다
   distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,
+  // LAN 에서 dev 서버를 열 때(`pnpm dev:lan`) 브라우저가 접속하는 서버 주소의 hostname (예: 192.168.1.156, 쉼표 구분).
+  // 비어 있으면 Next 기본(localhost + --hostname 값)만 허용되어 HMR 웹소켓·dev 오버레이 요청이
+  // "Blocked cross-origin request to Next.js dev resource" 로 403 난다. dev 전용(Next 가 development 분기에서만 참조) —
+  // 운영 영향 없음. NEXT_DIST_DIR 선례대로 env.ts 스키마·.env.example 에는 두지 않는다(.env.local 전용). docs/deploy/local.md §6
+  allowedDevOrigins: (process.env.NEXT_DEV_ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
   // PGlite 는 wasm·데이터 파일을 런타임에 읽으므로 번들하지 않는다. @react-pdf/renderer 도 폰트 파일을 fs 로 읽는다
   serverExternalPackages: [
     ...(IS_NEON_BUILD ? [] : ['@electric-sql/pglite']),

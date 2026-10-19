@@ -1,11 +1,16 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, configure } from '@testing-library/react';
+import { MotionGlobalConfig } from 'motion/react';
 import { createElement, type ImgHTMLAttributes } from 'react';
 import { afterEach, vi } from 'vitest';
 
 afterEach(() => {
   cleanup();
 });
+
+// Motion 도입 스펙 §3.6: jsdom 에서는 애니메이션을 건너뛰어 exit 중인 요소가 즉시 제거되게 한다
+// (사라짐을 동기 단언하는 기존 테스트 보호). matchMedia 목킹은 Motion 이 가드하므로 불필요.
+MotionGlobalConfig.skipAnimations = true;
 
 // findBy*/waitFor 기본 대기 1초는 CI 커버리지 실행(파일마다 PGlite·병렬)에서 부족해 드물게 실패했다
 // (PRAMI-002 QA I-6: calculator ui.test `findByRole('Wapples-500 …')`). 통과 시에는 즉시 반환되므로 느려지지 않는다.

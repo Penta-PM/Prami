@@ -1,3 +1,4 @@
+import { availableParallelism } from 'node:os';
 import path from 'node:path';
 
 import react from '@vitejs/plugin-react';
@@ -22,8 +23,14 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias },
   test: {
-    // 파일마다 PGlite(wasm)를 띄우므로 코어 수만큼 병렬이면 준비 단계가 타임아웃난다 — 동시 실행 수 상한
-    maxWorkers: 8,
+    // 파일마다 PGlite(wasm)를 띄우므로 코어 수보다 많이 병렬이면 준비 단계가 서로 밀려 타임아웃난다 (CI 사용량 절감 PR-C).
+    // CI: 러너 코어 수(GitHub-hosted private 2코어). 로컬: 검증 규칙(docs/pipeline/verification.md)대로 2 — 4코어 공유 호스트.
+    // 둘 다 VITEST_MAX_WORKERS 로 덮어쓸 수 있다.
+    maxWorkers: process.env.VITEST_MAX_WORKERS
+      ? Number(process.env.VITEST_MAX_WORKERS)
+      : process.env.CI
+        ? availableParallelism()
+        : 2,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
@@ -41,6 +48,8 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['tests/unit/**/*.test.{ts,tsx}'],
           setupFiles: ['tests/setup.ts'],
+          // PGlite 마이그레이션 템플릿을 한 번만 만든다 — createTestDb 가 복원 (CI 사용량 절감 PR-C)
+          globalSetup: ['tests/global-pglite-template.ts'],
           css: false,
           // next-auth 는 'next/server' 를 확장자 없이 import 해 Node ESM 이 직접 읽으면 실패한다 — Vite 로 변환해 해석한다
           // (PRAMI-003 AC-342·343: 실제 Auth.js 핸들러로 302 Location·쿠키 검사)

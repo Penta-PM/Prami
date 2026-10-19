@@ -11,7 +11,7 @@ test.describe.configure({ mode: 'serial' });
 const HEADERS = [
   '원자재 코드',
   '원자재명',
-  '분류',
+  '단위',
   '원가',
   '적용시작일',
   '적용기간',

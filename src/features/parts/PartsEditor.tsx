@@ -1,10 +1,14 @@
 'use client';
 
+import { m, useIsPresent } from 'motion/react';
 import { useState } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button, Input } from '@/components/ui';
 import { Icon } from '@/features/shell/icons';
 import { cn } from '@/lib/cn';
+import { VARIANT_KEYS, scaleIn, transition } from '@/lib/motion/tokens';
 
 import type { CatalogItemView } from './types';
 
@@ -68,35 +72,32 @@ export function PartsEditor(props: PartsEditorProps) {
             선택된 파츠 ({selected.length})
           </p>
           <div className="flex flex-wrap gap-1.5" aria-label="선택된 파츠">
-            {selected.map((item) => (
-              <span
-                key={item.itemCode}
-                className="inline-flex items-center gap-1.5 rounded-pill bg-gray-100 py-1 pr-1.5 pl-3 text-[12px] font-medium"
-              >
-                {item.itemName}
-                <button
-                  type="button"
-                  aria-label={`${item.itemName} 선택 해제`}
-                  className="border-0 bg-transparent px-1 text-text-tertiary hover:text-ink-900"
-                  onClick={() => props.onToggle(item.itemCode, false)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
+            {/* 선택 칩 추가·해제 (Motion 도입 스펙 §3.3 클라이언트 목록). 가로 flex-wrap 칩이라 height 접힘 대신
+                scaleIn(0.96↔1 + fade)으로 나타나고 사라지며, 나머지 칩은 layout 으로 재배치된다.
+                Presence initial={false} 라 모델을 고를 때 이미 체크된 칩은 애니메이션 없이 최종 상태 */}
+            <Presence>
+              {selected.map((item) => (
+                <SelectedChip
+                  key={item.itemCode}
+                  item={item}
+                  onRemove={() => props.onToggle(item.itemCode, false)}
+                />
+              ))}
+            </Presence>
             {selected.length === 0 ? (
               <span className="text-[12px] text-text-tertiary">선택된 파츠가 없습니다.</span>
             ) : null}
           </div>
-          {duplicate ? (
-            <p
-              role="alert"
-              className="m-0 mt-2.5 rounded-lg bg-amber-500/15 px-3 py-2.5 text-[12px] font-medium text-amber-500"
-            >
-              이미 등록된 모델입니다. 기존 파츠를 체크 상태로 불러왔으며, 저장하면 현재 선택으로
-              전체 교체됩니다.
-            </p>
-          ) : null}
+          <Presence>
+            {duplicate ? (
+              <Collapse key="duplicate" role="alert">
+                <p className="m-0 mt-2.5 rounded-lg bg-amber-500/15 px-3 py-2.5 text-[12px] font-medium text-amber-500">
+                  이미 등록된 모델입니다. 기존 파츠를 체크 상태로 불러왔으며, 저장하면 현재 선택으로
+                  전체 교체됩니다.
+                </p>
+              </Collapse>
+            ) : null}
+          </Presence>
         </div>
       ) : null}
       <div className="flex gap-2">
@@ -237,5 +238,36 @@ function PartsChecklist({
         ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * 선택된 파츠 칩 (Motion 도입 스펙 §3.3 클라이언트 목록). scaleIn 진입·퇴장, 남은 칩은 layout 재배치.
+ * 퇴장 중인 칩은 layout 을 끈다(QA #40 CRITICAL, QuoteSteps 와 같은 패턴) — 모델을 바꿔 칩 줄이 다시 그려질 때
+ * 퇴장 칩이 옛 위치에서 미끄러져 다른 요소 위를 지나가지 않게, 줄과 함께 옮겨진 자리에서 축소+fade 로 사라진다.
+ */
+function SelectedChip({ item, onRemove }: { item: CatalogItemView; onRemove: () => void }) {
+  const isPresent = useIsPresent();
+  return (
+    <m.span
+      layout={isPresent}
+      data-layout={isPresent ? 'on' : 'off'}
+      variants={scaleIn}
+      initial={VARIANT_KEYS.initial}
+      animate={VARIANT_KEYS.animate}
+      exit={VARIANT_KEYS.exit}
+      transition={{ layout: transition.layout }}
+      className="inline-flex items-center gap-1.5 rounded-pill bg-gray-100 py-1 pr-1.5 pl-3 text-[12px] font-medium"
+    >
+      {item.itemName}
+      <button
+        type="button"
+        aria-label={`${item.itemName} 선택 해제`}
+        className="border-0 bg-transparent px-1 text-text-tertiary hover:text-ink-900"
+        onClick={onRemove}
+      >
+        ×
+      </button>
+    </m.span>
   );
 }

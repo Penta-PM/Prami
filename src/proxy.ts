@@ -6,6 +6,7 @@ import { auth } from '@/server/auth/auth';
 import { logger } from '@/server/log';
 import { ipScopeFor, rateLimitedResponse, rateLimiters, rateLimitIpKey } from '@/server/rate-limit';
 import { isForbiddenForwardedHost } from '@/server/security/forwarded-host';
+import { withoutSessionRefresh } from '@/server/security/session-refresh';
 import {
   buildCsp,
   createNonce,
@@ -109,7 +110,7 @@ async function limitByIp(
   return decorate(new NextResponse(limited.body, limited), context);
 }
 
-export default auth(async (request) => {
+const authProxy = auth(async (request) => {
   const context = securityContext(request);
   const { pathname, search } = request.nextUrl;
   // preview 위조 X-Forwarded-Host 차단 (PR #25 QA L-3 — 로그인 state 에 공격자 origin 이 봉인되지 않게)
@@ -182,6 +183,11 @@ async function recordAdminDenied(
     // 감사 기록 실패가 차단 자체를 막지 않도록 한다 (리다이렉트는 그대로 수행)
     logger.error('proxy.audit_failed', { pathname, error });
   }
+}
+
+export default async function proxy(...args: Parameters<typeof authProxy>) {
+  const response = await authProxy(...args);
+  return response ? withoutSessionRefresh(args[0].nextUrl.pathname, response) : response;
 }
 
 export const config = {

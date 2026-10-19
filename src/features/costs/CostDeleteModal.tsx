@@ -2,6 +2,8 @@
 
 import { useState, useTransition, type FormEvent } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button, Input, Modal } from '@/components/ui';
 import { priceLabel } from '@/lib/pricing/format';
 import { periodLabel } from '@/lib/pricing/period';
@@ -67,11 +69,13 @@ export function CostDeleteModal({ row, onClose, onDeleted }: CostDeleteModalProp
           </span>
           <Input name="reason" value={reason} onChange={(event) => setReason(event.target.value)} />
         </label>
-        {error ? (
-          <p role="alert" className="m-0 text-[12px] text-red-500">
-            {error}
-          </p>
-        ) : null}
+        <Presence>
+          {error ? (
+            <Collapse key="error" role="alert">
+              <p className="m-0 text-[12px] text-red-500">{error}</p>
+            </Collapse>
+          ) : null}
+        </Presence>
       </form>
     </Modal>
   );

@@ -38,7 +38,7 @@
 | 도메인 제한 | ① 인가 URL 에 `hd=pentasecurity.com`(계정 선택 화면 힌트 — 우회 가능) ② 서버 `signIn` 콜백이 **ID 토큰 `hd` 클레임 ∈ `ALLOWED_EMAIL_DOMAINS`**(`AUTH_REQUIRE_HD=true`), `email_verified=true`, 이메일 도메인 ∈ `ALLOWED_EMAIL_DOMAINS` 를 모두 검사한다(`src/server/auth/callbacks.ts` `domainDenyCode`). Google 공식 권고: "Don't rely on this UI optimization … validate that the returned ID token has an `hd` claim" |
 | 거부 감사 | `auth.denied_domain`, `after.reason` = `hd_missing`(개인 Gmail 등 `hd` 없음) / `hd_mismatch` / `email_unverified` / `email_domain`. 판정 순서는 `hd` → `email_verified` → 이메일 도메인. 로그인 화면에는 사유를 구분하지 않고 "허용된 회사 도메인…" 한 문구만 보인다. 거부 시 `users` 무변경 |
 | ADMIN 부트스트랩 | `ADMIN_EMAILS` 의 이메일이 첫 로그인하면 ADMIN(감사 `user.bootstrap_admin`). production 에서 비면 기동 거부(ⓖ). 이후 역할은 `/admin/users` 에서 관리 ([`local.md`](local.md) §4) |
-| 세션·쿠키 | JWT 8시간. https `AUTH_URL` 에서 쿠키는 `__Secure-authjs.session-token`(csrf 는 `__Host-`), `HttpOnly; Secure; SameSite=Lax; Path=/`. http(로컬)에서는 접두·`Secure` 없음(Auth.js 기본값) |
+| 세션·쿠키 | JWT 8시간(유휴 기준 — 요청마다 다시 서명해 연장). 단 **알림 폴링 `GET /api/notifications` 응답은 세션 쿠키를 재발급하지 않는다**(#31 PR-3, `src/server/security/session-refresh.ts`): 띄워 둔 탭만으로는 연장되지 않고 사용자 조작(이동·Action)만 연장. https `AUTH_URL` 에서 쿠키는 `__Secure-authjs.session-token`(csrf 는 `__Host-`), `HttpOnly; Secure; SameSite=Lax; Path=/`. http(로컬)에서는 접두·`Secure` 없음(Auth.js 기본값) |
 | 테스트 모드 | CI·E2E·격리 DB 만 `AUTH_TEST_MODE`(Credentials). 테스트 Credentials 는 `hd` 검사 대상이 아니고, production·preview 에서는 설정 자체가 기동 거부(ⓐ) |
 
 ### 3.1 preview 리다이렉트 프록시

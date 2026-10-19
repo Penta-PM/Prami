@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button, Input, Modal } from '@/components/ui';
 import type { ActionResult } from '@/lib/result';
 import { priceLabel } from '@/lib/pricing/format';
@@ -81,14 +83,15 @@ export function GroupFormModal({ mode, family, candidates, onClose, onDone }: Gr
       }
     >
       <div className="flex flex-col gap-3.5">
-        {error ? (
-          <p
-            role="alert"
-            className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-500"
-          >
-            {error}
-          </p>
-        ) : null}
+        <Presence>
+          {error ? (
+            <Collapse key="error" role="alert">
+              <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-500">
+                {error}
+              </p>
+            </Collapse>
+          ) : null}
+        </Presence>
         <label className="flex flex-col gap-1.5">
           <span className="text-[12px] font-medium text-text-secondary">그룹명</span>
           <Input

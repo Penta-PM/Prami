@@ -49,6 +49,7 @@ describe('PRICE_TABLE_COLUMNS (AC-12, R-03·R-12)', () => {
       '품목명',
       '판매가',
       '적용기간',
+      '가격 변동',
       '품목상태',
       '상태',
       '비고',
@@ -67,6 +68,7 @@ describe('PRICE_TABLE_COLUMNS (AC-12, R-03·R-12)', () => {
       '적용시작일',
       '적용기간',
       '운영 연도',
+      '가격 변동',
       '품목상태',
       '상태',
       '비고',
@@ -75,7 +77,11 @@ describe('PRICE_TABLE_COLUMNS (AC-12, R-03·R-12)', () => {
     expect(admin.filter((label) => !['적용시작일', '운영 연도', '관리'].includes(label))).toEqual(
       labels('view'),
     );
-    expect(PRICE_TABLE_COLUMNS).toHaveLength(13);
+    // 공용 배열 15 = 관리 14 + 원가 비중(관리 표 + cost.read 일 때만, columnsFor('admin', true))
+    expect(PRICE_TABLE_COLUMNS).toHaveLength(15);
+    expect(PRICE_TABLE_COLUMNS.filter((column) => column.cost).map((column) => column.key)).toEqual(
+      ['costRatio'],
+    );
   });
 });
 
@@ -114,6 +120,25 @@ describe('필터 URL 상태 (§4.5.1·§4.5.2)', () => {
     expect(activeYear(parsed.filter)).toBe(2024);
     expect(activeYear({ from: '2024-01-01', to: '2024-06-30' })).toBeNull();
     expect(filterToQuery({ dateMode: 'start', page: 1 })).toBe('');
+  });
+
+  it('정렬 sort·dir 왕복 — 쿼리 맨 뒤, 화이트리스트 밖(id;drop)은 무시 (#32 §3)', () => {
+    const { filter } = parsePriceFilter({ q: 'H500', page: '3', sort: 'price', dir: 'desc' });
+    expect(filter).toMatchObject({ q: 'H500', page: 3, sort: { id: 'price', dir: 'desc' } });
+    const query = filterToQuery(filter);
+    expect(query).toBe('?q=H500&page=3&sort=price&dir=desc');
+    expect(query.endsWith('&sort=price&dir=desc')).toBe(true);
+    const back = parsePriceFilter(Object.fromEntries(new URLSearchParams(query.slice(1))));
+    expect(back.filter.sort).toEqual({ id: 'price', dir: 'desc' });
+    expect(filterToQuery({ dateMode: 'start', page: 1, sort: { id: 'remark', dir: 'asc' } })).toBe(
+      '?sort=remark&dir=asc',
+    );
+    expect(parsePriceFilter({ sort: 'id;drop', dir: 'asc' }).filter.sort).toBeUndefined();
+    expect(parsePriceFilter({ sort: 'actions' }).filter.sort).toBeUndefined();
+    expect(parsePriceFilter({ sort: 'itemStatus', dir: 'x' }).filter.sort).toEqual({
+      id: 'itemStatus',
+      dir: 'asc',
+    });
   });
 });
 

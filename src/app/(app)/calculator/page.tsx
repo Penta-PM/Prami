@@ -54,6 +54,7 @@ export default async function CalculatorPage({ searchParams }: CalculatorPagePro
         계산기
       </h1>
       <CalculatorTabs
+        userId={user.id}
         preload={preload}
         savedQuotes={savedQuotes}
         canSeeCost={hasPermission(user.role, 'cost.read')}

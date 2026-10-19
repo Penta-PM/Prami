@@ -5,8 +5,11 @@ import { and, asc, count, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 
 import type { Db } from '@/db';
 import { importBatches, materialCosts } from '@/db/schema';
+import type { CostSortId } from '@/features/costs/sort';
 import { MATERIAL_FAMILIES } from '@/lib/constants/material-family';
+import { STATUS_ORDERS, type SortDir } from '@/lib/table/compare';
 import { dateConditions } from '@/server/pricing/date-filter';
+import { buildOrderBy, byMoney, byStatus, byText, byValue } from '@/server/pricing/sort-sql';
 
 import { assertCostAccess, type CostAccess } from './access-token';
 import type { CostFilter } from './filter';
@@ -53,6 +56,27 @@ function buildWhere(filter: CostFilter): SQL | undefined {
   return and(...conditions);
 }
 
+/** 기본 정렬 — 정렬을 고르면 tie-breaker 로 그대로 뒤에 붙는다(stable, 끝은 id) */
+const DEFAULT_ORDER: SQL[] = [
+  desc(materialCosts.effectiveFrom),
+  asc(materialCosts.materialName),
+  asc(materialCosts.id),
+];
+
+/** 원가 표 정렬 id → ORDER BY 키 (#32 스펙 §2·§3). 화이트리스트 COST_SORT_IDS 와 1:1 */
+export const COST_SORT_SQL: Record<CostSortId, (dir: SortDir) => SQL[]> = {
+  code: (dir) => byText(materialCosts.materialCode, dir),
+  name: (dir) => byText(materialCosts.materialName, dir),
+  unit: (dir) => byText(materialCosts.unit, dir),
+  cost: (dir) => byMoney(materialCosts.currency, materialCosts.unitCost, dir),
+  effectiveFrom: (dir) => [byValue(materialCosts.effectiveFrom, dir)],
+  period: (dir) => [
+    byValue(materialCosts.effectiveFrom, dir),
+    byValue(materialCosts.effectiveTo, dir),
+  ],
+  status: (dir) => byStatus(materialCosts.operationStatus, STATUS_ORDERS.pricingState, dir),
+};
+
 /** getCostRows (§4.7): 제품군 탭·날짜 두 모드·검색, 50행 페이지, 정렬 effective_from DESC·material_name */
 export async function getCostRows(
   access: CostAccess,
@@ -82,11 +106,7 @@ export async function getCostRows(
     })
     .from(materialCosts)
     .where(where)
-    .orderBy(
-      desc(materialCosts.effectiveFrom),
-      asc(materialCosts.materialName),
-      asc(materialCosts.id),
-    )
+    .orderBy(...buildOrderBy(filter.sort, COST_SORT_SQL, DEFAULT_ORDER))
     .limit(COST_PAGE_SIZE)
     .offset((page - 1) * COST_PAGE_SIZE);
   return { rows, total, page, pageCount };

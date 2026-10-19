@@ -22,7 +22,7 @@ function pickFamily(families: readonly string[], raw: string | string[] | undefi
 
 /** 파츠 관리 (§4.5.6, parts.write = ADMIN). 제품군 탭은 `?family=` */
 export default async function AdminPartsPage({ searchParams }: AdminPartsPageProps) {
-  await requirePagePermission('parts.write', PARTS_PATH);
+  const actor = await requirePagePermission('parts.write', PARTS_PATH);
   const db = await getDb();
   const families = await listProductFamilies(db);
   const family = pickFamily(families, (await searchParams).family);
@@ -55,6 +55,7 @@ export default async function AdminPartsPage({ searchParams }: AdminPartsPagePro
         parts={catalog.parts}
         mappings={mappings}
         batchOptions={batches}
+        userId={actor.id}
       />
     </section>
   );

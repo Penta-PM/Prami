@@ -3,13 +3,13 @@
 import { useState } from 'react';
 
 import { Button, Modal, Pill } from '@/components/ui';
+import { formatNullableDateTime } from '@/lib/date-format';
 import type { CredentialView } from '@/server/llm/credentials/view';
 import type { VendorView } from '@/server/llm/credentials/settings';
 
 import {
   ERROR_CODE_LABELS,
   expiredNotice,
-  formatDateTime,
   oauthLimitNotice,
   STATUS_LABELS,
   UNREADABLE_NOTICE,
@@ -190,11 +190,11 @@ function CredentialFacts({ credential }: { credential: CredentialView }) {
       </div>
       <div>
         <dt className="text-text-tertiary">마지막 검증</dt>
-        <dd className="m-0">{formatDateTime(credential.lastVerifiedAt)}</dd>
+        <dd className="m-0">{formatNullableDateTime(credential.lastVerifiedAt)}</dd>
       </div>
       <div>
         <dt className="text-text-tertiary">마지막 사용</dt>
-        <dd className="m-0">{formatDateTime(credential.lastUsedAt)}</dd>
+        <dd className="m-0">{formatNullableDateTime(credential.lastUsedAt)}</dd>
       </div>
       {credential.lastErrorCode ? (
         <p className="text-amber-600 col-span-2 m-0">

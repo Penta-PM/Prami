@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
+import { Presence } from '@/components/motion/Presence';
 import { Button, Input } from '@/components/ui';
 import { calculateNetSalesAction } from '@/features/costs/actions';
 import { formatAmount } from '@/lib/pricing/format';
@@ -117,14 +119,15 @@ export function MarginCalculator({ canSeeCost }: { canSeeCost: boolean }) {
               onChange={(e) => set('miscCost', e.target.value)}
             />
           </Field>
-          {error ? (
-            <p
-              role="alert"
-              className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-500"
-            >
-              {error}
-            </p>
-          ) : null}
+          <Presence>
+            {error ? (
+              <Collapse key="error" role="alert">
+                <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-500">
+                  {error}
+                </p>
+              </Collapse>
+            ) : null}
+          </Presence>
           <Button
             variant="primary"
             disabled={isPending || values.sellingPrice === ''}

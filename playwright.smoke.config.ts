@@ -14,4 +14,7 @@ export default defineConfig({
   retries: 0,
   timeout: 60_000,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
+  // 현재 스모크는 브라우저 없이 HTTP 만 보내지만, 브라우저 항목이 생겨도 애니메이션 때문에 흔들리지 않게 E2E 와 같은 설정을 둔다
+  // (Motion 도입 스펙 §3.6). 서버는 이 설정이 띄우지 않으므로(NEXT_PUBLIC_MOTION_DISABLED 는 빌드 시 인라인) env 는 여기 두지 않는다
+  use: { reducedMotion: 'reduce' },
 });

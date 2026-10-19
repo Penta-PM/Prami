@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -94,7 +94,7 @@ describe('NoticesAdminTable (AC-51)', () => {
         },
       })
       .mockResolvedValueOnce({ ok: true, data: { id: 'n3', title: '새 공지' } });
-    render(<NoticesAdminTable notices={NOTICES} defaultAuthor="픽스처 관리자" />);
+    render(<NoticesAdminTable notices={NOTICES} defaultAuthor="픽스처 관리자" userId="u1" />);
     const table = screen.getByRole('table', { name: '공지 관리 표' });
     expect(
       within(table)
@@ -137,7 +137,7 @@ describe('NoticesAdminTable (AC-51)', () => {
       ok: true,
       data: { id: NOTICES[0]!.id, title: '플랫폼 오픈 안내' },
     });
-    render(<NoticesAdminTable notices={NOTICES} defaultAuthor="x" />);
+    render(<NoticesAdminTable notices={NOTICES} defaultAuthor="x" userId="u1" />);
     await userEvent.click(screen.getByRole('button', { name: '하반기 일정 수정' }));
     const dialog = screen.getByRole('dialog', { name: '공지 수정' });
     expect(within(dialog).getByLabelText(/^제목/)).toHaveValue('하반기 일정');
@@ -171,8 +171,11 @@ describe('NoticeDetailActions', () => {
     const confirm = screen.getByRole('dialog', { name: '공지 삭제' });
     await userEvent.click(within(confirm).getByRole('button', { name: '삭제' }));
     expect(await within(confirm).findByRole('alert')).toHaveTextContent('권한 없음');
-    await userEvent.click(within(confirm).getByRole('button', { name: '삭제' }));
-    await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/notices'));
+    // alert 는 transition 이 끝나기 전에 그려질 수 있다 — 삭제 버튼이 다시 활성화된 뒤 누른다(CI 부하에서 비활성 버튼 클릭 경합)
+    const removeButton = within(confirm).getByRole('button', { name: '삭제' });
+    await waitFor(() => expect(removeButton).toBeEnabled());
+    await userEvent.click(removeButton);
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/notices'));
   });
 });
 

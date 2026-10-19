@@ -8,6 +8,9 @@ import { notices, type Notice } from '@/db/schema';
 import { withTransaction, type Tx } from '@/db/tx';
 import { AppError } from '@/lib/result';
 import { writeAudit, type AuditActor, type RequestMeta } from '@/server/audit/log';
+import { insertForActiveUsers } from '@/server/notifications/audience';
+import { deleteForNotice } from '@/server/notifications/mutations';
+import { NOTIFICATION_REF, notificationContent } from '@/server/notifications/types';
 
 import {
   deleteNoticeSchema,
@@ -78,6 +81,14 @@ export async function createNotice(ctx: NoticeContext, raw: UpsertNoticeInput) {
       after: noticeSnapshot(created),
       meta: ctx.meta,
     });
+    // #31: 신규 게시만 알린다(수정은 알리지 않음). 같은 트랜잭션 — 실패하면 공지도 롤백
+    await insertForActiveUsers(tx, {
+      type: 'notice.created',
+      ...notificationContent.noticeCreated(created.title),
+      refType: NOTIFICATION_REF.notice,
+      refId: created.id,
+      actorUserId: ctx.actor.id,
+    });
     return { id: created.id, title: created.title };
   }, ctx.handle);
 }
@@ -125,6 +136,8 @@ export async function deleteNotice(ctx: NoticeContext, raw: DeleteNoticeInput) {
       .update(notices)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
       .where(eq(notices.id, id));
+    // #31: 삭제된 공지를 가리키는 알림을 같은 트랜잭션에서 지운다 (조회 필터와 이중 방어)
+    await deleteForNotice(tx, id);
     await writeAudit(tx, {
       actor: ctx.actor,
       action: AUDIT_NOTICE_DELETE,

@@ -1,4 +1,10 @@
+'use client';
+
+import { useMemo } from 'react';
+
 import { Pill } from '@/components/ui';
+import { DataTable, DataTableResetButton, type DataTableColumn } from '@/components/ui/data-table';
+import { STATUS_ORDERS, type SortType, type SortValue } from '@/lib/table/compare';
 
 import { DuplicateWarningLists } from './DuplicateWarningLists';
 import type { ImportFileKind, UploadSummaryData } from './types';
@@ -52,7 +58,16 @@ function display(value: unknown): string {
 }
 
 /** 업로드 결과: 상태·건수, 미리보기(상위 20행), 오류 목록(행번호·컬럼·값), 경고 */
-export function UploadSummary({ kind, data }: { kind: ImportFileKind; data: UploadSummaryData }) {
+export function UploadSummary({
+  kind,
+  data,
+  userId,
+}: {
+  kind: ImportFileKind;
+  data: UploadSummaryData;
+  /** 현재 사용자 id — 미리보기 표의 열 설정 저장 키 (#32 스펙 §5) */
+  userId: string;
+}) {
   const ok = data.status === 'parsed' && data.errorCount === 0;
   return (
     <div
@@ -92,7 +107,7 @@ export function UploadSummary({ kind, data }: { kind: ImportFileKind; data: Uplo
       ) : null}
       {data.errors.length > 0 ? <ErrorList errors={data.errors} total={data.errorCount} /> : null}
       <WarningLists data={data} />
-      {data.preview.length > 0 ? <PreviewTable kind={kind} data={data} /> : null}
+      {data.preview.length > 0 ? <PreviewTable kind={kind} data={data} userId={userId} /> : null}
     </div>
   );
 }
@@ -147,40 +162,97 @@ function ErrorList({ errors, total }: { errors: UploadSummaryData['errors']; tot
   );
 }
 
-function PreviewTable({ kind, data }: { kind: ImportFileKind; data: UploadSummaryData }) {
-  const columns = PREVIEW_COLUMNS[kind];
+type PreviewRow = UploadSummaryData['preview'][number];
+
+/** 미리보기 키별 정렬 타입 (#32 스펙 §2). 여기에 없는 키는 text */
+const PREVIEW_SORT_TYPES: Partial<Record<string, SortType>> = {
+  unitPrice: 'number',
+  unitCost: 'number',
+  effectiveFrom: 'date',
+  itemStatus: 'status',
+};
+
+/** 업로드 원본 값 → 정렬 값. 빈 값은 null(맨 뒤) */
+function rawSortValue(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  return String(value);
+}
+
+/** 금액: 같은 미리보기에 화폐가 섞일 수 있어 화폐로 먼저 묶는다 (#32 스펙 §2). 숫자로 못 읽으면 NaN → 빈 값 취급 */
+function moneySortValue(row: Record<string, unknown>, key: string): SortValue {
+  const raw = rawSortValue(row[key]);
+  if (raw === null) return null;
+  return { amount: Number(raw.replaceAll(',', '')), currency: rawSortValue(row.currency) ?? '' };
+}
+
+function previewTableId(kind: ImportFileKind): string {
+  // 종류마다 열 구성이 달라 저장 키를 나눈다 — 한 화면에 판매단가·품목조회 미리보기가 함께 떠도 서로의 순서를 지우지 않는다
+  return `upload-preview-${kind}`;
+}
+
+function PreviewTable({
+  kind,
+  data,
+  userId,
+}: {
+  kind: ImportFileKind;
+  data: UploadSummaryData;
+  userId: string;
+}) {
+  // 열 배열은 저장 레이아웃 정규화의 기준이라 렌더마다 새로 만들지 않는다
+  const columns = useMemo<DataTableColumn<PreviewRow>[]>(
+    () => [
+      {
+        id: 'rowIndex',
+        header: '행',
+        type: 'number',
+        pinned: 'start',
+        sortValue: ({ rowIndex }) => rowIndex,
+        headerClassName: 'py-2',
+        cellClassName: 'py-1.5 text-text-tertiary',
+        cell: ({ rowIndex }) => rowIndex,
+      },
+      ...PREVIEW_COLUMNS[kind].map(([key, header]): DataTableColumn<PreviewRow> => {
+        const type = PREVIEW_SORT_TYPES[key] ?? 'text';
+        return {
+          id: key,
+          header,
+          type,
+          statusOrder: type === 'status' ? STATUS_ORDERS.partMapping : undefined,
+          sortValue:
+            type === 'number'
+              ? ({ row }) => moneySortValue(row, key)
+              : ({ row }) => rawSortValue(row[key]),
+          headerClassName: 'py-2',
+          cellClassName: 'py-1.5 whitespace-nowrap',
+          cell: ({ row }) => display(row[key]),
+        };
+      }),
+    ],
+    [kind],
+  );
+  const tableId = previewTableId(kind);
+
   return (
-    <div className="overflow-x-auto rounded-lg bg-surface-card shadow-(--hairline-subtle)">
-      <table aria-label="미리보기 (상위 20행)" className="w-full border-collapse text-[12px]">
-        <thead className="bg-gray-75 text-left">
-          <tr>
-            <th scope="col" className="px-3 py-2 font-semibold text-text-tertiary">
-              행
-            </th>
-            {columns.map(([, header]) => (
-              <th
-                key={header}
-                scope="col"
-                className="px-3 py-2 font-semibold whitespace-nowrap text-text-tertiary"
-              >
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.preview.map(({ rowIndex, row }) => (
-            <tr key={rowIndex} className="border-t border-border-subtle">
-              <td className="px-3 py-1.5 text-text-tertiary">{rowIndex}</td>
-              {columns.map(([key]) => (
-                <td key={key} className="px-3 py-1.5 whitespace-nowrap">
-                  {display(row[key])}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-text-tertiary">상위 20행 안에서 정렬</span>
+        <DataTableResetButton tableId={tableId} userId={userId} columns={columns} />
+      </div>
+      <div className="overflow-x-auto rounded-lg bg-surface-card shadow-(--hairline-subtle)">
+        <DataTable
+          tableId={tableId}
+          userId={userId}
+          columns={columns}
+          rows={data.preview}
+          getRowKey={({ rowIndex }) => String(rowIndex)}
+          aria-label="미리보기 (상위 20행)"
+          className="text-[12px]"
+          headClassName="bg-gray-75"
+          // 기존 미리보기 모습 유지 — 행 위 테두리, hover 배경 없음
+          rowClassName={() => 'border-t border-b-0 hover:bg-transparent'}
+        />
+      </div>
     </div>
   );
 }
