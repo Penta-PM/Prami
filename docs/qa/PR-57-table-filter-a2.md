@@ -114,3 +114,76 @@ Backend/테스트 (git archive 사본, 새 DB):
 - 단가 유형 코덱 변경분: 단위·퍼징·라이브 SQL 대조
 - E2E 전체 1회(새 SHA)
 ```
+
+## 2차 (재검증 0993dd1) — **통과 / 셀프머지 승인** (2026-10-19)
+
+- 요청: Dev msg_d8b2c978d688 (Plan 결정 msg_fc29f653f863, §2.2 개정)
+- 증거: be57blogs/{summary.txt,e2e.log,codec*.json,live-*.log,fuzz/,mut/,shots/}
+
+```
+[통과 / 셀프머지 승인] PR #57 — 표 열 필터 A-2 재검증 (in 값 백슬래시 이스케이프 코덱)
+
+검증 SHA: 0993dd1 (0993dd1c81d59ebdaaaffb2909cdba1a2b5525ef, base main dd35d8c — 852ee8d 위 커밋 1개, rebase 없음)
+SHA 대조: 검증 SHA = 머지 head SHA = ci:run 녹색 run 의 head SHA
+  ※ rebase하면 규칙 §3.3대로 다음을 기록해 주세요.
+    · rebase로만 SHA가 달라졌다는 사실
+    · diff가 같은지
+    · ci:run 녹색
+
+## 1차 CRITICAL 해소 확인 (단가 유형 쉼표 값 5종)
+라이브(next dev :3200, 실데이터 prami pg_dump 사본 5,885행)에서 16종을 하나씩 UI로 선택했습니다.
+  · URL·칩·새로고침 후 건수·전 페이지 행 순서를 SQL(price_type = ANY)과 대조했습니다.
+  · ADMIN(/admin/policies)·USER(/pricing) 각 27/27 일치합니다.
+  - 쉼표 5종:
+    · DBMS변경(Standby,DR) 20 / 업그레이드(H/W Standby,DR) 469 / 코어증설(Standby,DR) 56 / Standby,DR 780 / 업그레이드(S/W Standby,DR) 330
+    · 5종 동시 선택 1,655(34쪽)
+    · 조합 Standby,DR+ASP+없음 1,165 / DBMS변경(Standby,DR)+DBMS변경 165
+  - 나머지 11종 + '— (없음)' 11도 전부 일치합니다.
+  - URL은 %5C%2C이고, 칩은 '단가 유형: Standby,DR'(원래 값)입니다.
+  - 수동 URL:
+    · 이스케이프 단일 780·혼합 441
+    · 옛 ASP,Cloud 726
+    · 옛 Standby%2CDR은 목록 밖 두 값이라 조건을 버림(5,885)
+    · 형식 오류(끝 \·\\,·Stand\by)는 그 조건만 버림(다른 조건 유지), 모두 200
+
+## 검증한 내용 (실제 실행 기준)
+  - lint·typecheck·format PASS
+  - unit coverage 2632 passed
+  - build·prerender·trace·secrets PASS
+  - integration 31 passed
+  - E2E 전체 1회: SHA 0993dd1, 새 DB qa57b_e2e, 102/102 passed, 0 flaky, 5.9분(Standby,DR 신규 테스트 포함)
+  - 반복: table-filter-server.spec --repeat-each=3 12/12, table-filter.spec(A-1 클라이언트 표, 같은 코덱) 4/4
+  - 코덱 퍼징(2 시드 × 6만 목록 = 12만, ,·\·\,·\\·\x·끝 \·유니코드·%·빈 문자열·100/101자·20/21개·중복):
+    · 실패 0. decode(encode(x)) == x이고, §2.2로 따로 작성한 참조 디코더와 일치
+    · URLSearchParams 왕복(%5C%2C·%5C%5C)
+    · 형식 오류 2.6만 건은 그 조건만 버림
+    · 한도는 언이스케이프 후에 셈(100자·20개 경계 약 9천 건이 이 차이로만 통과)
+    · 백슬래시 없는 입력: 852ee8d 파서·직렬화와 12만 건 전부 동일(기존 URL 호환)
+    · Object.prototype 무변화
+    · 감사 action 별칭은 쉼표를 구분자로 유지(스펙대로)
+  - 서버 ↔ 클라이언트 술어(쉼표·백슬래시 값 주입 생성기, 70% 이스케이프·20% 원형·10% 형식 오류):
+    · 실데이터 2만 세트 불일치 0
+    · 엣지 1만 세트(C,\,D·Back\slash·tail\·,·\ 값 시드)에서 쉼표·백슬래시 관련 불일치 0
+    · 엣지 불일치 60건은 1차 백로그 2(U+3000 계열 공백 단가 유형)뿐
+  - 1차 퍼징 재실행: 새 오류·불일치 없음. 알려진 백로그(공백 계열·NUL 500·16자리 초과)만 남음
+  - 변이 9/9 검출:
+    · 언이스케이프 안 함, 쉼표만 이스케이프
+    · 길이·개수 한도를 언이스케이프 전에 셈, 형식 오류 시 전체 버림
+    · priceTypeOptions 쉼표 제외 복원, \x 관대 처리
+    · 직렬화가 쉼표 값을 건너뜀, 옛 split(',')
+  - 1차에서 통과한 나머지(필터 SQL = 독립 SQL, 권한·원가 비노출, 감사 CSV, 필터 초기화 범위, A-1 백로그 3건)는 diff 범위 밖이라 그대로 유효합니다.
+
+## 수용 기준 대조 (A-2)
+- [x] 서버 3표 열 필터: 바인딩 SQL, count·rows·CSV 같은 WHERE, 화이트리스트 밖 키 무시 — 1차 퍼징 3만·라이브, 이번 재퍼징
+- [x] 단가 유형 DB distinct 다중 선택 16종(Q3 B), 목록 밖 무시 — 16종 라이브 SQL 일치
+- [x] in 코덱(§2.2 개정): 이스케이프·형식 오류는 그 조건만·언이스케이프 후 한도·기존 URL 호환·칩 원래 값 — 퍼징 12만
+- [x] 필터 초기화 범위, 빈 상태 2종, 감사 폼 흡수·옛 ?action 호환, A-1 백로그 3건 — 1차 라이브
+- [x] Dev 게이트 기록 + QA E2E 전체 1회(102/102) — 머지 head SHA ci:run 녹색은 Dev가 머지 전에 확인
+
+## 백로그 (비블로킹)
+1. 1차 백로그 1~10은 그대로입니다. 특히 NUL(%00) 500(main 공통)과 53k 행 가격 변동 필터 1s 초과를 먼저 보기를 권합니다.
+2. 5종 조합 34쪽에서 dev 하이드레이션 경고가 1회 나왔습니다. 퍼징과 같은 머신 부하 중이었고, 같은 URL 3회·다른 쪽 2회 재로드에서 0회라 재현되지 않았습니다.
+3. 감사 action 값 안에 쉼표가 있으면 분리됩니다(스펙 의도, 실데이터 0행).
+
+머지 진행하셔도 됩니다. (머지는 Dev가 수행)
+```
