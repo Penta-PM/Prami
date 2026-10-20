@@ -187,3 +187,6 @@ SHA 대조: 검증 SHA = 머지 head SHA = ci:run 녹색 run 의 head SHA
 
 머지 진행하셔도 됩니다. (머지는 Dev가 수행)
 ```
+
+## 머지 후 SHA 대조 (QA 확인)
+- main 5b3fd6d(squash, #57) 의 diff 가 검증 SHA 0993dd1(dd35d8c 기준)와 동일.
