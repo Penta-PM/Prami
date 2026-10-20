@@ -143,6 +143,8 @@ type PricingBrowserProps = {
   userId: string;
   /** 관리 표 + cost.read 일 때만 — 없으면 원가 비중 열 없음 (cost-ratio-price-change §2.3) */
   costRatios?: Readonly<Record<number, CostRatioView>>;
+  /** 원가 비중 계산 실패 — 원가 비중 열이 있는(cost.read) 사용자에게만 표 위 안내 (migration-apply-lan §2-3) */
+  costRatioFailed?: boolean;
 };
 
 /**
@@ -158,6 +160,7 @@ export function PricingBrowser({
   priceTypes = NO_OPTIONS,
   userId,
   costRatios,
+  costRatioFailed = false,
 }: PricingBrowserProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -225,6 +228,14 @@ export function PricingBrowser({
       <Presence>
         {editing.flash ? <FlashMessage key="flash" flash={editing.flash} /> : null}
       </Presence>
+      {admin && costRatios !== undefined && costRatioFailed ? (
+        <p
+          role="status"
+          className="m-0 rounded-lg bg-surface-danger px-4 py-2.5 text-[12px] text-text-danger"
+        >
+          원가 비중을 계산하지 못했습니다. 관리자에게 문의하세요.
+        </p>
+      ) : null}
       <PriceTable
         mode={mode}
         rows={rows}

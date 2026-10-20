@@ -51,7 +51,8 @@ export async function PricingSection({
     getPriceRows(db, filter),
   ]);
   // 원가 비중: 관리 표에서만, cost.read 가 있을 때만(없으면 null → prop 자체를 넘기지 않음 — RSC payload 에 costRatio 키 0).
-  // 현재 페이지 행 id 만 계산한다(cost-ratio-price-change §2.2-1). 조회 표(/pricing)는 부르지 않는다
+  // 현재 페이지 행 id 만 계산한다(cost-ratio-price-change §2.2-1). 조회 표(/pricing)는 부르지 않는다.
+  // 계산 실패는 화면을 죽이지 않는다 — 칸 '—' + 관리자 안내(migration-apply-lan §2-3)
   const costRatios =
     mode === 'admin' ? await loadPolicyCostRatios(page.rows.map((row) => row.id)) : null;
   return (
@@ -73,7 +74,9 @@ export async function PricingSection({
         currencies={currencies}
         priceTypes={priceTypes}
         userId={userId}
-        {...(costRatios ? { costRatios } : {})}
+        {...(costRatios
+          ? { costRatios: costRatios.ratios, costRatioFailed: costRatios.failed }
+          : {})}
       />
       <PricingPagination
         basePath={basePath}

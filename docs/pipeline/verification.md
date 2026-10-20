@@ -67,6 +67,13 @@
 - 머지는 `gh pr merge <N> --squash`. `--delete-branch` 는 역할 브랜치에 쓰지 않는다.
 - 머지 완료 보고(Main)에 **머지 SHA** 와 **ci:run run URL** 을 넣는다.
 - **연속 머지**(예: Motion PR-2 → 3 → 4)에서는 앞 PR 이 머지될 때마다 뒤 PR 에 대해 1번을 다시 확인한다.
+- **마이그레이션 포함 PR**(`drizzle/*.sql` 변경)은 머지 **직후** LAN 개발 DB 에 적용한다(Plan `docs/specs/migration-apply-lan.md`, 2026-10-20 0008·0009 미적용으로 가격정책 화면·알림이 죽은 사례).
+  1. LAN 서버가 쓰는 DB 접속 정보는 Main 워크트리 env 파일에서 **읽기만**(파일 수정·LAN 서버/:3000 재시작·컨테이너 중지 금지).
+  2. 적용 전 백업: `docker exec prami-postgres-1 pg_dump -U prami -Fc <db> > <스크래치>/…dump`.
+  3. **머지된 origin/main 과 같은 코드**(작업 브랜치가 아닌 main 기준 임시 워크트리)에서 그 DB 대상으로 `pnpm db:migrate`.
+  4. 확인: `drizzle.__drizzle_migrations` 행 수 = main `drizzle/meta/_journal.json` 항목 수, 새 테이블 존재, 기존 테이블 행 수 무변화.
+  5. 머지 완료 보고에 **적용한 마이그레이션 목록·백업 경로**를 함께 적는다.
+  - 개발 서버(`next dev`)는 기동 시 미적용 마이그레이션이 있으면 콘솔에 파일 목록 + `pnpm db:migrate` 안내를 띄운다(자동 적용은 하지 않음).
 
 ## 4. CI 실패 분류 (Dev)
 
