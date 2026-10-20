@@ -9,6 +9,10 @@ const calls = vi.hoisted(() => ({
   ratioIds: [] as number[][],
   // null = cost.read 없음(열 없음), 객체 = 원가 비중
   ratios: null as Record<number, unknown> | null,
+  // 원가 비중 계산 실패(migration-apply-lan §2-3)
+  ratioFailed: false,
+  // 가격 행 조회(본 기능) 실패 주입
+  priceRowsError: null as Error | null,
 }));
 
 vi.mock('@/db', () => ({ getDb: async () => ({}) }));
@@ -20,6 +24,7 @@ vi.mock('@/server/pricing/queries', () => ({
   listPriceCurrencies: async () => ['KRW', 'USD'],
   listPriceTypes: async () => ['정상판매', '__none__'],
   getPriceRows: async (_db: unknown, filter: unknown) => {
+    if (calls.priceRowsError) throw calls.priceRowsError;
     calls.filters.push(filter);
     return {
       rows: [
@@ -59,7 +64,7 @@ vi.mock('@/features/pricing/actions', () => ({}));
 vi.mock('@/features/costs/price-ratios', () => ({
   loadPolicyCostRatios: async (ids: number[]) => {
     calls.ratioIds.push(ids);
-    return calls.ratios;
+    return calls.ratios ? { ratios: calls.ratios, failed: calls.ratioFailed } : null;
   },
 }));
 const push = vi.hoisted(() => vi.fn());
@@ -177,6 +182,43 @@ describe('원가 비중 열 (cost-ratio-price-change §2.3)', () => {
     await render2('admin');
     expect(calls.ratioIds).toEqual([[1]]);
     expect(screen.queryByRole('columnheader', { name: /원가 비중/ })).toBeNull();
+  });
+
+  it('계산 실패(cost_item_links 미적용 등): 화면은 렌더, 원가 비중 칸 "—" + 표 위 관리자 안내(migration-apply-lan §2-3)', async () => {
+    calls.ratioIds = [];
+    calls.ratios = {};
+    calls.ratioFailed = true;
+    await render2('admin');
+    calls.ratioFailed = false;
+    expect(screen.getByRole('table', { name: '가격정책 관리 표' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /원가 비중/ })).toBeInTheDocument();
+    expect(
+      screen.getByText('원가 비중을 계산하지 못했습니다. 관리자에게 문의하세요.'),
+    ).toHaveAttribute('role', 'status');
+    expect(screen.queryByText('30.0%')).toBeNull();
+  });
+
+  it('원가 권한 없음(null)·정상 계산이면 안내 없음', async () => {
+    calls.ratios = null;
+    const { unmount } = await render2('admin');
+    expect(screen.queryByText(/원가 비중을 계산하지 못했습니다/)).toBeNull();
+    unmount();
+    calls.ratios = { 1: { costRatio: 30, costFrom: '2026-05-01' } };
+    await render2('admin');
+    expect(screen.queryByText(/원가 비중을 계산하지 못했습니다/)).toBeNull();
+  });
+
+  it('가격 행 조회(본 기능) 실패는 삼키지 않는다 — 기존 오류 화면(오류 전파)', async () => {
+    calls.priceRowsError = new Error('relation "sales_prices" does not exist');
+    await expect(
+      PricingSection({
+        mode: 'admin',
+        basePath: '/admin/policies',
+        userId: 'u1',
+        searchParams: {},
+      }),
+    ).rejects.toThrow(/sales_prices/);
+    calls.priceRowsError = null;
   });
 
   it('조회 표(/pricing): 원가 비중 계산을 부르지 않고 열도 없다', async () => {

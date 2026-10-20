@@ -141,4 +141,22 @@ describe('useNotifications 폴링', () => {
     expect(result.current.status).toBe('error');
     expect(result.current.unreadCount).toBe(1);
   });
+
+  it('API 500(예: notifications 테이블 미적용) → 오류 상태, 다음 주기에 재시도해 회복(migration-apply-lan §2-3)', async () => {
+    const { result } = renderHook(() => useNotifications(false));
+    await flush();
+    fetchMock.mockImplementation(async () => ({ ok: false, status: 500, json: async () => ({}) }));
+    await flush(60_000);
+    expect(result.current.status).toBe('error');
+    const calls = fetchMock.mock.calls.length;
+    fetchMock.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ unreadCount: 3, items: [] }),
+    }));
+    await flush(60_000);
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(calls);
+    expect(result.current.status).not.toBe('error');
+    expect(result.current.unreadCount).toBe(3);
+  });
 });

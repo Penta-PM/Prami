@@ -14,6 +14,7 @@ import {
   BUNDLED_JOURNAL,
   compareSchema,
   latestJournalEntry,
+  pendingMigrations,
   readSchemaState,
   type MigrationJournal,
 } from '@/server/ops/schema-version';
@@ -194,12 +195,51 @@ describe('기동 점검 로그 (AC-326·AC-334)', () => {
       event: 'db.schema_behind',
       expected: '0009_cost_item_links',
     });
+    warn.mockClear();
     expect(await runStartupChecks(full.db, {}, JOURNAL_MINUS_LAST)).toMatchObject({
       schema: 'ahead',
     });
     expect(JSON.parse(String(warn.mock.calls[0]![0]))).toMatchObject({ event: 'db.schema_ahead' });
     error.mockRestore();
     warn.mockRestore();
+  });
+
+  it('개발 서버(배포 환경 아님)에서 뒤처지면 미적용 마이그레이션 파일 목록 + pnpm db:migrate 안내(migration-apply-lan §2-2)', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await runStartupChecks(behind.db, {});
+    const banner = warn.mock.calls
+      .map((call) => String(call[0]))
+      .find((text) => text.includes('미적용'));
+    expect(banner).toContain('미적용 마이그레이션 1건');
+    expect(banner).toContain('drizzle/0009_cost_item_links.sql');
+    expect(banner).toContain('pnpm db:migrate');
+    expect(banner).not.toMatch(/postgres:\/\//);
+    error.mockRestore();
+    warn.mockRestore();
+  });
+
+  it('모두 적용된 DB·배포 환경(VERCEL_ENV)에서는 배너가 없다(운영 동작 무변경)', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await runStartupChecks(full.db, {});
+    await runStartupChecks(behind.db, { VERCEL_ENV: 'preview' });
+    expect(warn.mock.calls.some((call) => String(call[0]).includes('미적용'))).toBe(false);
+    error.mockRestore();
+    warn.mockRestore();
+  });
+
+  it('pendingMigrations: DB 최신 시각 뒤 항목만 idx 순, 빈 DB 면 전부', () => {
+    const journal = {
+      entries: [
+        { idx: 0, when: 100, tag: '0000_a' },
+        { idx: 2, when: 300, tag: '0002_c' },
+        { idx: 1, when: 200, tag: '0001_b' },
+      ],
+    };
+    expect(pendingMigrations(journal, 100)).toEqual(['0001_b', '0002_c']);
+    expect(pendingMigrations(journal, 300)).toEqual([]);
+    expect(pendingMigrations(journal, null)).toEqual(['0000_a', '0001_b', '0002_c']);
   });
 
   it('VERCEL_ENV 가 있고 fixture 계정이 있으면 error db.fixture_accounts_present(개수만, 1회)', async () => {

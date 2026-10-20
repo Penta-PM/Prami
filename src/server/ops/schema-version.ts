@@ -26,6 +26,14 @@ export function latestJournalEntry(journal: MigrationJournal) {
   );
 }
 
+/** DB 최신 적용 시각보다 뒤인 저널 항목 = 미적용 마이그레이션(파일 이름 순). DB 가 비었으면 전부 */
+export function pendingMigrations(journal: MigrationJournal, dbLatest: number | null): string[] {
+  return journal.entries
+    .filter((entry) => dbLatest === null || entry.when > dbLatest)
+    .sort((a, b) => a.idx - b.idx)
+    .map((entry) => entry.tag);
+}
+
 export function compareSchema(journalLatest: number | null, dbLatest: number | null): SchemaState {
   if (journalLatest === null) return dbLatest === null ? 'ok' : 'ahead';
   if (dbLatest === null || dbLatest < journalLatest) return 'behind';
