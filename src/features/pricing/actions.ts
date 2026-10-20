@@ -20,7 +20,12 @@ import {
   type PolicyResult,
   type PricingContext,
 } from '@/server/pricing/mutations';
-import { getPriceRowDetail, type PriceRowDetail } from '@/server/pricing/queries';
+import {
+  getPriceHistory,
+  getPriceRowDetail,
+  type PriceHistory,
+  type PriceRowDetail,
+} from '@/server/pricing/queries';
 import type { DeletePolicyInput, PolicyInput, UpdatePolicyInput } from '@/server/pricing/schemas';
 
 /** 가격정책 Server Actions (§4.7). 읽기 = pricing.read, 등록·수정·삭제 = pricing.write */
@@ -53,6 +58,28 @@ export async function getPriceRowDetailAction(id: number): Promise<ActionResult<
     );
     if (!detail) throw new AppError('NOT_FOUND', '가격정책을 찾을 수 없습니다');
     return detail;
+  });
+}
+
+/**
+ * 가격 변동 이력 모달 (price-change-history-modal §2.1-4): 가격 행 id(양의 정수)만 받는다 — series_key 입력 경로 없음.
+ * pricing.read(USER·ADMIN). 품목 마스터 ERP 비고는 ADMIN 응답의 요약(series)에만(USER 응답에는 키 없음),
+ * 행별 판매단가 비고(remark)는 모든 역할(§6 A). 원가 모듈 import·원가 키 없음.
+ */
+export async function getPriceHistoryAction(id: number): Promise<ActionResult<PriceHistory>> {
+  const guard = {
+    permission: 'pricing.read',
+    auditAction: 'price_policy.read',
+    name: 'getPriceHistory',
+  } as const;
+  return runAction(guard, async (actor) => {
+    const history = await getPriceHistory(
+      await getDb(),
+      z.coerce.number().int().positive().parse(id),
+      { includeRemark: actor.role === 'ADMIN' },
+    );
+    if (!history) throw new AppError('NOT_FOUND', '삭제되었거나 찾을 수 없는 가격입니다.');
+    return history;
   });
 }
 

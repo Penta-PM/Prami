@@ -14,7 +14,13 @@ import type { FilterCondition } from '@/lib/table/filter';
 import { priceLabel, priceTypeLabel } from '@/lib/pricing/format';
 import { operationYearsLabel, periodLabel } from '@/lib/pricing/period';
 
-import { CostRatio, ItemStatusPill, OperationStatus, PriceChange } from './cells';
+import {
+  CostRatio,
+  ItemStatusPill,
+  OperationStatus,
+  PriceChange,
+  PriceChangeButton,
+} from './cells';
 import { columnsFor, PRICE_TABLE_IDS, type PriceColumnKey, type TableMode } from './columns';
 import type { CostRatioView, PriceRowView } from './types';
 
@@ -41,6 +47,11 @@ type PriceTableProps = {
    * 현재 페이지 행만, 대상이 아닌 행은 키가 없다(칸 '—')
    */
   costRatios?: Readonly<Record<number, CostRatioView>>;
+  /**
+   * 가격 변동 칸 클릭 → 변동 이력 모달 (price-change-history-modal §2.2). 있으면 칸이 버튼이 되고 행 클릭으로 번지지 않는다.
+   * 열 배열을 다시 만들지 않도록 안정된 참조(useCallback)로 넘긴다
+   */
+  onPriceHistory?: (row: PriceRowView) => void;
 };
 
 const COLUMN_TYPES: Record<PriceColumnKey, SortType> = {
@@ -70,6 +81,7 @@ function cellContent(
   key: PriceColumnKey,
   row: PriceRowView,
   costRatios: Readonly<Record<number, CostRatioView>> | undefined,
+  onPriceHistory: ((row: PriceRowView) => void) | undefined,
 ): ReactNode {
   switch (key) {
     case 'priceType':
@@ -98,6 +110,7 @@ function cellContent(
     case 'operationYears':
       return operationYearsLabel(row.effectiveFrom, row.effectiveTo);
     case 'priceChange':
+      if (onPriceHistory) return <PriceChangeButton row={row} onOpen={() => onPriceHistory(row)} />;
       return (
         <PriceChange
           unitPrice={row.unitPrice}
@@ -143,6 +156,7 @@ export function PriceTable({
   onRowClick,
   renderActions,
   costRatios,
+  onPriceHistory,
 }: PriceTableProps) {
   const withCost = mode === 'admin' && costRatios !== undefined;
   // 열 배열은 저장 레이아웃 정규화의 기준이라 렌더마다 새로 만들지 않는다
@@ -168,10 +182,10 @@ export function PriceTable({
           column.key === 'actions'
             ? // 관리 칸(type none) 클릭은 DataTable 이 행 클릭으로 보내지 않는다
               (row: PriceRowView) => renderActions?.(row)
-            : (row: PriceRowView) => cellContent(column.key, row, costRatios),
+            : (row: PriceRowView) => cellContent(column.key, row, costRatios, onPriceHistory),
       })),
     // costRatios 는 서버가 새 페이지를 보낼 때만 바뀐다(rows 와 같은 시점) — 열 id 는 그대로라 레이아웃 정규화에 영향 없음
-    [mode, withCost, renderActions, costRatios],
+    [mode, withCost, renderActions, costRatios, onPriceHistory],
   );
 
   return (

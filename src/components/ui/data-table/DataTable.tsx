@@ -638,7 +638,17 @@ export function DataTable<T>({
             })}
           </tr>
         </TableHead>
-        <TableBody>
+        <TableBody
+          // 열 리사이즈·재배치 드래그가 본문 위에서 끝난 직후의 click 은 본문(행 클릭·칸 안 버튼)으로 보내지 않는다
+          // (price-change-history-modal §2.2-2). 브라우저는 보통 그 click 을 누름·놓음의 공통 조상(<table>)으로 보내지만,
+          // 놓은 지점이 본문 칸이어도 행 드로어·칸 버튼(가격 변동 이력 등)이 열리지 않도록 캡처 단계에서 한 번 더 막는다
+          onClickCapture={(event) => {
+            if (!suppressClickRef.current) return;
+            suppressClickRef.current = false;
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
           {viewRows.length === 0 && empty !== undefined ? (
             <TableRow>
               <TableCell colSpan={ordered.length}>{empty}</TableCell>

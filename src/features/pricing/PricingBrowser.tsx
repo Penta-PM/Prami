@@ -21,6 +21,7 @@ import { DeletePolicyModal } from './DeletePolicyModal';
 import { filterToQuery, isPriceFiltered, PRICE_SORT_IDS, type PriceFilter } from './filter';
 import { EMPTY_POLICY_FORM, formFromRow, type PolicyFormValues } from './policy-form';
 import { PolicyFormModal, type PolicyFormMode } from './PolicyFormModal';
+import { PriceHistoryModal } from './PriceHistoryModal';
 import { PriceTable } from './PriceTable';
 import { RowDetailDrawer } from './RowDetailDrawer';
 import type { CostRatioView, PriceRowView } from './types';
@@ -166,6 +167,9 @@ export function PricingBrowser({
   const pathname = usePathname();
   const [, startTransition] = useTransition();
   const [detailId, setDetailId] = useState<number | null>(null);
+  // 가격 변동 칸 → 변동 이력 모달 (price-change-history-modal §2.2). 드로어와 별개 상태 — 칸 클릭은 드로어를 열지 않는다
+  const [historyId, setHistoryId] = useState<number | null>(null);
+  const openHistory = useCallback((row: PriceRowView) => setHistoryId(row.id), []);
   const editing = usePolicyEditing();
   const { openFromRow, setDeleting } = editing;
   const admin = mode === 'admin';
@@ -249,8 +253,14 @@ export function PricingBrowser({
         onRowClick={(row) => setDetailId(row.id)}
         renderActions={admin ? renderActions : undefined}
         costRatios={admin ? costRatios : undefined}
+        onPriceHistory={openHistory}
       />
       <RowDetailDrawer rowId={detailId} onClose={() => setDetailId(null)} />
+      <Presence>
+        {historyId !== null ? (
+          <PriceHistoryModal key={historyId} rowId={historyId} onClose={() => setHistoryId(null)} />
+        ) : null}
+      </Presence>
       <Presence>
         {editing.form ? (
           <PolicyFormModal

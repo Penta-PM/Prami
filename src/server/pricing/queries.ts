@@ -16,6 +16,14 @@ import { ITEM_STATUS_UNKNOWN } from '@/lib/constants/item-status';
 import { buildFilterSpec, filterSqlConditions } from '@/server/table/filter-sql';
 
 import { dateConditions } from './date-filter';
+import {
+  LIVE_PRICE,
+  PREVIOUS_PRICE,
+  PREVIOUS_PRICE_JOIN,
+  PRICE_CHANGE_AMOUNT,
+  PRICE_CHANGE_RATE,
+  previousPrices,
+} from './price-change-sql';
 import { buildOrderBy, byMoney, byStatus, byText, byValue, isEmptyText } from './sort-sql';
 
 /** 조회·관리 표 (§4.5.3) — 서버 페이지네이션 50행, 기본 정렬 effective_from DESC, item_name (+ #32 열 정렬) */
@@ -68,20 +76,10 @@ export function dateCondition(filter: Pick<PriceFilter, 'dateMode' | 'from' | 't
 
 /**
  * 가격 변동 (cost-ratio-price-change §2.4): 직전가는 **필터·페이지 적용 전** 전체(삭제 제외)에서 계열별 lag 로 구해
- * id 로 붙인다 — 직전 행이 다른 페이지·필터 밖이어도 같은 값. 계열 키 = 품번|단가유형|단가구분|화폐|거래처코드(series_key).
- * (계열·적용시작일은 삭제 제외 유니크라 lag 순서가 결정적이다)
+ * id 로 붙인다 — 직전 행이 다른 페이지·필터 밖이어도 같은 값. 식(직전가 윈도·변동률·삭제 제외)은 변동 이력 모달과 공용
+ * (`./price-change-sql`, price-change-history-modal §2.1-2).
  */
-const previousPrices = sql`(select ${salesPrices.id} as id,
-    lag(${salesPrices.unitPrice}) over (partition by ${salesPrices.seriesKey} order by ${salesPrices.effectiveFrom}) as previous_price
-  from ${salesPrices} where ${salesPrices.deletedAt} is null) as price_prev`;
-const PREVIOUS_PRICE = sql<string | null>`price_prev.previous_price`;
-/**
- * 변동률: numeric 그대로 계산해 소수 1자리 round (Postgres numeric round = 0.5 는 0 에서 먼 쪽 → 절댓값 half-up).
- * 정렬도 같은 반올림 값으로 한다 — 화면에 보이는 값과 클라이언트 비교(number)가 서버 ORDER BY 와 같은 순서를 낸다.
- */
-const PRICE_CHANGE_RATE = sql<
-  number | null
->`round((${salesPrices.unitPrice} - ${PREVIOUS_PRICE}) * 100 / nullif(${PREVIOUS_PRICE}, 0), 1)`;
+const ALL_PREVIOUS_PRICES = previousPrices();
 
 const ROW_FIELDS = {
   id: salesPrices.id,
@@ -125,7 +123,7 @@ const PRICE_FILTER_SPEC = buildFilterSpec(priceFilterDefs([]), PRICE_FILTER_SQL,
 });
 
 function buildWhere(filter: PriceFilter): SQL | undefined {
-  const conditions: SQL[] = [isNull(salesPrices.deletedAt) as SQL, ...dateCondition(filter)];
+  const conditions: SQL[] = [LIVE_PRICE, ...dateCondition(filter)];
   if (filter.major) conditions.push(sql`${MAJOR} = ${filter.major}`);
   else if (filter.family) {
     // 홈 카드 묶음 (예: iSIGN 카드 = iSIGN + iSIGN PKI, Q-10·PR-9 QA LOW-1). 모르는 값이면 결과 없음
@@ -200,7 +198,7 @@ export async function getPriceRows(db: Db, filter: PriceFilter): Promise<PricePa
     .$dynamic();
   const [counted] = await (
     needsPreviousPrices(filter)
-      ? countQuery.leftJoin(previousPrices, sql`price_prev.id = ${salesPrices.id}`)
+      ? countQuery.leftJoin(ALL_PREVIOUS_PRICES, PREVIOUS_PRICE_JOIN)
       : countQuery
   ).where(where);
   const total = counted?.total ?? 0;
@@ -210,7 +208,7 @@ export async function getPriceRows(db: Db, filter: PriceFilter): Promise<PricePa
     .select(ROW_FIELDS)
     .from(salesPrices)
     .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
-    .leftJoin(previousPrices, sql`price_prev.id = ${salesPrices.id}`)
+    .leftJoin(ALL_PREVIOUS_PRICES, PREVIOUS_PRICE_JOIN)
     .where(where)
     .orderBy(...buildOrderBy(filter.sort, PRICE_SORT_SQL, DEFAULT_ORDER))
     .limit(PRICE_PAGE_SIZE)
@@ -319,5 +317,100 @@ export async function getPriceRowDetail(
       ...(options.includeRemark ? { erpRemark: row.remark } : {}),
     },
     history,
+  };
+}
+
+/**
+ * 변동 이력 모달 요약 (price-change-history-modal §2.1-3·§6 A) — 클릭한 행 기준 계열 요소.
+ * `erpRemark` = 품목 마스터 비고(계열 안 모든 행이 같은 값) — **ADMIN 응답에만**, 요약에 한 번(USER 응답에는 키 자체가 없다)
+ */
+export type PriceHistorySeries = {
+  itemName: string;
+  itemCode: string;
+  priceType: string | null;
+  priceCategory: string;
+  currency: string;
+  customerCode: string;
+  customerName: string | null;
+  erpRemark?: string | null;
+};
+
+export type PriceHistoryRow = {
+  id: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  unitPrice: string;
+  /** 같은 계열 직전 적용시작일 행 판매가 (가장 오래된 행 = null) */
+  previousPrice: string | null;
+  /** 현재 − 직전 (numeric 문자열, SQL 계산). 가장 오래된 행 = null */
+  changeAmount: string | null;
+  /** 표(#55)와 같은 변동률 식 — 소수 1자리 반올림. 첫 시기·직전가 0 = null */
+  changeRate: number | null;
+  operationStatus: '운영중' | '미사용';
+  source: 'erp' | 'manual';
+  /** ERP 임포트 배치 파일명 (수동 등록·배치 없음 = null) */
+  batchFileName: string | null;
+  /** 행별 판매단가 비고(sales_prices.remark) — 가격 표 '비고' 열과 같은 값, 모든 역할 (§6 A) */
+  remark: string | null;
+};
+
+export type PriceHistory = {
+  /** 요청한(클릭한) 행 id — 모달이 aria-current 로 강조한다 */
+  currentId: number;
+  series: PriceHistorySeries;
+  /** 같은 계열의 삭제되지 않은 행 전부, 적용시작일 최신 순 */
+  rows: PriceHistoryRow[];
+};
+
+/**
+ * getPriceHistory (price-change-history-modal §2.1): 입력은 **가격 행 id 만** — series_key 는 서버가 id 로 찾는다.
+ * ① id → series_key (삭제 행·없는 id → null = NOT_FOUND) ② 그 계열의 삭제 제외 행 + 계열 안 lag + 표와 같은 변동률식.
+ * 원가 조인 없음. 변경자(created_by 등)는 싣지 않는다. `includeRemark`(ADMIN) 일 때만 요약에 품목 마스터 비고.
+ */
+export async function getPriceHistory(
+  db: Db,
+  priceRowId: number,
+  options: { includeRemark?: boolean } = {},
+): Promise<PriceHistory | null> {
+  const [head] = await db
+    .select({
+      seriesKey: salesPrices.seriesKey,
+      itemName: salesPrices.itemName,
+      itemCode: salesPrices.itemCode,
+      priceType: salesPrices.priceType,
+      priceCategory: salesPrices.priceCategory,
+      currency: salesPrices.currency,
+      customerCode: salesPrices.customerCode,
+      customerName: salesPrices.customerName,
+      erpRemark: sql<string | null>`${items.raw}->>${ITEM_REMARK_HEADER}`,
+    })
+    .from(salesPrices)
+    .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
+    .where(and(eq(salesPrices.id, priceRowId), LIVE_PRICE));
+  if (!head) return null;
+  const { seriesKey, erpRemark, ...series } = head;
+  const rows = await db
+    .select({
+      id: salesPrices.id,
+      effectiveFrom: salesPrices.effectiveFrom,
+      effectiveTo: salesPrices.effectiveTo,
+      unitPrice: salesPrices.unitPrice,
+      previousPrice: PREVIOUS_PRICE,
+      changeAmount: PRICE_CHANGE_AMOUNT,
+      changeRate: PRICE_CHANGE_RATE.mapWith(Number),
+      operationStatus: salesPrices.operationStatus,
+      source: salesPrices.source,
+      batchFileName: importBatches.fileName,
+      remark: salesPrices.remark,
+    })
+    .from(salesPrices)
+    .innerJoin(previousPrices(seriesKey), PREVIOUS_PRICE_JOIN)
+    .leftJoin(importBatches, eq(importBatches.id, salesPrices.importBatchId))
+    .where(and(eq(salesPrices.seriesKey, seriesKey), LIVE_PRICE))
+    .orderBy(desc(salesPrices.effectiveFrom), desc(salesPrices.id));
+  return {
+    currentId: priceRowId,
+    series: options.includeRemark ? { ...series, erpRemark } : series,
+    rows,
   };
 }
