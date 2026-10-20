@@ -23,6 +23,15 @@ export type ModalProps = {
   children: ReactNode;
   footer?: ReactNode;
   className?: string;
+  /** 패널 폭: 'md'(기본) = min(520px, 100vw−32px), 'lg' = min(760px, 100vw−32px) — 표를 담는 모달용 */
+  size?: ModalSize;
+};
+
+export type ModalSize = 'md' | 'lg';
+
+const SIZE_CLASSES: Record<ModalSize, string> = {
+  md: 'w-[min(520px,calc(100vw-32px))]',
+  lg: 'w-[min(760px,calc(100vw-32px))]',
 };
 
 /**
@@ -42,7 +51,15 @@ type CloseReason = 'user' | 'parent' | 'presence';
  * 퇴장은 data-closing 속성으로 opacity 를 전환한다. 퇴장이 시작되면 패널은 pointer-events-none 이 되고
  * 포커스는 열었던 트리거로 즉시 돌아간다.
  */
-export function Modal({ open, onClose, title, children, footer, className }: ModalProps) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  className,
+  size = 'md',
+}: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const openRef = useRef(open);
   const titleId = useId();
@@ -195,7 +212,8 @@ export function Modal({ open, onClose, title, children, footer, className }: Mod
         if (event.target === event.currentTarget && !fromInside) beginClose('user');
       }}
       className={cn(
-        'm-auto w-[min(520px,calc(100vw-32px))] border-0 bg-transparent p-0 text-ink-900',
+        'm-auto border-0 bg-transparent p-0 text-ink-900',
+        SIZE_CLASSES[size],
         // 백드롭 fade — duration·ease 는 tokens.ts 의 enter(240ms)/exit(160ms) 와 동일 값
         'backdrop:bg-ink-900/40 backdrop:transition-opacity backdrop:duration-240 backdrop:ease-[cubic-bezier(0.05,0.7,0.1,1)]',
         'starting:backdrop:opacity-0',

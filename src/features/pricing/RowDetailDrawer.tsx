@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 
-import { Drawer } from '@/components/ui';
+import { Presence } from '@/components/motion/Presence';
+import { Button, Drawer } from '@/components/ui';
 import { priceLabel, priceTypeLabel } from '@/lib/pricing/format';
 import { periodLabel } from '@/lib/pricing/period';
 
 import { getPriceRowDetailAction } from './actions';
 import { ItemStatusPill, OperationStatus } from './cells';
+import { PriceHistoryModal } from './PriceHistoryModal';
 
 type Detail = Extract<Awaited<ReturnType<typeof getPriceRowDetailAction>>, { ok: true }>['data'];
 
@@ -44,10 +46,22 @@ function show(key: keyof Detail['row'], value: unknown): string {
 
 type RowDetailDrawerProps = { rowId: number | null; onClose: () => void };
 
-/** 행 상세 (§4.5.3): 원본 20컬럼 + source·임포트 배치 + 같은 계열 이력 타임라인 */
+/**
+ * 행 상세 (§4.5.3): 원본 20컬럼 + source·임포트 배치 + 같은 계열 이력 타임라인.
+ * 계열 이력 끝의 "변동 이력 보기" → 가격 변동 이력 모달(드로어 행 기준, price-change-history-modal §2.4 Q-H1 = B).
+ * 모달은 드로어 **밖**(형제)에 둔다 — 드로어 패널의 Esc 처리(onKeyDown)로 번지지 않아 모달 Esc 는 모달만 닫고 드로어는 남는다.
+ */
 export function RowDetailDrawer({ rowId, onClose }: RowDetailDrawerProps) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 어느 행에서 연 모달인지 — 드로어가 다른 행으로 바뀌거나 닫히면 지운다(같은 행을 다시 열어도 모달이 되살아나지 않게)
+  const [historyFor, setHistoryFor] = useState<number | null>(null);
+  const [historyRow, setHistoryRow] = useState(rowId);
+  if (historyRow !== rowId) {
+    setHistoryRow(rowId);
+    setHistoryFor(null);
+  }
+  const historyId = historyFor !== null && historyFor === rowId ? historyFor : null;
 
   useEffect(() => {
     if (rowId === null) return;
@@ -70,21 +84,34 @@ export function RowDetailDrawer({ rowId, onClose }: RowDetailDrawerProps) {
   const current = detail && detail.row.id === rowId ? detail : null;
 
   return (
-    <Drawer open={rowId !== null} onClose={onClose} title="행 상세" width={520}>
-      {error ? (
-        <p role="alert" className="m-0 text-[13px] text-red-500">
-          {error}
-        </p>
-      ) : null}
-      {!current && !error ? (
-        <p className="m-0 text-[13px] text-text-tertiary">불러오는 중…</p>
-      ) : null}
-      {current ? <DetailBody detail={current} /> : null}
-    </Drawer>
+    <>
+      <Drawer open={rowId !== null} onClose={onClose} title="행 상세" width={520}>
+        {error ? (
+          <p role="alert" className="m-0 text-[13px] text-red-500">
+            {error}
+          </p>
+        ) : null}
+        {!current && !error ? (
+          <p className="m-0 text-[13px] text-text-tertiary">불러오는 중…</p>
+        ) : null}
+        {current ? (
+          <DetailBody detail={current} onShowHistory={() => setHistoryFor(current.row.id)} />
+        ) : null}
+      </Drawer>
+      <Presence>
+        {historyId !== null ? (
+          <PriceHistoryModal
+            key={historyId}
+            rowId={historyId}
+            onClose={() => setHistoryFor(null)}
+          />
+        ) : null}
+      </Presence>
+    </>
   );
 }
 
-function DetailBody({ detail }: { detail: Detail }) {
+function DetailBody({ detail, onShowHistory }: { detail: Detail; onShowHistory: () => void }) {
   const { row, history } = detail;
   return (
     <div className="flex flex-col gap-5 text-[13px]">
@@ -144,6 +171,18 @@ function DetailBody({ detail }: { detail: Detail }) {
             </li>
           ))}
         </ol>
+        <Button
+          size="sm"
+          className="mt-2"
+          aria-haspopup="dialog"
+          onClick={(event) => {
+            // 클릭으로 포커스를 주지 않는 브라우저에서도 모달이 닫히면 이 버튼으로 돌아오게 한다
+            event.currentTarget.focus();
+            onShowHistory();
+          }}
+        >
+          변동 이력 보기
+        </Button>
       </section>
     </div>
   );

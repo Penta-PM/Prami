@@ -14,6 +14,19 @@ export function priceLabel(amount: string | number, currency: string): string {
   return currency.trim().toUpperCase() === 'KRW' ? `${formatted}원` : `${formatted} ${currency}`;
 }
 
+/**
+ * 직전 대비 금액 (price-change-history-modal §2.3-3): 서버가 SQL 로 계산한 numeric 문자열(현재 − 직전)에
+ * 부호 + 통화 (`+100,000원`, `-10 USD`, 변동 없음 `0원`). 직전이 없는 가장 오래된 행(null) = '—'
+ */
+export function changeAmountLabel(amount: string | null, currency: string): string {
+  if (amount === null) return '—';
+  const trimmed = amount.trim();
+  const negative = trimmed.startsWith('-');
+  const magnitude = negative ? trimmed.slice(1) : trimmed;
+  if (Number(magnitude) === 0) return priceLabel('0', currency);
+  return `${negative ? '-' : '+'}${priceLabel(magnitude, currency)}`;
+}
+
 /** 단가유형 NULL 은 `—` (R-5, Q-11) */
 export function priceTypeLabel(priceType: string | null): string {
   return priceType ?? '—';

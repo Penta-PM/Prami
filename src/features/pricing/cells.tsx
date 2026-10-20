@@ -1,5 +1,7 @@
+import { useId } from 'react';
+
 import { cn } from '@/lib/cn';
-import { priceChangeDisplay } from '@/lib/pricing/format';
+import { priceChangeDisplay, priceTypeLabel } from '@/lib/pricing/format';
 
 import type { CostRatioReason, CostRatioView } from './types';
 
@@ -66,14 +68,18 @@ export function PriceChange({
   unitPrice,
   previousPrice,
   rate,
+  id,
 }: {
   unitPrice: string;
   previousPrice: string | null;
   rate: number | null;
+  /** 변동 이력 버튼의 aria-describedby 대상 (보이는 변동 텍스트) */
+  id?: string;
 }) {
   const display = priceChangeDisplay(unitPrice, previousPrice, rate);
   return (
     <span
+      id={id}
       data-price-change={display.kind}
       className={cn(
         'inline-flex items-center gap-1 whitespace-nowrap',
@@ -91,6 +97,54 @@ export function PriceChange({
         '—'
       )}
     </span>
+  );
+}
+
+/**
+ * 가격 변동 칸 = 변동 이력 모달 트리거 (price-change-history-modal §2.2). 표시·색은 PriceChange 그대로, 밑줄·hover 배경만 더한다.
+ * - 이름 "{품명} {단가유형} 가격 변동 이력", 보이는 변동 텍스트는 aria-describedby 로 남긴다. '—' 칸도 같은 버튼이다.
+ * - click 은 stopPropagation — 행 클릭(상세 드로어)이 함께 열리지 않는다(열 타입은 number 그대로).
+ * - 열기 전에 버튼에 포커스를 둔다 — 클릭으로 포커스를 주지 않는 브라우저(Safari)에서도 모달이 닫히면 이 버튼으로 돌아온다.
+ */
+export function PriceChangeButton({
+  row,
+  onOpen,
+}: {
+  row: {
+    itemName: string;
+    priceType: string | null;
+    unitPrice: string;
+    previousPrice: string | null;
+    priceChangeRate: number | null;
+  };
+  onOpen: () => void;
+}) {
+  const textId = useId();
+  return (
+    <button
+      type="button"
+      aria-haspopup="dialog"
+      aria-label={`${row.itemName} ${priceTypeLabel(row.priceType)} 가격 변동 이력`}
+      aria-describedby={textId}
+      data-price-history-trigger=""
+      onClick={(event) => {
+        event.stopPropagation();
+        event.currentTarget.focus();
+        onOpen();
+      }}
+      className={cn(
+        'inline-flex cursor-pointer rounded-sm border-0 bg-transparent p-0 text-left [font:inherit]',
+        'underline decoration-dotted underline-offset-[3px] hover:bg-gray-100',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500',
+      )}
+    >
+      <PriceChange
+        id={textId}
+        unitPrice={row.unitPrice}
+        previousPrice={row.previousPrice}
+        rate={row.priceChangeRate}
+      />
+    </button>
   );
 }
 

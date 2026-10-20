@@ -2,7 +2,7 @@ export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from '.
 export { Card, CardTitle } from './card';
 export { Drawer, type DrawerProps } from './drawer';
 export { Input, type InputProps } from './input';
-export { CloseButton, Modal, type ModalProps } from './modal';
+export { CloseButton, Modal, type ModalProps, type ModalSize } from './modal';
 export { Popover, type PopoverAlign, type PopoverProps } from './popover';
 export { Pill, type PillProps, type PillTone } from './pill';
 export { Select } from './select';
