@@ -12,6 +12,7 @@ import {
   type DataTableSort,
 } from '@/components/ui/data-table';
 import { CostLinkEditModal, type CostLinkSaved } from '@/features/costs/CostLinkEditModal';
+import { navigateView } from '@/lib/page-state/view-navigation';
 import type { FilterCondition } from '@/lib/table/filter';
 import { parseSortParams } from '@/lib/table/sort-param';
 
@@ -236,7 +237,9 @@ export function PricingBrowser({
   const priceChange = admin && withPriceChange;
 
   const go = (next: Partial<PriceFilter>) =>
-    startTransition(() => router.push(`${pathname}${filterToQuery(next)}`));
+    navigateView(`${pathname}${filterToQuery(next)}`, (href) =>
+      startTransition(() => router.push(href)),
+    );
 
   const changeSort = (next: DataTableSort) =>
     go({ ...filter, sort: urlSort(next, priceSortIds(priceChange)), page: 1 });

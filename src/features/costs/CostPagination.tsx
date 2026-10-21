@@ -1,5 +1,4 @@
-import Link from 'next/link';
-
+import { ViewStateLink } from '@/features/page-state/ViewStateLink';
 import { cn } from '@/lib/cn';
 
 import { costFilterToQuery } from './query';
@@ -40,7 +39,7 @@ export function CostPagination({ filter, page, pageCount, total }: CostPaginatio
               {label}
             </span>
           ) : (
-            <Link
+            <ViewStateLink
               key={label}
               href={href(target)}
               className={cn(
@@ -49,7 +48,7 @@ export function CostPagination({ filter, page, pageCount, total }: CostPaginatio
               )}
             >
               {label}
-            </Link>
+            </ViewStateLink>
           ),
         )}
       </div>

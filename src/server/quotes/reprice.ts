@@ -243,3 +243,39 @@ export async function repriceLines(
   const priced = lines.map((line, index) => repricer.line(line, index));
   return { lines: priced, adjustments: repricer.adjustments, families: repricer.families };
 }
+
+export type RepriceDryRunResult = {
+  /** 최신가로 갱신한 라인(판매 중지·삭제 품목이 있는 라인은 빠짐) */
+  lines: ParsedQuoteLine[];
+  /** 단가·통화가 바뀐 라인 수 */
+  changed: number;
+  /** 본품·파츠·결합형·그룹 상세 중 운영중 단가가 없어(판매 중지·삭제) 제외한 라인 수 */
+  removed: number;
+};
+
+/**
+ * 장바구니·견적 초안 복원용 재가격화 dry-run (page-state-memory §2.5). 저장하지 않고 최신가만 확인한다.
+ * 저장 때(`repriceLines`)와 같은 규칙으로 라인마다 확정하되, 단가를 찾을 수 없는 라인은 거부 대신 **제외**하고 센다.
+ */
+export async function repriceDryRun(
+  db: Db,
+  lines: readonly ParsedQuoteLine[],
+): Promise<RepriceDryRunResult> {
+  const { codes, types } = collectCodes(lines);
+  const prices = await loadLatestPrices(db, codes, types);
+  const kept: ParsedQuoteLine[] = [];
+  let changed = 0;
+  let removed = 0;
+  lines.forEach((line, index) => {
+    const repricer = new Repricer(prices);
+    try {
+      kept.push(repricer.line(line, index));
+    } catch (error) {
+      if (!(error instanceof AppError)) throw error;
+      removed += 1;
+      return;
+    }
+    if (repricer.adjustments.some((entry) => entry.field !== 'name')) changed += 1;
+  });
+  return { lines: kept, changed, removed };
+}

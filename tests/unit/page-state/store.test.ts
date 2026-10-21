@@ -38,7 +38,7 @@ vi.mock('next/navigation', () => ({
 const { readViewState, writeViewQuery, writeViewScroll } =
   await import('@/server/page-state/store');
 const { normalizeViewQuery, toParams, hasParams } = await import('@/server/page-state/normalize');
-const { resolveViewRestore, isSamePageReferer } = await import('@/server/page-state/restore');
+const { resolveViewRestore } = await import('@/server/page-state/restore');
 const { restoreViewState } = await import('@/server/page-state/restore-page');
 const { invalidateSessionUser } = await import('@/server/auth/session-user');
 
@@ -249,7 +249,6 @@ describe('재진입 복원 판정 (resolveViewRestore)', () => {
     db: state.handle!.db,
     userId: userA,
     actor: { role: 'USER' as const },
-    referer: null,
   });
 
   it('파라미터 없는 진입 + 저장값 → 정규화한 쿼리로 redirect', async () => {
@@ -301,24 +300,19 @@ describe('재진입 복원 판정 (resolveViewRestore)', () => {
     expect(result.redirectTo).toBeNull();
   });
 
-  it('같은 화면 안의 이동(Referer 같은 경로 — 필터 초기화·새로고침)은 복원하지 않는다', async () => {
-    await writeViewQuery(state.handle!.db, userA, 'pricing', 'q=old');
-    const same = await resolveViewRestore({
-      ...base(),
-      pageKey: 'pricing',
-      params: {},
-      referer: 'http://localhost:3000/pricing?q=old',
+  it("'필터 초기화'(§6): 빈 상태를 먼저 저장하면 뒤따르는 파라미터 없는 요청은 redirect 하지 않는다", async () => {
+    const db = state.handle!.db;
+    await writeViewQuery(db, userA, 'pricing', 'q=old');
+    expect(
+      (await resolveViewRestore({ ...base(), pageKey: 'pricing', params: {} })).redirectTo,
+    ).toBe('/pricing?q=old');
+    // 클라이언트가 이동 전에 '' 를 저장(navigateView) → 이동 요청
+    await writeViewQuery(db, userA, 'pricing', '');
+    expect(await resolveViewRestore({ ...base(), pageKey: 'pricing', params: {} })).toEqual({
+      redirectTo: null,
+      savedQuery: '',
+      restoreTop: null,
     });
-    expect(same.redirectTo).toBeNull();
-    const other = await resolveViewRestore({
-      ...base(),
-      pageKey: 'pricing',
-      params: {},
-      referer: 'http://localhost:3000/calculator',
-    });
-    expect(other.redirectTo).toBe('/pricing?q=old');
-    expect(isSamePageReferer('not a url', '/pricing')).toBe(false);
-    expect(isSamePageReferer('http://x/pricing/sub', '/pricing')).toBe(false);
   });
 
   it('스크롤: 현재 정규화 쿼리 == 저장된 scroll.query 일 때만 top, 아니면 null', async () => {
@@ -377,11 +371,11 @@ describe('화면 RSC 진입 (restoreViewState)', () => {
     });
   });
 
-  it('같은 화면에서 온 요청(Referer)은 파라미터가 없어도 redirect 하지 않는다', async () => {
-    await writeViewQuery(state.handle!.db, userA, 'calculator', 'tab=margin');
-    state.referer = 'http://127.0.0.1:3000/calculator?tab=margin';
-    expect((await restoreViewState('calculator', {}, { id: userA, role: 'USER' })).savedQuery).toBe(
-      'tab=margin',
+  it('보고 있는 화면의 사이드바 링크 재클릭(같은 경로에서 온 요청)도 저장 상태로 복원한다 (§6 Plan 정정)', async () => {
+    await writeViewQuery(state.handle!.db, userA, 'pricing', 'q=abc&page=2');
+    state.referer = 'http://127.0.0.1:3000/pricing?q=abc&page=2';
+    await expect(restoreViewState('pricing', {}, { id: userA, role: 'USER' })).rejects.toThrow(
+      'REDIRECT:/pricing?q=abc&page=2',
     );
   });
 });

@@ -14,6 +14,7 @@ import {
   type DataTableColumn,
   type DataTableSort,
 } from '@/components/ui/data-table';
+import { navigateView } from '@/lib/page-state/view-navigation';
 import type { FilterCondition } from '@/lib/table/filter';
 import { parseSortParams } from '@/lib/table/sort-param';
 import { OperationStatus } from '@/features/pricing/cells';
@@ -112,7 +113,9 @@ export function CostBrowser({
   const columns = useMemo(() => costColumns({ onEdit: setEditing, onDelete: setDeleting }), []);
 
   const go = (next: Partial<CostFilterView>) =>
-    startTransition(() => router.push(`${COSTS_PATH}${costFilterToQuery(next)}`));
+    navigateView(`${COSTS_PATH}${costFilterToQuery(next)}`, (href) =>
+      startTransition(() => router.push(href)),
+    );
 
   const changeSort = (next: DataTableSort) =>
     go({ ...filter, sort: urlSort(next, COST_SORT_IDS), page: 1 });

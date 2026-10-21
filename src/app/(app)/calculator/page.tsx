@@ -14,6 +14,7 @@ import {
   listQuotePriceTypes,
 } from '@/server/quotes/catalog';
 import { listMyQuotes } from '@/server/quotes/queries';
+import { restoreCalculatorDrafts } from '@/server/page-state/draft-restore';
 import { restoreViewState } from '@/server/page-state/restore-page';
 
 export const metadata: Metadata = { title: '계산기' };
@@ -51,6 +52,12 @@ export default async function CalculatorPage({ searchParams }: CalculatorPagePro
     family: family && families.includes(family) ? family : undefined,
     itemCode: item && /^[A-Za-z0-9_-]{1,50}$/.test(item) ? item : undefined,
   };
+  // 입력 초안(견적·장바구니·순매출·그룹 솔루션)을 읽어 초기 props 로 — 하이드레이션 안전 (page-state-memory §2.4-3·§2.5).
+  // 챗봇 견적 시작 링크로 들어오면 링크 선택이 견적 입력 초안보다 우선한다
+  const drafts = await restoreCalculatorDrafts(db, user.id, {
+    preload,
+    skipQuote: Boolean(initial.family || initial.itemCode),
+  });
 
   return (
     <section aria-labelledby="page-title" className="flex flex-col gap-[18px]">
@@ -64,6 +71,7 @@ export default async function CalculatorPage({ searchParams }: CalculatorPagePro
         canSeeCost={hasPermission(user.role, 'cost.read')}
         initialTab={tab}
         initial={initial}
+        drafts={drafts}
       />
       <ViewStateTracker {...viewState} />
     </section>

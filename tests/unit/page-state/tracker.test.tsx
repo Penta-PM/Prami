@@ -1,4 +1,4 @@
-import { act, render } from '@testing-library/react';
+import { act, render, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { APP_MAIN_ID, VIEW_SAVE_DEBOUNCE_MS } from '@/lib/page-state/keys';
@@ -25,6 +25,8 @@ vi.mock(
 );
 const { navigation } = await import('../../helpers/next-navigation');
 const { ViewStateTracker } = await import('@/features/page-state/ViewStateTracker');
+const { navigateView } = await import('@/lib/page-state/view-navigation');
+const { useUrlTableState } = await import('@/components/ui/data-table/useTableFilters');
 
 let main: HTMLElement;
 
@@ -101,6 +103,71 @@ describe('조회 쿼리 저장', () => {
     ]);
     act(() => vi.advanceTimersByTime(VIEW_SAVE_DEBOUNCE_MS));
     expect(saves.query).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('빈 상태 먼저 저장 (§6 — 사이드바 재클릭도 복원하므로)', () => {
+  /** 저장 액션이 끝나지 않은 채로 두고, 테스트가 끝내는 시점을 정한다 */
+  function holdSave() {
+    let release!: () => void;
+    saves.query.mockImplementationOnce(
+      () => new Promise((resolve) => (release = () => resolve({ ok: true }))),
+    );
+    return () => act(async () => release());
+  }
+
+  it('빈 쿼리로 가는 화면 안 이동은 빈 상태 저장이 끝난 뒤에 이동하고, 이동 뒤 다시 저장하지 않는다', async () => {
+    navigation.reset('/pricing', 'q=a');
+    render(tracker({ savedQuery: 'q=a' }));
+    const release = holdSave();
+    act(() => navigateView('/pricing', navigation.replace));
+    expect(saves.query.mock.calls).toEqual([[{ pageKey: 'pricing', query: '' }]]);
+    expect(navigation.replace).not.toHaveBeenCalled();
+    await release();
+    expect(navigation.replace).toHaveBeenCalledWith('/pricing');
+    act(() => vi.advanceTimersByTime(VIEW_SAVE_DEBOUNCE_MS));
+    expect(saves.query).toHaveBeenCalledTimes(1);
+  });
+
+  it('대기 중인 디바운스 저장(이전 조건)은 취소된다 — 빈 상태 뒤에 덮어쓰지 않게', async () => {
+    navigation.reset('/pricing', 'q=a');
+    render(tracker({ savedQuery: 'q=a' }));
+    act(() => navigation.replace('/pricing?q=b'));
+    await act(async () => navigateView('/pricing', navigation.replace));
+    act(() => vi.advanceTimersByTime(VIEW_SAVE_DEBOUNCE_MS * 2));
+    expect(saves.query.mock.calls).toEqual([[{ pageKey: 'pricing', query: '' }]]);
+    expect(navigation.search()).toBe('');
+  });
+
+  it('비어 있지 않은 이동은 기다리지 않고 바로 이동하고, 저장은 그대로 디바운스', () => {
+    navigation.reset('/pricing', 'q=a');
+    render(tracker({ savedQuery: 'q=a' }));
+    act(() => navigateView('/pricing?q=c', navigation.replace));
+    expect(navigation.replace).toHaveBeenCalledWith('/pricing?q=c');
+    expect(saves.query).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(VIEW_SAVE_DEBOUNCE_MS));
+    expect(saves.query.mock.calls).toEqual([[{ pageKey: 'pricing', query: 'q=c' }]]);
+  });
+
+  it("'필터 초기화'(useUrlTableState.reset)도 빈 상태 저장을 기다린 뒤 router.replace", async () => {
+    navigation.reset('/admin/users', 'f.name.has=kim&sort=name&dir=asc');
+    render(tracker({ pageKey: 'admin-users', savedQuery: 'f.name.has=kim&sort=name&dir=asc' }));
+    const { result } = renderHook(() => useUrlTableState({}, ['name']));
+    const release = holdSave();
+    act(() => result.current.reset());
+    expect(saves.query.mock.calls).toEqual([[{ pageKey: 'admin-users', query: '' }]]);
+    expect(navigation.replace).not.toHaveBeenCalled();
+    await release();
+    expect(navigation.replace).toHaveBeenCalledWith('/admin/users', { scroll: false });
+  });
+
+  it('트래커가 없는(떠난) 화면으로의 이동은 기다리지 않는다', () => {
+    const { unmount } = render(tracker({ savedQuery: 'q=a' }));
+    unmount();
+    saves.query.mockClear();
+    act(() => navigateView('/pricing', navigation.replace));
+    expect(navigation.replace).toHaveBeenCalledWith('/pricing');
+    expect(saves.query).not.toHaveBeenCalled();
   });
 });
 

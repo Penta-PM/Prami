@@ -1,7 +1,7 @@
 'use client';
 
 import { m } from 'motion/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { Button, Modal } from '@/components/ui';
 import {
@@ -38,6 +38,8 @@ type CartPanelProps = {
   /** 출력·공유 대상 = 방금 저장했거나 담기로 불러온 견적 (없으면 버튼 비활성) */
   activeQuote: SavedQuoteView | null;
   onShare: (quote: SavedQuoteView) => void;
+  /** 장바구니 초안 복원 안내 (page-state-memory §2.6-1 — 최신가 갱신·판매 중지 제외 포함) */
+  banner?: ReactNode;
 };
 
 /** 견적서 PDF Route (§4.5.8) — 소유자·ADMIN 만 200, 타인 403 */
@@ -55,6 +57,7 @@ export function CartPanel(props: CartPanelProps) {
 
   return (
     <div className="sticky top-4 flex flex-col gap-4">
+      {props.banner}
       <section
         aria-label="장바구니"
         className="max-h-[300px] overflow-y-auto rounded-xl bg-surface-card p-5 shadow-(--hairline-default)"

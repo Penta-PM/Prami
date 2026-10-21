@@ -13,7 +13,7 @@ import {
 /**
  * 페이지 상태 기억 B-1 — 조회 상태 (docs/specs/page-state-memory.md §2.2·§2.3·§4).
  * 필터·정렬·페이지 → 다른 메뉴 → 사이드바 복귀 시 같은 URL(첫 응답이 복원 상태 = 서버 redirect), 명시 파라미터 우선,
- * '필터 초기화' 후 재진입 깨끗, 클라이언트 표 정렬 새로고침·재진입 유지, 사용자 B 는 A 의 상태를 못 봄, 스크롤 ±1행 복원.
+ * '필터 초기화' 후 재진입 깨끗, 보고 있는 화면 사이드바 재클릭도 복원(§6), 클라이언트 표 정렬 새로고침·재진입 유지, 사용자 B 는 A 의 상태를 못 봄, 스크롤 ±1행 복원.
  * 저장은 500ms 디바운스 서버 액션이라 DB 행을 폴링해 저장 완료를 기다린다.
  */
 test.describe.configure({ mode: 'serial' });
@@ -105,6 +105,20 @@ test("'필터 초기화' 후 재진입 시 이전 조건이 되살아나지 않�
   await expect(page).toHaveURL(/\/pricing$/);
   await page.goto('/pricing');
   await expect(page).toHaveURL(/\/pricing$/);
+});
+
+test('보고 있는 화면의 사이드바 링크를 다시 눌러도 저장 상태로 복원한다 (§6 Plan 정정)', async ({
+  page,
+}) => {
+  await loginAs(page, FIXTURE_USER, '/pricing');
+  await page.getByRole('radio', { name: '적용기간 기준' }).click();
+  await expect(page).toHaveURL(/\/pricing\?dateMode=period$/);
+  await expectSavedQuery(FIXTURE_USER, 'pricing', 'dateMode=period');
+  // 이미 /pricing 에 있는 채로 사이드바 '가격 정책 조회'(파라미터 없는 링크) 재클릭 → 초기화가 아니라 복원
+  await sidebar(page).getByRole('link', { name: '가격 정책 조회' }).click();
+  await expect(page).toHaveURL('/pricing?dateMode=period');
+  await expect(page.getByRole('radio', { name: '적용기간 기준' })).toBeChecked();
+  await expectSavedQuery(FIXTURE_USER, 'pricing', 'dateMode=period');
 });
 
 test('클라이언트 표(사용자) 정렬·필터가 새로고침·재진입·재로그인 후 유지', async ({ page }) => {

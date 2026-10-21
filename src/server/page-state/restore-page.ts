@@ -1,6 +1,5 @@
 import 'server-only';
 
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { getDb } from '@/db';
@@ -33,7 +32,6 @@ export async function restoreViewState(
     actor: { role: user.role },
     pageKey,
     params,
-    referer: (await headers()).get('referer'),
   });
   if (result.redirectTo) redirect(result.redirectTo);
   return { pageKey, savedQuery: result.savedQuery, restoreTop: result.restoreTop };

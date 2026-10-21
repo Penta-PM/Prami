@@ -1,12 +1,20 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Button, Input } from '@/components/ui';
 import { calculateNetSalesAction } from '@/features/costs/actions';
+import {
+  DraftRestoreBanner,
+  type DraftBannerState,
+} from '@/features/page-state/DraftRestoreBanner';
+import { useDraftSync } from '@/features/page-state/useDraftSync';
 import { formatAmount } from '@/lib/pricing/format';
+
+import { MARGIN_DRAFT_INITIAL, marginDraftOf } from './drafts';
+import type { MarginDraftRestore, MarginDraftValues } from './types';
 
 type Result = Extract<Awaited<ReturnType<typeof calculateNetSalesAction>>, { ok: true }>['data'];
 
@@ -19,9 +27,7 @@ type Values = {
 };
 
 const INITIAL: Values = {
-  sellingPrice: '',
-  quantity: '1',
-  discountRate: '0',
+  ...MARGIN_DRAFT_INITIAL,
   unitCost: '',
   miscCost: '0',
 };
@@ -32,8 +38,52 @@ const won = (value: string | undefined) => (value === undefined ? '—' : `${for
  * 순매출 계산기 (§4.5.7, AC-64). 원가 입력은 USER 에게 잠금("관리자만 조회 가능")이고 서버(PR-5 `calculateNetSalesAction`)가
  * 역할로 다시 판단해 USER 응답에는 원가·이익 값이 없다. ADMIN 은 원가·이익률이 계산된다.
  */
-export function MarginCalculator({ canSeeCost }: { canSeeCost: boolean }) {
-  const [values, setValues] = useState<Values>(INITIAL);
+export function MarginCalculator({
+  canSeeCost,
+  restored,
+  resume,
+  onSnapshot,
+}: {
+  canSeeCost: boolean;
+  /** RSC 가 읽은 입력 초안 margin (원가 입력 없음 — page-state-memory §2.1-3). 첫 진입에만, 복원 배너 */
+  restored?: MarginDraftRestore;
+  /** 탭 전환으로 다시 마운트될 때의 마지막 저장 대상 입력 (원가 입력은 돌려받지 않는다) */
+  resume?: MarginDraftValues;
+  onSnapshot?: (values: MarginDraftValues) => void;
+}) {
+  const [values, setValues] = useState<Values>(() => ({
+    ...INITIAL,
+    ...(resume ?? restored?.values),
+  }));
+  const [banner, setBanner] = useState<DraftBannerState | null>(() =>
+    !resume && restored ? { restoredAt: restored.restoredAt, notices: restored.notices } : null,
+  );
+  // 저장 대상은 판매가·수량·할인율뿐 — 원가 단가·기타 비용은 초안 값에 넣지 않는다(§2.1-3)
+  const draftValues: MarginDraftValues = {
+    sellingPrice: values.sellingPrice,
+    quantity: values.quantity,
+    discountRate: values.discountRate,
+  };
+  const draft = marginDraftOf(draftValues);
+  const sync = useDraftSync({
+    draftKey: 'margin',
+    value: draft,
+    hasServerDraft: Boolean(restored) || (resume !== undefined && marginDraftOf(resume) !== null),
+    toValue: (next) => marginDraftOf(next.values),
+    onRemote: (next) => setValues((current) => ({ ...current, ...next.values })),
+  });
+  const { sellingPrice, quantity, discountRate } = values;
+  useEffect(() => {
+    onSnapshot?.({ sellingPrice, quantity, discountRate });
+  }, [onSnapshot, sellingPrice, quantity, discountRate]);
+  /** '새로 시작': 초안 삭제 + 처음 값 (§2.6-2) */
+  const startOver = () => {
+    sync.discard();
+    setValues(INITIAL);
+    setResult(null);
+    setError(null);
+    setBanner(null);
+  };
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -60,6 +110,7 @@ export function MarginCalculator({ canSeeCost }: { canSeeCost: boolean }) {
 
   return (
     <div className="flex flex-col gap-5">
+      <DraftRestoreBanner banner={banner} label="순매출 입력 복원 안내" onReset={startOver} />
       <p className="m-0 text-[13px] text-text-tertiary">
         판매가격, 할인, 원가를 입력하면 실제 순매출과 이익률을 계산합니다.
       </p>

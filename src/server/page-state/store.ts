@@ -88,3 +88,12 @@ export async function writeViewScroll(
     });
   return 'saved';
 }
+
+/** 본인의 조회 상태 전부 삭제 (전역 초기화 — page-state-memory §2.6-3). 지운 행 수 */
+export async function clearViewStates(db: Db, userId: string): Promise<number> {
+  const rows = await db
+    .delete(userViewStates)
+    .where(eq(userViewStates.userId, userId))
+    .returning({ key: userViewStates.pageKey });
+  return rows.length;
+}

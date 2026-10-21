@@ -43,7 +43,9 @@ export const E2E_ENV = {
 } as const;
 
 /**
- * T-1 설정: AUTH_TEST_MODE·AUTH_TEST_PASSWORD 없음, AUTH_GOOGLE_ID/SECRET 만 더미 값.
+ * T-1 설정: 테스트 로그인 끔, AUTH_GOOGLE_ID/SECRET 만 더미 값.
+ * AUTH_TEST_MODE 는 빼는 것만으로는 부족하다 — next dev 가 .env.local 을 읽어 개발자의 AUTH_TEST_MODE=true 가 새어 들어온다.
+ * 그래서 'false' 를 명시하고 AUTH_TEST_PASSWORD 는 '' 로 둔다(이미 정의된 키는 .env 파일이 덮지 않는다 · env 스키마는 '' = 미설정).
  * 같은 격리 DB 를 쓰지만 로그인하지 않는다(렌더만). 산출물 폴더를 따로 써서 테스트 모드 서버와 캐시가 겹치지 않게 한다.
  */
 const E2E_BASE_ENV: Record<string, string> = Object.fromEntries(
@@ -53,6 +55,8 @@ const E2E_BASE_ENV: Record<string, string> = Object.fromEntries(
 );
 export const REAL_LOGIN_ENV = {
   ...E2E_BASE_ENV,
+  AUTH_TEST_MODE: 'false',
+  AUTH_TEST_PASSWORD: '',
   AUTH_GOOGLE_ID: 'e2e-dummy-google-client-id',
   AUTH_GOOGLE_SECRET: 'e2e-dummy-google-client-secret',
   NEXT_DIST_DIR: '.next-e2e-real-login',

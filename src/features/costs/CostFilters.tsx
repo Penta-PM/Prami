@@ -1,14 +1,15 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition, type FormEvent } from 'react';
 
 import { Input } from '@/components/ui';
 import { DateControls, type DateFilterValue } from '@/features/pricing/DateFilter';
 import type { FilterErrors } from '@/features/pricing/filter';
+import { ViewStateLink } from '@/features/page-state/ViewStateLink';
 import { Icon } from '@/features/shell/icons';
 import { cn } from '@/lib/cn';
+import { navigateView } from '@/lib/page-state/view-navigation';
 
 import { costFilterToQuery } from './query';
 import type { CostFamilyTab, CostFilterView } from './types';
@@ -32,8 +33,8 @@ export function CostFilters({ filter, errors, families, years }: CostFiltersProp
   const [query, setQuery] = useState(filter.q ?? '');
 
   const go = (patch: Partial<CostFilterView & DateFilterValue>) =>
-    startTransition(() =>
-      router.push(`${COSTS_PATH}${costFilterToQuery({ ...filter, ...patch, page: 1 })}`),
+    navigateView(`${COSTS_PATH}${costFilterToQuery({ ...filter, ...patch, page: 1 })}`, (href) =>
+      startTransition(() => router.push(href)),
     );
 
   const submitSearch = (event: FormEvent) => {
@@ -74,7 +75,7 @@ function FamilyTabs({ filter, families }: Pick<CostFiltersProps, 'filter' | 'fam
       {tabs.map((tab) => {
         const active = (filter.family ?? '') === tab.family;
         return (
-          <Link
+          <ViewStateLink
             key={tab.label}
             href={`${COSTS_PATH}${costFilterToQuery({ ...filter, family: tab.family || undefined, page: 1 })}`}
             aria-current={active ? 'page' : undefined}
@@ -89,7 +90,7 @@ function FamilyTabs({ filter, families }: Pick<CostFiltersProps, 'filter' | 'fam
             <span className="ml-1.5 text-[11px] font-normal text-text-tertiary">
               {tab.count.toLocaleString('ko-KR')}
             </span>
-          </Link>
+          </ViewStateLink>
         );
       })}
     </nav>

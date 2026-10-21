@@ -2,7 +2,11 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 /** /calculator 조립 (서버 컴포넌트) — 권한 가드·쿼리는 모킹. 탭·원가 잠금 여부가 역할로 결정된다 */
-const calls = vi.hoisted(() => ({ guards: [] as string[], role: 'USER' as 'USER' | 'ADMIN' }));
+const calls = vi.hoisted(() => ({
+  guards: [] as string[],
+  role: 'USER' as 'USER' | 'ADMIN',
+  drafts: [] as { userId: string; skipQuote: boolean }[],
+}));
 
 vi.mock('@/db', () => ({ getDb: async () => ({}) }));
 vi.mock('@/server/auth/rbac', () => ({
@@ -40,6 +44,22 @@ vi.mock('@/server/page-state/restore-page', () => ({
   restoreViewState: async (pageKey: string) => ({ pageKey, savedQuery: null, restoreTop: null }),
 }));
 vi.mock('@/features/page-state/ViewStateTracker', () => ({ ViewStateTracker: () => null }));
+// 입력 초안 복원(page-state-memory B-2)은 tests/unit/page-state/drafts*.test.ts(x) 에서 검증한다 — 여기서는 전달만
+vi.mock('@/server/page-state/draft-restore', () => ({
+  restoreCalculatorDrafts: async (
+    _db: unknown,
+    userId: string,
+    options: { skipQuote: boolean },
+  ) => {
+    calls.drafts.push({ userId, skipQuote: options.skipQuote });
+    return {};
+  },
+}));
+vi.mock('@/features/page-state/draft-actions', () => ({
+  saveDraftAction: async () => ({ ok: true, data: { status: 'saved' } }),
+  deleteDraftAction: async () => ({ ok: true, data: { status: 'deleted' } }),
+  readDraftAction: async () => ({ ok: true, data: null }),
+}));
 
 const { default: CalculatorPage } = await import('@/app/(app)/calculator/page');
 
@@ -54,6 +74,15 @@ describe('/calculator', () => {
       '정상판매',
     );
     expect(screen.getByLabelText('장바구니')).toBeInTheDocument();
+    // 입력 초안은 세션 사용자 것만 읽는다 (§2.7-2)
+    expect(calls.drafts.at(-1)).toEqual({ userId: 'u', skipQuote: false });
+  });
+
+  it('챗봇 견적 시작 링크(?family=&item=)는 견적 입력 초안보다 우선한다', async () => {
+    render(
+      await CalculatorPage({ searchParams: Promise.resolve({ family: 'WAPPLES', item: 'P1' }) }),
+    );
+    expect(calls.drafts.at(-1)).toEqual({ userId: 'u', skipQuote: true });
   });
 
   it('?tab=margin 이면 순매출 탭, USER 는 원가 잠금', async () => {

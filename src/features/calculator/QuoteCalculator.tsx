@@ -1,10 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Pill } from '@/components/ui';
+import {
+  DraftRestoreBanner,
+  type DraftBannerState,
+} from '@/features/page-state/DraftRestoreBanner';
+import { useDraftSync } from '@/features/page-state/useDraftSync';
 import { computeLine, rateFromTarget, roundRate } from '@/lib/pricing/quote';
 
 import {
@@ -14,17 +19,23 @@ import {
   listQuoteOptionsAction,
   saveQuoteAction,
 } from './actions';
-import { linesFromSavedQuote } from './cart';
+import { cartDraftOf, linesFromSavedQuote, toLineInput } from './cart';
 import { CartPanel } from './CartPanel';
 import { Chip } from './chips';
+import { groupDraftOf, quoteDraftOf } from './drafts';
 import { GroupSolution } from './GroupSolution';
 import { StepCategory, StepDiscount, StepItems, StepOptions, StepPriceType } from './QuoteSteps';
 import { ShareModal } from './ShareModal';
 import type {
-  CartLine,
+  CartDraftRestore,
+  CartLineInput,
   CategoryChipsView,
   FamilyPreload,
+  GroupDraftRestore,
+  GroupSelection,
   PriceAdjustmentView,
+  QuoteDraftRestore,
+  QuoteFormState,
   QuoteItemView,
   SavedQuoteView,
 } from './types';
@@ -37,6 +48,24 @@ type QuoteCalculatorProps = {
   savedQuotes: readonly SavedQuoteView[];
   /** 챗봇 견적 시작 링크(§4.5.9): 제품군을 먼저 고르고 품번이 목록에 있으면 선택해 둔다 */
   initial?: { family?: string; itemCode?: string };
+  /** RSC 가 읽은 입력 초안 (page-state-memory §2.4-3) — 첫 진입에만. 복원 배너를 띄운다 */
+  restored?: QuoteRestoredDrafts;
+  /** 같은 화면 안 탭 전환으로 다시 마운트될 때의 마지막 상태 (배너 없음) */
+  resume?: QuoteSnapshot;
+  /** 현재 상태 보고 (탭 전환 뒤 resume 으로 돌려받는다) */
+  onSnapshot?: (snapshot: QuoteSnapshot) => void;
+};
+
+export type QuoteRestoredDrafts = {
+  quote?: QuoteDraftRestore;
+  cart?: CartDraftRestore;
+  group?: GroupDraftRestore;
+};
+
+export type QuoteSnapshot = {
+  quote: QuoteFormState;
+  cart: CartLineInput[];
+  group: GroupSelection | null;
 };
 
 type Flash = { tone: 'ok' | 'error'; text: string };
@@ -46,25 +75,18 @@ type Loaded<T> = { key: string; data: T };
 const NO_OPTIONS: Options = { parts: [], bundles: [], mapped: false };
 const EMPTY_CHIPS: CategoryChipsView = { majors: [], mids: [], minorsByMid: {}, hasMaster: false };
 
-function toLineInput(line: CartLine) {
-  return {
-    kind: line.kind,
-    itemCode: line.itemCode,
-    groupId: line.groupId,
-    name: line.name,
-    priceType: line.priceType,
-    qty: line.qty,
-    unitPrice: line.unitPrice,
-    currency: line.currency,
-    parts: line.parts,
-    bundles: line.bundles,
-    groupItems: line.groupItems,
-    discountRate: line.discountRate,
-  };
-}
-
 function asOption(item: QuoteItemView) {
   return { itemCode: item.itemCode, itemName: item.itemName, unitPrice: Number(item.unitPrice) };
+}
+
+/** 복원 배너 = 견적 입력·그룹 솔루션 초안 중 복원된 것 (시각은 더 최근 것, 안내는 합침) */
+function mergeBanner(
+  ...entries: readonly ({ updatedAt: string; restoredAt: string; notices: string[] } | undefined)[]
+): DraftBannerState | null {
+  const found = entries.filter((entry) => entry !== undefined);
+  if (found.length === 0) return null;
+  const latest = found.reduce((a, b) => (a.updatedAt >= b.updatedAt ? a : b));
+  return { restoredAt: latest.restoredAt, notices: found.flatMap((entry) => entry.notices) };
 }
 
 function toggle(set: ReadonlySet<string>, code: string, on: boolean): ReadonlySet<string> {
@@ -79,28 +101,68 @@ function toggle(set: ReadonlySet<string>, code: string, on: boolean): ReadonlySe
  * → STEP6 할인율/목표금액 → 장바구니 → 견적 저장/목록/담기/삭제. 금액은 lib/pricing/quote.ts 순수 함수.
  * 서버 조회 결과는 "요청 키" 와 함께 보관해 선택이 바뀌면 이전 결과를 보여 주지 않는다 (effect 안에서 동기 setState 없음).
  */
-export function QuoteCalculator({ userId, preload, savedQuotes, initial }: QuoteCalculatorProps) {
-  const [family, setFamily] = useState(() =>
-    initial?.family && preload.some((entry) => entry.family === initial.family)
-      ? initial.family
-      : (preload[0]?.family ?? ''),
+export function QuoteCalculator({
+  userId,
+  preload,
+  savedQuotes,
+  initial,
+  restored,
+  resume,
+  onSnapshot,
+}: QuoteCalculatorProps) {
+  const defaultFamily = preload[0]?.family ?? '';
+  const defaultPriceTypeOf = (name: string) =>
+    preload.find((entry) => entry.family === name)?.priceTypes[0]?.priceType ?? null;
+  // 첫 상태: 탭 전환 복귀 > 입력 초안 복원 > 챗봇 링크 > 기본 (page-state-memory §2.4-3)
+  const [start] = useState<QuoteFormState>(() => {
+    const saved = resume?.quote ?? restored?.quote?.form;
+    if (saved) return saved;
+    const family =
+      initial?.family && preload.some((entry) => entry.family === initial.family)
+        ? initial.family
+        : defaultFamily;
+    return {
+      family,
+      priceType: defaultPriceTypeOf(family),
+      mid: null,
+      minor: null,
+      selected: null,
+      qty: 1,
+      parts: [],
+      bundles: [],
+      rate: 0,
+      target: '',
+    };
+  });
+  const [family, setFamily] = useState(start.family);
+  const [pendingItem, setPendingItem] = useState<string | null>(
+    resume || restored?.quote ? null : (initial?.itemCode ?? null),
   );
-  const [pendingItem, setPendingItem] = useState<string | null>(initial?.itemCode ?? null);
   const current = preload.find((entry) => entry.family === family) ?? null;
-  const [priceType, setPriceType] = useState<string | null>(
-    current?.priceTypes[0]?.priceType ?? null,
-  );
-  const [mid, setMid] = useState<string | null>(null);
-  const [minor, setMinor] = useState<string | null>(null);
-  const [selected, setSelected] = useState<QuoteItemView | null>(null);
-  const [qty, setQty] = useState(1);
+  const [priceType, setPriceType] = useState<string | null>(start.priceType);
+  const [mid, setMid] = useState<string | null>(start.mid);
+  const [minor, setMinor] = useState<string | null>(start.minor);
+  const [selected, setSelected] = useState<QuoteItemView | null>(start.selected);
+  const [qty, setQty] = useState(start.qty);
   const [loadedItems, setLoadedItems] = useState<Loaded<QuoteItemView[]> | null>(null);
   const [loadedOptions, setLoadedOptions] = useState<Loaded<Options> | null>(null);
-  const [parts, setParts] = useState<ReadonlySet<string>>(new Set());
-  const [bundles, setBundles] = useState<ReadonlySet<string>>(new Set());
-  const [rate, setRate] = useState(0);
-  const [target, setTarget] = useState('');
-  const [cart, dispatch] = useCart();
+  const [parts, setParts] = useState<ReadonlySet<string>>(() => new Set(start.parts));
+  const [bundles, setBundles] = useState<ReadonlySet<string>>(() => new Set(start.bundles));
+  const [rate, setRate] = useState(start.rate);
+  const [target, setTarget] = useState(start.target);
+  const [cart, dispatch] = useCart(resume?.cart ?? restored?.cart?.lines);
+  const [group, setGroup] = useState<GroupSelection | null>(
+    resume ? resume.group : (restored?.group?.selection ?? null),
+  );
+  // 복원 배너 (탭 전환 복귀에는 없음) — 견적 입력·그룹 솔루션 / 장바구니
+  const [quoteBanner, setQuoteBanner] = useState<DraftBannerState | null>(() =>
+    resume ? null : mergeBanner(restored?.quote, restored?.group),
+  );
+  const [cartBanner, setCartBanner] = useState<DraftBannerState | null>(() =>
+    !resume && restored?.cart
+      ? { restoredAt: restored.cart.restoredAt, notices: restored.cart.notices }
+      : null,
+  );
   const [saved, setSaved] = useState<readonly SavedQuoteView[]>(savedQuotes);
   const [activeQuote, setActiveQuote] = useState<SavedQuoteView | null>(null);
   const [sharing, setSharing] = useState<SavedQuoteView | null>(null);
@@ -184,6 +246,85 @@ export function QuoteCalculator({ userId, preload, savedQuotes, initial }: Quote
     setQty(1);
     setRate(0);
     setTarget('');
+  };
+
+  // ── 입력 초안 저장 (page-state-memory §2.4) ─────────────────────────────
+  const form: QuoteFormState = useMemo(
+    () => ({
+      family,
+      priceType,
+      mid,
+      minor,
+      selected,
+      qty,
+      parts: [...parts],
+      bundles: [...bundles],
+      rate,
+      target,
+    }),
+    [family, priceType, mid, minor, selected, qty, parts, bundles, rate, target],
+  );
+  const quoteDefaults = { family: defaultFamily, priceType: defaultPriceTypeOf(defaultFamily) };
+  const toQuoteDraft = (next: QuoteFormState) => quoteDraftOf(next, quoteDefaults);
+  const applyForm = (next: QuoteFormState) => {
+    setFamily(next.family);
+    setPriceType(next.priceType);
+    setMid(next.mid);
+    setMinor(next.minor);
+    setSelected(next.selected);
+    setQty(next.qty);
+    setParts(new Set(next.parts));
+    setBundles(new Set(next.bundles));
+    setRate(next.rate);
+    setTarget(next.target);
+  };
+  const startDraft = toQuoteDraft(start);
+  const quoteSync = useDraftSync({
+    draftKey: 'quote',
+    value: toQuoteDraft(form),
+    hasServerDraft: Boolean(restored?.quote) || (resume !== undefined && startDraft !== null),
+    persistInitial: !resume && Boolean(restored?.quote?.dirty),
+    toValue: (next) => toQuoteDraft(next.form),
+    onRemote: (next) => applyForm(next.form),
+  });
+  const cartSync = useDraftSync({
+    draftKey: 'cart',
+    value: cartDraftOf(cart.lines),
+    hasServerDraft: Boolean(restored?.cart) || (resume?.cart.length ?? 0) > 0,
+    persistInitial: !resume && Boolean(restored?.cart?.dirty),
+    toValue: (next) => (next.lines.length > 0 ? { lines: next.lines } : null),
+    onRemote: (next) => dispatch({ type: 'restore', lines: next.lines }),
+  });
+  const groupSync = useDraftSync({
+    draftKey: 'group-solution',
+    value: groupDraftOf(group),
+    hasServerDraft: Boolean(restored?.group) || groupDraftOf(resume?.group ?? null) !== null,
+    persistInitial: !resume && Boolean(restored?.group?.dirty),
+    toValue: (next) => groupDraftOf(next.selection),
+    onRemote: (next) => setGroup(next.selection),
+  });
+
+  useEffect(() => {
+    onSnapshot?.({ quote: form, cart: cart.lines.map(toLineInput), group });
+  }, [onSnapshot, form, cart.lines, group]);
+
+  /** '새로 시작' (견적 입력·그룹 솔루션): 초안 삭제 + 기본 상태 (§2.6-2) */
+  const startOver = () => {
+    quoteSync.discard();
+    groupSync.discard();
+    chooseFamily(defaultFamily);
+    setQty(1);
+    setRate(0);
+    setTarget('');
+    setGroup(null);
+    setPendingItem(null);
+    setQuoteBanner(null);
+  };
+  /** '견적 초기화'·장바구니 '새로 시작': 장바구니 초안 삭제 (§2.6-2) */
+  const resetCart = () => {
+    cartSync.discard();
+    dispatch({ type: 'reset' });
+    setCartBanner(null);
   };
 
   const pricedParts = options.parts.filter((part) => parts.has(part.itemCode)).map(asOption);
@@ -277,6 +418,7 @@ export function QuoteCalculator({ userId, preload, savedQuotes, initial }: Quote
           제품과 옵션을 선택해 장바구니에 담으면, 여러 품목을 함께 견적으로 계산할 수 있습니다.
         </p>
       </div>
+      <DraftRestoreBanner banner={quoteBanner} label="견적 입력 복원 안내" onReset={startOver} />
       <Presence>
         {flash ? (
           <Collapse key="flash" role={flash.tone === 'error' ? 'alert' : 'status'}>
@@ -317,8 +459,11 @@ export function QuoteCalculator({ userId, preload, savedQuotes, initial }: Quote
           </section>
           {current ? (
             <GroupSolution
+              family={family}
               groups={current.groups}
               hardware={current.hardware}
+              selection={group}
+              onSelection={setGroup}
               onAdd={(line) => {
                 dispatch({ type: 'add', line });
                 setFlash({ tone: 'ok', text: `그룹을 장바구니에 담았습니다: ${line.name}` });
@@ -397,7 +542,14 @@ export function QuoteCalculator({ userId, preload, savedQuotes, initial }: Quote
           saved={saved}
           isPending={isPending}
           onRemove={(id) => dispatch({ type: 'remove', id })}
-          onReset={() => dispatch({ type: 'reset' })}
+          onReset={resetCart}
+          banner={
+            <DraftRestoreBanner
+              banner={cartBanner}
+              label="장바구니 복원 안내"
+              onReset={resetCart}
+            />
+          }
           onSave={save}
           onReload={reload}
           onDelete={remove}

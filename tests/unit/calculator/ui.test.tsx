@@ -22,6 +22,12 @@ vi.mock('@/features/calculator/actions', () => ({
   deleteQuoteAction: mocks.remove,
 }));
 vi.mock('@/features/costs/actions', () => ({ calculateNetSalesAction: mocks.margin }));
+// 입력 초안 저장(page-state-memory B-2)은 tests/unit/page-state/drafts-ui.test.tsx 에서 검증한다
+vi.mock('@/features/page-state/draft-actions', () => ({
+  saveDraftAction: vi.fn(async () => ({ ok: true, data: { status: 'saved' } })),
+  deleteDraftAction: vi.fn(async () => ({ ok: true, data: { status: 'deleted' } })),
+  readDraftAction: vi.fn(async () => ({ ok: true, data: null })),
+}));
 
 const { QuoteCalculator } = await import('@/features/calculator/QuoteCalculator');
 const { MarginCalculator } = await import('@/features/calculator/MarginCalculator');
@@ -171,7 +177,8 @@ describe('QuoteCalculator', () => {
     expect(screen.getByRole('status')).toHaveTextContent('장바구니에 담았습니다');
     expect(screen.getByLabelText('장바구니')).toHaveTextContent('Wapples-500 (H500 T2)');
     expect(screen.getByTestId('quote-total')).toHaveTextContent('35,875,000원');
-    expect(JSON.parse(window.sessionStorage.getItem('prami.quote.cart.v1')!).lines).toHaveLength(1);
+    // 장바구니는 브라우저 저장소에 두지 않는다 (page-state-memory §2.4-6 — 서버 초안 cart)
+    expect(window.sessionStorage.getItem('prami.quote.cart.v1')).toBeNull();
   });
 
   it('통화 혼합 → 통화별 소계 (AC-65); 저장 → Q 번호 status + 목록 갱신; 담기 → 라인 복원; 삭제 (AC-63)', async () => {

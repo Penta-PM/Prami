@@ -9,6 +9,7 @@ import {
   VIEW_SAVE_DEBOUNCE_MS,
   type PageKey,
 } from '@/lib/page-state/keys';
+import { registerEmptyViewSave } from '@/lib/page-state/view-navigation';
 
 import { saveViewScrollAction, saveViewStateAction } from './actions';
 
@@ -28,6 +29,9 @@ function mainElement(): HTMLElement | null {
  * 조회 상태 저장·스크롤 복원 (page-state-memory §2.2-3·5, §2.3). 화면 RSC 가 restoreViewState 결과로 렌더한다. 화면에는 아무것도 그리지 않는다.
  * - URL 쿼리가 바뀌면 500ms 뒤 저장(디바운스). 빈 쿼리('필터 초기화'·마지막 조건 해제)는 바로 저장 — 다음 진입에 이전 조건이 되살아나지 않게.
  *   화면을 떠날 때 남은 저장은 바로 보낸다. 정규화·권한 확인·2KB 한도는 서버 액션이 한다.
+ * - 빈 상태 먼저 저장(§6): 파라미터 없는 요청은 같은 화면 안이라도 저장 상태로 복원되므로, 마운트 동안 이 경로의 '빈 상태 저장'을
+ *   등록한다(registerEmptyViewSave). 화면 안 이동(navigateView·ViewStateLink)이 빈 쿼리로 갈 때 이 저장(대기 중 디바운스 취소 + '')을
+ *   기다린 뒤 이동한다 — 그래서 이동 요청은 redirect 되지 않고, 이동 후 빈 쿼리는 이미 저장됐으니 다시 보내지 않는다.
  * - 스크롤: 진행 중 스크롤은 위치만 기억하고, 화면 이탈·탭 숨김(visibilitychange) 때 {query, top} 을 1회 저장한다.
  *   첫 마운트(데이터가 렌더된 뒤 다음 프레임)에 restoreTop 이 있으면 그 위치로(높이가 모자라면 브라우저가 최대로 맞춘다), 없으면 맨 위.
  *   필터·정렬·페이지가 바뀌면 맨 위로.
@@ -83,6 +87,14 @@ export function ViewStateTracker({ pageKey, savedQuery, restoreTop }: ViewStateT
     const main = mainElement();
     initialQueryRef.current = queryRef.current;
     const path = PAGE_PATHS[pageKey];
+    const unregisterEmptySave = registerEmptyViewSave(path, async () => {
+      if (pendingRef.current) {
+        clearTimeout(pendingRef.current.timer);
+        pendingRef.current = null;
+      }
+      lastSavedRef.current = '';
+      await saveViewStateAction({ pageKey, query: '' });
+    });
     const flushQuery = () => {
       const pending = pendingRef.current;
       if (!pending) return;
@@ -123,6 +135,7 @@ export function ViewStateTracker({ pageKey, savedQuery, restoreTop }: ViewStateT
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', onLeave);
     return () => {
+      unregisterEmptySave();
       cancelAnimationFrame(frame);
       main?.removeEventListener('scroll', onScroll);
       document.removeEventListener('visibilitychange', onVisibility);

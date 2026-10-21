@@ -4,6 +4,7 @@ import { getDb } from '@/db';
 import { env } from '@/env';
 import { AccountSection } from '@/features/settings/AccountSection';
 import { LlmSection } from '@/features/settings/LlmSection';
+import { PageStateResetSection } from '@/features/settings/PageStateResetSection';
 import { requirePagePermission } from '@/server/auth/rbac';
 import { isGoogleConfigured, isTestModeEnabled } from '@/server/auth/providers';
 import { keyringFromEnv } from '@/server/llm/credentials/keyring';
@@ -57,6 +58,7 @@ export default async function SettingsPage(props: { searchParams?: SearchParams 
         initialDefaults={settings.defaults}
         keyringReady={settings.keyringReady}
       />
+      <PageStateResetSection />
     </section>
   );
 }
