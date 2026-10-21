@@ -261,7 +261,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
       cellClassName: cn(CELL_CLASS, 'text-[13px]'),
       cell: (row) =>
         row.link ? (
-          <span className={cn(row.link.materialName === null ? 'text-red-500' : 'text-ink-900')}>
+          <span className={cn(row.link.materialName === null ? 'text-red-600' : 'text-ink-900')}>
             {materialLabel(row.link.materialCode, row.link.materialName)}
           </span>
         ) : (
@@ -322,7 +322,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
                   <button
                     type="button"
                     aria-label={`${row.itemName} 해제`}
-                    className={`${ACTION} text-red-500`}
+                    className={`${ACTION} text-red-600`}
                     disabled={isPending}
                     onClick={() =>
                       openModal(() => setUnlinking({ itemCode: row.itemCode, label: row.itemName }))
@@ -383,7 +383,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
       {flash?.tone === 'error' && !choosing && !unlinking ? (
         <p
           role="alert"
-          className="m-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500"
+          className="m-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-600"
         >
           {flash.text}
         </p>
@@ -461,7 +461,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
                     <button
                       type="button"
                       aria-label={`${entry.itemCode} 해제`}
-                      className={`${ACTION} ml-auto text-red-500`}
+                      className={`${ACTION} ml-auto text-red-600`}
                       disabled={isPending}
                       onClick={() =>
                         openModal(() =>
@@ -521,7 +521,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
               <strong className="text-ink-900">{unlinking.label}</strong>의 원가 매핑을 해제합니다.
             </p>
             {flash?.tone === 'error' ? (
-              <p role="alert" className="mt-2 mb-0 text-[12px] text-red-500">
+              <p role="alert" className="mt-2 mb-0 text-[12px] text-red-600">
                 {flash.text}
               </p>
             ) : null}
@@ -587,7 +587,7 @@ function MaterialPickerModal({
         </p>
         <CostLinkPicker materials={materials} chosen={chosen} onChosenChange={setChosen} />
         {error ? (
-          <p role="alert" className="m-0 text-[12px] text-red-500">
+          <p role="alert" className="m-0 text-[12px] text-red-600">
             {error}
           </p>
         ) : null}

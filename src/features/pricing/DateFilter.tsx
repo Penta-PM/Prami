@@ -93,7 +93,7 @@ export function DateControls({ filter, errors, years, onChange }: DateControlsPr
             initial="initial"
             animate="animate"
             exit="exit"
-            className="text-[12px] text-red-500"
+            className="text-[12px] text-red-600"
           >
             {message}
           </m.span>

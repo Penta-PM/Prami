@@ -58,7 +58,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         {error ? (
           <p
             role="alert"
-            className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500"
+            className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-600"
           >
             {error}
           </p>

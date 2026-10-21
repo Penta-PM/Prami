@@ -173,7 +173,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
               disabled={user.status === 'inactive' || user.id === currentUserId}
               onClick={() => setConfirming(user)}
               aria-label={`${user.email} 비활성화`}
-              className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-text-tertiary hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-text-tertiary"
+              className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-text-tertiary hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-text-tertiary"
             >
               비활성화
             </button>
@@ -212,7 +212,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
       <Presence>
         {error && !form ? (
           <Collapse key="error" role="alert">
-            <p className="m-0 mb-4 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500">
+            <p className="m-0 mb-4 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-600">
               {error}
             </p>
           </Collapse>

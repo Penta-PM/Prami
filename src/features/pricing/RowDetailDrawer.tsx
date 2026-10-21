@@ -95,7 +95,7 @@ export function RowDetailDrawer({ rowId, onClose, manage = false }: RowDetailDra
     <>
       <Drawer open={rowId !== null} onClose={onClose} title="행 상세" width={520}>
         {error ? (
-          <p role="alert" className="m-0 text-[13px] text-red-500">
+          <p role="alert" className="m-0 text-[13px] text-red-600">
             {error}
           </p>
         ) : null}

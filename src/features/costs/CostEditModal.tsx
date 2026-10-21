@@ -78,7 +78,7 @@ export function CostEditModal({ row, onClose, onSaved }: CostEditModalProps) {
         <Presence>
           {error ? (
             <Collapse key="error" role="alert">
-              <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-500">
+              <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-600">
                 {error}
               </p>
             </Collapse>
@@ -151,7 +151,7 @@ function Field({
     <label className="flex flex-col gap-1.5">
       <span className="text-[12px] font-medium text-text-secondary">{label}</span>
       {children}
-      {error?.length ? <span className="text-[12px] text-red-500">{error.join(' ')}</span> : null}
+      {error?.length ? <span className="text-[12px] text-red-600">{error.join(' ')}</span> : null}
     </label>
   );
 }

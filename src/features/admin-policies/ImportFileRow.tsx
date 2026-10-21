@@ -167,7 +167,7 @@ export function ImportFileRow(props: ImportFileRowProps) {
       <Presence>
         {message ? (
           <Collapse key="message" role="alert">
-            <p className="m-0 text-[12px] text-red-500">
+            <p className="m-0 text-[12px] text-red-600">
               {message}
               {existingId ? (
                 <button

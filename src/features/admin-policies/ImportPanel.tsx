@@ -175,7 +175,7 @@ export function ImportPanel({
       <Presence>
         {outcome?.ok === false ? (
           <Collapse key="error" role="alert">
-            <p className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-500">
+            <p className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-600">
               {outcome.message}
             </p>
           </Collapse>

@@ -496,7 +496,7 @@ function FilterEditor<T>({ field, filters, onApply }: FilterEditorProps<T>) {
       )}
 
       {error ? (
-        <p id={errorId} role="alert" className="m-0 text-[12px] text-red-500">
+        <p id={errorId} role="alert" className="m-0 text-[12px] text-red-600">
           {error}
         </p>
       ) : null}

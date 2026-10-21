@@ -62,12 +62,12 @@ export function LlmCredentialCard({
         </Pill>
       </header>
       {credential?.status === 'unreadable' ? (
-        <p role="alert" className="m-0 rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-500">
+        <p role="alert" className="m-0 rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-600">
           {UNREADABLE_NOTICE}
         </p>
       ) : null}
       {credential?.status === 'expired' ? (
-        <p role="alert" className="m-0 rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-500">
+        <p role="alert" className="m-0 rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-600">
           {expiredNotice(vendor.label)}
         </p>
       ) : null}

@@ -220,7 +220,7 @@ function Bubble({ message }: { message: ChatMessage }) {
           isUser
             ? 'max-w-[78%] rounded-[14px] bg-ink-900 px-[15px] py-[11px] text-[13px] leading-[1.5] whitespace-pre-line text-white'
             : message.tone === 'error'
-              ? 'max-w-[78%] rounded-[14px] bg-red-500/10 px-[15px] py-[11px] text-[13px] leading-[1.5] whitespace-pre-line text-red-500'
+              ? 'max-w-[78%] rounded-[14px] bg-red-500/10 px-[15px] py-[11px] text-[13px] leading-[1.5] whitespace-pre-line text-red-600'
               : 'max-w-[78%] rounded-[14px] bg-gray-75 px-[15px] py-[11px] text-[13px] leading-[1.5] whitespace-pre-line text-text-primary'
         }
       >
