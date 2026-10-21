@@ -40,12 +40,12 @@ test('USER: STEP1 단가유형 → STEP3 품목·수량 → STEP4 파츠 → 목
   expect(total).toBeLessThanOrEqual(target + 1000);
 
   await page.getByRole('button', { name: /장바구니에 담기 \(Wapples SA-500/ }).click();
-  await expect(page.getByLabel('장바구니')).toContainText('Wapples SA-500');
+  await expect(page.getByRole('region', { name: '장바구니' })).toContainText('Wapples SA-500');
   await expect(page.getByTestId('quote-total')).toContainText('원');
   // 장바구니는 서버 입력 초안(cart)으로 유지된다 (page-state-memory §2.4-6) — 1s 디바운스 저장 후 새로고침
   await expectDraft(FIXTURE_USER, 'cart');
   await page.reload();
-  await expect(page.getByLabel('장바구니')).toContainText('Wapples SA-500');
+  await expect(page.getByRole('region', { name: '장바구니' })).toContainText('Wapples SA-500');
 
   await page.getByRole('button', { name: '견적 저장' }).click();
   // 새로고침 뒤에는 복원 배너(role=status)도 있어 저장 안내 문구로 찾는다
@@ -55,7 +55,7 @@ test('USER: STEP1 단가유형 → STEP3 품목·수량 → STEP4 파츠 → 목
   const saved = page.getByLabel('내 견적 목록');
   await expect(saved).toContainText(`Q-${YEAR}-`);
   await saved.getByRole('button', { name: /담기/ }).first().click();
-  await expect(page.getByLabel('장바구니')).toContainText('Wapples SA-500');
+  await expect(page.getByRole('region', { name: '장바구니' })).toContainText('Wapples SA-500');
 
   await page.getByRole('button', { name: '전체보기' }).click();
   const dialog = page.getByRole('dialog', { name: '내 견적 목록' });
