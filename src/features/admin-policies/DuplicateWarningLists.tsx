@@ -38,7 +38,7 @@ export function DuplicateWarningLists({
       <div
         role="note"
         aria-label="같은 날짜 중복"
-        className="rounded-lg bg-surface-card p-3 text-amber-500 shadow-(--hairline-default)"
+        className="rounded-lg bg-surface-card p-3 text-amber-700 shadow-(--hairline-default)"
       >
         <p className="m-0 mb-1 font-semibold">
           같은 계열·적용시작일 중복 {sameDateDuplicates.length}그룹 — 원본 그대로 {verb}(뒤 행 우선,
@@ -56,7 +56,7 @@ export function DuplicateWarningLists({
         <div
           role="note"
           aria-label="값이 다른 같은 날짜 중복"
-          className="rounded-lg bg-amber-500/15 p-3 text-amber-500"
+          className="rounded-lg bg-amber-500/15 p-3 text-amber-700"
         >
           <p className="m-0 mb-1 font-semibold">
             그중 단가가 서로 다른 그룹 {conflictingDuplicates.length}건 — ERP 원본 확인이 필요합니다

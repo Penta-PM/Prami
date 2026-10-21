@@ -253,6 +253,13 @@ describe('PricingFilters (AC-10·11, R-01·R-13)', () => {
     searchPlaceholder: '모델명으로 검색',
   };
 
+  it('제품군 배지 글자는 amber-700 — 15% 앰버 배경 5.16:1 (amber-500 은 1.9:1, BL-2)', () => {
+    render(<PricingFilters {...baseProps} filter={{ ...baseProps.filter, family: 'WAPPLES' }} />);
+    const badge = screen.getByText(/^제품군: /);
+    expect(badge).toHaveClass('text-amber-700');
+    expect(badge).not.toHaveClass('text-amber-500');
+  });
+
   it('대분류 변경 → 중·소분류 초기화 + 1페이지, URL 로 반영', async () => {
     render(<PricingFilters {...baseProps} />);
     await userEvent.selectOptions(screen.getByLabelText('대분류'), 'D.AMO');
@@ -361,6 +368,8 @@ describe('PricingBrowser — 드로어·관리 동작 (AC-15·16)', () => {
     const dialog = await screen.findByRole('dialog', { name: '가격정책 수정' });
     expect(within(dialog).getByRole('note')).toHaveTextContent('폐기 품목입니다');
     expect(within(dialog).getByText(/ERP 임포트 행을 수정하면/)).toBeInTheDocument();
+    // BL-2: 15% 앰버 상자 위 amber-700 5.16:1 (amber-500 은 1.9:1)
+    expect(within(dialog).getByText(/ERP 임포트 행을 수정하면/)).toHaveClass('text-amber-700');
     await userEvent.type(
       within(dialog).getByLabelText('변경 사유 * (감사 로그에 기록됩니다)'),
       '가격 인상',

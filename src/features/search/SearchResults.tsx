@@ -27,7 +27,7 @@ export function SearchResults({ result }: { result: SearchResult }) {
         <strong className="text-ink-900">“{result.query}”</strong> 검색 결과 {total}건 (품목{' '}
         {result.items.length} · 공지 {result.notices.length})
         {anyTruncated ? (
-          <span role="note" className="ml-2 text-amber-500">
+          <span role="note" className="ml-2 text-amber-700">
             그룹당 상위 {SEARCH_LIMIT}건만 표시합니다 — 검색어를 더 구체적으로 입력하세요
           </span>
         ) : null}

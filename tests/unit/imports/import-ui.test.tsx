@@ -154,6 +154,12 @@ describe('ImportPanel', () => {
       within(summary).getByRole('table', { name: '미리보기 (상위 20행)' }),
     ).toBeInTheDocument();
     expect(within(summary).getByText(/경고: 메모/)).toBeInTheDocument();
+    // BL-2: gray-75 요약 상자 위 경고 목록 amber-700 5.45:1 (amber-500 은 2.01:1)
+    expect(
+      within(summary)
+        .getByText(/경고: 메모/)
+        .closest('ul'),
+    ).toHaveClass('text-amber-700');
 
     // 품목상태: 기존 재사용 + "없음" → 선택 사항이므로 적용 가능
     const itemMode = screen.getByRole('radiogroup', { name: '품목상태 파일 방식' });

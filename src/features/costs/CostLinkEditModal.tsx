@@ -170,7 +170,7 @@ export function CostLinkEditModal({ itemCode, onClose, onSaved }: CostLinkEditMo
               의 원가 매핑을 해제합니다.
             </p>
           ) : removeOnly ? (
-            <p className="m-0 text-[12px] text-[#a86a00]">{COST_LINK_OUT_OF_SCOPE_NOTICE}</p>
+            <p className="m-0 text-[12px] text-amber-700">{COST_LINK_OUT_OF_SCOPE_NOTICE}</p>
           ) : (
             <>
               <CostLinkPicker

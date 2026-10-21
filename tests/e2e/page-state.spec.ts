@@ -124,10 +124,8 @@ test('보고 있는 화면의 사이드바 링크를 다시 눌러도 저장 상
 test('클라이언트 표(사용자) 정렬·필터가 새로고침·재진입·재로그인 후 유지', async ({ page }) => {
   await loginAs(page, FIXTURE_ADMIN, '/admin/users');
   const table = page.getByRole('table', { name: '사용자 목록' });
-  await table.getByRole('columnheader', { name: '이메일' }).getByRole('button').click();
-  // 정렬은 URL 이 기준 — 다음 클릭은 첫 클릭의 router.replace 가 반영된 뒤에
-  await expect(page).toHaveURL(/\/admin\/users\?sort=email&dir=asc$/);
-  await table.getByRole('columnheader', { name: '이메일' }).getByRole('button').click();
+  // 빠른 두 번 클릭 (BL-2, §6) — 첫 클릭의 router.replace 반영을 기다리지 않아도 두 번째 클릭이 내림차순을 요청한다
+  await table.getByRole('columnheader', { name: '이메일' }).getByRole('button').dblclick();
   await expect(page).toHaveURL(/\/admin\/users\?sort=email&dir=desc$/);
   await page.reload();
   await expect(table.getByRole('columnheader', { name: '이메일' })).toHaveAttribute(

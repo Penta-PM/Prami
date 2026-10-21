@@ -70,7 +70,7 @@ export function CostEditModal({ row, onClose, onSaved }: CostEditModalProps) {
           {row.unit}
         </p>
         {row.source === 'erp' ? (
-          <p className="m-0 rounded-lg bg-amber-500/15 px-3 py-2.5 text-[12px] text-amber-500">
+          <p className="m-0 rounded-lg bg-amber-500/15 px-3 py-2.5 text-[12px] text-amber-700">
             ERP 임포트 행을 수정하면 수동 등록 행으로 바뀌며, 다음 원가 적용 시 같은
             자재·적용시작일의 ERP 값으로 대체될 수 있습니다.
           </p>

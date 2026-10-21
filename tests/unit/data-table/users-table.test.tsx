@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -62,6 +62,32 @@ describe('UsersTable (DataTable 파일럿)', () => {
     await userEvent.click(within(th('마지막 로그인')).getByRole('button'));
     expect(th('마지막 로그인')).toHaveAttribute('aria-sort', 'descending');
     expect(names()).toEqual(['나(나)', '다', '가', '라']);
+  });
+
+  it('빠른 두 번 클릭(BL-2, page-state-memory §6): router.replace 가 반영되기 전 두 번째 클릭은 dir=desc 를 요청한다', () => {
+    const original = navigation.replace.getMockImplementation();
+    const lagged: string[] = [];
+    navigation.replace.mockImplementation((href: string) => {
+      lagged.push(href); // URL 갱신을 미룬다 — 실제 라우터의 비동기 반영
+    });
+    try {
+      render(<UsersTable users={USERS} currentUserId="a" />);
+      const button = within(th('이메일')).getByRole('button');
+      fireEvent.click(button);
+      fireEvent.click(button);
+      expect(lagged).toEqual([
+        '/admin/users?sort=email&dir=asc',
+        '/admin/users?sort=email&dir=desc',
+      ]);
+      // 라우터가 차례로 따라잡으면 내림차순
+      act(() => {
+        for (const href of lagged) original?.(href);
+      });
+      expect(th('이메일')).toHaveAttribute('aria-sort', 'descending');
+      expect(navigation.search()).toBe('sort=email&dir=desc');
+    } finally {
+      if (original) navigation.replace.mockImplementation(original);
+    }
   });
 
   it("관리 열은 정렬·이동하지 않고, '열 초기화'는 기본 상태에서 비활성이다", () => {
