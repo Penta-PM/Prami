@@ -3,7 +3,7 @@ import { useId } from 'react';
 import { cn } from '@/lib/cn';
 import { priceChangeDisplay, priceTypeLabel } from '@/lib/pricing/format';
 
-import type { CostRatioReason, CostRatioView } from './types';
+import type { CostLinkCellView, CostRatioReason, CostRatioView } from './types';
 
 /**
  * 표 셀 표시 (디자인 가격정책 표): 품목상태 색상 필(R-09, AC-14/22), 운영상태 아이콘+텍스트.
@@ -181,5 +181,125 @@ export function CostRatio({ value }: { value: CostRatioView | undefined }) {
       {costRatioLabel(value.costRatio)}
       <span className="sr-only"> ({tooltip})</span>
     </span>
+  );
+}
+
+export type CostLinkState =
+  'linked' | 'missing-cost' | 'unlinked' | 'out-of-scope' | 'out-of-scope-linked';
+
+export const COST_LINK_OUT_OF_SCOPE = '원가 매핑 대상 아님';
+export const COST_LINK_OUT_OF_SCOPE_LINKED = '후보 밖 — 원가 비중에 쓰이지 않음';
+
+/** 원가 매핑 칸 상태 5종 (policy-cost-link-column §2.1-4). 후보 밖이면 원가표 여부보다 '후보 밖'이 먼저다 */
+export function costLinkState(value: CostLinkCellView): CostLinkState {
+  if (!value.inScope) return value.link ? 'out-of-scope-linked' : 'out-of-scope';
+  if (!value.link) return 'unlinked';
+  return value.link.inCostTable ? 'linked' : 'missing-cost';
+}
+
+/** 수정 모달을 열 수 있는 칸인가 — 후보 밖·링크 없음은 버튼 없음(§2.1-4) */
+export function costLinkEditable(value: CostLinkCellView | undefined): value is CostLinkCellView {
+  return value !== undefined && costLinkState(value) !== 'out-of-scope';
+}
+
+const WARNING_TEXT = 'text-[#a86a00]';
+
+/**
+ * 원가 매핑 칸 (policy-cost-link-column §2.1-4): 매핑됨 = W코드 + 자재명(작은 글자·말줄임·title 전체명) / 원가표에 없음(경고색) /
+ * 미매핑(보조색) / 후보 밖·링크 없음 = '—' + title "원가 매핑 대상 아님" / 후보 밖·링크 있음 = W코드 + 경고 title.
+ * 값이 없으면(계산 실패) 툴팁 없는 '—'. 원가 금액은 없다.
+ */
+export function CostLink({ value, id }: { value: CostLinkCellView | undefined; id?: string }) {
+  if (!value) {
+    return (
+      <span id={id} className="text-text-tertiary">
+        —
+      </span>
+    );
+  }
+  const state = costLinkState(value);
+  const common = { id, 'data-cost-link-state': state };
+  switch (state) {
+    case 'out-of-scope':
+      return (
+        <span {...common} title={COST_LINK_OUT_OF_SCOPE} className="text-text-tertiary">
+          <span aria-hidden="true">—</span>
+          <span className="sr-only">{COST_LINK_OUT_OF_SCOPE}</span>
+        </span>
+      );
+    case 'unlinked':
+      return (
+        <span {...common} className="text-text-tertiary">
+          미매핑
+        </span>
+      );
+    case 'out-of-scope-linked':
+      return (
+        <span
+          {...common}
+          title={COST_LINK_OUT_OF_SCOPE_LINKED}
+          className={cn('whitespace-nowrap', WARNING_TEXT)}
+        >
+          {value.link!.materialCode}
+          <span className="sr-only"> ({COST_LINK_OUT_OF_SCOPE_LINKED})</span>
+        </span>
+      );
+    case 'missing-cost':
+      return (
+        <span {...common} className={cn('whitespace-nowrap', WARNING_TEXT)}>
+          {value.link!.materialCode} (원가표에 없음)
+        </span>
+      );
+    case 'linked': {
+      const name = value.link!.materialName ?? '';
+      return (
+        <span {...common} className="inline-flex max-w-[220px] min-w-0 items-baseline gap-1.5">
+          <span className="shrink-0 font-semibold text-ink-900">{value.link!.materialCode}</span>
+          <span title={name} className="min-w-0 truncate text-[11px] text-text-tertiary">
+            {name}
+          </span>
+        </span>
+      );
+    }
+  }
+}
+
+/**
+ * 원가 매핑 칸 = 매핑 수정 모달 트리거 (policy-cost-link-column §2.1-6, #59 PriceChangeButton 패턴).
+ * - 이름 "{품명} 원가 매핑 수정", 보이는 칸 텍스트는 aria-describedby. click 은 stopPropagation(행 드로어 비열림),
+ *   열기 전 버튼에 포커스(모달이 닫히면 이 버튼으로 돌아온다). 드래그 직후 클릭은 DataTable 이 캡처 단계에서 막는다.
+ */
+export function CostLinkButton({
+  rowId,
+  itemName,
+  value,
+  onOpen,
+}: {
+  rowId: number;
+  itemName: string;
+  value: CostLinkCellView;
+  onOpen: () => void;
+}) {
+  const textId = useId();
+  return (
+    <button
+      type="button"
+      aria-haspopup="dialog"
+      aria-label={`${itemName} 원가 매핑 수정`}
+      aria-describedby={textId}
+      data-cost-link-trigger={rowId}
+      onClick={(event) => {
+        event.stopPropagation();
+        event.currentTarget.focus();
+        onOpen();
+      }}
+      className={cn(
+        'inline-flex max-w-full cursor-pointer rounded-sm border-0 bg-transparent p-0 text-left [font:inherit]',
+        'underline decoration-dotted underline-offset-[3px] hover:bg-gray-100',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500',
+      )}
+    >
+      <CostLink id={textId} value={value} />
+    </button>
   );
 }

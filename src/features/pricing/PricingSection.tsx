@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { getDb } from '@/db';
-import { loadPolicyCostRatios } from '@/features/costs/price-ratios';
+import { loadPolicyCostColumns } from '@/features/costs/price-ratios';
 import { hasPermission } from '@/lib/constants/permissions';
 import { getSessionUser } from '@/server/auth/rbac';
 import { getCategoryOptions } from '@/server/pricing/categories';
@@ -58,11 +58,13 @@ export async function PricingSection({
     getCategoryOptions(db, { major: filter.major, mid: filter.mid, family: filter.family }),
     getPriceRows(db, filter, { withPriceChange }),
   ]);
-  // 원가 비중: 관리 표에서만, cost.read 가 있을 때만(없으면 null → prop 자체를 넘기지 않음 — RSC payload 에 costRatio 키 0).
-  // 현재 페이지 행 id 만 계산한다(cost-ratio-price-change §2.2-1). 조회 표(/pricing)는 부르지 않는다.
-  // 계산 실패는 화면을 죽이지 않는다 — 칸 '—' + 관리자 안내(migration-apply-lan §2-3)
-  const costRatios =
-    mode === 'admin' ? await loadPolicyCostRatios(page.rows.map((row) => row.id)) : null;
+  // 원가 열(원가 비중·원가 매핑): 관리 표 + pricing.write(withPriceChange 와 같은 판정) + cost.read 일 때만. 없으면 null → prop 자체를
+  // 넘기지 않음 — RSC payload 에 costRatio·costLink 키 0 (cost-ratio-price-change §2.3, policy-cost-link-column §2.1-2).
+  // 현재 페이지 행 id·품목코드만 계산한다(§2.2-1). 조회 표(/pricing)는 부르지 않는다.
+  // 계산 실패는 화면을 죽이지 않는다 — 두 열 칸 '—' + 관리자 안내(migration-apply-lan §2-3)
+  const cost = withPriceChange
+    ? await loadPolicyCostColumns(page.rows.map((row) => ({ id: row.id, itemCode: row.itemCode })))
+    : null;
   return (
     <div className="flex flex-col gap-4">
       <PricingFilters
@@ -83,8 +85,13 @@ export async function PricingSection({
         priceTypes={priceTypes}
         userId={userId}
         withPriceChange={withPriceChange}
-        {...(costRatios
-          ? { costRatios: costRatios.ratios, costRatioFailed: costRatios.failed }
+        {...(cost
+          ? {
+              costRatios: cost.ratios,
+              costRatioFailed: cost.failed,
+              costLinks: cost.links,
+              costLinkEditable: cost.canEditLinks,
+            }
           : {})}
       />
       <PricingPagination

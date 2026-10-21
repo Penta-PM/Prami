@@ -28,7 +28,9 @@ const ADMIN_HEADERS = [
   '소분류',
   '품목명',
   '판매가',
-  // E2E ADMIN 은 cost.read 가 있어 원가 비중 열이 판매가 바로 뒤에 있다 (cost-ratio-price-change §2.3)
+  // E2E ADMIN 은 pricing.write + cost.read 가 있어 판매가 뒤에 원가 매핑·원가 비중 열이 있다
+  // (cost-ratio-price-change §2.3, policy-cost-link-column §2.1-1 — 원가 매핑은 원가 비중 바로 왼쪽)
+  '원가 매핑',
   '원가 비중',
   '적용시작일',
   '적용기간',

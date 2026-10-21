@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useId, useMemo, useState, useTransition, type FormEvent } from 'react';
 
 import { Presence } from '@/components/motion/Presence';
-import { Button, Input, Modal, Segmented, Select } from '@/components/ui';
+import { Button, Input, Modal, Segmented } from '@/components/ui';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { formatAuditTime } from '@/lib/audit-format';
 import { cn } from '@/lib/cn';
@@ -13,10 +13,10 @@ import {
   type CostLinkCandidate,
   type CostLinkFamily,
   type CostLinkMaterial,
-  type CostLinkNoSuggestion,
   type CostLinkView,
 } from '@/server/cost/item-link-types';
 
+import { CostLinkPicker, materialLabel, NO_SUGGESTION_TEXT } from './CostLinkPicker';
 import { confirmCostLinksAction, deleteCostLinkAction } from './link-actions';
 
 /**
@@ -27,13 +27,6 @@ import { confirmCostLinksAction, deleteCostLinkAction } from './link-actions';
 const TABLE_ID = 'cost-links';
 /** 확정 Action 한 번의 상한 — 넘으면 나눠 보낸다 */
 const CONFIRM_CHUNK = 500;
-
-const NO_SUGGESTION_TEXT: Record<CostLinkNoSuggestion, string> = {
-  'sw-upgrade': 'S/W 업그레이드 — 제안 없음',
-  'no-model': '모델을 읽을 수 없음',
-  'no-cost': '같은 모델 원가 없음',
-  ambiguous: '같은 모델 원가가 여럿 — 직접 선택',
-};
 
 type FamilyFilter = 'all' | CostLinkFamily;
 const FAMILY_OPTIONS: readonly { value: FamilyFilter; label: string }[] = [
@@ -55,10 +48,6 @@ function suggestedLinks(rows: readonly CostLinkCandidate[]) {
   return rows.flatMap((row) =>
     row.suggestion ? [{ itemCode: row.itemCode, materialCode: row.suggestion.materialCode }] : [],
   );
-}
-
-function materialLabel(code: string, name: string | null): string {
-  return name === null ? `${code} (원가표에 없음)` : `${name} (${code})`;
 }
 
 type Flash = { tone: 'ok' | 'error'; text: string };
@@ -552,7 +541,7 @@ type MaterialPickerModalProps = {
   onConfirm: (materialCode: string) => void;
 };
 
-/** 직접 선택 — 원가 자재 목록(자재명·자재번호)에서 하나를 골라 확정 */
+/** 직접 선택 — 원가 자재 목록(자재명·자재번호)에서 하나를 골라 확정 (선택 UI 는 공용 CostLinkPicker) */
 function MaterialPickerModal({
   row,
   materials,
@@ -561,23 +550,9 @@ function MaterialPickerModal({
   onClose,
   onConfirm,
 }: MaterialPickerModalProps) {
-  const [search, setSearch] = useState('');
   const [chosen, setChosen] = useState(
     row.link?.materialCode ?? row.suggestion?.materialCode ?? '',
   );
-  const searchId = useId();
-  const selectId = useId();
-
-  const filtered = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (needle === '') return materials;
-    return materials.filter(
-      (material) =>
-        material.materialName.toLowerCase().includes(needle) ||
-        material.materialCode.toLowerCase().includes(needle) ||
-        material.materialCode === chosen,
-    );
-  }, [materials, search, chosen]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -610,31 +585,7 @@ function MaterialPickerModal({
         <p className="m-0">
           <strong className="text-ink-900">{row.itemName}</strong> ({row.itemCode})
         </p>
-        <label htmlFor={searchId} className="text-[12px] font-medium text-text-secondary">
-          자재명·자재번호 검색
-        </label>
-        <Input
-          id={searchId}
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <label htmlFor={selectId} className="text-[12px] font-medium text-text-secondary">
-          원가 자재 ({filtered.length}건)
-        </label>
-        <Select
-          id={selectId}
-          size={8}
-          value={chosen}
-          onChange={(event) => setChosen(event.target.value)}
-          className="pr-3.5"
-        >
-          {filtered.map((material) => (
-            <option key={material.materialCode} value={material.materialCode}>
-              {materialLabel(material.materialCode, material.materialName)}
-            </option>
-          ))}
-        </Select>
+        <CostLinkPicker materials={materials} chosen={chosen} onChosenChange={setChosen} />
         {error ? (
           <p role="alert" className="m-0 text-[12px] text-red-500">
             {error}

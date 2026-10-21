@@ -14,9 +14,9 @@ describe('열 정의', () => {
   const keys = (mode: 'view' | 'admin', withCost?: boolean) =>
     columnsFor(mode, withCost).map((column) => column.key);
 
-  it('관리 표 + 원가: 판매가 바로 뒤. 원가 없이는 관리·조회 표 모두 열 없음', () => {
+  it('관리 표 + 원가: 판매가 → 원가 매핑 → 원가 비중. 원가 없이는 관리·조회 표 모두 열 없음', () => {
     const admin = keys('admin', true);
-    expect(admin[admin.indexOf('price') + 1]).toBe('costRatio');
+    expect(admin[admin.indexOf('price') + 2]).toBe('costRatio');
     expect(keys('admin')).not.toContain('costRatio');
     expect(keys('view')).not.toContain('costRatio');
     expect(keys('view', true)).not.toContain('costRatio');
@@ -32,15 +32,18 @@ describe('열 정의', () => {
     expect(parsePriceFilter({ sort: 'costRatio', dir: 'desc' }).filter.sort).toBeUndefined();
   });
 
-  it('예전 저장 레이아웃(원가 비중 없음) → 판매가 뒤에 끼우고 기존 순서·너비 유지', () => {
+  it('예전 저장 레이아웃(원가 비중·원가 매핑 없음) → 판매가 뒤에 끼우고 기존 순서·너비 유지', () => {
     const columns = layoutColumnsFor('admin', true);
     const savedOrder = layoutColumnsFor('admin')
       .filter((column) => !column.pinned)
       .map((column) => column.id)
       .reverse();
     const layout = normalizeLayout({ order: savedOrder, widths: { price: 150 } }, columns)!;
-    expect(layout.order.indexOf('costRatio')).toBe(layout.order.indexOf('price') + 1);
-    expect(layout.order.filter((id) => id !== 'costRatio' && id !== 'actions')).toEqual(savedOrder);
+    expect(layout.order.indexOf('costLink')).toBe(layout.order.indexOf('price') + 1);
+    expect(layout.order.indexOf('costRatio')).toBe(layout.order.indexOf('costLink') + 1);
+    expect(layout.order.filter((id) => !['costLink', 'costRatio', 'actions'].includes(id))).toEqual(
+      savedOrder,
+    );
     expect(layout.widths).toEqual({ price: 150 });
   });
 });

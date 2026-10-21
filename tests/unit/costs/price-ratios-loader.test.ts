@@ -27,7 +27,9 @@ vi.mock('@/server/auth/rbac', () => ({
   requirePermission: vi.fn(),
 }));
 
-const { loadPolicyCostRatios } = await import('@/features/costs/price-ratios');
+const { loadPolicyCostColumns } = await import('@/features/costs/price-ratios');
+
+const rows = (...ids: number[]) => ids.map((id) => ({ id, itemCode: `P${id}` }));
 
 let handle: DbHandle;
 
@@ -44,23 +46,36 @@ beforeEach(() => {
   state.role = 'ADMIN';
 });
 
-describe('loadPolicyCostRatios', () => {
-  it('테이블이 있으면 failed=false (대상 행 없으면 빈 결과)', async () => {
-    expect(await loadPolicyCostRatios([1, 2])).toEqual({ ratios: {}, failed: false });
+describe('loadPolicyCostColumns (원가 비중 + 원가 매핑, policy-cost-link-column §2.2-2)', () => {
+  it('테이블이 있으면 failed=false (대상 행 없으면 빈 비중, 품목마다 매핑 칸), ADMIN = cost.write', async () => {
+    expect(await loadPolicyCostColumns(rows(1, 2))).toEqual({
+      ratios: {},
+      links: {
+        P1: { inScope: false, link: null },
+        P2: { inScope: false, link: null },
+      },
+      canEditLinks: true,
+      failed: false,
+    });
   });
 
   it('원가 권한 없으면 null — 열·안내 없음(계산·로그 없음)', async () => {
     state.role = 'USER';
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    expect(await loadPolicyCostRatios([1])).toBeNull();
+    expect(await loadPolicyCostColumns(rows(1))).toBeNull();
     expect(error).not.toHaveBeenCalled();
     error.mockRestore();
   });
 
-  it('cost_item_links 가 없는 DB(0009 미적용) → 던지지 않고 failed=true + 서버 로그 pricing.cost_ratio_failed', async () => {
+  it('cost_item_links 가 없는 DB(0009 미적용) → 던지지 않고 두 열 모두 failed=true(빈 값) + 서버 로그 pricing.cost_ratio_failed', async () => {
     await handle.db.execute(sql`drop table cost_item_links`);
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    expect(await loadPolicyCostRatios([1, 2, 3])).toEqual({ ratios: {}, failed: true });
+    expect(await loadPolicyCostColumns(rows(1, 2, 3))).toEqual({
+      ratios: {},
+      links: {},
+      canEditLinks: true,
+      failed: true,
+    });
     const line = JSON.parse(String(error.mock.calls[0]![0])) as Record<string, unknown>;
     expect(line).toMatchObject({ level: 'error', event: 'pricing.cost_ratio_failed', rows: 3 });
     error.mockRestore();
