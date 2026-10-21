@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import pg from 'pg';
 
 import { E2E_ENV } from '../../playwright.config';
 
@@ -37,9 +38,35 @@ export function expectNoHydrationErrors(page: Page): void {
   expect(watchedPages.get(page) ?? [], '하이드레이션 오류 0건').toEqual([]);
 }
 
-/** 테스트 Credentials 로 로그인한다 (AUTH_TEST_MODE). callbackUrl 이 있으면 그 경로로 돌아온다 */
-export async function loginAs(page: Page, email: string, callbackUrl = '/'): Promise<void> {
+/**
+ * 그 계정의 서버 저장 조회 상태(user_view_states — page-state-memory B-1)를 지운다. 조회 상태는 계정별로 무기한 남으므로
+ * 앞 스펙이 남긴 필터·정렬로 파라미터 없는 진입이 redirect 되지 않게, 스펙은 기본 상태에서 시작한다.
+ */
+export async function clearViewStates(email: string): Promise<void> {
+  const client = new pg.Client({ connectionString: E2E_ENV.DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(
+      'delete from user_view_states where user_id in (select id from users where email = $1)',
+      [email],
+    );
+  } finally {
+    await client.end();
+  }
+}
+
+/**
+ * 테스트 Credentials 로 로그인한다 (AUTH_TEST_MODE). callbackUrl 이 있으면 그 경로로 돌아온다.
+ * 기본으로 그 계정의 저장 조회 상태를 먼저 지운다 — 재로그인 후 복원을 검증할 때만 `keepViewState: true`.
+ */
+export async function loginAs(
+  page: Page,
+  email: string,
+  callbackUrl = '/',
+  { keepViewState = false }: { keepViewState?: boolean } = {},
+): Promise<void> {
   watchHydration(page);
+  if (!keepViewState) await clearViewStates(email);
   await page.goto(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   await submitTestLogin(page, email, E2E_ENV.AUTH_TEST_PASSWORD);
   await expect(page).toHaveURL((url) => url.pathname === callbackUrl.split('?')[0]);

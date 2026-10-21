@@ -71,6 +71,13 @@
       "when": 1792046956826,
       "tag": "0009_cost_item_links",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792564735188,
+      "tag": "0010_user_view_states",
+      "breakpoints": true
     }
   ]
 }

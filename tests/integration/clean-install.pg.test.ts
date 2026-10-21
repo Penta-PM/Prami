@@ -127,7 +127,7 @@ describe.skipIf(!enabled)(
         expect(run('migrate.ts', [], url).status).toBe(0);
         const schema = run('data-verify.ts', ['--stage', 'schema'], url);
         expect(schema.status).toBe(0);
-        expect(schema.output).toMatch(/__drizzle_migrations 행 \| 10 \| 10 \| PASS/);
+        expect(schema.output).toMatch(/__drizzle_migrations 행 \| 11 \| 11 \| PASS/);
       });
 
       it('S-4~S-6 판매단가 → 품목 → 원가 (정식 서비스 경로, 감사 actor script:<OS 사용자>)', async () => {
@@ -173,7 +173,7 @@ describe.skipIf(!enabled)(
             items: [sha256(itemBytes)],
           },
           expected: {
-            migrations: 10,
+            migrations: 11,
             // 파일에서 독립적으로 센 값
             items: itemCount,
             salesRows,

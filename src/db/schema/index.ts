@@ -19,4 +19,5 @@ export * from './sales-prices';
 export * from './solution-groups';
 export * from './staging';
 export * from './user-settings';
+export * from './user-view-states';
 export * from './users';

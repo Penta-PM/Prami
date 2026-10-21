@@ -60,6 +60,12 @@ vi.mock('@/features/pricing/PricingSection', () => ({
   ),
 }));
 
+// 조회 상태 복원·저장(page-state-memory B-1)은 tests/unit/page-state 에서 검증한다 — 여기서는 화면 렌더만
+vi.mock('@/server/page-state/restore-page', () => ({
+  restoreViewState: async (pageKey: string) => ({ pageKey, savedQuery: null, restoreTop: null }),
+}));
+vi.mock('@/features/page-state/ViewStateTracker', () => ({ ViewStateTracker: () => null }));
+
 const { default: AdminLayout } = await import('@/app/(app)/admin/layout');
 const { default: AdminUsersPage } = await import('@/app/(app)/admin/users/page');
 const { default: AdminAuditPage } = await import('@/app/(app)/admin/audit/page');
@@ -73,7 +79,7 @@ describe('관리자 페이지', () => {
   });
 
   it('사용자·권한 페이지는 users.manage 를 검사하고 표와 권한 매트릭스를 렌더한다', async () => {
-    render(await AdminUsersPage());
+    render(await AdminUsersPage({ searchParams: Promise.resolve({}) }));
     expect(calls.guards).toContain('users.manage:/admin/users');
     expect(screen.getByRole('table', { name: '사용자 목록' })).toBeInTheDocument();
     expect(screen.getByRole('table', { name: '역할별 권한' })).toBeInTheDocument();

@@ -305,6 +305,19 @@ describe('내 견적 목록 모달 열 필터', () => {
     expect(navigation.push).not.toHaveBeenCalled();
   });
 
+  it('정렬도 컴포넌트 상태 — URL 을 바꾸지 않는다 (page-state-memory §2.2-6 예외)', async () => {
+    const ue = userEvent.setup();
+    const modal = await openQuotes(ue);
+    const th = within(within(modal).getByRole('table', { name: '견적 목록 표' })).getByRole(
+      'columnheader',
+      { name: '견적 번호' },
+    );
+    await ue.click(within(th).getByRole('button'));
+    expect(th).toHaveAttribute('aria-sort', 'ascending');
+    expect(navigation.replace).not.toHaveBeenCalled();
+    expect(navigation.search()).toBe('');
+  });
+
   it('제품 + 내용 텍스트 AND, 0건이면 빈 상태 → 필터 초기화', async () => {
     const ue = userEvent.setup();
     const modal = await openQuotes(ue);

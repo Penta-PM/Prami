@@ -98,6 +98,12 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/pricing',
 }));
 
+// 조회 상태 복원·저장(page-state-memory B-1)은 tests/unit/page-state 에서 검증한다 — 여기서는 화면 렌더만
+vi.mock('@/server/page-state/restore-page', () => ({
+  restoreViewState: async (pageKey: string) => ({ pageKey, savedQuery: null, restoreTop: null }),
+}));
+vi.mock('@/features/page-state/ViewStateTracker', () => ({ ViewStateTracker: () => null }));
+
 const { PricingSection } = await import('@/features/pricing/PricingSection');
 
 describe('PricingSection', () => {

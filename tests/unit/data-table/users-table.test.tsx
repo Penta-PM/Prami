@@ -10,11 +10,12 @@ vi.mock('@/features/users/actions', () => ({
   updateUserAction: vi.fn(),
   deactivateUserAction: vi.fn(),
 }));
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn(), replace: vi.fn() }),
-  usePathname: () => '/admin/users',
-  useSearchParams: () => new URLSearchParams(),
-}));
+// 정렬·필터는 URL 상태(page-state-memory §2.2-6) — router.replace 가 useSearchParams 를 바꾸는 메모리 더블
+vi.mock(
+  'next/navigation',
+  async () => (await import('../../helpers/next-navigation')).navigationModule,
+);
+const { navigation } = await import('../../helpers/next-navigation');
 
 const { UsersTable } = await import('@/features/users/UsersTable');
 
@@ -44,6 +45,7 @@ const names = () =>
     .map((row) => within(row).getAllByRole('cell')[0]?.textContent);
 
 beforeEach(() => {
+  navigation.reset('/admin/users');
   localStorage.clear();
 });
 

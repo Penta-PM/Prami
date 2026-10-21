@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import {
   DataTable,
@@ -9,11 +9,11 @@ import {
   DataTableResetButton,
   filterDefsOf,
   filterFieldsOf,
-  useUrlFilters,
+  useUrlTableState,
   type DataTableColumn,
-  type DataTableSort,
 } from '@/components/ui/data-table';
 
+import { PARTS_MAPPING_FILTER_DEFS, PARTS_MAPPING_SORT_IDS } from './table-state';
 import type { PartMappingView } from './types';
 
 type PartsMappingTableProps = {
@@ -31,8 +31,6 @@ const PARTS_MAPPING_TABLE_ID = 'parts-mapping';
 
 /** "등록된 매핑" 표 — 모델별 1행, 파츠는 품명(품번) 목록 (§4.3.6 GROUP BY, R-02, AC-30) */
 export function PartsMappingTable({ mappings, onEdit, onDelete, userId }: PartsMappingTableProps) {
-  // 정렬은 컴포넌트 상태(#32 §5), '필터 초기화' 가 함께 해제하도록 제어형으로 둔다 (열 필터 스펙 §2.5-4)
-  const [sort, setSort] = useState<DataTableSort>(null);
   // 열 배열은 저장 레이아웃 정규화의 기준이라 렌더마다 새로 만들지 않는다
   const columns = useMemo<DataTableColumn<PartMappingView>[]>(
     () => [
@@ -42,7 +40,7 @@ export function PartsMappingTable({ mappings, onEdit, onDelete, userId }: PartsM
         type: 'text',
         sortValue: (mapping) => mapping.modelName,
         // 셀에 모델명과 품번이 함께 보이므로 둘 중 하나라도 맞으면 통과
-        filter: { kind: 'text' },
+        filter: PARTS_MAPPING_FILTER_DEFS.model,
         filterValue: (mapping) => [mapping.modelName, mapping.modelItemCode],
         headerClassName: 'pl-5',
         cellClassName: 'pl-5 font-semibold whitespace-nowrap',
@@ -100,12 +98,14 @@ export function PartsMappingTable({ mappings, onEdit, onDelete, userId }: PartsM
 
   const filterFields = useMemo(() => filterFieldsOf(columns), [columns]);
   const filterDefs = useMemo(() => filterDefsOf(filterFields), [filterFields]);
-  // URL 의 `?family` 제품군 탭은 그대로 두고 f.* 만 바꾼다. '필터 초기화' 도 탭은 유지(탭은 화면 이동이지 필터가 아님)
-  const { filters, setFilters } = useUrlFilters(filterDefs);
-  const resetFilters = () => {
-    setFilters([]);
-    setSort(null);
-  };
+  // URL 의 `?family` 제품군 탭은 그대로 두고 f.*·sort·dir 만 바꾼다. '필터 초기화' 도 탭은 유지(탭은 화면 이동이지 필터가 아님)
+  const {
+    filters,
+    setFilters,
+    sort,
+    setSort,
+    reset: resetFilters,
+  } = useUrlTableState(filterDefs, PARTS_MAPPING_SORT_IDS);
 
   return (
     <section aria-labelledby="parts-mappings" className="flex flex-col gap-3">

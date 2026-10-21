@@ -9,11 +9,12 @@ import type { SortDir } from './compare';
  */
 export type SortState<Id extends string = string> = { id: Id; dir: SortDir };
 
-type Params = Record<string, string | string[] | undefined>;
+type Params = URLSearchParams | Record<string, string | string[] | undefined>;
 
 const dirSchema = z.enum(['asc', 'desc']).catch('asc');
 
 function first(params: Params, key: string): string | undefined {
+  if (params instanceof URLSearchParams) return params.get(key) ?? undefined;
   const value = params[key];
   return Array.isArray(value) ? value[0] : value;
 }
@@ -38,4 +39,20 @@ export function appendSortParams(query: string, sort: SortState | undefined): st
   if (!sort) return query;
   const tail = new URLSearchParams({ sort: sort.id, dir: sort.dir }).toString();
   return query === '' || query === '?' ? `?${tail}` : `${query}&${tail}`;
+}
+
+/**
+ * 현재 쿼리('' · 'a=b' · '?a=b')의 sort·dir 를 바꾼 쿼리스트링('' 또는 '?…'). 다른 파라미터는 순서대로 두고
+ * sort·dir 는 맨 뒤(#32 §3). sort 가 없으면 두 키를 지운다 — 클라이언트 표 정렬 URL 이전(page-state-memory §2.2-6)
+ */
+export function withSortQuery(current: string, sort: SortState | null | undefined): string {
+  const source = new URLSearchParams(current.startsWith('?') ? current.slice(1) : current);
+  const out = new URLSearchParams();
+  for (const [key, value] of source) if (key !== 'sort' && key !== 'dir') out.append(key, value);
+  if (sort) {
+    out.append('sort', sort.id);
+    out.append('dir', sort.dir);
+  }
+  const query = out.toString();
+  return query ? `?${query}` : '';
 }

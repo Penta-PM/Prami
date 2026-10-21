@@ -13,7 +13,10 @@ import { Sidebar } from '@/features/shell/Sidebar';
  * 퇴장 중인 요소는 즉시(다음 틱) 제거된다 — 사라짐은 waitFor 로 단언한다.
  */
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/' }));
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/',
+  useRouter: () => ({ replace: vi.fn() }),
+}));
 
 // CalculatorTabs 는 탭 전환 모션만 본다 — 무거운 계산기 본체는 상호작용 가능한 가벼운 스텁으로 대체
 vi.mock('@/features/calculator/QuoteCalculator', () => ({

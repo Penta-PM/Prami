@@ -9,11 +9,12 @@ vi.mock('@/features/notices/actions', () => ({
   upsertNoticeAction: vi.fn(),
   deleteNoticeAction: vi.fn(),
 }));
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
-  usePathname: () => '/admin/notices',
-  useSearchParams: () => new URLSearchParams(),
-}));
+// 정렬·필터는 URL 상태(page-state-memory §2.2-6) — router.replace 가 useSearchParams 를 바꾸는 메모리 더블
+vi.mock(
+  'next/navigation',
+  async () => (await import('../../helpers/next-navigation')).navigationModule,
+);
+const { navigation } = await import('../../helpers/next-navigation');
 
 const { NoticesAdminTable } = await import('@/features/notices/NoticesAdminTable');
 
@@ -48,6 +49,7 @@ const renderTable = () =>
   render(<NoticesAdminTable notices={NOTICES} defaultAuthor="관리자" userId="u1" />);
 
 beforeEach(() => {
+  navigation.reset('/admin/notices');
   localStorage.clear();
 });
 

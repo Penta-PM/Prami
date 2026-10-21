@@ -20,4 +20,10 @@ export type {
   SortValue,
 } from './types';
 export { useTableLayout, type TableLayoutState } from './useTableLayout';
-export { useStateFilters, useUrlFilters, type TableFilterState } from './useTableFilters';
+export {
+  useStateFilters,
+  useUrlFilters,
+  useUrlTableState,
+  type TableFilterState,
+  type UrlTableState,
+} from './useTableFilters';
