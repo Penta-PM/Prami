@@ -2,6 +2,7 @@ import { sql, type AnyColumn, type SQL } from 'drizzle-orm';
 
 import {
   FILTER_LIMITS,
+  hasControlChar,
   isOpAllowed,
   selectedCurrency,
   type ColumnFilterDef,
@@ -20,7 +21,7 @@ import { isEmptyText } from '@/server/pricing/sort-sql';
  * - money: 통화 열(def.currencyCol) 조건이 하나로 정해졌을 때만 범위를 적용하고, 그때는 그 통화 행만(ASCII 대소문자 무시) 비교한다.
  *
  * 값의 형식·enum 소속·한도 검증은 URL 파싱(parseFilterParams + 표별 defs) 단계에서 끝난다. 여기서는 열·연산자 화이트리스트와
- * 값 길이만 다시 확인한다(데이터에서 온 enum 선택지 — 통화·행위 — 는 파서가 검증한다).
+ * 값 길이·제어 문자만 다시 확인한다(데이터에서 온 enum 선택지 — 통화·행위 — 는 파서가 검증한다).
  */
 
 type Expr = AnyColumn | SQL;
@@ -89,9 +90,14 @@ function conditionSql(
   if (!isOpAllowed(def, cond.op)) return null;
   if (cond.op === 'in') {
     if (def.kind !== 'enum') return null;
-    const values = cond.values.filter(
-      (value) => value.length > 0 && value.length <= FILTER_LIMITS.valueMax,
-    );
+    const values = [
+      ...new Set(
+        cond.values.filter(
+          (value) =>
+            value.length > 0 && value.length <= FILTER_LIMITS.valueMax && !hasControlChar(value),
+        ),
+      ),
+    ];
     if (values.length === 0 || values.length > FILTER_LIMITS.inMax) return null;
     const matchEmpty = emptyValue !== undefined && values.includes(emptyValue);
     const listed = matchEmpty ? values.filter((value) => value !== emptyValue) : values;
@@ -106,7 +112,9 @@ function conditionSql(
     return inList ? sql`(${isEmptyText(expr)} or ${inList})` : isEmptyText(expr);
   }
   const value = cond.value;
-  if (value.length === 0 || value.length > FILTER_LIMITS.valueMax) return null;
+  // 제어 문자(NUL 등)는 Postgres 가 거부해 500 이 되므로 파서를 거치지 않은 조건도 여기서 버린다 (BL-1)
+  if (value.length === 0 || value.length > FILTER_LIMITS.valueMax || hasControlChar(value))
+    return null;
   switch (cond.op) {
     case 'has':
       return sql`(${notEmpty(expr)} and strpos(${lowerC(expr)}, ${boundLowerC(value)}) > 0)`;

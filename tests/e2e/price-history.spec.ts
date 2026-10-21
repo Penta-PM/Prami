@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 
@@ -204,6 +205,25 @@ for (const [role, email, path, tableName] of [
       await modal(page).getByRole('button', { name: '닫기' }).click();
       await expect(modal(page)).toBeHidden();
       await expect(drawer(page)).toBeVisible();
+    });
+
+    test('모달 안 상태(운영중·미사용) 색 대비 axe 위반 0 (BL-1, QA #59 백로그 — blue-600·gray-600)', async ({
+      page,
+    }) => {
+      await firstTrigger(page, tableName).click();
+      const table = modal(page).getByRole('table', { name: '가격 변동 이력 표' });
+      await expect(table).toBeVisible();
+      await expect(table.getByText(/^(운영중|미사용)$/).first()).toBeVisible();
+      // 열림 전환(투명도)이 끝난 뒤 검사 — 전환 중 색이 섞여 오탐하지 않도록
+      await expect(modal(page)).toHaveCSS('opacity', '1');
+      const axe = await new AxeBuilder({ page })
+        .include('dialog[open] table') // 네이티브 <dialog> — role 속성 없이 암묵 역할
+        .withRules(['color-contrast'])
+        .analyze();
+      expect(
+        axe.violations,
+        JSON.stringify(axe.violations.map((v) => [v.id, v.nodes.map((n) => n.html)])),
+      ).toEqual([]);
     });
 
     test('키보드: 칸 버튼 포커스 후 Enter → 모달', async ({ page }) => {

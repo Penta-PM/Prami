@@ -136,6 +136,12 @@
   --purple-600: #6c55e0;
   /* 성공 안내·positive 필 텍스트 — 원본 --green-600(#29a073)은 12% 녹색 배경에서 2.7:1. 같은 색조 어둡게 4.7:1 */
   --green-700: #1e7353;
+  /* 상태 표시 텍스트 (BL-1, QA #59 백로그 — 모달 안 운영상태 대비): 운영중 #3075ff·미사용 #797c85 는 흰 배경 4.1:1 로 AA 미달.
+   * 같은 색조를 어둡게 — 흰색~--gray-200·라임 25% 강조 행 배경에서 최소 4.58:1(blue)·4.59:1(gray).
+   * --amber-700: amber 필·임시 품목상태 글자 — 원본 --amber-500 은 15% 앰버 배경에서 1.9:1, #a86a00 은 4.0:1 → 5.2:1 */
+  --blue-600: #2563eb;
+  --gray-600: #6a6d75;
+  --amber-700: #8f5a00;
   --surface-danger: color-mix(in srgb, var(--red-500) 8%, var(--white));
   --border-danger: var(--red-500);
 }
@@ -223,6 +229,9 @@
   --color-text-danger: var(--text-danger);
   --color-purple-600: var(--purple-600);
   --color-green-700: var(--green-700);
+  --color-blue-600: var(--blue-600);
+  --color-gray-600: var(--gray-600);
+  --color-amber-700: var(--amber-700);
   --color-slate-700-aa: var(--slate-700-aa);
   --color-slate-600-aa: var(--slate-600-aa);
   --color-surface-danger: var(--surface-danger);

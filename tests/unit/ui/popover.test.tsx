@@ -261,4 +261,28 @@ describe('Popover (표 열 필터 스펙 §2.5-5)', () => {
     expect(onClose).not.toHaveBeenCalled();
     expect(trigger()).toHaveFocus();
   });
+  it('모달 안: 백드롭 첫 클릭은 팝오버만 닫고 모달 유지, 다음 백드롭 클릭(누름·놓음 모두 백드롭)이 모달을 닫는다 (§7 Q2 A)', async () => {
+    const onClose = vi.fn();
+    render(<ModalHarness onClose={onClose} />, withMotion);
+    const modal = screen.getByRole('dialog', { name: '내 견적' });
+    await userEvent.click(trigger());
+    await waitFor(() => expect(screen.getByRole('textbox', { name: '값' })).toHaveFocus());
+
+    const backdropClick = () => {
+      fireEvent.pointerDown(modal);
+      fireEvent.pointerUp(modal);
+      fireEvent.click(modal);
+    };
+    backdropClick();
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: '품목명 필터' })).not.toBeInTheDocument(),
+    );
+    expect(modal).toHaveAttribute('open');
+    expect(modal).not.toHaveAttribute('data-closing');
+    expect(onClose).not.toHaveBeenCalled();
+    expect(trigger()).toHaveFocus();
+
+    backdropClick();
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+  });
 });

@@ -7,7 +7,7 @@ import { optionalCostReadAccess } from '@/server/cost/access';
 import { getItemLinkCells } from '@/server/cost/item-links';
 import type { ItemLinkCell } from '@/server/cost/item-link-types';
 import { getCostRatios, type CostRatio } from '@/server/cost/price-ratio';
-import { logger } from '@/server/log';
+import { logger, summarizeQueryError } from '@/server/log';
 
 export type { CostRatio, CostRatioReason } from '@/server/cost/price-ratio';
 export type { ItemLinkCell } from '@/server/cost/item-link-types';
@@ -30,6 +30,7 @@ export type PolicyCostColumns = {
  *   두 열을 **한 번의** optionalCostReadAccess 로 함께 판정·로드한다.
  * - 원가 열은 보조 정보라 계산이 실패해도 가격정책 화면 전체를 죽이지 않는다(migration-apply-lan §2-3): 서버 로그 +
  *   빈 결과 + failed. 권한 확인 실패·가격 행 조회 실패는 여기서 삼키지 않는다(본 기능 — 기존 오류 화면).
+ * - 실패 로그는 대상 함수·오류 코드·메시지 첫 줄만 남긴다(SQL 원문·바인딩 값 — 원가 금액·자재번호 — 없음, BL-1).
  */
 export async function loadPolicyCostColumns(
   rows: readonly { id: number; itemCode: string }[],
@@ -37,13 +38,17 @@ export async function loadPolicyCostColumns(
   const access = await optionalCostReadAccess();
   if (!access) return null;
   const canEditLinks = hasPermission((await getSessionUser())?.role, 'cost.write');
+  // 실패 로그에 남길 대상 함수 이름 (SQL·바인딩 값 대신 — BL-1)
+  let target = 'getDb';
   try {
     const db = await getDb();
+    target = 'getCostRatios';
     const ratios = await getCostRatios(
       access,
       db,
       rows.map((row) => row.id),
     );
+    target = 'getItemLinkCells';
     const links = await getItemLinkCells(
       access,
       db,
@@ -51,7 +56,9 @@ export async function loadPolicyCostColumns(
     );
     return { ratios, links, canEditLinks, failed: false };
   } catch (error) {
-    logger.error('pricing.cost_ratio_failed', { error, rows: rows.length });
+    // 오류 객체를 그대로 넘기지 않는다 — drizzle 메시지·stack 에 SQL 원문·바인딩 값(원가 금액·자재번호)이 실린다
+    const { code, message } = summarizeQueryError(error);
+    logger.error('pricing.cost_ratio_failed', { target, code, message, rows: rows.length });
     return { ratios: {}, links: {}, canEditLinks, failed: true };
   }
 }

@@ -2,6 +2,7 @@ import { and, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
 
 import type { Db } from '@/db';
 import { items, notices, salesPrices } from '@/db/schema';
+import { hasControlChar } from '@/lib/table/filter';
 
 /**
  * 상단 통합 검색 (§4.5.4, Q-14: 품목 + 공지). 원가(material_costs)는 어떤 경우에도 조인·반환하지 않는다 (AC-43).
@@ -36,7 +37,9 @@ const MAX_QUERY = 100;
 /** 검색어 정규화: 공백 정리, 길이 제한, LIKE 와일드카드는 문자 그대로 */
 export function normalizeQuery(raw: string | string[] | undefined): string {
   const value = Array.isArray(raw) ? raw[0] : raw;
-  return (value ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_QUERY);
+  // 제어 문자(NUL 등)가 든 검색어는 형식 오류 → 검색 없음 (Postgres 가 NUL 을 거부해 500, BL-1)
+  if (value === undefined || hasControlChar(value)) return '';
+  return value.replace(/\s+/g, ' ').trim().slice(0, MAX_QUERY);
 }
 
 function pattern(query: string): string {

@@ -268,6 +268,23 @@ export function DataTable<T>({
     return () => observer.disconnect();
   }, [measure, layout.order]);
 
+  // 빈 상태(결과 없음·필터 초기화)는 표가 화면보다 넓어도(320px 등) 보이는 영역 안에 둔다 (table-column-filter §2.5-7, A-1 백로그):
+  // 칸 안 내용을 가로 스크롤 영역의 왼쪽에 고정(sticky)하고 폭을 스크롤 영역의 보이는 폭으로 맞춘다. 표가 화면 안에 들어가면
+  // 보이는 폭 = 표 폭이라 넓은 화면의 모습은 그대로다. 서버 렌더·측정 전에는 폭 지정 없음(기존과 같음)
+  const showEmpty = viewRows.length === 0 && empty !== undefined;
+  const [emptyWidth, setEmptyWidth] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!showEmpty) return;
+    const scroller = wrapperRef.current?.firstElementChild;
+    if (!(scroller instanceof HTMLElement)) return;
+    const update = () => setEmptyWidth(scroller.clientWidth > 0 ? scroller.clientWidth : null);
+    update();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(update);
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  }, [showEmpty]);
+
   const ensureBaseline = () => {
     if (baseline) return baseline;
     const measured = measure();
@@ -649,9 +666,17 @@ export function DataTable<T>({
             event.stopPropagation();
           }}
         >
-          {viewRows.length === 0 && empty !== undefined ? (
+          {showEmpty ? (
             <TableRow>
-              <TableCell colSpan={ordered.length}>{empty}</TableCell>
+              <TableCell colSpan={ordered.length} className="p-0">
+                <div
+                  data-testid="data-table-empty"
+                  className="sticky left-0 px-3 py-3"
+                  style={emptyWidth !== null ? { width: emptyWidth } : undefined}
+                >
+                  {empty}
+                </div>
+              </TableCell>
             </TableRow>
           ) : (
             viewRows.map((row) => (

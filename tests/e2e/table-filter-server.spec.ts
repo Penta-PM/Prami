@@ -192,3 +192,30 @@ test('가격 관리: 쉼표가 든 단가 유형 "Standby,DR" 선택 → URL 이
   expect(types.every((text) => text.trim() === 'Standby,DR')).toBe(true);
   expectNoHydrationErrors(page);
 });
+
+test('가격 관리: 제어 문자 값(f.remark.has=%00abc·q=%00) → 200, 그 조건만 무시(칩 없음·전체 건수) (BL-1, QA #57 백로그)', async ({
+  page,
+}) => {
+  await loginAs(page, FIXTURE_ADMIN, '/admin/policies');
+  const table = page.getByRole('table', { name: '가격정책 관리 표' });
+  await expect(table).toBeVisible();
+  const all = await totalCount(page);
+  expect(all).toBeGreaterThan(0);
+
+  for (const query of [
+    'f.remark.has=%00abc',
+    'q=%00',
+    'f.remark.has=%00abc&q=%00&f.remark.eq=a%7F',
+  ]) {
+    const response = await page.goto(`/admin/policies?${query}`);
+    expect(response?.status(), query).toBe(200);
+    await expect(table).toBeVisible();
+    await expect(chipList(page).getByRole('listitem')).toHaveCount(0);
+    expect(await totalCount(page)).toBe(all);
+  }
+  // 정상 조건은 그대로 적용된다 (제어 문자 조건만 버림)
+  const response = await page.goto('/admin/policies?f.remark.has=%00abc&f.status.in=운영중');
+  expect(response?.status()).toBe(200);
+  await expect(chipList(page).getByRole('listitem')).toHaveText([/상태: 운영중/]);
+  expectNoHydrationErrors(page);
+});

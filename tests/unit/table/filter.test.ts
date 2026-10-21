@@ -9,6 +9,7 @@ import {
   type FilterCondition,
   filterRows,
   groupConditions,
+  hasControlChar,
   isMoneyRangeActive,
   joinInValues,
   matchesFilters,
@@ -16,6 +17,7 @@ import {
   parseFilterParams,
   serializeFilters,
   splitInValues,
+  validateCondition,
   withFilters,
   withFiltersQuery,
   withoutColumn,
@@ -88,7 +90,7 @@ describe('parseFilterParams', () => {
   });
 
   it('값 101자·in 21개·빈 값은 그 조건만 버린다', () => {
-    const many = Array.from({ length: 21 }, () => 'active').join(',');
+    const many = Array.from({ length: 21 }, (_, i) => `v${i}`).join(',');
     const params = new URLSearchParams();
     params.set('f.name.has', 'a'.repeat(101));
     params.set('f.name.eq', 'a'.repeat(100));
@@ -473,6 +475,110 @@ describe('in 값 백슬래시 이스케이프 (스펙 §2.2 개정, Plan §7)', 
     expect(raw.length).toBe(120);
     expect(parseFilterParams({ 'f.priceType.in': raw }, longDefs)).toEqual([
       { col: 'priceType', op: 'in', values: [value] },
+    ]);
+  });
+});
+
+describe('제어 문자 값 (BL-1, QA #57 백로그 — NUL 값 → 500)', () => {
+  it('hasControlChar: C0(U+0000–U+001F, 탭·줄바꿈 포함)·DEL(U+007F) 만', () => {
+    for (const ch of ['\u0000', '\u0001', '\t', '\n', '\r', '\u001F', '\u007F'])
+      expect(hasControlChar(`a${ch}b`)).toBe(true);
+    for (const value of ['abc', 'a b', '가격', '\u0080', '\u00A0', '—', '\\0', '%00'])
+      expect(hasControlChar(value)).toBe(false);
+  });
+
+  it('URL 코덱: f.<text>.has=%00abc 등 제어 문자 값은 그 조건만 버리고 나머지는 유지', () => {
+    const params = new URLSearchParams(
+      'f.name.has=%00abc&f.name.eq=ok&f.qty.gte=1%7F&f.qty.lte=10&f.status.in=active,%01inactive',
+    );
+    expect(params.get('f.name.has')).toBe('\u0000abc');
+    expect(parseFilterParams(params, DEFS)).toEqual([
+      { col: 'name', op: 'eq', value: 'ok' },
+      { col: 'qty', op: 'lte', value: '10' },
+    ]);
+  });
+
+  it('앞뒤 탭·줄바꿈도 trim 으로 지우지 않고 형식 오류(값 전체를 버림)', () => {
+    for (const value of ['\tabc', 'abc\n', 'a\u0000']) {
+      expect(validateCondition({ col: 'name', op: 'has', value }, DEFS)).toBeUndefined();
+      expect(parseFilterParams({ 'f.name.has': value }, DEFS)).toEqual([]);
+    }
+    expect(validateCondition({ col: 'name', op: 'has', value: ' abc ' }, DEFS)).toEqual({
+      col: 'name',
+      op: 'has',
+      value: 'abc',
+    });
+  });
+});
+
+describe('필터 값 경계 (table-column-filter §7 Q1 A)', () => {
+  const MANY = Array.from({ length: 25 }, (_, i) => `o${i}`);
+  const BOUNDARY_DEFS = {
+    name: { kind: 'text' },
+    qty: { kind: 'number' },
+    from: { kind: 'date' },
+    tag: { kind: 'enum', options: MANY.map((value) => ({ value, label: value })) },
+    spaced: { kind: 'enum', options: [{ value: ' 앞뒤 공백 ', label: '공백' }] },
+  } satisfies Record<string, ColumnFilterDef>;
+
+  it('a) 모든 종류 앞뒤 공백을 지우고 검증 — 날짜 " 2026-10-19 "·숫자 " 7 "·텍스트·in 값', () => {
+    expect(
+      parseFilterParams(
+        {
+          'f.name.has': '  abc  ',
+          'f.qty.gte': ' 7 ',
+          'f.from.gte': ' 2026-10-19',
+          'f.from.lte': '2026-10-20 ',
+          'f.tag.in': ' o1 , o2',
+        },
+        BOUNDARY_DEFS,
+      ),
+    ).toEqual([
+      { col: 'name', op: 'has', value: 'abc' },
+      { col: 'qty', op: 'gte', value: '7' },
+      { col: 'from', op: 'gte', value: '2026-10-19' },
+      { col: 'from', op: 'lte', value: '2026-10-20' },
+      { col: 'tag', op: 'in', values: ['o1', 'o2'] },
+    ]);
+    // 선택지 자체가 공백을 품으면 정확히 같은 값은 그대로 통과
+    expect(parseFilterParams({ 'f.spaced.in': ' 앞뒤 공백 ' }, BOUNDARY_DEFS)).toEqual([
+      { col: 'spaced', op: 'in', values: [' 앞뒤 공백 '] },
+    ]);
+  });
+
+  it('b) 100자 한도는 trim·언이스케이프 뒤 길이로', () => {
+    const hundred = 'a'.repeat(100);
+    expect(parseFilterParams({ 'f.name.has': `  ${hundred}  ` }, BOUNDARY_DEFS)).toEqual([
+      { col: 'name', op: 'has', value: hundred },
+    ]);
+    expect(parseFilterParams({ 'f.name.has': ` ${hundred}a ` }, BOUNDARY_DEFS)).toEqual([]);
+    // 언이스케이프 뒤 100자(쉼표 이스케이프로 URL 은 더 길다) + 앞뒤 공백 → 유지
+    const comma = `${'b'.repeat(49)},${'c'.repeat(50)}`;
+    const defs = {
+      t: { kind: 'enum', options: [{ value: comma, label: 'c' }] },
+    } satisfies Record<string, ColumnFilterDef>;
+    expect(parseFilterParams({ 'f.t.in': ` ${joinInValues([comma])} ` }, defs)).toEqual([
+      { col: 't', op: 'in', values: [comma] },
+    ]);
+    expect(validateCondition({ col: 't', op: 'in', values: [`${comma}x`] }, defs)).toBeUndefined();
+  });
+
+  it('c) in 20개 한도는 중복 제거(조용히 합침) 뒤 개수로', () => {
+    const twenty = MANY.slice(0, 20);
+    const withDupes = [...twenty, ...twenty, ' o0 '].join(',');
+    expect(parseFilterParams({ 'f.tag.in': withDupes }, BOUNDARY_DEFS)).toEqual([
+      { col: 'tag', op: 'in', values: twenty },
+    ]);
+    expect(parseFilterParams({ 'f.tag.in': MANY.slice(0, 21).join(',') }, BOUNDARY_DEFS)).toEqual(
+      [],
+    );
+  });
+
+  it('d) 0000–0099 년 날짜는 거부(현재 동작 유지), 0100 년부터 허용', () => {
+    for (const value of ['0000-01-01', '0001-01-01', '0050-06-15', '0099-12-31', ' 0099-12-31 '])
+      expect(parseFilterParams({ 'f.from.gte': value }, BOUNDARY_DEFS)).toEqual([]);
+    expect(parseFilterParams({ 'f.from.gte': '0100-01-01' }, BOUNDARY_DEFS)).toEqual([
+      { col: 'from', op: 'gte', value: '0100-01-01' },
     ]);
   });
 });

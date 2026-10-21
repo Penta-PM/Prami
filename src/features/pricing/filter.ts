@@ -1,6 +1,7 @@
 // 클라이언트(필터 UI)에서도 파싱하므로 JIT(eval) 탐지를 끈 zod 를 쓴다 (CSP, PR-11a QA L-1)
 import { z } from '@/lib/zod-jitless';
 import {
+  hasControlChar,
   parseFilterParams,
   serializeFilters,
   type ColumnFilterDef,
@@ -70,8 +71,10 @@ export type FilterErrors = Partial<Record<'from' | 'to', string>>;
 
 type Params = Record<string, string | string[] | undefined>;
 
+/** 문자열 파라미터(분류·검색어 q 등). 제어 문자가 든 값은 형식 오류 → 그 파라미터만 무시(검색 없음과 같음, BL-1) */
 const text = z
   .string()
+  .refine((value) => !hasControlChar(value))
   .trim()
   .max(100)
   .transform((value) => (value === '' || value === ALL ? undefined : value))

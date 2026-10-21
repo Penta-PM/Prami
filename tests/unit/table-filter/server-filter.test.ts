@@ -22,6 +22,7 @@ import { filterAccessorsOf, filterDefsOf } from '@/components/ui/data-table/filt
 import {
   filterRows,
   FILTER_LIMITS,
+  joinInValues,
   parseFilterParams,
   type FilterCondition,
 } from '@/lib/table/filter';
@@ -369,10 +370,16 @@ describe('가격 표 서버 필터 — 클라이언트 술어와 일치', () => 
     expect(Object.keys(defs)).not.toEqual(
       expect.arrayContaining(['costRatio', 'major', 'itemName']),
     );
-    // in 값 21개 → 그 조건만 버림
-    const many = Array.from({ length: 21 }, () => '운영중').join(',');
-    expect(parse({ 'f.status.in': many, 'f.remark.has': 'a' }).filters).toEqual([
+    // in 값 21개(중복 제거 뒤) → 그 조건만 버림 (§7 Q1 A-c)
+    expect(priceTypes.length).toBeGreaterThan(FILTER_LIMITS.inMax);
+    const many = joinInValues(priceTypes.slice(0, FILTER_LIMITS.inMax + 1));
+    expect(parse({ 'f.priceType.in': many, 'f.remark.has': 'a' }).filters).toEqual([
       { col: 'remark', op: 'has', value: 'a' },
+    ]);
+    // 같은 값 21번은 중복 제거로 1개 → 유지
+    const dup = Array.from({ length: 21 }, () => '운영중').join(',');
+    expect(parse({ 'f.status.in': dup }).filters).toEqual([
+      { col: 'status', op: 'in', values: ['운영중'] },
     ]);
   });
 
@@ -668,5 +675,84 @@ describe('감사 표 서버 필터 — 별칭·클라이언트 술어·CSV 일�
     expect(query.sql).not.toContain('pg_sleep');
     expect(query.sql).not.toContain('2026-09-01');
     expect(query.params.filter((value) => value === evil)).toHaveLength(3);
+  });
+});
+
+// ───────────────────────── 제어 문자 (BL-1, QA #57 백로그) ─────────────────────────
+
+describe('제어 문자 값 → 그 조건(파라미터)만 무시, 오류 없음 (BL-1)', () => {
+  const CONTROL = ['\u0000abc', 'a\u0001b', 'ab\tc', 'abc\n', '\u001Fx', 'x\u007F'] as const;
+
+  it('기준: NUL 을 그대로 바인딩하면 Postgres 가 거부한다 (재현 조건 — 이 블록이 의미 있도록)', async () => {
+    await expect(handle.db.execute(sql`select strpos('abc', ${'\u0000abc'})`)).rejects.toThrow();
+  });
+
+  it('filterSqlConditions: 파서를 거치지 않은 제어 문자 조건도 SQL 로 만들지 않는다', () => {
+    const spec = buildFilterSpec(
+      { remark: { kind: 'text' }, priceType: { kind: 'enum', options: [] } },
+      { remark: salesPrices.remark, priceType: salesPrices.priceType },
+    );
+    for (const value of CONTROL) {
+      expect(filterSqlConditions([{ col: 'remark', op: 'has', value }], spec)).toEqual([]);
+      expect(filterSqlConditions([{ col: 'remark', op: 'eq', value }], spec)).toEqual([]);
+      expect(filterSqlConditions([{ col: 'priceType', op: 'in', values: [value] }], spec)).toEqual(
+        [],
+      );
+    }
+    // 정상 값은 그대로
+    expect(filterSqlConditions([{ col: 'remark', op: 'has', value: 'abc' }], spec)).toHaveLength(1);
+  });
+
+  it('가격 표: f.<text>.has=%00abc·q=%00 → 오류 없이 그 조건만 무시(나머지 조건은 적용)', async () => {
+    const currencies = await listPriceCurrencies(handle.db);
+    const priceTypes = await listPriceTypes(handle.db);
+    const defs = priceFilterDefs(currencies, priceTypes, ADMIN_CHANGE);
+    const fetch = (params: Record<string, string>) => {
+      const { filter } = parsePriceFilter(params, defs);
+      return getPriceRows(handle.db, filter, ADMIN_CHANGE);
+    };
+    const all = await fetch({});
+    const onlyStatus = await fetch({ 'f.status.in': '운영중' });
+    for (const value of CONTROL) {
+      const { filter } = parsePriceFilter({ 'f.remark.eq': value, q: value, major: value }, defs);
+      expect(filter.filters).toBeUndefined();
+      expect(filter.q).toBeUndefined();
+      expect(filter.major).toBeUndefined();
+      expect((await fetch({ 'f.remark.has': value, q: value })).total).toBe(all.total);
+      expect(
+        (await fetch({ 'f.remark.has': value, 'f.status.in': '운영중', q: value })).total,
+      ).toBe(onlyStatus.total);
+    }
+  });
+
+  it('원가 표: f.<text>.has·q 제어 문자 → 오류 없이 무시', async () => {
+    const currencies = await listCostCurrencies(access, handle.db);
+    const defs = costFilterDefs(currencies);
+    const fetch = (params: Record<string, string>) =>
+      getCostRows(access, handle.db, parseCostFilter(params, defs).filter);
+    const all = await fetch({});
+    for (const value of CONTROL) {
+      const { filter } = parseCostFilter({ 'f.unit.has': value, q: value, family: value }, defs);
+      expect(filter.filters).toBeUndefined();
+      expect(filter.q).toBeUndefined();
+      expect(filter.family).toBeUndefined();
+      expect((await fetch({ 'f.unit.has': value, q: value })).total).toBe(all.total);
+    }
+  });
+
+  it('감사 표: actor·action 별칭·f.<text>.* 제어 문자 → 오류 없이 무시', async () => {
+    const all = await getAuditLogs(handle.db, parseAuditFilter({}));
+    for (const value of CONTROL) {
+      const params = {
+        actor: value,
+        action: `auth.login,${value}`,
+        'f.actor.eq': value,
+        'f.target.has': value,
+        'f.ip.eq': value,
+      };
+      const filter = parseAuditFilter(params);
+      expect(auditConditions(filter)).toEqual([]);
+      expect((await getAuditLogs(handle.db, filter)).total).toBe(all.total);
+    }
   });
 });

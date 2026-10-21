@@ -3,7 +3,12 @@ import { z } from 'zod';
 import { costFilterToQuery as clientCostFilterToQuery } from '@/features/costs/query';
 import { COST_SORT_IDS, type CostSortId } from '@/features/costs/sort';
 import { DATE_MODES, type DateMode } from '@/features/pricing/filter';
-import { parseFilterParams, type ColumnFilterDef, type FilterCondition } from '@/lib/table/filter';
+import {
+  hasControlChar,
+  parseFilterParams,
+  type ColumnFilterDef,
+  type FilterCondition,
+} from '@/lib/table/filter';
 import { parseSortParams, type SortState } from '@/lib/table/sort-param';
 
 /** 원가 관리 필터 (§4.5.5): 제품군 탭 + 날짜 두 모드(§4.5.2 공용) + 검색 + 페이지 — URL 상태 */
@@ -22,8 +27,10 @@ export type CostFilter = {
 
 export type CostFilterErrors = Partial<Record<'from' | 'to', string>>;
 
+/** 문자열 파라미터(분류·검색어 q 등). 제어 문자가 든 값은 형식 오류 → 그 파라미터만 무시(검색 없음과 같음, BL-1) */
 const text = z
   .string()
+  .refine((value) => !hasControlChar(value))
   .trim()
   .max(100)
   .transform((value) => (value === '' || value === '전체' ? undefined : value))
