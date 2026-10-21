@@ -1,17 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  cartDraftOf,
   cartReducer,
-  CART_STORAGE_KEY,
+  clearLegacyCart,
   describeLine,
   EMPTY_CART,
+  initialCart,
+  LEGACY_CART_STORAGE_KEY,
   linesFromSavedQuote,
-  loadCart,
-  persistCart,
+  toLineInput,
 } from '@/features/calculator/cart';
+import { parseDraft } from '@/lib/page-state/drafts';
 import type { CartLine, SavedQuoteView } from '@/features/calculator/types';
 
-/** 장바구니 리듀서·sessionStorage·담기 복원 (§4.5.7, AC-63·65) */
+/** 장바구니 리듀서·입력 초안 변환·예전 sessionStorage 키 삭제·담기 복원 (§4.5.7, AC-63·65, page-state-memory §2.4-6) */
 const base = {
   kind: 'item' as const,
   itemCode: 'P1',
@@ -67,30 +70,44 @@ describe('cartReducer', () => {
   });
 });
 
-describe('sessionStorage', () => {
-  it('저장·복원, 깨진 값·없는 저장소는 빈 장바구니', () => {
-    const store = new Map<string, string>();
-    const storage = {
-      getItem: (key: string) => store.get(key) ?? null,
-      setItem: (key: string, value: string) => void store.set(key, value),
-    };
-    const state = cartReducer(EMPTY_CART, { type: 'add', line: base });
-    persistCart(storage, state);
-    expect(store.has(CART_STORAGE_KEY)).toBe(true);
-    expect(loadCart(storage)).toEqual(state);
-    store.set(CART_STORAGE_KEY, '{not json');
-    expect(loadCart(storage)).toEqual(EMPTY_CART);
-    expect(loadCart(undefined)).toEqual(EMPTY_CART);
+describe('입력 초안 cart (page-state-memory §2.4-6 — sessionStorage 저장 제거)', () => {
+  it('예전 sessionStorage 키는 이전하지 않고 지운다 · 저장소 오류에도 던지지 않는다', () => {
+    const store = new Map<string, string>([
+      [LEGACY_CART_STORAGE_KEY, '{"lines":[{"name":"다른 사용자"}]}'],
+    ]);
+    clearLegacyCart({ removeItem: (key: string) => void store.delete(key) });
+    expect(store.has(LEGACY_CART_STORAGE_KEY)).toBe(false);
+    expect(LEGACY_CART_STORAGE_KEY).toBe('prami.quote.cart.v1');
     expect(() =>
-      persistCart(
-        {
-          setItem: () => {
-            throw new Error('quota');
-          },
+      clearLegacyCart({
+        removeItem: () => {
+          throw new Error('denied');
         },
-        state,
-      ),
+      }),
     ).not.toThrow();
+    expect(() => clearLegacyCart(undefined)).not.toThrow();
+  });
+
+  it('장바구니 → 초안 값(id·표시 금액 제외, 스키마 통과) · 빈 장바구니는 null(삭제)', () => {
+    const state = cartReducer(EMPTY_CART, { type: 'add', line: base });
+    const draft = cartDraftOf(state.lines)!;
+    expect(draft.lines[0]).not.toHaveProperty('id');
+    expect(draft.lines[0]).not.toHaveProperty('lineTotal');
+    expect(parseDraft('cart', 1, draft)).toEqual(draft);
+    expect(cartDraftOf([])).toBeNull();
+    expect(toLineInput(state.lines[0]!)).toEqual(base);
+  });
+
+  it('복원 첫 렌더 장바구니는 순번 id·다시 계산한 금액 (서버 렌더 = 하이드레이션)', () => {
+    const first = initialCart([base, base]);
+    const second = initialCart([base, base]);
+    expect(first).toEqual(second);
+    expect(first.lines.map((line) => line.id)).toEqual(['restored-0', 'restored-1']);
+    expect(first.lines[0]).toMatchObject({
+      preDiscount: expect.any(Number),
+      lineTotal: expect.any(Number),
+    });
+    expect(initialCart(undefined)).toEqual(EMPTY_CART);
   });
 });
 
@@ -125,7 +142,10 @@ describe('linesFromSavedQuote / describeLine', () => {
         },
       ],
     };
-    const [line] = linesFromSavedQuote(quote) as [CartLine];
+    const [line] = cartReducer(EMPTY_CART, {
+      type: 'restore',
+      lines: linesFromSavedQuote(quote),
+    }).lines as [CartLine];
     expect(line).toMatchObject({
       kind: 'item',
       itemCode: 'P1',

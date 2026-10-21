@@ -1,31 +1,22 @@
 'use client';
 
-import { useEffect, useReducer, useRef } from 'react';
+import { useEffect, useReducer } from 'react';
 
-import {
-  cartReducer,
-  EMPTY_CART,
-  loadCart,
-  persistCart,
-  type CartAction,
-  type CartState,
-} from './cart';
+import { cartReducer, clearLegacyCart, initialCart, type CartAction, type CartState } from './cart';
+import type { CartLineInput } from './types';
 
-/** 장바구니: useReducer + sessionStorage (§4.5.7). 첫 렌더 후 복원해 SSR 마크업과 어긋나지 않게 한다 */
-export function useCart(): [CartState, (action: CartAction) => void] {
-  const [state, dispatch] = useReducer(cartReducer, EMPTY_CART);
-  const hydrated = useRef(false);
+/**
+ * 장바구니: useReducer (§4.5.7). 첫 렌더 값은 RSC 가 읽은 입력 초안 `cart`(최신가 갱신 후)라 SSR 마크업과 같다.
+ * 서버 저장은 useDraftSync 가 맡고, 예전 sessionStorage 키(`prami.quote.cart.v1`)는 마운트 때 지운다(page-state-memory §2.4-6).
+ */
+export function useCart(
+  initialLines?: readonly CartLineInput[],
+): [CartState, (action: CartAction) => void] {
+  const [state, dispatch] = useReducer(cartReducer, initialLines, initialCart);
 
   useEffect(() => {
-    const stored = loadCart(typeof window === 'undefined' ? undefined : window.sessionStorage);
-    if (stored.lines.length > 0) dispatch({ type: 'restore', lines: stored.lines });
-    hydrated.current = true;
+    clearLegacyCart(typeof window === 'undefined' ? undefined : window.sessionStorage);
   }, []);
-
-  useEffect(() => {
-    if (!hydrated.current) return;
-    persistCart(typeof window === 'undefined' ? undefined : window.sessionStorage, state);
-  }, [state]);
 
   return [state, dispatch];
 }

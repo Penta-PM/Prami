@@ -78,6 +78,13 @@
       "when": 1792564735188,
       "tag": "0010_user_view_states",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792567785513,
+      "tag": "0011_user_drafts",
+      "breakpoints": true
     }
   ]
 }

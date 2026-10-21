@@ -39,17 +39,19 @@ export function expectNoHydrationErrors(page: Page): void {
 }
 
 /**
- * 그 계정의 서버 저장 조회 상태(user_view_states — page-state-memory B-1)를 지운다. 조회 상태는 계정별로 무기한 남으므로
- * 앞 스펙이 남긴 필터·정렬로 파라미터 없는 진입이 redirect 되지 않게, 스펙은 기본 상태에서 시작한다.
+ * 그 계정의 서버 저장 조회 상태(user_view_states — page-state-memory B-1)·입력 초안(user_drafts — B-2)을 지운다.
+ * 조회 상태는 무기한·초안은 30일 계정별로 남으므로 앞 스펙이 남긴 필터·정렬·장바구니로 화면이 바뀌지 않게, 스펙은 기본 상태에서 시작한다.
  */
 export async function clearViewStates(email: string): Promise<void> {
   const client = new pg.Client({ connectionString: E2E_ENV.DATABASE_URL });
   await client.connect();
   try {
-    await client.query(
-      'delete from user_view_states where user_id in (select id from users where email = $1)',
-      [email],
-    );
+    for (const table of ['user_view_states', 'user_drafts']) {
+      await client.query(
+        `delete from ${table} where user_id in (select id from users where email = $1)`,
+        [email],
+      );
+    }
   } finally {
     await client.end();
   }
@@ -57,7 +59,7 @@ export async function clearViewStates(email: string): Promise<void> {
 
 /**
  * 테스트 Credentials 로 로그인한다 (AUTH_TEST_MODE). callbackUrl 이 있으면 그 경로로 돌아온다.
- * 기본으로 그 계정의 저장 조회 상태를 먼저 지운다 — 재로그인 후 복원을 검증할 때만 `keepViewState: true`.
+ * 기본으로 그 계정의 저장 조회 상태·입력 초안을 먼저 지운다 — 재로그인 후 복원을 검증할 때만 `keepViewState: true`.
  */
 export async function loginAs(
   page: Page,
@@ -99,4 +101,31 @@ export async function signOutLocally(page: Page): Promise<void> {
     if ((await context.cookies()).length === 0) return;
     await context.clearCookies();
   }
+}
+
+/** 그 계정의 입력 초안(user_drafts — page-state-memory B-2) data (없으면 null) */
+export async function savedDraft(email: string, draftKey: string): Promise<unknown> {
+  const client = new pg.Client({ connectionString: E2E_ENV.DATABASE_URL });
+  await client.connect();
+  try {
+    const { rows } = await client.query<{ data: unknown }>(
+      `select d.data from user_drafts d join users u on u.id = d.user_id
+       where u.email = $1 and d.draft_key = $2`,
+      [email, draftKey],
+    );
+    return rows[0]?.data ?? null;
+  } finally {
+    await client.end();
+  }
+}
+
+/** 초안 저장(1s 디바운스 + 서버 액션)이 끝날 때까지 — 조건을 만족하는 data 가 DB 에 보일 때까지 폴링 */
+export async function expectDraft(
+  email: string,
+  draftKey: string,
+  predicate: (data: unknown) => boolean = (data) => data !== null,
+): Promise<void> {
+  await expect
+    .poll(async () => predicate(await savedDraft(email, draftKey)), { timeout: 10_000 })
+    .toBe(true);
 }

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { FIXTURE_ADMIN, FIXTURE_USER, loginAs, signOutLocally } from './helpers';
+import { expectDraft, FIXTURE_ADMIN, FIXTURE_USER, loginAs, signOutLocally } from './helpers';
 
 /**
  * QA-07 (PR-7) — 계산기. globalSetup 이 판매단가 200행 픽스처(WAPPLES 정상판매/ASP/Cloud, N_ 파츠, 전부 KRW)를 적용해 둔다.
@@ -42,11 +42,16 @@ test('USER: STEP1 단가유형 → STEP3 품목·수량 → STEP4 파츠 → 목
   await page.getByRole('button', { name: /장바구니에 담기 \(Wapples SA-500/ }).click();
   await expect(page.getByLabel('장바구니')).toContainText('Wapples SA-500');
   await expect(page.getByTestId('quote-total')).toContainText('원');
+  // 장바구니는 서버 입력 초안(cart)으로 유지된다 (page-state-memory §2.4-6) — 1s 디바운스 저장 후 새로고침
+  await expectDraft(FIXTURE_USER, 'cart');
   await page.reload();
   await expect(page.getByLabel('장바구니')).toContainText('Wapples SA-500');
 
   await page.getByRole('button', { name: '견적 저장' }).click();
-  await expect(page.getByRole('status')).toContainText(`견적을 저장했습니다: Q-${YEAR}-`);
+  // 새로고침 뒤에는 복원 배너(role=status)도 있어 저장 안내 문구로 찾는다
+  await expect(page.getByRole('status').filter({ hasText: '견적을 저장했습니다' })).toContainText(
+    `견적을 저장했습니다: Q-${YEAR}-`,
+  );
   const saved = page.getByLabel('내 견적 목록');
   await expect(saved).toContainText(`Q-${YEAR}-`);
   await saved.getByRole('button', { name: /담기/ }).first().click();
@@ -59,7 +64,9 @@ test('USER: STEP1 단가유형 → STEP3 품목·수량 → STEP4 파츠 → 목
   ).trim();
   expect(quoteNo).toMatch(new RegExp(`^Q-${YEAR}-\\d{4}$`));
   await dialog.getByRole('button', { name: `${quoteNo} 삭제` }).click();
-  await expect(page.getByRole('status')).toContainText(`견적을 삭제했습니다: ${quoteNo}`);
+  await expect(page.getByRole('status').filter({ hasText: '견적을 삭제했습니다' })).toContainText(
+    `견적을 삭제했습니다: ${quoteNo}`,
+  );
 });
 
 test('AC-63: 다른 사용자(ADMIN 아님)의 목록에는 남의 견적이 없고, ADMIN 목록에는 있다', async ({

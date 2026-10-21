@@ -1,46 +1,68 @@
 'use client';
 
-import { useState } from 'react';
-
 import { Button, Select } from '@/components/ui';
 import { priceLabel } from '@/lib/pricing/format';
 import { groupSubtotal } from '@/lib/pricing/quote';
 
 import { Chip, QtyControl, StepCard } from './chips';
-import type { CartLine, GroupChipView, QuoteItemView } from './types';
+import type {
+  CartLineInput,
+  GroupChipView,
+  GroupItemState,
+  GroupSelection,
+  QuoteItemView,
+} from './types';
 
 type GroupSolutionProps = {
+  /** 현재 제품군 — 선택 상태는 제품군별(다른 제품군의 선택은 보이지 않는다) */
+  family: string;
   groups: readonly GroupChipView[];
   hardware: readonly QuoteItemView[];
-  onAdd: (line: Omit<CartLine, 'id' | 'preDiscount' | 'lineTotal'>) => void;
+  /** 선택 상태 (부모가 보관 — 입력 초안 group-solution 저장·복원·새로 시작, page-state-memory §2.4) */
+  selection: GroupSelection | null;
+  onSelection: (next: GroupSelection) => void;
+  onAdd: (line: CartLineInput) => void;
 };
-
-type ItemState = { checked: boolean; qty: number };
 
 /**
  * 그룹 솔루션 (§4.5.7, AC-33 UI): PR-6 솔루션 그룹 칩 → 하드웨어(같은 제품군 본품) 선택 → 상세 제품 체크/수량 → 그룹 소계
  * → 그룹 라인으로 장바구니 담기. 항목 가격은 조회 시점 정상판매가(가격 미등록 항목은 0원 표시·제외 권장).
  */
-export function GroupSolution({ groups, hardware, onAdd }: GroupSolutionProps) {
-  const [groupId, setGroupId] = useState<string | null>(null);
-  const [hardwareCode, setHardwareCode] = useState<string>('');
-  const [itemState, setItemState] = useState<Record<string, ItemState>>({});
+export function GroupSolution({
+  family,
+  groups,
+  hardware,
+  selection,
+  onSelection,
+  onAdd,
+}: GroupSolutionProps) {
+  const current = selection?.family === family ? selection : null;
+  const groupId = current?.groupId ?? null;
+  const hardwareCode = current?.hardwareCode ?? '';
+  const itemState = current?.items ?? {};
   const group = groups.find((entry) => entry.id === groupId) ?? null;
   const machine = hardware.find((entry) => entry.itemCode === hardwareCode) ?? null;
 
   if (groups.length === 0) return null;
 
-  const select = (next: GroupChipView) => {
-    setGroupId(next.id);
-    setHardwareCode(hardware[0]?.itemCode ?? '');
-    setItemState(
-      Object.fromEntries(
+  const select = (next: GroupChipView) =>
+    onSelection({
+      family,
+      groupId: next.id,
+      hardwareCode: hardware[0]?.itemCode ?? '',
+      items: Object.fromEntries(
         next.items.map((item) => [item.itemCode, { checked: true, qty: item.defaultQty }]),
       ),
-    );
-  };
-  const update = (code: string, patch: Partial<ItemState>) =>
-    setItemState((current) => ({ ...current, [code]: { ...current[code]!, ...patch } }));
+    });
+  const setHardwareCode = (code: string) =>
+    onSelection({ family, groupId, hardwareCode: code, items: itemState });
+  const update = (code: string, patch: Partial<GroupItemState>) =>
+    onSelection({
+      family,
+      groupId,
+      hardwareCode,
+      items: { ...itemState, [code]: { ...itemState[code]!, ...patch } },
+    });
 
   const rows = group?.items ?? [];
   const subtotal = groupSubtotal(

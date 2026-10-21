@@ -2,14 +2,14 @@
 
 import { m } from 'motion/react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { Segmented } from '@/components/ui';
 import { transition } from '@/lib/motion/tokens';
 
 import { MarginCalculator } from './MarginCalculator';
-import { QuoteCalculator } from './QuoteCalculator';
-import type { FamilyPreload, SavedQuoteView } from './types';
+import { QuoteCalculator, type QuoteSnapshot } from './QuoteCalculator';
+import type { CalculatorDrafts, FamilyPreload, MarginDraftValues, SavedQuoteView } from './types';
 
 const TABS = [
   { value: 'quote', label: '견적 계산기' },
@@ -17,6 +17,9 @@ const TABS = [
 ] as const;
 
 type Tab = (typeof TABS)[number]['value'];
+
+/** 탭 전환으로 다시 마운트되는 계산기에 돌려줄 마지막 상태 (page-state-memory §2.4 — 서버 초안보다 최신) */
+type Snapshot = { quote?: QuoteSnapshot; margin?: MarginDraftValues };
 
 /** 탭 전환 진입: 토큰 조합 fadeUp 4px (Motion 도입 스펙 §3.3 세그먼트 탭 — 프리셋 fadeUp 은 6px 이라 이 자리는 4px 로 조합) */
 const TAB_ENTER = { opacity: 0, y: 4 } as const;
@@ -36,6 +39,7 @@ export function CalculatorTabs({
   canSeeCost,
   initialTab = 'quote',
   initial,
+  drafts,
 }: {
   /** 현재 사용자 id — 내 견적 목록 표의 열 설정 저장 키 (#32) */
   userId: string;
@@ -45,6 +49,8 @@ export function CalculatorTabs({
   initialTab?: Tab;
   /** 챗봇 견적 시작 링크로 넘어온 제품군·품번 */
   initial?: { family?: string; itemCode?: string };
+  /** RSC 가 읽은 입력 초안 (page-state-memory §2.4-3) — 첫 마운트에만 쓰고 복원 배너를 띄운다 */
+  drafts?: CalculatorDrafts;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -52,7 +58,17 @@ export function CalculatorTabs({
     tab: initialTab,
     switched: false,
   });
+  // 계산기는 탭을 바꾸면 리마운트된다 — 마지막 상태를 기억해 두었다가 돌려준다(복원 배너는 첫 진입에만)
+  const snapshotRef = useRef<Snapshot>({});
+  const [resume, setResume] = useState<Snapshot | null>(null);
+  const reportQuote = useCallback((quote: QuoteSnapshot) => {
+    snapshotRef.current.quote = quote;
+  }, []);
+  const reportMargin = useCallback((margin: MarginDraftValues) => {
+    snapshotRef.current.margin = margin;
+  }, []);
   const changeTab = (next: Tab) => {
+    setResume({ ...snapshotRef.current });
     setTabState({ tab: next, switched: true });
     const query = new URLSearchParams({ tab: next }).toString();
     router.replace(`${pathname ?? '/calculator'}?${query}`, { scroll: false });
@@ -78,9 +94,21 @@ export function CalculatorTabs({
             preload={preload}
             savedQuotes={savedQuotes}
             initial={initial}
+            restored={
+              resume?.quote
+                ? undefined
+                : { quote: drafts?.quote, cart: drafts?.cart, group: drafts?.['group-solution'] }
+            }
+            resume={resume?.quote}
+            onSnapshot={reportQuote}
           />
         ) : (
-          <MarginCalculator canSeeCost={canSeeCost} />
+          <MarginCalculator
+            canSeeCost={canSeeCost}
+            restored={resume?.margin ? undefined : drafts?.margin}
+            resume={resume?.margin}
+            onSnapshot={reportMargin}
+          />
         )}
       </m.div>
     </div>
