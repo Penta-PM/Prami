@@ -46,7 +46,7 @@ async function expectSavedQuery(email: string, pageKey: string, query: string) {
     .toBe(query);
 }
 
-const sidebar = (page: Page) => page.getByRole('navigation', { name: '주 메뉴' });
+const sidebar = (page: Page) => page.getByRole('complementary', { name: '주 메뉴' });
 const search = (page: Page) => new URL(page.url()).search.slice(1);
 
 test('가격 조회: 필터·정렬·페이지 → 다른 메뉴 → 사이드바 복귀 시 같은 URL, 첫 응답이 복원 상태', async ({
@@ -96,7 +96,7 @@ test('파라미터가 명시된 링크가 우선이고 새 저장값이 된다',
 
 test("'필터 초기화' 후 재진입 시 이전 조건이 되살아나지 않는다", async ({ page }) => {
   await loginAs(page, FIXTURE_USER, '/pricing?q=P&dateMode=period');
-  await expectSavedQuery(FIXTURE_USER, 'pricing', 'q=P&dateMode=period');
+  await expectSavedQuery(FIXTURE_USER, 'pricing', 'dateMode=period&q=P'); // 정규화(직렬화) 순서
   await page.getByRole('button', { name: '필터 초기화' }).first().click();
   await expect(page).toHaveURL(/\/pricing$/);
   await expectSavedQuery(FIXTURE_USER, 'pricing', '');
@@ -111,6 +111,8 @@ test('클라이언트 표(사용자) 정렬·필터가 새로고침·재진입·
   await loginAs(page, FIXTURE_ADMIN, '/admin/users');
   const table = page.getByRole('table', { name: '사용자 목록' });
   await table.getByRole('columnheader', { name: '이메일' }).getByRole('button').click();
+  // 정렬은 URL 이 기준 — 다음 클릭은 첫 클릭의 router.replace 가 반영된 뒤에
+  await expect(page).toHaveURL(/\/admin\/users\?sort=email&dir=asc$/);
   await table.getByRole('columnheader', { name: '이메일' }).getByRole('button').click();
   await expect(page).toHaveURL(/\/admin\/users\?sort=email&dir=desc$/);
   await page.reload();
