@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { getDb } from '@/db';
 import { CalculatorTabs } from '@/features/calculator/CalculatorTabs';
 import type { FamilyPreload } from '@/features/calculator/types';
+import { ViewStateTracker } from '@/features/page-state/ViewStateTracker';
 import { hasPermission } from '@/lib/constants/permissions';
 import { requirePagePermission } from '@/server/auth/rbac';
 import { listGroupChips } from '@/server/groups/queries';
@@ -13,6 +14,7 @@ import {
   listQuotePriceTypes,
 } from '@/server/quotes/catalog';
 import { listMyQuotes } from '@/server/quotes/queries';
+import { restoreViewState } from '@/server/page-state/restore-page';
 
 export const metadata: Metadata = { title: '계산기' };
 
@@ -24,6 +26,9 @@ type CalculatorPageProps = { searchParams: Promise<Record<string, string | strin
  */
 export default async function CalculatorPage({ searchParams }: CalculatorPageProps) {
   const user = await requirePagePermission('calculator.use', '/calculator');
+  const params = await searchParams;
+  // 파라미터 없는 진입이면 저장된 탭으로 redirect (page-state-memory §2.2-4·7)
+  const viewState = await restoreViewState('calculator', params, user);
   const db = await getDb();
   const families = await listProductFamilies(db);
   const preload: FamilyPreload[] = await Promise.all(
@@ -38,7 +43,6 @@ export default async function CalculatorPage({ searchParams }: CalculatorPagePro
     }),
   );
   const savedQuotes = await listMyQuotes(db, user);
-  const params = await searchParams;
   const tab = params.tab === 'margin' ? 'margin' : 'quote';
   // 챗봇 "견적 시작" 링크(§4.5.9): ?family=&item= — 목록에 있는 제품군·품번 형식만 받는다
   const family = typeof params.family === 'string' ? params.family : undefined;
@@ -61,6 +65,7 @@ export default async function CalculatorPage({ searchParams }: CalculatorPagePro
         initialTab={tab}
         initial={initial}
       />
+      <ViewStateTracker {...viewState} />
     </section>
   );
 }

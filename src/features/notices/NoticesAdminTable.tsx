@@ -14,15 +14,15 @@ import {
   DataTableResetButton,
   filterDefsOf,
   filterFieldsOf,
-  useUrlFilters,
+  useUrlTableState,
   type DataTableColumn,
-  type DataTableSort,
 } from '@/components/ui/data-table';
 import type { ActionResult } from '@/lib/result';
 
 import { NoticeDeleteModal } from './NoticeDeleteModal';
 import { NoticeFormModal, type NoticeFormMode } from './NoticeFormModal';
 import { ImportantBadge } from './NoticeRows';
+import { NOTICES_ADMIN_FILTER_DEFS, NOTICES_ADMIN_SORT_IDS } from './table-state';
 import type { NoticeDetailView } from './types';
 
 type NoticesAdminTableProps = {
@@ -39,10 +39,6 @@ const NOTICES_ADMIN_TABLE_ID = 'notices-admin';
 
 /** '중요' 열 정렬 순서 — 중요 → 일반 (정상·우선 값이 앞, #32 스펙 §9 Q1 과 같은 원칙) */
 const IMPORTANCE_ORDER = ['important', 'normal'] as const;
-const IMPORTANCE_FILTER_OPTIONS = [
-  { value: 'important', label: '중요' },
-  { value: 'normal', label: '일반' },
-] as const;
 
 /** 공지사항 관리 (디자인 "공지사항 관리" 표: 제목·작성일·작성자·중요·관리 + `+ 공지 등록`), ADMIN 전용 */
 export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdminTableProps) {
@@ -50,8 +46,6 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
   const [form, setForm] = useState<NoticeFormMode | null>(null);
   const [deleting, setDeleting] = useState<NoticeDetailView | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
-  // 정렬은 컴포넌트 상태(#32 §5), '필터 초기화' 가 함께 해제하도록 제어형으로 둔다 (열 필터 스펙 §2.5-4)
-  const [sort, setSort] = useState<DataTableSort>(null);
 
   const done = (verb: string) => (result: ActionResult<{ id: string; title: string }>) => {
     if (!result.ok) return;
@@ -69,7 +63,7 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
         header: '제목',
         type: 'text',
         sortValue: (notice) => notice.title,
-        filter: { kind: 'text' },
+        filter: NOTICES_ADMIN_FILTER_DEFS.title,
         headerClassName: 'pl-5',
         cellClassName: 'pl-5 font-semibold',
         cell: (notice) => (
@@ -84,7 +78,7 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
         type: 'date',
         // YYYY-MM-DD — 빈 값이면 방향과 관계없이 맨 뒤
         sortValue: (notice) => notice.publishedAt,
-        filter: { kind: 'date' },
+        filter: NOTICES_ADMIN_FILTER_DEFS.publishedAt,
         cellClassName: 'whitespace-nowrap text-text-tertiary',
         cell: (notice) => notice.publishedAt,
       },
@@ -93,7 +87,7 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
         header: '작성자',
         type: 'text',
         sortValue: (notice) => notice.authorName,
-        filter: { kind: 'text' },
+        filter: NOTICES_ADMIN_FILTER_DEFS.authorName,
         cellClassName: 'whitespace-nowrap text-text-secondary',
         cell: (notice) => notice.authorName,
       },
@@ -104,7 +98,7 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
         statusOrder: IMPORTANCE_ORDER,
         // 표시용 '—' 를 쓰면 일반 공지가 빈 값으로 취급돼 내림차순이 의미가 없어진다 → 두 값 모두 정의 순서로
         sortValue: (notice) => (notice.isImportant ? 'important' : 'normal'),
-        filter: { kind: 'enum', options: IMPORTANCE_FILTER_OPTIONS },
+        filter: NOTICES_ADMIN_FILTER_DEFS.isImportant,
         align: 'center',
         cell: (notice) => (notice.isImportant ? <ImportantBadge /> : '—'),
       },
@@ -143,11 +137,14 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
 
   const filterFields = useMemo(() => filterFieldsOf(columns), [columns]);
   const filterDefs = useMemo(() => filterDefsOf(filterFields), [filterFields]);
-  const { filters, setFilters } = useUrlFilters(filterDefs);
-  const resetFilters = () => {
-    setFilters([]);
-    setSort(null);
-  };
+  // 열 필터·정렬은 URL 상태 (page-state-memory §2.2-6 — #32 §5 개정). '필터 초기화' 는 둘을 한 번에 해제
+  const {
+    filters,
+    setFilters,
+    sort,
+    setSort,
+    reset: resetFilters,
+  } = useUrlTableState(filterDefs, NOTICES_ADMIN_SORT_IDS);
 
   return (
     <>

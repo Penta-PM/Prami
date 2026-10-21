@@ -9,6 +9,9 @@ import {
   type ColumnFilterDef,
   type FilterCondition,
 } from '@/lib/table/filter';
+import { parseSortParams, withSortQuery } from '@/lib/table/sort-param';
+
+import type { DataTableSort } from './types';
 
 /** 표 하나의 열 필터 상태 — URL(useUrlFilters)·컴포넌트 상태(useStateFilters) 어느 쪽이든 같은 모양 */
 export type TableFilterState = {
@@ -39,6 +42,48 @@ export function useUrlFilters(defs: Readonly<Record<string, ColumnFilterDef>>): 
     [router, pathname, query],
   );
   return { filters, setFilters };
+}
+
+/** 클라이언트 표의 URL 상태 — 열 필터 + 정렬 + 둘을 한 번에 지우는 '필터 초기화' */
+export type UrlTableState = TableFilterState & {
+  sort: DataTableSort;
+  setSort: (next: DataTableSort) => void;
+  /** 열 필터·정렬을 함께 해제 (router.replace 1회 — 두 번 바꾸면 두 번째가 첫 번째 결과를 모른다) */
+  reset: () => void;
+};
+
+/**
+ * 클라이언트 표의 열 필터·정렬을 URL 에 둔다 (page-state-memory §2.2-6 — #32 §5 "새로고침 시 해제" 개정).
+ * 정렬은 `sort`·`dir`(맨 뒤), 화이트리스트(sortIds) 밖 열·잘못된 방향은 parseSortParams 규칙대로 버린다.
+ * URL 이 상태라 새로고침·재진입(서버 저장 복원) 뒤에도 유지된다. 다른 파라미터(`family` 탭 등)는 그대로 둔다.
+ *
+ * @param defs 메모된 열 필터 화이트리스트(filterDefsOf)
+ * @param sortIds 정렬 가능한 열 id (모듈 상수 — 서버 정규화와 같은 목록)
+ */
+export function useUrlTableState(
+  defs: Readonly<Record<string, ColumnFilterDef>>,
+  sortIds: readonly string[],
+): UrlTableState {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { filters, setFilters } = useUrlFilters(defs);
+  const searchParams = useSearchParams();
+  const query = searchParams?.toString() ?? '';
+  const sort = useMemo<DataTableSort>(
+    () => parseSortParams(new URLSearchParams(query), sortIds) ?? null,
+    [query, sortIds],
+  );
+  const setSort = useCallback(
+    (next: DataTableSort) => {
+      router.replace(`${pathname}${withSortQuery(query, next)}`, { scroll: false });
+    },
+    [router, pathname, query],
+  );
+  const reset = useCallback(() => {
+    const cleared = withFiltersQuery(query, []);
+    router.replace(`${pathname}${withSortQuery(cleared, null)}`, { scroll: false });
+  }, [router, pathname, query]);
+  return { filters, setFilters, sort, setSort, reset };
 }
 
 /** 모달 안 표(내 견적 목록)용 — 모달은 URL 상태가 아니므로 컴포넌트 상태에 둔다 (§2.2 예외) */

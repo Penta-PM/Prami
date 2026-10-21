@@ -51,6 +51,12 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('@/features/notices/actions', () => ({}));
 
+// 조회 상태 복원·저장(page-state-memory B-1)은 tests/unit/page-state 에서 검증한다 — 여기서는 화면 렌더만
+vi.mock('@/server/page-state/restore-page', () => ({
+  restoreViewState: async (pageKey: string) => ({ pageKey, savedQuery: null, restoreTop: null }),
+}));
+vi.mock('@/features/page-state/ViewStateTracker', () => ({ ViewStateTracker: () => null }));
+
 const { default: HomePage } = await import('@/app/(app)/page');
 const { default: NoticesPage } = await import('@/app/(app)/notices/page');
 const { default: NoticeDetailPage } = await import('@/app/(app)/notices/[id]/page');
@@ -103,7 +109,7 @@ describe('/notices, /notices/[id]', () => {
 describe('/admin/notices', () => {
   it('notice.write 가드 + 관리 표 + 등록 버튼', async () => {
     calls.role = 'ADMIN';
-    render(await AdminNoticesPage());
+    render(await AdminNoticesPage({ searchParams: Promise.resolve({}) }));
     expect(calls.guards).toContain('notice.write:/admin/notices');
     expect(screen.getByRole('table', { name: '공지 관리 표' })).toHaveTextContent(
       '플랫폼 오픈 안내',

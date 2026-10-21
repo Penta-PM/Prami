@@ -5,11 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PartMappingView } from '@/features/parts/types';
 
 /** #32 PR-2: 파츠 매핑 표가 공용 DataTable(클라이언트 정렬)로 동작한다 */
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: vi.fn() }),
-  usePathname: () => '/admin/parts',
-  useSearchParams: () => new URLSearchParams(),
-}));
+// 정렬·필터는 URL 상태(page-state-memory §2.2-6) — router.replace 가 useSearchParams 를 바꾸는 메모리 더블
+vi.mock(
+  'next/navigation',
+  async () => (await import('../../helpers/next-navigation')).navigationModule,
+);
+const { navigation } = await import('../../helpers/next-navigation');
 
 const { PartsMappingTable } = await import('@/features/parts/PartsMappingTable');
 
@@ -42,6 +43,7 @@ const renderTable = (onEdit = vi.fn(), onDelete = vi.fn()) =>
   render(<PartsMappingTable mappings={MAPPINGS} onEdit={onEdit} onDelete={onDelete} userId="u1" />);
 
 beforeEach(() => {
+  navigation.reset('/admin/parts');
   localStorage.clear();
 });
 

@@ -8,7 +8,9 @@ import { CostFilters } from '@/features/costs/CostFilters';
 import { CostImportPanel } from '@/features/costs/CostImportPanel';
 import { CostPagination } from '@/features/costs/CostPagination';
 import { costFilterDefs } from '@/features/costs/column-filters';
+import { ViewStateTracker } from '@/features/page-state/ViewStateTracker';
 import { formatAuditTime } from '@/lib/audit-format';
+import { getSessionUser } from '@/server/auth/rbac';
 import { requireCostPageAccess } from '@/server/cost/access';
 import { parseCostFilter } from '@/server/cost/filter';
 import {
@@ -19,6 +21,7 @@ import {
   listCostYears,
 } from '@/server/cost/queries';
 import { listReusableBatches } from '@/server/imports/queries';
+import { restoreViewState } from '@/server/page-state/restore-page';
 
 /** 이 페이지의 Server Action(임포트 적용: 5,885행 전체 교체)이 쓰는 함수 상한 — §4.8 maxDuration=60 */
 export const maxDuration = 60;
@@ -33,10 +36,14 @@ type AdminCostsPageProps = { searchParams: Promise<Record<string, string | strin
  */
 export default async function AdminCostsPage({ searchParams }: AdminCostsPageProps) {
   const access = await requireCostPageAccess('/admin/costs');
+  const params = await searchParams;
+  // 파라미터 없는 진입이면 저장된 조회 상태로 redirect (page-state-memory §2.2-4). 접근 확인을 통과했으니 세션 사용자가 있다
+  const sessionUser = await getSessionUser();
+  const viewState = sessionUser ? await restoreViewState('admin-costs', params, sessionUser) : null;
   const db = await getDb();
   // 통화 열 필터 선택지(데이터)가 화이트리스트에 들어가므로 먼저 읽고 URL 을 파싱한다 (표 열 필터 스펙 §2.3)
   const currencies = await listCostCurrencies(access, db);
-  const { filter, errors } = parseCostFilter(await searchParams, costFilterDefs(currencies));
+  const { filter, errors } = parseCostFilter(params, costFilterDefs(currencies));
   const [page, families, years, current, options] = await Promise.all([
     getCostRows(access, db, filter),
     listCostFamilies(access, db),
@@ -96,6 +103,7 @@ export default async function AdminCostsPage({ searchParams }: AdminCostsPagePro
         pageCount={page.pageCount}
         total={page.total}
       />
+      {viewState ? <ViewStateTracker {...viewState} /> : null}
     </section>
   );
 }

@@ -4,8 +4,10 @@ import { getDb } from '@/db';
 import { AuditPagination } from '@/features/audit/AuditPagination';
 import { AuditTable } from '@/features/audit/AuditTable';
 import { filterToQuery } from '@/features/audit/query';
+import { ViewStateTracker } from '@/features/page-state/ViewStateTracker';
 import { getAuditLogs, listAuditActions, parseAuditFilter } from '@/server/audit/queries';
 import { requirePagePermission } from '@/server/auth/rbac';
+import { restoreViewState } from '@/server/page-state/restore-page';
 
 export const metadata: Metadata = { title: '감사 로그' };
 
@@ -19,7 +21,10 @@ type AuditPageProps = {
  */
 export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
   const actor = await requirePagePermission('audit.read', '/admin/audit');
-  const filter = parseAuditFilter(await searchParams);
+  const params = await searchParams;
+  // 파라미터 없는 진입이면 저장된 조회 상태로 redirect (page-state-memory §2.2-4)
+  const viewState = await restoreViewState('admin-audit', params, actor);
+  const filter = parseAuditFilter(params);
   const db = await getDb();
   const [page, actions] = await Promise.all([getAuditLogs(db, filter), listAuditActions(db)]);
 
@@ -49,6 +54,7 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
         pageCount={page.pageCount}
         total={page.total}
       />
+      <ViewStateTracker {...viewState} />
     </section>
   );
 }

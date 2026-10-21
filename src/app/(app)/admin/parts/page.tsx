@@ -3,10 +3,12 @@ import type { Metadata } from 'next';
 import { getDb } from '@/db';
 import { FamilyTabs } from '@/features/parts/FamilyTabs';
 import { PartsManager } from '@/features/parts/PartsManager';
+import { ViewStateTracker } from '@/features/page-state/ViewStateTracker';
 import { requirePagePermission } from '@/server/auth/rbac';
 import { listReusableBatches } from '@/server/imports/queries';
 import { listPartsCatalog, listProductFamilies } from '@/server/parts/catalog';
 import { listPartMappings } from '@/server/parts/queries';
+import { restoreViewState } from '@/server/page-state/restore-page';
 
 export const metadata: Metadata = { title: '파츠 관리' };
 
@@ -23,9 +25,12 @@ function pickFamily(families: readonly string[], raw: string | string[] | undefi
 /** 파츠 관리 (§4.5.6, parts.write = ADMIN). 제품군 탭은 `?family=` */
 export default async function AdminPartsPage({ searchParams }: AdminPartsPageProps) {
   const actor = await requirePagePermission('parts.write', PARTS_PATH);
+  const params = await searchParams;
+  // 파라미터 없는 진입이면 저장된 조회 상태(제품군 탭·표 필터·정렬)로 redirect (page-state-memory §2.2-4)
+  const viewState = await restoreViewState('admin-parts', params, actor);
   const db = await getDb();
   const families = await listProductFamilies(db);
-  const family = pickFamily(families, (await searchParams).family);
+  const family = pickFamily(families, params.family);
   const [catalog, mappings, batches] = await Promise.all([
     family ? listPartsCatalog(db, family) : Promise.resolve({ models: [], parts: [] }),
     listPartMappings(db, family || undefined),
@@ -57,6 +62,7 @@ export default async function AdminPartsPage({ searchParams }: AdminPartsPagePro
         batchOptions={batches}
         userId={actor.id}
       />
+      <ViewStateTracker {...viewState} />
     </section>
   );
 }

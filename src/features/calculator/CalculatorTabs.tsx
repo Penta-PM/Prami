@@ -1,6 +1,7 @@
 'use client';
 
 import { m } from 'motion/react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { Segmented } from '@/components/ui';
@@ -25,6 +26,8 @@ const TAB_SHOWN = { opacity: 1, y: 0 } as const;
  * 계산기 화면 탭 (디자인): 견적 계산기 / 순매출 계산기.
  * 탭을 바꾸면 `key` 리마운트로 새 콘텐츠만 fadeUp 진입한다 — 퇴장 애니메이션·`mode="wait"` 없음이라 클릭 즉시 상호작용 가능.
  * 첫 로드(서버 렌더) 콘텐츠는 숨김 initial 을 주지 않는다: 사용자가 탭을 바꾼 뒤부터만 애니메이션한다.
+ * 탭을 바꾸면 `?tab=` 을 URL 에 반영한다(router.replace — 히스토리 누적 없음). 같은 경로로 조회 상태가 저장·복원된다
+ * (page-state-memory §2.2-7). 챗봇 견적 시작 링크의 family·item 은 첫 진입에만 쓰므로 URL 에서 뺀다.
  */
 export function CalculatorTabs({
   userId,
@@ -43,17 +46,24 @@ export function CalculatorTabs({
   /** 챗봇 견적 시작 링크로 넘어온 제품군·품번 */
   initial?: { family?: string; itemCode?: string };
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [{ tab, switched }, setTabState] = useState<{ tab: Tab; switched: boolean }>({
     tab: initialTab,
     switched: false,
   });
+  const changeTab = (next: Tab) => {
+    setTabState({ tab: next, switched: true });
+    const query = new URLSearchParams({ tab: next }).toString();
+    router.replace(`${pathname ?? '/calculator'}?${query}`, { scroll: false });
+  };
   return (
     <div className="flex flex-col gap-6">
       <Segmented
         aria-label="계산기 종류"
         options={TABS}
         value={tab}
-        onChange={(next) => setTabState({ tab: next, switched: true })}
+        onChange={changeTab}
         className="w-fit"
       />
       <m.div

@@ -99,6 +99,7 @@ export const EXPECTED_TABLES = [
   'stg_sales_prices',
   'user_llm_credentials',
   'user_settings',
+  'user_view_states',
   'users',
 ] as const;
 

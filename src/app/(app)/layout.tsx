@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { hasPermission, ROLE_LABELS } from '@/lib/constants/permissions';
+import { APP_MAIN_ID } from '@/lib/page-state/keys';
 import { ChatProvider } from '@/features/chat/ChatContext';
 import { ChatDock } from '@/features/chat/ChatDock';
 import { Header } from '@/features/shell/Header';
@@ -26,7 +27,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <Sidebar showAdminNav={hasPermission(user.role, 'users.manage')} />
         <div className="flex min-w-0 flex-1 flex-col">
           <Header user={{ name: user.name, roleLabel }} testMode={isTestModeEnabled(env)} />
-          <main className="flex-1 overflow-y-auto p-8 max-md:p-4">{children}</main>
+          <main id={APP_MAIN_ID} className="flex-1 overflow-y-auto p-8 max-md:p-4">
+            {children}
+          </main>
         </div>
         <ChatDock />
       </div>

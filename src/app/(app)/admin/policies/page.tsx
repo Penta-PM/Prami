@@ -4,6 +4,7 @@ import { Pill } from '@/components/ui';
 import { getDb } from '@/db';
 import { formatAuditTime } from '@/lib/audit-format';
 import { ImportPanel } from '@/features/admin-policies/ImportPanel';
+import { ViewStateTracker } from '@/features/page-state/ViewStateTracker';
 import { PricingSection } from '@/features/pricing/PricingSection';
 import { requirePagePermission } from '@/server/auth/rbac';
 import {
@@ -13,6 +14,7 @@ import {
   type CurrentApply,
   type RecentRun,
 } from '@/server/imports/queries';
+import { restoreViewState } from '@/server/page-state/restore-page';
 
 /** 이 페이지의 Server Action(임포트 적용: 5,885행 전체 교체)이 쓰는 함수 상한 — §4.8 maxDuration=60 */
 export const maxDuration = 60;
@@ -29,6 +31,9 @@ type AdminPoliciesPageProps = {
 
 export default async function AdminPoliciesPage({ searchParams }: AdminPoliciesPageProps) {
   const user = await requirePagePermission('pricing.write', '/admin/policies');
+  const params = await searchParams;
+  // 파라미터 없는 진입이면 저장된 조회 상태로 redirect (page-state-memory §2.2-4)
+  const viewState = await restoreViewState('admin-policies', params, user);
   const db = await getDb();
   const [current, salesOptions, itemOptions, runs] = await Promise.all([
     getCurrentApply(db),
@@ -56,9 +61,10 @@ export default async function AdminPoliciesPage({ searchParams }: AdminPoliciesP
       <PricingSection
         mode="admin"
         basePath="/admin/policies"
-        searchParams={await searchParams}
+        searchParams={params}
         userId={user.id}
       />
+      <ViewStateTracker {...viewState} />
     </section>
   );
 }
