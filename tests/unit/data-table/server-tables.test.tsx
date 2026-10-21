@@ -100,6 +100,17 @@ describe('가격 표 (서버 정렬)', () => {
     expect(mocks.push).toHaveBeenLastCalledWith('/pricing?major=WAPPLES&sort=itemStatus&dir=asc');
   });
 
+  it('빠른 두 번 클릭(BL-2): URL(filter.sort)이 그대로인 채 두 번 누르면 두 번째 push 는 dir=desc', async () => {
+    render(<PricingBrowser mode="view" rows={[PRICE_ROW]} filter={FILTER} userId="u1" />);
+    const table = screen.getByRole('table', { name: '가격정책 표' });
+    await clickHeader(table, '판매가');
+    await clickHeader(table, '판매가');
+    expect(mocks.push.mock.calls).toEqual([
+      ['/pricing?major=WAPPLES&sort=price&dir=asc'],
+      ['/pricing?major=WAPPLES&sort=price&dir=desc'],
+    ]);
+  });
+
   it('관리 표: URL 정렬을 aria-sort 로 보이고, 오름 → 내림 → 해제(sort/dir 제거)', async () => {
     mocks.pathname = '/admin/policies';
     const { rerender } = render(

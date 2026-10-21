@@ -188,6 +188,8 @@ describe('CostBrowser', () => {
     await userEvent.click(screen.getByRole('button', { name: 'WAPPLES-100 (H100 T2) 수정' }));
     const dialog = screen.getByRole('dialog', { name: '원가 수정' });
     expect(within(dialog).getByText(/ERP 임포트 행을 수정하면/)).toBeInTheDocument();
+    // BL-2: 15% 앰버 상자 위 amber-700 5.16:1 (amber-500 은 1.9:1)
+    expect(within(dialog).getByText(/ERP 임포트 행을 수정하면/)).toHaveClass('text-amber-700');
     expect(within(dialog).getByLabelText('원가 (KRW) *')).toHaveValue('984000');
     await userEvent.click(within(dialog).getByRole('button', { name: '저장' }));
     expect(await within(dialog).findByText('변경 사유를 입력하세요')).toBeInTheDocument();
@@ -282,6 +284,11 @@ describe('CostImportPanel', () => {
     expect(screen.getByRole('note', { name: '같은 날짜 중복' })).toHaveTextContent('중복 2그룹');
     expect(screen.getByRole('note', { name: '값이 다른 같은 날짜 중복' })).toHaveTextContent(
       'W1001020034 · 2025-01-01 — 엑셀 382, 389행 (단가 573,000 / 504,000)',
+    );
+    // BL-2: 흰 상자 5.78:1·15% 앰버 상자 4.89:1(gray-75 위) — amber-500 은 2.13·1.8:1
+    expect(screen.getByRole('note', { name: '같은 날짜 중복' })).toHaveClass('text-amber-700');
+    expect(screen.getByRole('note', { name: '값이 다른 같은 날짜 중복' })).toHaveClass(
+      'text-amber-700',
     );
     expect(mocks.refresh).toHaveBeenCalled();
   });

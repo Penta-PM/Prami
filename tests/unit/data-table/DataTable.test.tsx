@@ -231,6 +231,56 @@ describe('DataTable 정렬', () => {
     expect(onSortChange).toHaveBeenLastCalledWith({ id: 'price', dir: 'desc' });
   });
 
+  it('빠른 연속 클릭(BL-2, page-state-memory §6): sort prop(URL)이 따라잡기 전에도 직전 클릭 결과에서 다음 단계 — 오름 → 내림 → 해제', () => {
+    const onSortChange = vi.fn<(next: DataTableSort) => void>();
+    const props = {
+      tableId: 't',
+      userId: 'u1',
+      columns: COLUMNS,
+      rows: ROWS,
+      getRowKey: (r: Row) => r.id,
+      'aria-label': '테스트 표',
+      sortMode: 'server' as const,
+      onSortChange,
+    };
+    const { rerender } = render(<DataTable {...props} sort={null} />);
+    // URL 갱신 없이 두 번 — 두 번째 요청은 낡은 URL(정렬 없음)이 아니라 첫 요청(오름) 기준
+    fireEvent.click(sortButton('판매가'));
+    fireEvent.click(sortButton('판매가'));
+    expect(onSortChange.mock.calls).toEqual([
+      [{ id: 'price', dir: 'asc' }],
+      [{ id: 'price', dir: 'desc' }],
+    ]);
+    // URL 이 중간 요청(오름)까지만 따라잡았을 때 누르면 마지막 요청(내림) 기준 → 해제
+    rerender(<DataTable {...props} sort={{ id: 'price', dir: 'asc' }} />);
+    fireEvent.click(sortButton('판매가'));
+    expect(onSortChange).toHaveBeenLastCalledWith(null);
+    // 마지막 요청까지 따라잡으면 대기 상태를 비우고 URL 기준으로 돌아간다
+    rerender(<DataTable {...props} sort={{ id: 'price', dir: 'desc' }} />);
+    rerender(<DataTable {...props} sort={null} />);
+    fireEvent.click(sortButton('판매가'));
+    expect(onSortChange).toHaveBeenLastCalledWith({ id: 'price', dir: 'asc' });
+  });
+
+  it('빠른 연속 클릭 대기 중 URL 이 요청 밖의 값으로 바뀌면(필터 초기화 등 외부 변경) 그 값이 기준 (BL-2)', () => {
+    const onSortChange = vi.fn<(next: DataTableSort) => void>();
+    const props = {
+      tableId: 't',
+      userId: 'u1',
+      columns: COLUMNS,
+      rows: ROWS,
+      getRowKey: (r: Row) => r.id,
+      'aria-label': '테스트 표',
+      sortMode: 'server' as const,
+      onSortChange,
+    };
+    const { rerender } = render(<DataTable {...props} sort={null} />);
+    fireEvent.click(sortButton('판매가'));
+    rerender(<DataTable {...props} sort={{ id: 'name', dir: 'desc' }} />);
+    fireEvent.click(sortButton('이름'));
+    expect(onSortChange).toHaveBeenLastCalledWith(null);
+  });
+
   it('헤더 클릭은 행 클릭 핸들러를 부르지 않는다', async () => {
     const onRowClick = vi.fn();
     renderTable({ onRowClick });

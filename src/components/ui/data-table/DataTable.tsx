@@ -20,6 +20,7 @@ import { MAX_COL_WIDTH, MIN_COL_WIDTH } from '@/lib/table/layout-storage';
 
 import { Table, TableBody, TableCell, TableHead, TableRow } from '../table';
 import { applyFilterFields, filterFieldsOf, type DataTableFilterField } from './filter-fields';
+import { reconcileSort, requestSort, sortBase, sortKey, type PendingSort } from './pending-sort';
 import type { DataTableAlign, DataTableColumn, DataTableSort } from './types';
 import { TABLE_RESET_EVENT, useTableLayout, type TableResetDetail } from './useTableLayout';
 
@@ -208,8 +209,16 @@ export function DataTable<T>({
     setAnnouncement(filterKey ? `필터 적용 · ${count}건` : `필터 해제 · ${count}건`);
   }
 
+  // 아직 URL(sort prop)에 반영되지 않은 정렬 요청 — 빠른 두 번 클릭이 낡은 URL 에서 계산되지 않게 (BL-2, pending-sort.ts)
+  const pendingSortRef = useRef<PendingSort | null>(null);
+  const currentSortKey = sortKey(sort);
+  useEffect(() => {
+    pendingSortRef.current = reconcileSort(pendingSortRef.current, currentSortKey);
+  }, [currentSortKey]);
+
   const toggleSort = (column: DataTableColumn<T>) => {
-    const next = nextSort(sort, column.id);
+    const next = nextSort(sortBase(pendingSortRef.current, sort), column.id);
+    pendingSortRef.current = requestSort(pendingSortRef.current, next);
     if (sortProp === undefined) setInnerSort(next);
     onSortChange?.(next);
     const label = columnLabel(column);

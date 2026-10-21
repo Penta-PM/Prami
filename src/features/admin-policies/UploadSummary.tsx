@@ -125,7 +125,7 @@ function WarningLists({ data }: { data: UploadSummaryData }) {
         headerRowIndex={data.headerRowIndex}
       />
       {others.length > 0 ? (
-        <ul className="m-0 list-none p-0 text-[12px] text-amber-500">
+        <ul className="m-0 list-none p-0 text-[12px] text-amber-700">
           {others.slice(0, 10).map((warning, index) => (
             <li key={index}>
               경고: {warning.file ? `${warning.file} · ` : ''}

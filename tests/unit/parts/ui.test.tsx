@@ -114,6 +114,8 @@ describe('PartsManager (AC-30·31)', () => {
       screen.getByRole('button', { name: 'Wapples-2700 (H2700)-RAID (P1010010005)' }),
     );
     expect(screen.getByRole('alert')).toHaveTextContent('이미 등록된 모델입니다');
+    // BL-2: 15% 앰버 상자 위 amber-700 5.16:1 (amber-500 은 1.9:1)
+    expect(screen.getByText(/이미 등록된 모델입니다/)).toHaveClass('text-amber-700');
     // PR-6 QA INFO-3: 재선택 시 기존 파츠(N_51240)가 체크 상태로 복원된다
     expect(screen.getByLabelText('선택된 파츠')).toHaveTextContent('N_51240');
     expect(

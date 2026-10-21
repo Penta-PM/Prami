@@ -213,6 +213,9 @@ describe('SearchResults (AC-52)', () => {
       />,
     );
     expect(screen.getByRole('note')).toHaveTextContent('그룹당 상위 20건만 표시합니다');
+    // BL-2: 흰 배경 경고 문구 amber-700 5.78:1 (amber-500 은 2.13:1)
+    expect(screen.getByRole('note')).toHaveClass('text-amber-700');
+    expect(screen.getByRole('note')).not.toHaveClass('text-amber-500');
     expect(screen.getByRole('heading', { level: 2, name: /품목/ })).toHaveTextContent('상위 20건');
   });
 

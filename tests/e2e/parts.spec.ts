@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 import { FIXTURE_ADMIN, FIXTURE_USER, loginAs } from './helpers';
@@ -46,6 +47,16 @@ test('AC-30·31: 모델 선택 → N_51080 체크 → 저장 → 그룹화 표, 
     .click();
   // Next 라우트 어나운서(role=alert)와 겹치지 않도록 본문 안에서 찾는다
   await expect(page.getByRole('main').getByRole('alert')).toContainText('이미 등록된 모델입니다');
+  // BL-2: 15% 앰버 상자 위 경고 문구 amber-700 — 색 대비 axe 위반 0 (펼침 전환이 끝난 뒤 검사 — 전환 중 색이 섞여 오탐하지 않도록)
+  await expect(page.getByRole('main').getByRole('alert')).toHaveCSS('opacity', '1');
+  const axe = await new AxeBuilder({ page })
+    .include('main [role="alert"]')
+    .withRules(['color-contrast'])
+    .analyze();
+  expect(
+    axe.violations,
+    JSON.stringify(axe.violations.map((v) => [v.id, v.nodes.map((n) => n.html)])),
+  ).toEqual([]);
   // 재선택 시 기존 파츠(N_51080)가 체크 상태로 복원된다 (PR-6 QA INFO-3) → 해제하고 N_51240 만 선택
   await expect(page.getByLabel('선택된 파츠')).toContainText('N_51080');
   await page.getByRole('searchbox', { name: '파츠 검색' }).fill('N_51080');

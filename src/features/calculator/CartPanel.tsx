@@ -172,6 +172,7 @@ export function CartPanel(props: CartPanelProps) {
           </strong>
         ) : (
           <div role="note" aria-label="통화별 소계" className="flex flex-col gap-1">
+            {/* 어두운 패널(bg-ink-900) 위 — amber-500 이 7.57:1 (amber-700 은 2.79:1 이라 쓰지 않는다, BL-2) */}
             <span className="text-[12px] text-amber-500">
               통화가 섞여 있어 단일 합계 대신 통화별 소계를 표시합니다
             </span>

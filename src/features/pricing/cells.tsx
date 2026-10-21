@@ -203,7 +203,8 @@ export function costLinkEditable(value: CostLinkCellView | undefined): value is 
   return value !== undefined && costLinkState(value) !== 'out-of-scope';
 }
 
-const WARNING_TEXT = 'text-[#a86a00]';
+/** 경고 글자 (BL-2): #a86a00 은 흰색 4.44:1·gray-200 3.94:1 로 AA 미달 → amber-700 — 흰색~gray-200·강조 행(lime 25%) 배경에서 5.13:1 이상 */
+const WARNING_TEXT = 'text-amber-700';
 
 /**
  * 원가 매핑 칸 (policy-cost-link-column §2.1-4): 매핑됨 = W코드 + 자재명(작은 글자·말줄임·title 전체명) / 원가표에 없음(경고색) /
