@@ -5,7 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Modal } from '@/components/ui';
 import type { PriceRowView } from '@/features/pricing/types';
 
-/** 가격 변동 이력 모달 (price-change-history-modal §2.2~2.4) — Server Action·라우터는 모킹 */
+/**
+ * 가격 변동 이력 모달 (price-change-history-modal §2.2~2.4) — Server Action·라우터는 모킹.
+ * 관리 화면 + pricing.write(withPriceChange) 에서만 — 조회 화면(/pricing)은 칸 버튼·모달·드로어 버튼 모두 없다
+ * (pricing-view-hide-price-change §2, Q-V1 = B).
+ */
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   refresh: vi.fn(),
@@ -160,25 +164,43 @@ beforeEach(() => {
 });
 
 describe('가격 변동 칸 = 이력 모달 트리거 (§2.2)', () => {
-  it.each(['view', 'admin'] as const)(
-    '%s 표: button·aria-haspopup·라벨·describedby, 보이는 표시는 그대로',
-    (mode) => {
-      render(<PricingBrowser mode={mode} rows={[ROW, FIRST]} {...BROWSER} />);
-      const [up, first] = screen.getAllByRole('button', { name: LABEL });
-      expect(up).toHaveAttribute('type', 'button');
-      expect(up).toHaveAttribute('aria-haspopup', 'dialog');
-      expect(up).toHaveAccessibleDescription('이전 대비 10.0% 상승'); // 화살표는 aria-hidden
-      expect(up!.querySelector('[data-price-change="up"]')).toHaveTextContent(
-        '▲이전 대비 10.0% 상승',
-      );
-      // '—' 칸도 같은 버튼
-      expect(first!.querySelector('[data-price-change="none"]')).toHaveTextContent('—');
-      expect(first).toHaveAttribute('aria-haspopup', 'dialog');
-    },
-  );
+  it('관리 표: button·aria-haspopup·라벨·describedby, 보이는 표시는 그대로', () => {
+    render(<PricingBrowser mode="admin" withPriceChange rows={[ROW, FIRST]} {...BROWSER} />);
+    const [up, first] = screen.getAllByRole('button', { name: LABEL });
+    expect(up).toHaveAttribute('type', 'button');
+    expect(up).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(up).toHaveAccessibleDescription('이전 대비 10.0% 상승'); // 화살표는 aria-hidden
+    expect(up!.querySelector('[data-price-change="up"]')).toHaveTextContent(
+      '▲이전 대비 10.0% 상승',
+    );
+    // '—' 칸도 같은 버튼
+    expect(first!.querySelector('[data-price-change="none"]')).toHaveTextContent('—');
+    expect(first).toHaveAttribute('aria-haspopup', 'dialog');
+  });
+
+  it('조회 표(/pricing): 가격 변동 헤더·칸·버튼 없음, 드로어에 계열 이력·"변동 이력 보기" 없음, 이력 요청 0', async () => {
+    const { previousPrice, priceChangeRate, ...viewRow } = ROW;
+    expect([previousPrice, priceChangeRate]).toEqual(['1000.00', 10]);
+    mocks.detail.mockResolvedValue({ ok: true, data: { row: DETAIL.row } });
+    // withPriceChange 가 와도 조회 표는 그리지 않는다(서버는 false 로 넘긴다)
+    render(<PricingBrowser mode="view" withPriceChange rows={[viewRow]} {...BROWSER} />);
+    expect(
+      within(screen.getByRole('table')).queryByRole('button', { name: '가격 변동' }),
+    ).toBeNull();
+    expect(screen.queryByRole('button', { name: LABEL })).toBeNull();
+    expect(document.querySelector('[data-price-change]')).toBeNull();
+    await userEvent.click(screen.getByText('Wapples-500'));
+    const drawer = await screen.findByRole('dialog', { name: '행 상세' });
+    await within(drawer).findByRole('region', { name: '원본 20컬럼' });
+    expect(mocks.detail).toHaveBeenCalledWith(7, 'view');
+    expect(within(drawer).queryByRole('region', { name: '계열 이력' })).toBeNull();
+    expect(within(drawer).queryByRole('button', { name: '변동 이력 보기' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: '가격 변동 이력' })).toBeNull();
+    expect(mocks.history).not.toHaveBeenCalled();
+  });
 
   it('클릭 → 모달(드로어 아님), 요청 1회·행 id 만', async () => {
-    render(<PricingBrowser mode="view" rows={[ROW]} {...BROWSER} />);
+    render(<PricingBrowser mode="admin" withPriceChange rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByRole('button', { name: LABEL }));
     expect(historyDialog()).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: '행 상세' })).not.toBeInTheDocument();
@@ -189,7 +211,7 @@ describe('가격 변동 칸 = 이력 모달 트리거 (§2.2)', () => {
   });
 
   it.each(['{Enter}', ' '])('키보드 %s → 모달, 드로어 아님', async (key) => {
-    render(<PricingBrowser mode="admin" rows={[ROW]} {...BROWSER} />);
+    render(<PricingBrowser mode="admin" withPriceChange rows={[ROW]} {...BROWSER} />);
     screen.getByRole('button', { name: LABEL }).focus();
     await userEvent.keyboard(key);
     expect(historyDialog()).toBeInTheDocument();
@@ -197,7 +219,7 @@ describe('가격 변동 칸 = 이력 모달 트리거 (§2.2)', () => {
   });
 
   it('같은 행의 다른 칸 클릭은 기존처럼 드로어', async () => {
-    render(<PricingBrowser mode="view" rows={[ROW]} {...BROWSER} />);
+    render(<PricingBrowser mode="admin" withPriceChange rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByText('Wapples-500'));
     expect(await screen.findByRole('dialog', { name: '행 상세' })).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: '가격 변동 이력' })).not.toBeInTheDocument();
@@ -205,7 +227,7 @@ describe('가격 변동 칸 = 이력 모달 트리거 (§2.2)', () => {
   });
 
   it('열 리사이즈 드래그가 칸 위에서 끝난 직후의 click 은 모달·드로어를 열지 않는다', async () => {
-    render(<PricingBrowser mode="view" rows={[ROW]} {...BROWSER} />);
+    render(<PricingBrowser mode="admin" withPriceChange rows={[ROW]} {...BROWSER} />);
     const handle = screen.getByRole('separator', { name: '가격 변동 열 너비 조절' });
     const button = screen.getByRole('button', { name: LABEL });
     fireEvent.pointerDown(handle, { button: 0, clientX: 100, pointerType: 'mouse' });
@@ -221,7 +243,7 @@ describe('가격 변동 칸 = 이력 모달 트리거 (§2.2)', () => {
   });
 
   it('열 재배치 드래그 뒤 칸 위 click 도 무시', async () => {
-    render(<PricingBrowser mode="view" rows={[ROW]} {...BROWSER} />);
+    render(<PricingBrowser mode="admin" withPriceChange rows={[ROW]} {...BROWSER} />);
     const header = within(screen.getByRole('table')).getByRole('button', { name: '가격 변동' });
     const button = screen.getByRole('button', { name: LABEL });
     fireEvent.pointerDown(header, { button: 0, clientX: 100, clientY: 10, pointerType: 'mouse' });
@@ -407,7 +429,7 @@ describe('닫기·포커스 (§2.3-6)', () => {
     ],
     ['백드롭', (dialog: HTMLElement) => fireEvent.click(dialog)],
   ])('%s → 닫힘, 포커스는 클릭한 칸 버튼', async (_name, close) => {
-    render(<PricingBrowser mode="view" rows={[ROW]} {...BROWSER} />);
+    render(<PricingBrowser mode="admin" withPriceChange rows={[ROW]} {...BROWSER} />);
     const button = screen.getByRole('button', { name: LABEL });
     await userEvent.click(button);
     const dialog = historyDialog();
@@ -423,7 +445,7 @@ describe('닫기·포커스 (§2.3-6)', () => {
 
 describe('드로어 "변동 이력 보기" (§2.4 Q-H1 = B)', () => {
   it('드로어 행 id 로 같은 모달(행 강조), Esc 는 모달만 닫고 드로어 유지·포커스 버튼 복귀', async () => {
-    render(<PricingBrowser mode="view" rows={[ROW]} {...BROWSER} />);
+    render(<PricingBrowser mode="admin" withPriceChange rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByText('Wapples-500'));
     const drawer = await screen.findByRole('dialog', { name: '행 상세' });
     const region = within(drawer).getByRole('region', { name: '계열 이력' });
@@ -449,7 +471,7 @@ describe('드로어 "변동 이력 보기" (§2.4 Q-H1 = B)', () => {
   });
 
   it('닫기 버튼으로 닫아도 드로어 유지', async () => {
-    render(<PricingBrowser mode="view" rows={[ROW]} {...BROWSER} />);
+    render(<PricingBrowser mode="admin" withPriceChange rows={[ROW]} {...BROWSER} />);
     await userEvent.click(screen.getByText('Wapples-500'));
     const drawer = await screen.findByRole('dialog', { name: '행 상세' });
     await userEvent.click(within(drawer).getByRole('button', { name: '변동 이력 보기' }));

@@ -136,6 +136,7 @@ describe('가격 관리 표 열 필터', () => {
     render(
       <PricingBrowser
         mode="admin"
+        withPriceChange
         rows={[PRICE_ROW]}
         filter={{ dateMode: 'start', page: 1 }}
         currencies={['KRW', 'USD']}
@@ -157,11 +158,39 @@ describe('가격 관리 표 열 필터', () => {
     expect(screen.queryByRole('button', { name: '필터 초기화' })).toBeNull();
   });
 
+  it('조회 표(/pricing): 필드에 가격 변동 없음 (pricing-view-hide-price-change §2)', async () => {
+    const ue = userEvent.setup();
+    mocks.pathname = '/pricing';
+    // 조회 화면 행에는 가격 변동 키 자체가 없다
+    const viewRow: PriceRowView = { ...PRICE_ROW };
+    delete viewRow.previousPrice;
+    delete viewRow.priceChangeRate;
+    render(
+      <PricingBrowser
+        mode="view"
+        rows={[viewRow]}
+        filter={{ dateMode: 'start', page: 1 }}
+        currencies={['KRW', 'USD']}
+        priceTypes={['정상판매']}
+        userId="u1"
+      />,
+    );
+    expect(await fieldNames(ue)).toEqual([
+      '단가 유형',
+      '통화',
+      '판매가',
+      '품목상태',
+      '상태',
+      '비고',
+    ]);
+  });
+
   it('조건 추가 → 기존 필터·정렬 유지, page 제거, f.* 는 기존 필터 뒤·sort/dir 맨 뒤 (router.push)', async () => {
     const ue = userEvent.setup();
     render(
       <PricingBrowser
         mode="admin"
+        withPriceChange
         rows={[PRICE_ROW]}
         filter={FILTER}
         total={120}
@@ -217,6 +246,7 @@ describe('가격 관리 표 열 필터', () => {
     render(
       <PricingBrowser
         mode="admin"
+        withPriceChange
         rows={[PRICE_ROW]}
         filter={FILTER}
         currencies={['KRW']}
@@ -254,7 +284,7 @@ describe('가격 관리 표 열 필터', () => {
 
   it('필터 결과 0건: "조건에 맞는 결과가 없습니다" + [필터 초기화] → 전부 해제', async () => {
     const ue = userEvent.setup();
-    render(<PricingBrowser mode="admin" rows={[]} filter={FILTER} userId="u1" />);
+    render(<PricingBrowser mode="admin" withPriceChange rows={[]} filter={FILTER} userId="u1" />);
     expect(screen.getByText('조건에 맞는 결과가 없습니다')).toBeInTheDocument();
     const buttons = screen.getAllByRole('button', { name: '필터 초기화' });
     await ue.click(buttons.at(-1)!);

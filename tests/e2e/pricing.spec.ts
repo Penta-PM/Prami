@@ -16,7 +16,7 @@ const VIEW_HEADERS = [
   '품목명',
   '판매가',
   '적용기간',
-  '가격 변동',
+  // 가격 변동은 관리 화면만 (pricing-view-hide-price-change §2)
   '품목상태',
   '상태',
   '비고',
@@ -88,7 +88,7 @@ test('USER 조회: 대분류 선택 → URL, 품목 마스터 없으면 중/소�
   expect(majors.every((text) => text === options[1])).toBe(true);
 });
 
-test('USER 조회: 행 클릭 → 행 상세 드로어(원본 20컬럼·계열 이력), 관리 컬럼·등록 버튼 없음', async ({
+test('USER 조회: 행 클릭 → 행 상세 드로어(원본 20컬럼, 계열 이력 없음), 관리 컬럼·등록 버튼 없음', async ({
   page,
 }) => {
   await loginAs(page, FIXTURE_USER, '/pricing?q=P2002030005');
@@ -97,9 +97,9 @@ test('USER 조회: 행 클릭 → 행 상세 드로어(원본 20컬럼·계열 �
   const drawer = page.getByRole('dialog', { name: '행 상세' });
   const source = drawer.getByRole('region', { name: '원본 20컬럼' });
   await expect(source.getByRole('term')).toHaveCount(20);
-  await expect(
-    drawer.getByRole('region', { name: '계열 이력' }).locator('li').first(),
-  ).toBeVisible();
+  // 조회 화면 드로어는 현재 행 정보만 — 계열 이력·"변동 이력 보기" 없음 (pricing-view-hide-price-change Q-V1 = B)
+  await expect(drawer.getByRole('region', { name: '계열 이력' })).toHaveCount(0);
+  await expect(drawer.getByRole('button', { name: '변동 이력 보기' })).toHaveCount(0);
 });
 
 test('ADMIN 관리: 헤더(적용시작일·운영 연도·관리), 등록(사유 필수) → manual 행 → 삭제 (AC-12·13·15·16)', async ({

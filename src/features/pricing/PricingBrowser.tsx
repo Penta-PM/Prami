@@ -18,7 +18,7 @@ import { getPriceRowDetailAction } from './actions';
 import { priceFilterFields } from './column-filters';
 import { layoutColumnsFor, PRICE_TABLE_IDS, type TableMode } from './columns';
 import { DeletePolicyModal } from './DeletePolicyModal';
-import { filterToQuery, isPriceFiltered, PRICE_SORT_IDS, type PriceFilter } from './filter';
+import { filterToQuery, isPriceFiltered, priceSortIds, type PriceFilter } from './filter';
 import { EMPTY_POLICY_FORM, formFromRow, type PolicyFormValues } from './policy-form';
 import { PolicyFormModal, type PolicyFormMode } from './PolicyFormModal';
 import { PriceHistoryModal } from './PriceHistoryModal';
@@ -54,7 +54,8 @@ function usePolicyEditing() {
   const openFromRow = useCallback(
     (row: PriceRowView, kind: 'edit' | 'copy') =>
       startTransition(async () => {
-        const result = await getPriceRowDetailAction(row.id);
+        // 수정·복사는 관리 화면에서만 — 원본 값만 쓰지만 관리 화면 요청('manage')으로 보낸다
+        const result = await getPriceRowDetailAction(row.id, 'manage');
         if (!result.ok) return setFlash({ tone: 'error', text: result.error.message });
         const detail = result.data.row;
         const initial = formFromRow(detail);
@@ -146,6 +147,11 @@ type PricingBrowserProps = {
   costRatios?: Readonly<Record<number, CostRatioView>>;
   /** 원가 비중 계산 실패 — 원가 비중 열이 있는(cost.read) 사용자에게만 표 위 안내 (migration-apply-lan §2-3) */
   costRatioFailed?: boolean;
+  /**
+   * 가격 변동 노출 (pricing-view-hide-price-change §1) — 서버가 판정(관리 화면 + pricing.write)해 넘긴다.
+   * false 면 가격 변동 열·필터·정렬·셀 이력 모달·드로어 계열 이력과 "변동 이력 보기" 모두 없다
+   */
+  withPriceChange?: boolean;
 };
 
 /**
@@ -162,6 +168,7 @@ export function PricingBrowser({
   userId,
   costRatios,
   costRatioFailed = false,
+  withPriceChange = false,
 }: PricingBrowserProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -173,17 +180,19 @@ export function PricingBrowser({
   const editing = usePolicyEditing();
   const { openFromRow, setDeleting } = editing;
   const admin = mode === 'admin';
+  // 조회 화면은 값과 관계없이 가격 변동 없음 (서버가 이미 false 로 넘긴다 — 한 번 더 막는다)
+  const priceChange = admin && withPriceChange;
 
   const go = (next: Partial<PriceFilter>) =>
     startTransition(() => router.push(`${pathname}${filterToQuery(next)}`));
 
   const changeSort = (next: DataTableSort) =>
-    go({ ...filter, sort: urlSort(next, PRICE_SORT_IDS), page: 1 });
+    go({ ...filter, sort: urlSort(next, priceSortIds(priceChange)), page: 1 });
 
   // 열 필터 (표 열 필터 스펙 §2) — 기존 필터·정렬은 그대로, 1페이지로. 기존 서버 표의 정렬·페이지 이동과 같은 router.push
   const filterFields = useMemo(
-    () => priceFilterFields(currencies, priceTypes),
-    [currencies, priceTypes],
+    () => priceFilterFields(currencies, priceTypes, { withPriceChange: priceChange }),
+    [currencies, priceTypes, priceChange],
   );
   const columnFilters = filter.filters ?? [];
   const changeFilters = (next: readonly FilterCondition[]) =>
@@ -220,7 +229,7 @@ export function PricingBrowser({
           <DataTableResetButton
             tableId={PRICE_TABLE_IDS[mode]}
             userId={userId}
-            columns={layoutColumnsFor(mode, costRatios !== undefined)}
+            columns={layoutColumnsFor(mode, costRatios !== undefined, priceChange)}
           />
           {admin ? (
             <Button variant="primary" size="sm" onClick={editing.openCreate}>
@@ -253,11 +262,12 @@ export function PricingBrowser({
         onRowClick={(row) => setDetailId(row.id)}
         renderActions={admin ? renderActions : undefined}
         costRatios={admin ? costRatios : undefined}
-        onPriceHistory={openHistory}
+        withPriceChange={priceChange}
+        onPriceHistory={priceChange ? openHistory : undefined}
       />
-      <RowDetailDrawer rowId={detailId} onClose={() => setDetailId(null)} />
+      <RowDetailDrawer rowId={detailId} onClose={() => setDetailId(null)} manage={priceChange} />
       <Presence>
-        {historyId !== null ? (
+        {priceChange && historyId !== null ? (
           <PriceHistoryModal key={historyId} rowId={historyId} onClose={() => setHistoryId(null)} />
         ) : null}
       </Presence>

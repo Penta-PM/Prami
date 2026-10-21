@@ -278,8 +278,11 @@ describe('AC-43 공개 쿼리 응답에 unit_cost·material_code 없음', () => 
   });
 
   it('getPriceRows · getPriceRowDetail · getCategoryOptions JSON 스냅샷 키 검사', async () => {
-    const page = await getPriceRows(handle.db, parsePriceFilter({}).filter);
-    const detail = await getPriceRowDetail(handle.db, page.rows[0]!.id);
+    // 관리 화면(가격 변동·계열 이력 포함) 기준 — 키가 가장 많은 응답에도 원가 키가 없다
+    const page = await getPriceRows(handle.db, parsePriceFilter({}).filter, {
+      withPriceChange: true,
+    });
+    const detail = await getPriceRowDetail(handle.db, page.rows[0]!.id, { includeHistory: true });
     const options = await getCategoryOptions(handle.db, {});
     for (const payload of [page, detail, options]) {
       const json = JSON.stringify(payload);

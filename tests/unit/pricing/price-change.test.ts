@@ -4,7 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DbHandle } from '@/db';
 import { salesPrices } from '@/db/schema';
 import { layoutColumnsFor } from '@/features/pricing/columns';
-import { parsePriceFilter } from '@/features/pricing/filter';
+import { priceFilterDefs } from '@/features/pricing/column-filters';
+import { parsePriceFilter, PRICE_SORT_IDS, PRICE_VIEW_SORT_IDS } from '@/features/pricing/filter';
 import { priceChangeDisplay } from '@/lib/pricing/format';
 import { normalizeLayout } from '@/lib/table/layout-storage';
 import { getPriceRows, PRICE_PAGE_SIZE, type PriceRow } from '@/server/pricing/queries';
@@ -100,8 +101,17 @@ afterAll(async () => {
   await handle.close();
 });
 
+/** 관리 화면 + pricing.write (가격 변동 노출) — 서버 판정 값 그대로 */
 const page = (params: Record<string, string>, n: number) =>
-  getPriceRows(handle.db, parsePriceFilter({ ...params, page: String(n) }).filter);
+  getPriceRows(
+    handle.db,
+    parsePriceFilter(
+      { ...params, page: String(n) },
+      priceFilterDefs(['KRW', 'USD'], [], { withPriceChange: true }),
+      PRICE_SORT_IDS,
+    ).filter,
+    { withPriceChange: true },
+  );
 
 /** 전 페이지 이어 붙인 행 */
 async function rows(params: Record<string, string> = {}): Promise<PriceRow[]> {
@@ -259,24 +269,10 @@ describe('priceChangeDisplay (표시 4상태)', () => {
 });
 
 describe('저장된 열 레이아웃 정규화 (#32 §5) — 가격 변동 열 추가', () => {
-  it('조회 표: 예전 저장(가격 변동 없음) → 적용기간 뒤에 끼우고 기존 순서·너비 유지', () => {
+  it('조회 표: 가격 변동이 저장된 레이아웃(#55 시기) → priceChange id 는 버리고 기존 순서·너비 유지 (pricing-view-hide-price-change §2)', () => {
     const columns = layoutColumnsFor('view');
+    expect(columns.map((column) => column.id)).not.toContain('priceChange');
     const saved = {
-      order: [
-        'itemName',
-        'price',
-        'priceType',
-        'major',
-        'mid',
-        'minor',
-        'period',
-        'remark',
-        'status',
-        'itemStatus',
-      ],
-      widths: { itemName: 240, remark: 180 },
-    };
-    expect(normalizeLayout(saved, columns)).toEqual({
       order: [
         'itemName',
         'price',
@@ -290,12 +286,27 @@ describe('저장된 열 레이아웃 정규화 (#32 §5) — 가격 변동 열 �
         'status',
         'itemStatus',
       ],
+      widths: { itemName: 240, priceChange: 160, remark: 180 },
+    };
+    expect(normalizeLayout(saved, columns)).toEqual({
+      order: [
+        'itemName',
+        'price',
+        'priceType',
+        'major',
+        'mid',
+        'minor',
+        'period',
+        'remark',
+        'status',
+        'itemStatus',
+      ],
       widths: { itemName: 240, remark: 180 },
     });
   });
 
   it('관리 표: 운영 연도 뒤에 끼우고 관리 열은 끝에 고정', () => {
-    const columns = layoutColumnsFor('admin');
+    const columns = layoutColumnsFor('admin', false, true);
     const saved = {
       order: [
         'remark',
@@ -332,5 +343,60 @@ describe('저장된 열 레이아웃 정규화 (#32 §5) — 가격 변동 열 �
       'actions',
     ]);
     expect(layout.widths).toEqual({ price: 150 });
+  });
+});
+
+/**
+ * 조회 화면(/pricing) 가격 변동 비노출 (pricing-view-hide-price-change §2): withPriceChange 없음(기본) =
+ * 직전가 윈도 조인 없음, 행에 previousPrice·priceChangeRate 키 0, `f.priceChange.*`·`sort=priceChange` 는 무시.
+ */
+describe('getPriceRows 조회 모드 — 가격 변동 키 없음', () => {
+  const viewPage = (params: Record<string, string>, n = 1) =>
+    getPriceRows(
+      handle.db,
+      parsePriceFilter(
+        { ...params, page: String(n) },
+        priceFilterDefs(['KRW', 'USD']),
+        PRICE_VIEW_SORT_IDS,
+      ).filter,
+    );
+
+  it('조회 모드 결과 행에 priceChange·previousPrice 키가 없다 (JSON 직렬화 기준), 관리 모드는 있다', async () => {
+    const view = await viewPage({});
+    expect(view.rows.length).toBeGreaterThan(0);
+    for (const row of view.rows) {
+      expect(Object.keys(row)).not.toContain('previousPrice');
+      expect(Object.keys(row)).not.toContain('priceChangeRate');
+    }
+    const json = JSON.stringify(view);
+    expect(json).not.toMatch(/previousPrice|priceChange/);
+    const admin = await page({}, 1);
+    expect(Object.keys(admin.rows[0]!)).toEqual(
+      expect.arrayContaining(['previousPrice', 'priceChangeRate']),
+    );
+  });
+
+  it('URL `f.priceChange.gte=1&sort=priceChange&dir=desc` → 오류 없이 무시, 기본 정렬·전체 건수', async () => {
+    const params = { 'f.priceChange.gte': '1', sort: 'priceChange', dir: 'desc' };
+    const parsed = parsePriceFilter(params, priceFilterDefs(['KRW', 'USD']), PRICE_VIEW_SORT_IDS);
+    expect(parsed.filter.filters).toBeUndefined();
+    expect(parsed.filter.sort).toBeUndefined();
+    expect(parsed.errors).toEqual({});
+    const ignored = await viewPage(params);
+    const plain = await viewPage({});
+    expect(ignored.total).toBe(plain.total);
+    expect(ignored.rows.map((row) => row.id)).toEqual(plain.rows.map((row) => row.id));
+  });
+
+  it('파서를 거치지 않은 가격 변동 필터·정렬도 쿼리에서 무시한다 (2차 방어)', async () => {
+    const plain = await viewPage({});
+    const forced = await getPriceRows(handle.db, {
+      ...parsePriceFilter({}).filter,
+      filters: [{ col: 'priceChange', op: 'gte', value: '1' }],
+      sort: { id: 'priceChange', dir: 'desc' },
+    });
+    expect(forced.total).toBe(plain.total);
+    expect(forced.rows.map((row) => row.id)).toEqual(plain.rows.map((row) => row.id));
+    expect(JSON.stringify(forced)).not.toMatch(/previousPrice|priceChange/);
   });
 });

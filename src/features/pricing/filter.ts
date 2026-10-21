@@ -36,6 +36,19 @@ export const PRICE_SORT_IDS = [
 ] as const;
 export type PriceSortId = (typeof PRICE_SORT_IDS)[number];
 
+/**
+ * 조회 화면(/pricing)·가격 변동 권한 없음의 정렬 화이트리스트 (pricing-view-hide-price-change §2) — 가격 변동 제외.
+ * `sort=priceChange` 는 파싱에서 버려져 기본 정렬이 된다(오류 없음)
+ */
+export const PRICE_VIEW_SORT_IDS: readonly PriceSortId[] = PRICE_SORT_IDS.filter(
+  (id) => id !== 'priceChange',
+);
+
+/** 가격 변동 노출(관리 화면 + pricing.write, 서버 판정)에 맞는 정렬 화이트리스트 */
+export function priceSortIds(withPriceChange: boolean): readonly PriceSortId[] {
+  return withPriceChange ? PRICE_SORT_IDS : PRICE_VIEW_SORT_IDS;
+}
+
 export type PriceFilter = {
   major?: string;
   /** 홈 카드 묶음(product-cards id, 예: isign = iSIGN + iSIGN PKI). major 와 함께 오면 major 가 우선 */
@@ -92,6 +105,8 @@ export function parsePriceFilter(
   params: Params,
   /** 열 필터 화이트리스트(priceFilterDefs). 생략하면 열 필터를 읽지 않는다 */
   filterDefs: Readonly<Record<string, ColumnFilterDef>> = {},
+  /** 정렬 화이트리스트 — 기본 = PRICE_VIEW_SORT_IDS(가격 변동 제외). 관리 화면 + pricing.write 만 PRICE_SORT_IDS */
+  sortIds: readonly PriceSortId[] = PRICE_VIEW_SORT_IDS,
 ): { filter: PriceFilter; errors: FilterErrors } {
   const raw = Object.fromEntries(
     ['major', 'family', 'mid', 'minor', 'dateMode', 'from', 'to', 'q', 'page'].map((key) => [
@@ -112,7 +127,7 @@ export function parsePriceFilter(
   const mid = parsed.major ? parsed.mid : undefined;
   const minor = mid ? parsed.minor : undefined;
   const family = parsed.major ? undefined : parsed.family;
-  const sort = parseSortParams(params, PRICE_SORT_IDS);
+  const sort = parseSortParams(params, sortIds);
   const filters = parseFilterParams(params, filterDefs);
   return {
     filter: {

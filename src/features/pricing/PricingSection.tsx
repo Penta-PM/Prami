@@ -2,6 +2,8 @@ import 'server-only';
 
 import { getDb } from '@/db';
 import { loadPolicyCostRatios } from '@/features/costs/price-ratios';
+import { hasPermission } from '@/lib/constants/permissions';
+import { getSessionUser } from '@/server/auth/rbac';
 import { getCategoryOptions } from '@/server/pricing/categories';
 import {
   getPriceRows,
@@ -12,7 +14,7 @@ import {
 
 import { priceFilterDefs } from './column-filters';
 import type { TableMode } from './columns';
-import { parsePriceFilter } from './filter';
+import { parsePriceFilter, priceSortIds } from './filter';
 import { PricingBrowser } from './PricingBrowser';
 import { PricingFilters } from './PricingFilters';
 import { PricingPagination } from './PricingPagination';
@@ -36,6 +38,11 @@ export async function PricingSection({
   userId: string;
 }) {
   const db = await getDb();
+  // 가격 변동 노출 = 관리 화면 **그리고** pricing.write (pricing-view-hide-price-change §1, 원가 비중의 cost.read 게이트와 같은 방식).
+  // false(조회 화면 /pricing)면 직전가 윈도를 조인하지 않고 행에 가격 변동 키가 없다 — RSC payload 에 priceChange·previousPrice 0.
+  // 필터·정렬 화이트리스트에서도 빠져 `f.priceChange.*`·`sort=priceChange` URL 은 무시(기본 정렬, 오류 없음)
+  const withPriceChange =
+    mode === 'admin' && hasPermission((await getSessionUser())?.role, 'pricing.write');
   // 통화·단가 유형 열 필터 선택지(데이터)가 화이트리스트에 들어가므로 먼저 읽고 URL 을 파싱한다 (표 열 필터 스펙 §2.3·§7 Q3 B)
   const [currencies, priceTypes, years] = await Promise.all([
     listPriceCurrencies(db),
@@ -44,11 +51,12 @@ export async function PricingSection({
   ]);
   const { filter, errors } = parsePriceFilter(
     searchParams,
-    priceFilterDefs(currencies, priceTypes),
+    priceFilterDefs(currencies, priceTypes, { withPriceChange }),
+    priceSortIds(withPriceChange),
   );
   const [options, page] = await Promise.all([
     getCategoryOptions(db, { major: filter.major, mid: filter.mid, family: filter.family }),
-    getPriceRows(db, filter),
+    getPriceRows(db, filter, { withPriceChange }),
   ]);
   // 원가 비중: 관리 표에서만, cost.read 가 있을 때만(없으면 null → prop 자체를 넘기지 않음 — RSC payload 에 costRatio 키 0).
   // 현재 페이지 행 id 만 계산한다(cost-ratio-price-change §2.2-1). 조회 표(/pricing)는 부르지 않는다.
@@ -74,6 +82,7 @@ export async function PricingSection({
         currencies={currencies}
         priceTypes={priceTypes}
         userId={userId}
+        withPriceChange={withPriceChange}
         {...(costRatios
           ? { costRatios: costRatios.ratios, costRatioFailed: costRatios.failed }
           : {})}

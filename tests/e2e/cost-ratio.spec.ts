@@ -238,7 +238,7 @@ test('ADMIN: 관리 화면 어디에도 원가 금액이 없다', async ({ page 
   expectNoAmount(rsc, fixture.unitCostA);
 });
 
-test('USER: /pricing — 원가 비중 열 없음, 가격 변동 열 있음, HTML·RSC 에 costRatio·원가·비중 없음', async ({
+test('USER: /pricing — 원가 비중·가격 변동 열 없음, HTML·RSC 에 costRatio·원가·비중·가격 변동 키 없음', async ({
   page,
 }) => {
   const { a } = target();
@@ -246,9 +246,13 @@ test('USER: /pricing — 원가 비중 열 없음, 가격 변동 열 있음, HTM
   await loginAs(page, FIXTURE_USER, path);
   await expect(page.getByRole('table', { name: VIEW_TABLE })).toBeVisible();
 
-  const headers = await expectPriceChangeCells(page, VIEW_TABLE);
+  const headers = await headerTexts(page, VIEW_TABLE);
   expect(headers).not.toContain('원가 비중');
-  expect(headers.indexOf('가격 변동')).toBe(headers.indexOf('적용기간') + 1);
+  // 조회 화면은 가격 변동 비노출 (pricing-view-hide-price-change §2)
+  expect(headers).not.toContain('가격 변동');
+  await expect(
+    page.getByRole('table', { name: VIEW_TABLE }).locator('[data-price-change]'),
+  ).toHaveCount(0);
 
   // 비중 표기 — 가격 변동 문구("이전 대비 N.N% …")와 구분한다
   const ratioText = new RegExp(`(?<!이전 대비 )${fixture.expectedLabel.replace('.', '\\.')}`);
@@ -256,6 +260,7 @@ test('USER: /pricing — 원가 비중 열 없음, 가격 변동 열 있음, HTM
   const rsc = await (await page.request.get(`${path}&_rsc=1`, { headers: { RSC: '1' } })).text();
   for (const body of [html, rsc]) {
     expect(body).not.toContain('costRatio');
+    expect(body).not.toMatch(/previousPrice|priceChangeRate/);
     expect(body).not.toContain('원가 적용일');
     expect(body).not.toMatch(ratioText);
     expectNoAmount(body, fixture.unitCostA);

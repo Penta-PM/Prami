@@ -39,7 +39,7 @@ export type FilterSpec = Readonly<Record<string, FilterSqlEntry>>;
 
 /** 표의 defs(클라이언트 공용) + 서버 열 식 → FilterSpec. defs 에 있는데 식이 없는 열은 빠진다(필터 불가) */
 export function buildFilterSpec<Id extends string>(
-  defs: Readonly<Record<Id, ColumnFilterDef>>,
+  defs: Readonly<Partial<Record<Id, ColumnFilterDef>>>,
   exprs: Readonly<Record<Id, Expr>>,
   options: {
     ranges?: Partial<Record<Id, FilterSqlEntry['range']>>;
@@ -48,11 +48,12 @@ export function buildFilterSpec<Id extends string>(
 ): FilterSpec {
   const spec: Record<string, FilterSqlEntry> = {};
   for (const id of Object.keys(defs) as Id[]) {
-    if (!Object.hasOwn(exprs, id)) continue;
+    const def = defs[id];
+    if (!def || !Object.hasOwn(exprs, id)) continue;
     const range = options.ranges?.[id];
     const emptyValue = options.emptyValues?.[id];
     spec[id] = {
-      def: defs[id],
+      def,
       expr: exprs[id],
       ...(range ? { range } : {}),
       ...(emptyValue !== undefined ? { emptyValue } : {}),

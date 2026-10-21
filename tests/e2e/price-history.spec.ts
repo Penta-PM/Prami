@@ -5,7 +5,9 @@ import { E2E_ENV } from '../../playwright.config';
 import { FIXTURE_ADMIN, FIXTURE_USER, loginAs } from './helpers';
 
 /**
- * 가격 변동 이력 모달 (스펙 price-change-history-modal §2.2~§2.4, §3).
+ * 가격 변동 이력 모달 (스펙 price-change-history-modal §2.2~§2.4, §3) — **관리 화면(/admin/policies)만**.
+ * 조회 화면(/pricing)은 USER·ADMIN 모두 가격 변동 칸·모달·드로어 계열 이력·"변동 이력 보기"가 없고, HTML·RSC payload·
+ * 드로어 액션 응답에 가격 변동·이력 키가 없다 (pricing-view-hide-price-change §2, Q-V1 = B).
  *
  * 픽스처: globalSetup 의 sales-200 에서 **살아 있는 행이 모두 한 계열**이고 그 계열이 2행 이상인 품목 하나를 고른다 —
  * `?q=품번` 으로 거르면 표의 행 = 그 계열 전부(기본 정렬 적용시작일 최신 순)라 첫 행이 최신 시기다.
@@ -84,8 +86,63 @@ async function expectHistoryTable(page: Page, highlightId: number) {
   await expect(table.locator('tbody tr').last().locator('td').nth(2)).toHaveText('—');
 }
 
+for (const [role, email] of [
+  ['USER', FIXTURE_USER],
+  ['ADMIN', FIXTURE_ADMIN],
+] as const) {
+  test.describe(`${role} /pricing — 가격 변동·이력 비노출`, () => {
+    test('헤더·칸 버튼·모달 없음, 드로어에 계열 이력·"변동 이력 보기" 없음, 응답에 키 0', async ({
+      page,
+    }) => {
+      // 드로어를 여는 Server Action 응답 본문 (POST + Next-Action 헤더)
+      const actionBodies: Promise<string>[] = [];
+      page.on('response', (response) => {
+        const request = response.request();
+        if (request.method() === 'POST' && request.headers()['next-action'])
+          actionBodies.push(response.text());
+      });
+      const url = `/pricing?q=${series().itemCode}`;
+      await loginAs(page, email, url);
+      const table = page.getByRole('table', { name: VIEW_TABLE });
+      await expect(table).toBeVisible();
+      await expect(table.locator('thead th', { hasText: '가격 변동' })).toHaveCount(0);
+      await expect(table.locator('[data-price-change]')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /가격 변동 이력$/ })).toHaveCount(0);
+      // HTML(초기 RSC payload 포함)·RSC 요청 응답에 가격 변동 키 0
+      expect(await page.content()).not.toMatch(/previousPrice|priceChangeRate/);
+      const rsc = await page.request.get(url, { headers: { RSC: '1' } });
+      expect(rsc.ok()).toBe(true);
+      expect(await rsc.text()).not.toMatch(/previousPrice|priceChangeRate/);
+
+      await table.locator('tbody tr').first().locator('td').first().click();
+      await expect(drawer(page)).toBeVisible();
+      await expect(drawer(page).getByRole('region', { name: '원본 20컬럼' })).toBeVisible();
+      await expect(drawer(page).getByRole('region', { name: '계열 이력' })).toHaveCount(0);
+      await expect(drawer(page).getByRole('button', { name: '변동 이력 보기' })).toHaveCount(0);
+      await expect(modal(page)).toHaveCount(0);
+      expect(actionBodies.length).toBeGreaterThan(0);
+      for (const body of await Promise.all(actionBodies))
+        expect(body).not.toMatch(/"history"|previousPrice|priceChangeRate|changeRate/);
+    });
+
+    test('`f.priceChange.gte=1&sort=priceChange&dir=desc` → 오류 없이 무시(기본 정렬, 칩 없음)', async ({
+      page,
+    }) => {
+      await loginAs(page, email, `/pricing?q=${series().itemCode}`);
+      const table = page.getByRole('table', { name: VIEW_TABLE });
+      const defaultRows = await table.locator('tbody tr').allTextContents();
+      await page.goto(
+        `/pricing?q=${series().itemCode}&f.priceChange.gte=1&sort=priceChange&dir=desc`,
+      );
+      await expect(table).toBeVisible();
+      await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
+      await expect(page.getByRole('list', { name: '적용된 필터' })).toHaveCount(0);
+      expect(await table.locator('tbody tr').allTextContents()).toEqual(defaultRows);
+    });
+  });
+}
+
 for (const [role, email, path, tableName] of [
-  ['USER', FIXTURE_USER, '/pricing', VIEW_TABLE],
   ['ADMIN', FIXTURE_ADMIN, '/admin/policies', ADMIN_TABLE],
 ] as const) {
   test.describe(`${role} ${path}`, () => {

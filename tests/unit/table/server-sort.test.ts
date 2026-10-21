@@ -188,9 +188,15 @@ afterAll(async () => {
 
 // ───────────────────────── 가격 ─────────────────────────
 
-const priceFilter = (params: Record<string, string>) => parsePriceFilter(params).filter;
+// 관리 화면(가격 변동 노출 — 관리 + pricing.write) 기준: 정렬 화이트리스트 전체(PRICE_SORT_IDS)
+const priceFilter = (params: Record<string, string>) =>
+  parsePriceFilter(params, {}, PRICE_SORT_IDS).filter;
 const pricePages = (params: Record<string, string>) =>
-  allPages((page) => getPriceRows(handle.db, priceFilter({ ...params, page: String(page) })));
+  allPages((page) =>
+    getPriceRows(handle.db, priceFilter({ ...params, page: String(page) }), {
+      withPriceChange: true,
+    }),
+  );
 
 const PRICE_CLIENT: Record<PriceSortId, ClientSpec<PriceRow>> = {
   priceType: [text((row) => row.priceType)],
@@ -218,7 +224,7 @@ const PRICE_CLIENT: Record<PriceSortId, ClientSpec<PriceRow>> = {
     { get: (row) => row.operationStatus, type: 'status', order: STATUS_ORDERS.pricingState },
   ],
   remark: [text((row) => row.remark)],
-  priceChange: [{ get: (row) => row.priceChangeRate, type: 'number' }],
+  priceChange: [{ get: (row) => row.priceChangeRate ?? null, type: 'number' }],
 };
 
 describe('가격 표 서버 정렬', () => {

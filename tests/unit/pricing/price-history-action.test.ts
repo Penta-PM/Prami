@@ -7,12 +7,13 @@ import { items, salesPrices } from '@/db/schema';
 import { applyPolicy } from '@/server/imports/apply-policy';
 
 import { TEST_ACTOR, TEST_META, uploadFixture } from '../../helpers/imports';
-import { createTestDb, insertUser } from '../../helpers/pglite';
+import { auditByAction, createTestDb, insertUser } from '../../helpers/pglite';
 
 /**
- * getPriceHistoryAction (price-change-history-modal §2.1-4): pricing.read(USER·ADMIN), 입력 = 양의 정수 id 만,
- * 품목 마스터 ERP 비고는 ADMIN 응답 요약에만(USER 응답에 키 없음), 행별 비고(remark)는 모든 역할,
- * 원가 키 없음, 삭제·없는 id → NOT_FOUND.
+ * getPriceHistoryAction (price-change-history-modal §2.1-4 → pricing-view-hide-price-change §3): **pricing.write**(ADMIN 만),
+ * USER 는 거부(FORBIDDEN + 감사 denied — 기존 runAction 규칙), 입력 = 양의 정수 id 만,
+ * 품목 마스터 ERP 비고는 ADMIN 응답 요약에, 행별 비고(remark)는 응답 모두, 원가 키 없음, 삭제·없는 id → NOT_FOUND.
+ * getPriceRowDetailAction 의 계열 이력(Q-V1 = B): 관리 화면('manage') + pricing.write 응답에만 `history` 키.
  */
 const state = vi.hoisted(() => ({
   handle: undefined as DbHandle | undefined,
@@ -84,16 +85,25 @@ function keysOf(value: unknown, out = new Set<string>()): Set<string> {
 }
 
 describe('getPriceHistoryAction', () => {
-  it('USER: 조회 가능, erpRemark 키 없음, 원가 키 없음', async () => {
+  it('USER(pricing.read 만): 거부 — FORBIDDEN, 데이터 없음, 감사 denied 1행 (pricing-view-hide-price-change §3)', async () => {
     state.sessionUserId = userId;
+    const before = (await auditByAction(state.handle!, 'price_policy.read')).length;
+    const result = await actions.getPriceHistoryAction(rowId);
+    expect(result).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } });
+    expect(JSON.stringify(result)).not.toMatch(/rows|series|previousPrice|changeRate|담당자 메모/);
+    const denied = await auditByAction(state.handle!, 'price_policy.read');
+    expect(denied).toHaveLength(before + 1);
+    expect(denied.at(-1)).toMatchObject({ actorUserId: userId, result: 'denied' });
+  });
+
+  it('ADMIN(pricing.write): 이력 조회 가능, 원가 키 없음', async () => {
+    state.sessionUserId = adminId;
     const result = await actions.getPriceHistoryAction(rowId);
     if (!result.ok) throw new Error(result.error.message);
     expect(result.data.currentId).toBe(rowId);
     expect(result.data.rows.some((row) => row.id === rowId)).toBe(true);
-    const keys = [...keysOf(result.data)];
-    expect(keys).not.toContain('erpRemark');
-    expect(JSON.stringify(result.data)).not.toContain('담당자 메모');
     for (const row of result.data.rows) expect(Object.hasOwn(row, 'remark')).toBe(true);
+    const keys = [...keysOf(result.data)];
     expect(keys.filter((key) => /cost|margin|material/i.test(key))).toEqual([]);
   });
 
@@ -117,7 +127,7 @@ describe('getPriceHistoryAction', () => {
   });
 
   it('삭제된 id·없는 id → NOT_FOUND', async () => {
-    state.sessionUserId = userId;
+    state.sessionUserId = adminId;
     for (const id of [deletedId, 999_999])
       expect(await actions.getPriceHistoryAction(id)).toEqual({
         ok: false,
@@ -126,7 +136,7 @@ describe('getPriceHistoryAction', () => {
   });
 
   it('입력 검증: 양의 정수 id 만 (계열 키 문자열·0·음수·소수 → VALIDATION)', async () => {
-    state.sessionUserId = userId;
+    state.sessionUserId = adminId;
     const [row] = await state
       .handle!.db.select({ seriesKey: salesPrices.seriesKey })
       .from(salesPrices)
@@ -143,5 +153,41 @@ describe('getPriceHistoryAction', () => {
     const result = await actions.getPriceHistoryAction(rowId);
     expect(result).toMatchObject({ ok: false, error: { code: 'UNAUTHENTICATED' } });
     expect(JSON.stringify(result)).not.toMatch(/rows|series/);
+  });
+});
+
+/**
+ * 행 상세 드로어의 계열 이력 (pricing-view-hide-price-change Q-V1 = B): 관리 화면('manage') **그리고** pricing.write 일 때만
+ * 응답에 `history` 키. 조회 화면('view'·생략)은 ADMIN 도 키 없음, USER 는 mode 를 'manage' 로 바꿔 보내도 키 없음.
+ */
+describe('getPriceRowDetailAction 계열 이력 범위', () => {
+  it("ADMIN + 'manage': 같은 계열 이력(history) 포함", async () => {
+    state.sessionUserId = adminId;
+    const result = await actions.getPriceRowDetailAction(rowId, 'manage');
+    if (!result.ok) throw new Error(result.error.message);
+    expect(result.data.history?.some((entry) => entry.id === rowId)).toBe(true);
+  });
+
+  it("ADMIN + 'view'·생략(조회 화면 /pricing): history 키 없음, 현재 행 정보만", async () => {
+    state.sessionUserId = adminId;
+    for (const result of [
+      await actions.getPriceRowDetailAction(rowId, 'view'),
+      await actions.getPriceRowDetailAction(rowId),
+    ]) {
+      if (!result.ok) throw new Error(result.error.message);
+      expect(Object.keys(result.data)).toEqual(['row']);
+      expect(result.data.row.id).toBe(rowId);
+    }
+  });
+
+  it("USER: 'view' 는 물론 mode 를 'manage'(또는 엉뚱한 값)로 바꿔 보내도 history 키 없음", async () => {
+    state.sessionUserId = userId;
+    for (const mode of ['view', 'manage', 'admin', undefined] as unknown as ('view' | 'manage')[]) {
+      const result = await actions.getPriceRowDetailAction(rowId, mode);
+      if (!result.ok) throw new Error(result.error.message);
+      expect(Object.keys(result.data)).toEqual(['row']);
+      expect([...keysOf(result.data)]).not.toContain('history');
+      expect(result.data.row.id).toBe(rowId);
+    }
   });
 });

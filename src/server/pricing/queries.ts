@@ -31,7 +31,8 @@ export const PRICE_PAGE_SIZE = 50;
 
 export type ItemStatusLabel = '임시' | '폐기' | '사용' | typeof ITEM_STATUS_UNKNOWN;
 
-export type PriceRow = {
+/** 조회·관리 공통 행 (가격 변동 키 없음 — 조회 화면 /pricing 은 이 모양만 받는다, pricing-view-hide-price-change §2) */
+export type PriceRowBase = {
   id: number;
   priceType: string | null;
   major: string;
@@ -47,11 +48,18 @@ export type PriceRow = {
   operationStatus: '운영중' | '미사용';
   remark: string | null;
   source: 'erp' | 'manual';
+};
+
+/** 가격 변동 (cost-ratio-price-change §2.4) — `withPriceChange`(관리 화면 + pricing.write)일 때만 선택한다 */
+export type PriceChangeFields = {
   /** 같은 계열(series_key)의 직전 적용시작일 행 판매가 (삭제 행 제외, 필터·페이지 무관). 첫 시기 = null */
   previousPrice: string | null;
   /** (현재 − 직전) / 직전 × 100, 소수 1자리 반올림(절댓값 기준 half-up). 첫 시기·직전가 0 = null */
   priceChangeRate: number | null;
 };
+
+/** 가격 표 행. 가격 변동 키는 `withPriceChange` 일 때만 있다(조회 화면 응답에는 키 자체가 없다) */
+export type PriceRow = PriceRowBase & Partial<PriceChangeFields>;
 
 export type PricePage = {
   rows: PriceRow[];
@@ -81,7 +89,7 @@ export function dateCondition(filter: Pick<PriceFilter, 'dateMode' | 'from' | 't
  */
 const ALL_PREVIOUS_PRICES = previousPrices();
 
-const ROW_FIELDS = {
+const BASE_FIELDS = {
   id: salesPrices.id,
   priceType: salesPrices.priceType,
   major: MAJOR,
@@ -97,6 +105,10 @@ const ROW_FIELDS = {
   operationStatus: salesPrices.operationStatus,
   remark: salesPrices.remark,
   source: salesPrices.source,
+};
+
+const CHANGE_FIELDS = {
+  ...BASE_FIELDS,
   previousPrice: PREVIOUS_PRICE,
   // pg·PGlite 모두 numeric 을 문자열로 준다 → number (NULL 은 매핑하지 않는다)
   priceChangeRate: PRICE_CHANGE_RATE.mapWith(Number),
@@ -117,12 +129,26 @@ export const PRICE_FILTER_SQL: Record<PriceFilterId, AnyColumn | SQL> = {
   remark: salesPrices.remark,
 };
 
-const PRICE_FILTER_SPEC = buildFilterSpec(priceFilterDefs([]), PRICE_FILTER_SQL, {
-  // 단가 유형 '— (없음)' = 빈 값(NULL·''·공백만·'—') — 표 칸 priceTypeLabel 의 '—' 와 같은 묶음
-  emptyValues: { priceType: PRICE_TYPE_NONE },
-});
+const PRICE_FILTER_SPEC = buildFilterSpec(
+  priceFilterDefs([], [], { withPriceChange: true }),
+  PRICE_FILTER_SQL,
+  {
+    // 단가 유형 '— (없음)' = 빈 값(NULL·''·공백만·'—') — 표 칸 priceTypeLabel 의 '—' 와 같은 묶음
+    emptyValues: { priceType: PRICE_TYPE_NONE },
+  },
+);
 
-function buildWhere(filter: PriceFilter): SQL | undefined {
+/**
+ * 가격 변동 없는 화이트리스트 (조회 화면, pricing-view-hide-price-change §2) — `f.priceChange.*` 는 조건이 되지 않는다.
+ * 파서(parsePriceFilter + priceFilterDefs(withPriceChange: false))가 이미 거르지만 쿼리에서도 한 번 더 막는다.
+ */
+const PRICE_FILTER_SPEC_NO_CHANGE = buildFilterSpec(
+  priceFilterDefs([], [], { withPriceChange: false }),
+  PRICE_FILTER_SQL,
+  { emptyValues: { priceType: PRICE_TYPE_NONE } },
+);
+
+function buildWhere(filter: PriceFilter, withPriceChange: boolean): SQL | undefined {
   const conditions: SQL[] = [LIVE_PRICE, ...dateCondition(filter)];
   if (filter.major) conditions.push(sql`${MAJOR} = ${filter.major}`);
   else if (filter.family) {
@@ -147,13 +173,18 @@ function buildWhere(filter: PriceFilter): SQL | undefined {
     );
   }
   // 열 필터 (표 열 필터 스펙 §2.3) — 분류·적용기간·검색과 같은 의미의 열은 화이트리스트에 없다
-  conditions.push(...filterSqlConditions(filter.filters ?? [], PRICE_FILTER_SPEC));
+  conditions.push(
+    ...filterSqlConditions(
+      filter.filters ?? [],
+      withPriceChange ? PRICE_FILTER_SPEC : PRICE_FILTER_SPEC_NO_CHANGE,
+    ),
+  );
   return and(...conditions);
 }
 
-/** 가격 변동 열 필터가 있으면 count 도 직전가 윈도를 조인해야 한다 */
-function needsPreviousPrices(filter: PriceFilter): boolean {
-  return (filter.filters ?? []).some((cond) => cond.col === 'priceChange');
+/** 가격 변동 열 필터가 있으면 count 도 직전가 윈도를 조인해야 한다 (가격 변동을 싣는 관리 화면만) */
+function needsPreviousPrices(filter: PriceFilter, withPriceChange: boolean): boolean {
+  return withPriceChange && (filter.filters ?? []).some((cond) => cond.col === 'priceChange');
 }
 
 /** 기본 정렬 (§4.5.3) — 정렬을 고르면 tie-breaker 로 그대로 뒤에 붙는다(stable, 끝은 id) */
@@ -188,31 +219,65 @@ export const PRICE_SORT_SQL: Record<PriceSortId, (dir: SortDir) => SQL[]> = {
   priceChange: (dir) => [byValue(PRICE_CHANGE_RATE, dir)],
 };
 
-/** getPriceRows (§4.7) — 원가 조인 없음. 가격 변동(직전가·변동률)은 전체 기준 윈도를 id 로 조인 */
-export async function getPriceRows(db: Db, filter: PriceFilter): Promise<PricePage> {
-  const where = buildWhere(filter);
+/**
+ * 가격 변동 없는 정렬 맵 (조회 화면) — `sort=priceChange` 는 키를 더하지 않아 기본 정렬과 같다(직전가 윈도 조인 없음).
+ * 파서(PRICE_VIEW_SORT_IDS)가 이미 거르지만 쿼리에서도 한 번 더 막는다.
+ */
+const PRICE_SORT_SQL_NO_CHANGE: Record<PriceSortId, (dir: SortDir) => SQL[]> = {
+  ...PRICE_SORT_SQL,
+  priceChange: () => [],
+};
+
+export type PriceRowsOptions = {
+  /**
+   * 가격 변동(직전가·변동률) 계산·선택 여부 (pricing-view-hide-price-change §1) — 관리 화면 + pricing.write 일 때만 true.
+   * false(기본)면 직전가 윈도를 조인하지 않고, 행에 previousPrice·priceChangeRate 키가 없고, 가격 변동 필터·정렬은 무시한다.
+   */
+  withPriceChange?: boolean;
+};
+
+/**
+ * getPriceRows (§4.7) — 원가 조인 없음. 가격 변동(직전가·변동률)은 `withPriceChange` 일 때만 전체 기준 윈도를 id 로 조인
+ */
+export async function getPriceRows(
+  db: Db,
+  filter: PriceFilter,
+  options: PriceRowsOptions = {},
+): Promise<PricePage> {
+  const withPriceChange = options.withPriceChange === true;
+  const where = buildWhere(filter, withPriceChange);
   const countQuery = db
     .select({ total: count() })
     .from(salesPrices)
     .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
     .$dynamic();
   const [counted] = await (
-    needsPreviousPrices(filter)
+    needsPreviousPrices(filter, withPriceChange)
       ? countQuery.leftJoin(ALL_PREVIOUS_PRICES, PREVIOUS_PRICE_JOIN)
       : countQuery
   ).where(where);
   const total = counted?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PRICE_PAGE_SIZE));
   const page = Math.min(filter.page, pageCount);
-  const rows = await db
-    .select(ROW_FIELDS)
-    .from(salesPrices)
-    .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
-    .leftJoin(ALL_PREVIOUS_PRICES, PREVIOUS_PRICE_JOIN)
-    .where(where)
-    .orderBy(...buildOrderBy(filter.sort, PRICE_SORT_SQL, DEFAULT_ORDER))
-    .limit(PRICE_PAGE_SIZE)
-    .offset((page - 1) * PRICE_PAGE_SIZE);
+  const offset = (page - 1) * PRICE_PAGE_SIZE;
+  const rows: PriceRow[] = withPriceChange
+    ? await db
+        .select(CHANGE_FIELDS)
+        .from(salesPrices)
+        .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
+        .leftJoin(ALL_PREVIOUS_PRICES, PREVIOUS_PRICE_JOIN)
+        .where(where)
+        .orderBy(...buildOrderBy(filter.sort, PRICE_SORT_SQL, DEFAULT_ORDER))
+        .limit(PRICE_PAGE_SIZE)
+        .offset(offset)
+    : await db
+        .select(BASE_FIELDS)
+        .from(salesPrices)
+        .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
+        .where(where)
+        .orderBy(...buildOrderBy(filter.sort, PRICE_SORT_SQL_NO_CHANGE, DEFAULT_ORDER))
+        .limit(PRICE_PAGE_SIZE)
+        .offset(offset);
   return { rows, total, page, pageCount };
 }
 
@@ -265,7 +330,11 @@ export type PriceRowDetail = {
     /** ERP 비고 — **ADMIN 응답에만** (자유 텍스트에 사람 이름이 섞일 수 있음, §4.2.2) */
     erpRemark?: string | null;
   };
-  history: Pick<
+  /**
+   * 같은 계열 이력 — **관리 화면 + pricing.write 응답에만**(pricing-view-hide-price-change Q-V1 = B).
+   * 조회 화면(/pricing)·USER 응답에는 키 자체가 없다(현재 행 정보만)
+   */
+  history?: Pick<
     SalesPrice,
     'id' | 'effectiveFrom' | 'effectiveTo' | 'unitPrice' | 'currency' | 'operationStatus' | 'source'
   >[];
@@ -274,11 +343,13 @@ export type PriceRowDetail = {
 /**
  * getPriceRowDetail (§4.7): 원본 20컬럼 + 메타 + 같은 계열 이력(삭제 제외).
  * `includeRemark` = ADMIN 일 때만 ERP 비고를 싣는다(USER 응답에는 키 자체가 없다, PRAMI-003 §4.2.2·AC-303).
+ * `includeHistory` = 관리 화면 + pricing.write 일 때만 계열 이력을 싣는다(기본 false — 키 자체가 없고 이력 쿼리도 하지 않는다,
+ * pricing-view-hide-price-change Q-V1 = B).
  */
 export async function getPriceRowDetail(
   db: Db,
   id: number,
-  options: { includeRemark?: boolean } = {},
+  options: { includeRemark?: boolean; includeHistory?: boolean } = {},
 ): Promise<PriceRowDetail | null> {
   const [row] = await db
     .select({
@@ -294,6 +365,15 @@ export async function getPriceRowDetail(
     .leftJoin(importBatches, eq(importBatches.id, salesPrices.importBatchId))
     .where(and(eq(salesPrices.id, id), isNull(salesPrices.deletedAt)));
   if (!row) return null;
+  const detailRow = {
+    ...row.price,
+    itemStatus: row.itemStatus,
+    major: row.major,
+    batchFileName: row.batch,
+    erpMajor: row.erpMajor,
+    ...(options.includeRemark ? { erpRemark: row.remark } : {}),
+  };
+  if (!options.includeHistory) return { row: detailRow };
   const history = await db
     .select({
       id: salesPrices.id,
@@ -307,17 +387,7 @@ export async function getPriceRowDetail(
     .from(salesPrices)
     .where(and(eq(salesPrices.seriesKey, row.price.seriesKey), isNull(salesPrices.deletedAt)))
     .orderBy(desc(salesPrices.effectiveFrom));
-  return {
-    row: {
-      ...row.price,
-      itemStatus: row.itemStatus,
-      major: row.major,
-      batchFileName: row.batch,
-      erpMajor: row.erpMajor,
-      ...(options.includeRemark ? { erpRemark: row.remark } : {}),
-    },
-    history,
-  };
+  return { row: detailRow, history };
 }
 
 /**

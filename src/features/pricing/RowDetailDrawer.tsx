@@ -44,14 +44,22 @@ function show(key: keyof Detail['row'], value: unknown): string {
   return String(value);
 }
 
-type RowDetailDrawerProps = { rowId: number | null; onClose: () => void };
+type RowDetailDrawerProps = {
+  rowId: number | null;
+  onClose: () => void;
+  /**
+   * 가격정책 관리 화면 + pricing.write(서버 판정)일 때만 true — 계열 이력 요청('manage')·"변동 이력 보기" 버튼.
+   * false(조회 화면 /pricing)면 'view' 로 요청하고 서버가 계열 이력을 싣지 않는다(pricing-view-hide-price-change Q-V1 = B)
+   */
+  manage?: boolean;
+};
 
 /**
- * 행 상세 (§4.5.3): 원본 20컬럼 + source·임포트 배치 + 같은 계열 이력 타임라인.
+ * 행 상세 (§4.5.3): 원본 20컬럼 + source·임포트 배치 (+ 관리 화면만: 같은 계열 이력 타임라인).
  * 계열 이력 끝의 "변동 이력 보기" → 가격 변동 이력 모달(드로어 행 기준, price-change-history-modal §2.4 Q-H1 = B).
  * 모달은 드로어 **밖**(형제)에 둔다 — 드로어 패널의 Esc 처리(onKeyDown)로 번지지 않아 모달 Esc 는 모달만 닫고 드로어는 남는다.
  */
-export function RowDetailDrawer({ rowId, onClose }: RowDetailDrawerProps) {
+export function RowDetailDrawer({ rowId, onClose, manage = false }: RowDetailDrawerProps) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
   // 어느 행에서 연 모달인지 — 드로어가 다른 행으로 바뀌거나 닫히면 지운다(같은 행을 다시 열어도 모달이 되살아나지 않게)
@@ -66,7 +74,7 @@ export function RowDetailDrawer({ rowId, onClose }: RowDetailDrawerProps) {
   useEffect(() => {
     if (rowId === null) return;
     let cancelled = false;
-    void getPriceRowDetailAction(rowId).then((result) => {
+    void getPriceRowDetailAction(rowId, manage ? 'manage' : 'view').then((result) => {
       if (cancelled) return;
       if (result.ok) {
         setDetail(result.data);
@@ -79,7 +87,7 @@ export function RowDetailDrawer({ rowId, onClose }: RowDetailDrawerProps) {
     return () => {
       cancelled = true;
     };
-  }, [rowId]);
+  }, [rowId, manage]);
 
   const current = detail && detail.row.id === rowId ? detail : null;
 
@@ -95,11 +103,14 @@ export function RowDetailDrawer({ rowId, onClose }: RowDetailDrawerProps) {
           <p className="m-0 text-[13px] text-text-tertiary">불러오는 중…</p>
         ) : null}
         {current ? (
-          <DetailBody detail={current} onShowHistory={() => setHistoryFor(current.row.id)} />
+          <DetailBody
+            detail={current}
+            onShowHistory={manage ? () => setHistoryFor(current.row.id) : undefined}
+          />
         ) : null}
       </Drawer>
       <Presence>
-        {historyId !== null ? (
+        {manage && historyId !== null ? (
           <PriceHistoryModal
             key={historyId}
             rowId={historyId}
@@ -111,7 +122,14 @@ export function RowDetailDrawer({ rowId, onClose }: RowDetailDrawerProps) {
   );
 }
 
-function DetailBody({ detail, onShowHistory }: { detail: Detail; onShowHistory: () => void }) {
+function DetailBody({
+  detail,
+  onShowHistory,
+}: {
+  detail: Detail;
+  /** 관리 화면만 — 없으면 "변동 이력 보기" 버튼 없음 */
+  onShowHistory?: () => void;
+}) {
   const { row, history } = detail;
   return (
     <div className="flex flex-col gap-5 text-[13px]">
@@ -151,26 +169,46 @@ function DetailBody({ detail, onShowHistory }: { detail: Detail; onShowHistory: 
           ))}
         </dl>
       </section>
-      <section aria-label="계열 이력">
-        <h3 className="m-0 mb-2 text-[12px] font-semibold text-text-tertiary">
-          계열 이력 ({priceTypeLabel(row.priceType)} · {row.priceCategory} · {row.currency} · 거래처{' '}
-          {row.customerCode})
-        </h3>
-        <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
-          {history.map((entry) => (
-            <li
-              key={entry.id}
-              aria-current={entry.id === row.id ? 'true' : undefined}
-              className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 aria-[current]:bg-lime-500/25"
-            >
-              <span className="text-text-secondary">
-                {periodLabel(entry.effectiveFrom, entry.effectiveTo)}
-              </span>
-              <span className="font-semibold">{priceLabel(entry.unitPrice, entry.currency)}</span>
-              <OperationStatus status={entry.operationStatus} />
-            </li>
-          ))}
-        </ol>
+      {/* 관리 화면(onShowHistory 있음)에서만 — 조회 화면은 응답에 history 가 와도 그리지 않는다 */}
+      {history && onShowHistory ? (
+        <SeriesHistory row={row} history={history} onShowHistory={onShowHistory} />
+      ) : null}
+    </div>
+  );
+}
+
+/** 같은 계열 이력 — 서버가 관리 화면 + pricing.write 응답에만 싣는다(조회 화면은 키가 없어 이 구역 자체가 없다) */
+function SeriesHistory({
+  row,
+  history,
+  onShowHistory,
+}: {
+  row: Detail['row'];
+  history: NonNullable<Detail['history']>;
+  onShowHistory?: () => void;
+}) {
+  return (
+    <section aria-label="계열 이력">
+      <h3 className="m-0 mb-2 text-[12px] font-semibold text-text-tertiary">
+        계열 이력 ({priceTypeLabel(row.priceType)} · {row.priceCategory} · {row.currency} · 거래처{' '}
+        {row.customerCode})
+      </h3>
+      <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
+        {history.map((entry) => (
+          <li
+            key={entry.id}
+            aria-current={entry.id === row.id ? 'true' : undefined}
+            className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 aria-[current]:bg-lime-500/25"
+          >
+            <span className="text-text-secondary">
+              {periodLabel(entry.effectiveFrom, entry.effectiveTo)}
+            </span>
+            <span className="font-semibold">{priceLabel(entry.unitPrice, entry.currency)}</span>
+            <OperationStatus status={entry.operationStatus} />
+          </li>
+        ))}
+      </ol>
+      {onShowHistory ? (
         <Button
           size="sm"
           className="mt-2"
@@ -183,7 +221,7 @@ function DetailBody({ detail, onShowHistory }: { detail: Detail; onShowHistory: 
         >
           변동 이력 보기
         </Button>
-      </section>
-    </div>
+      ) : null}
+    </section>
   );
 }

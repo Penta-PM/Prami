@@ -15,10 +15,13 @@ export type PriceRowView = {
   operationStatus: '운영중' | '미사용';
   remark: string | null;
   source: 'erp' | 'manual';
-  /** 같은 계열 직전 적용시작일 행의 판매가 (첫 시기 = null) */
-  previousPrice: string | null;
-  /** 반올림(소수 1자리)한 변동률 %. 첫 시기·직전가 0 = null */
-  priceChangeRate: number | null;
+  /**
+   * 같은 계열 직전 적용시작일 행의 판매가 (첫 시기 = null).
+   * 관리 화면 + pricing.write 일 때만 키가 있다 — 조회 화면(/pricing) 행에는 키 자체가 없다(pricing-view-hide-price-change §2)
+   */
+  previousPrice?: string | null;
+  /** 반올림(소수 1자리)한 변동률 %. 첫 시기·직전가 0 = null. previousPrice 와 같이 관리 화면에서만 */
+  priceChangeRate?: number | null;
 };
 
 export type CategoryOptionsView = {

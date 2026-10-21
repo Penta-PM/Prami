@@ -214,6 +214,9 @@ afterAll(async () => {
 
 // ───────────────────────── 가격 ─────────────────────────
 
+/** 관리 화면 + pricing.write (가격 변동 필터 있음, pricing-view-hide-price-change §1) */
+const ADMIN_CHANGE = { withPriceChange: true } as const;
+
 describe('가격 표 서버 필터 — 클라이언트 술어와 일치', () => {
   let currencies: string[];
   let priceTypes: string[];
@@ -222,9 +225,9 @@ describe('가격 표 서버 필터 — 클라이언트 술어와 일치', () => 
     allPages((page) => {
       const { filter } = parsePriceFilter(
         { ...params, page: String(page) },
-        priceFilterDefs(currencies, priceTypes),
+        priceFilterDefs(currencies, priceTypes, ADMIN_CHANGE),
       );
-      return getPriceRows(handle.db, filter);
+      return getPriceRows(handle.db, filter, ADMIN_CHANGE);
     });
 
   beforeAll(async () => {
@@ -293,7 +296,7 @@ describe('가격 표 서버 필터 — 클라이언트 술어와 일치', () => 
 
   for (const [name, params] of Object.entries(CASES)) {
     it(name, async () => {
-      const fields = priceFilterFields(currencies, priceTypes);
+      const fields = priceFilterFields(currencies, priceTypes, ADMIN_CHANGE);
       const conds = parseFilterParams(params, filterDefsOf(fields));
       expect(conds.length).toBeGreaterThanOrEqual(2);
       const server = await fetchPrices(params);
@@ -331,7 +334,7 @@ describe('가격 표 서버 필터 — 클라이언트 술어와 일치', () => 
     expect(server.total).toBe(n);
     expect(server.rows.every((row) => row.priceType === 'Standby,DR')).toBe(true);
     // 쉼표 그대로(이스케이프 없음)는 'Standby' 와 'DR' 두 값 → 목록 밖이라 조건 전체를 버림(전체 행)
-    const defs = priceFilterDefs(currencies, priceTypes);
+    const defs = priceFilterDefs(currencies, priceTypes, ADMIN_CHANGE);
     expect(
       parsePriceFilter({ 'f.priceType.in': 'Standby,DR' }, defs).filter.filters,
     ).toBeUndefined();
@@ -343,7 +346,7 @@ describe('가격 표 서버 필터 — 클라이언트 술어와 일치', () => 
   });
 
   it('화이트리스트: 열·연산자·원가 비중·같은 의미 열·데이터에 없는 통화는 무시, 한도 초과 조건은 버린다', () => {
-    const defs = priceFilterDefs(currencies, priceTypes);
+    const defs = priceFilterDefs(currencies, priceTypes, ADMIN_CHANGE);
     const parse = (params: Record<string, string>) => parsePriceFilter(params, defs).filter;
     expect(
       parse({
@@ -380,7 +383,7 @@ describe('가격 표 서버 필터 — 클라이언트 술어와 일치', () => 
     expect(priceTypes).not.toEqual(expect.arrayContaining(['', '—', '   ']));
     const rest = priceTypes.slice(0, -1);
     expect(rest).toEqual([...rest].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
-    const defs = priceFilterDefs(currencies, priceTypes);
+    const defs = priceFilterDefs(currencies, priceTypes, ADMIN_CHANGE);
     const parse = (params: Record<string, string>) => parsePriceFilter(params, defs).filter.filters;
     expect(parse({ 'f.priceType.in': 'no-such-type' })).toBeUndefined();
     expect(parse({ 'f.priceType.in': 'apple,no-such-type' })).toBeUndefined();
@@ -401,7 +404,7 @@ describe('가격 표 서버 필터 — 클라이언트 술어와 일치', () => 
       { col: 'price', op: 'gte', value: '1000' },
       { col: 'priceChange', op: 'lte', value: '-5.5' },
     ];
-    const spec = buildFilterSpec(priceFilterDefs(['KRW']), PRICE_FILTER_SQL, {
+    const spec = buildFilterSpec(priceFilterDefs(['KRW'], [], ADMIN_CHANGE), PRICE_FILTER_SQL, {
       emptyValues: { priceType: PRICE_TYPE_NONE },
     });
     const query = handle.db

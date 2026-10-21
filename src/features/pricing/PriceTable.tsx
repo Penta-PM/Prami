@@ -52,6 +52,11 @@ type PriceTableProps = {
    * 열 배열을 다시 만들지 않도록 안정된 참조(useCallback)로 넘긴다
    */
   onPriceHistory?: (row: PriceRowView) => void;
+  /**
+   * 가격 변동 열 (pricing-view-hide-price-change §1) — 관리 표 + pricing.write(서버 판정)일 때만 true.
+   * 조회 표는 값과 관계없이 열 정의가 없다
+   */
+  withPriceChange?: boolean;
 };
 
 const COLUMN_TYPES: Record<PriceColumnKey, SortType> = {
@@ -114,8 +119,8 @@ function cellContent(
       return (
         <PriceChange
           unitPrice={row.unitPrice}
-          previousPrice={row.previousPrice}
-          rate={row.priceChangeRate}
+          previousPrice={row.previousPrice ?? null}
+          rate={row.priceChangeRate ?? null}
         />
       );
     case 'itemStatus':
@@ -157,12 +162,14 @@ export function PriceTable({
   renderActions,
   costRatios,
   onPriceHistory,
+  withPriceChange = false,
 }: PriceTableProps) {
   const withCost = mode === 'admin' && costRatios !== undefined;
+  const withChange = mode === 'admin' && withPriceChange;
   // 열 배열은 저장 레이아웃 정규화의 기준이라 렌더마다 새로 만들지 않는다
   const columns = useMemo<DataTableColumn<PriceRowView>[]>(
     () =>
-      columnsFor(mode, withCost).map((column) => ({
+      columnsFor(mode, withCost, withChange).map((column) => ({
         id: column.key,
         header: column.label,
         type: COLUMN_TYPES[column.key],
@@ -182,10 +189,11 @@ export function PriceTable({
           column.key === 'actions'
             ? // 관리 칸(type none) 클릭은 DataTable 이 행 클릭으로 보내지 않는다
               (row: PriceRowView) => renderActions?.(row)
-            : (row: PriceRowView) => cellContent(column.key, row, costRatios, onPriceHistory),
+            : (row: PriceRowView) =>
+                cellContent(column.key, row, costRatios, withChange ? onPriceHistory : undefined),
       })),
     // costRatios 는 서버가 새 페이지를 보낼 때만 바뀐다(rows 와 같은 시점) — 열 id 는 그대로라 레이아웃 정규화에 영향 없음
-    [mode, withCost, renderActions, costRatios, onPriceHistory],
+    [mode, withCost, withChange, renderActions, costRatios, onPriceHistory],
   );
 
   return (

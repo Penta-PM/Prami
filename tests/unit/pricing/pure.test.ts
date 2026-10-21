@@ -38,9 +38,11 @@ describe('판매가 표시 (§4.5.3)', () => {
 });
 
 describe('PRICE_TABLE_COLUMNS (AC-12, R-03·R-12)', () => {
-  const labels = (mode: 'view' | 'admin') => columnsFor(mode).map((column) => column.label);
+  // 관리 표 = 관리 화면 + pricing.write(가격 변동 열 있음 — 서버 판정 값), 조회 표는 가격 변동 열 없음
+  const labels = (mode: 'view' | 'admin') =>
+    columnsFor(mode, false, mode === 'admin').map((column) => column.label);
 
-  it('조회 표 순서', () => {
+  it('조회 표 순서 — 가격 변동 없음 (pricing-view-hide-price-change §2)', () => {
     expect(labels('view')).toEqual([
       '단가 유형',
       '대분류',
@@ -49,14 +51,15 @@ describe('PRICE_TABLE_COLUMNS (AC-12, R-03·R-12)', () => {
       '품목명',
       '판매가',
       '적용기간',
-      '가격 변동',
       '품목상태',
       '상태',
       '비고',
     ]);
+    // withPriceChange 를 넘겨도 조회 표에는 열 정의가 없다
+    expect(columnsFor('view', true, true).map((column) => column.key)).not.toContain('priceChange');
   });
 
-  it('관리 표 = 조회 표 + 적용시작일(판매가 뒤)·운영 연도(적용기간 뒤)·관리(끝) 외 동일', () => {
+  it('관리 표 = 조회 표 + 적용시작일(판매가 뒤)·운영 연도(적용기간 뒤)·가격 변동(운영 연도 뒤)·관리(끝) 외 동일', () => {
     const admin = labels('admin');
     expect(admin).toEqual([
       '단가 유형',
@@ -74,9 +77,11 @@ describe('PRICE_TABLE_COLUMNS (AC-12, R-03·R-12)', () => {
       '비고',
       '관리',
     ]);
-    expect(admin.filter((label) => !['적용시작일', '운영 연도', '관리'].includes(label))).toEqual(
-      labels('view'),
-    );
+    expect(
+      admin.filter((label) => !['적용시작일', '운영 연도', '가격 변동', '관리'].includes(label)),
+    ).toEqual(labels('view'));
+    // 가격 변동 = 관리 표 + pricing.write 일 때만 (withPriceChange 없으면 관리 표에도 없다)
+    expect(columnsFor('admin').map((column) => column.key)).not.toContain('priceChange');
     // 공용 배열 15 = 관리 14 + 원가 비중(관리 표 + cost.read 일 때만, columnsFor('admin', true))
     expect(PRICE_TABLE_COLUMNS).toHaveLength(15);
     expect(PRICE_TABLE_COLUMNS.filter((column) => column.cost).map((column) => column.key)).toEqual(
