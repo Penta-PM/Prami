@@ -217,7 +217,7 @@ for (const [role, email, path, tableName] of [
       // 열림 전환(투명도)이 끝난 뒤 검사 — 전환 중 색이 섞여 오탐하지 않도록
       await expect(modal(page)).toHaveCSS('opacity', '1');
       const axe = await new AxeBuilder({ page })
-        .include('[role="dialog"] table')
+        .include('dialog[open] table') // 네이티브 <dialog> — role 속성 없이 암묵 역할
         .withRules(['color-contrast'])
         .analyze();
       expect(
