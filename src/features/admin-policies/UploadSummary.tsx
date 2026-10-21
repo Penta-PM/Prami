@@ -141,7 +141,7 @@ function WarningLists({ data }: { data: UploadSummaryData }) {
 
 function ErrorList({ errors, total }: { errors: UploadSummaryData['errors']; total: number }) {
   return (
-    <div role="alert" className="rounded-lg bg-red-500/10 p-3 text-[12px] text-red-500">
+    <div role="alert" className="rounded-lg bg-red-500/10 p-3 text-[12px] text-red-600">
       <p className="m-0 mb-1.5 font-semibold">
         오류 {total.toLocaleString('ko-KR')}건 — 오류가 없어야 적용할 수 있습니다
       </p>

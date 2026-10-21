@@ -111,7 +111,7 @@ export function PartsManager({ models, parts, mappings, batchOptions, userId }: 
             <p
               className={
                 flash.tone === 'error'
-                  ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-500'
+                  ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-600'
                   : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
               }
             >

@@ -86,7 +86,7 @@ export function GroupFormModal({ mode, family, candidates, onClose, onDone }: Gr
         <Presence>
           {error ? (
             <Collapse key="error" role="alert">
-              <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-500">
+              <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-600">
                 {error}
               </p>
             </Collapse>
@@ -101,7 +101,7 @@ export function GroupFormModal({ mode, family, candidates, onClose, onDone }: Gr
             onChange={(event) => setName(event.target.value)}
           />
           {fieldErrors.name?.length ? (
-            <span className="text-[12px] text-red-500">{fieldErrors.name.join(' ')}</span>
+            <span className="text-[12px] text-red-600">{fieldErrors.name.join(' ')}</span>
           ) : null}
         </label>
         <div className="flex flex-col gap-1.5">
@@ -116,7 +116,7 @@ export function GroupFormModal({ mode, family, candidates, onClose, onDone }: Gr
             onChange={(event) => setQuery(event.target.value)}
           />
           {fieldErrors.items?.length ? (
-            <span className="text-[12px] text-red-500">{fieldErrors.items.join(' ')}</span>
+            <span className="text-[12px] text-red-600">{fieldErrors.items.join(' ')}</span>
           ) : null}
           <div
             role="group"

@@ -123,7 +123,7 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
             <button
               type="button"
               aria-label={`${notice.title} 삭제`}
-              className={`${ACTION} text-red-500`}
+              className={`${ACTION} text-red-600`}
               onClick={() => setDeleting(notice)}
             >
               삭제

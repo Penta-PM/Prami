@@ -51,7 +51,7 @@ export function NoticeDeleteModal({ notice, onClose, onDone }: NoticeDeleteModal
       <Presence>
         {error ? (
           <Collapse key="error" role="alert">
-            <p className="m-0 mt-3 text-[12px] text-red-500">{error}</p>
+            <p className="m-0 mt-3 text-[12px] text-red-600">{error}</p>
           </Collapse>
         ) : null}
       </Presence>

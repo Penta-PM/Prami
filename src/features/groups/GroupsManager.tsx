@@ -89,7 +89,7 @@ export function GroupsManager({ family, groups, candidates }: GroupsManagerProps
                   <button
                     type="button"
                     aria-label={`${group.name} 삭제`}
-                    className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-red-500 hover:underline"
+                    className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-red-600 hover:underline"
                     onClick={() => setDeleting(group)}
                   >
                     삭제

@@ -89,7 +89,7 @@ export function PriceHistoryModal({ rowId, onClose }: PriceHistoryModalProps) {
       ) : state.kind === 'not-found' ? (
         <p className="m-0 text-[13px] text-text-secondary">{PRICE_HISTORY_NOT_FOUND}</p>
       ) : state.kind === 'error' ? (
-        <div role="alert" className="flex flex-wrap items-center gap-3 text-[13px] text-red-500">
+        <div role="alert" className="flex flex-wrap items-center gap-3 text-[13px] text-red-600">
           <span>{state.message}</span>
           <Button size="sm" onClick={retry}>
             다시 시도

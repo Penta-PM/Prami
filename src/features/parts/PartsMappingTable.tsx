@@ -84,7 +84,7 @@ export function PartsMappingTable({ mappings, onEdit, onDelete, userId }: PartsM
             <button
               type="button"
               aria-label={`${mapping.modelName} 매핑 삭제`}
-              className={`${ACTION} text-red-500`}
+              className={`${ACTION} text-red-600`}
               onClick={() => onDelete(mapping)}
             >
               삭제

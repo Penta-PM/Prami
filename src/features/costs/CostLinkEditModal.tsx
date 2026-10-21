@@ -153,7 +153,7 @@ export function CostLinkEditModal({ itemCode, onClose, onSaved }: CostLinkEditMo
           불러오는 중…
         </p>
       ) : state.kind === 'error' ? (
-        <div role="alert" className="flex flex-wrap items-center gap-3 text-[13px] text-red-500">
+        <div role="alert" className="flex flex-wrap items-center gap-3 text-[13px] text-red-600">
           <span>{state.message}</span>
           <Button size="sm" onClick={retry}>
             다시 시도
@@ -185,7 +185,7 @@ export function CostLinkEditModal({ itemCode, onClose, onSaved }: CostLinkEditMo
             </>
           )}
           {error ? (
-            <p role="alert" className="m-0 text-[12px] text-red-500">
+            <p role="alert" className="m-0 text-[12px] text-red-600">
               {error}
             </p>
           ) : null}

@@ -209,6 +209,9 @@ describe('ImportPanel', () => {
       '4행 · 적용시작일 — 날짜 형식(YYYY-MM-DD)이 아닙니다 (값: 2024-13-45)',
     );
     expect(alert).toHaveTextContent('6행 · 단가');
+    // BL-3: gray-75 결과 상자 안 10% 빨강 오류 상자 — red-500 3.65:1 → red-600 4.94:1
+    expect(alert).toHaveClass('bg-red-500/10', 'text-red-600');
+    expect(alert).not.toHaveClass('text-red-500');
     expect(screen.getByRole('button', { name: '가격정책 적용' })).toBeDisabled();
   });
 

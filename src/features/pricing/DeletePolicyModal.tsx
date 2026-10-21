@@ -72,7 +72,7 @@ export function DeletePolicyModal({ row, onClose, onDeleted }: DeletePolicyModal
         <Presence>
           {error ? (
             <Collapse key="error" role="alert">
-              <p className="m-0 text-[12px] text-red-500">{error}</p>
+              <p className="m-0 text-[12px] text-red-600">{error}</p>
             </Collapse>
           ) : null}
         </Presence>

@@ -193,6 +193,9 @@ describe('CostBrowser', () => {
     expect(within(dialog).getByLabelText('원가 (KRW) *')).toHaveValue('984000');
     await userEvent.click(within(dialog).getByRole('button', { name: '저장' }));
     expect(await within(dialog).findByText('변경 사유를 입력하세요')).toBeInTheDocument();
+    // BL-3: 흰 모달 위 필드 오류 글자 red-600 6.25:1 (red-500 은 4.62 — 여유 없음, 옅은 배경 위 3.65~3.88)
+    expect(within(dialog).getByText('변경 사유를 입력하세요')).toHaveClass('text-red-600');
+    expect(within(dialog).getByText('변경 사유를 입력하세요')).not.toHaveClass('text-red-500');
     expect(mocks.upsert).toHaveBeenCalledWith({
       id: 3,
       unitCost: '984000',
@@ -259,11 +262,17 @@ describe('CostBrowser', () => {
       })
       .mockResolvedValueOnce({ ok: true, data: { id: 3 } });
     render(<CostBrowser rows={[ROW]} {...BROWSER} />);
+    // BL-3: 흰 표 위 빨간 '삭제' 동작 링크 글자 red-600 6.25:1
+    expect(screen.getByRole('button', { name: 'WAPPLES-100 (H100 T2) 삭제' })).toHaveClass(
+      'text-red-600',
+    );
     await userEvent.click(screen.getByRole('button', { name: 'WAPPLES-100 (H100 T2) 삭제' }));
     const dialog = screen.getByRole('dialog', { name: '원가 삭제' });
     expect(dialog).toHaveTextContent('984,000원');
     await userEvent.click(within(dialog).getByRole('button', { name: '삭제' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('변경 사유를 입력하세요');
+    // BL-3: 모달 오류 문단 red-600
+    expect(within(dialog).getByText('변경 사유를 입력하세요')).toHaveClass('text-red-600');
     await userEvent.type(within(dialog).getByLabelText(REASON_LABEL), '정리');
     await userEvent.click(within(dialog).getByRole('button', { name: '삭제' }));
     expect(await screen.findByRole('status')).toHaveTextContent('삭제했습니다');

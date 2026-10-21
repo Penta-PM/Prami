@@ -92,7 +92,7 @@ export function CartPanel(props: CartPanelProps) {
                     <button
                       type="button"
                       aria-label={`${line.name} 삭제`}
-                      className="border-0 bg-transparent text-[14px] font-semibold text-red-500"
+                      className="border-0 bg-transparent text-[14px] font-semibold text-red-600"
                       onClick={() => props.onRemove(line.id)}
                     >
                       ×
@@ -405,7 +405,7 @@ function SavedQuotesModal({
             <button
               type="button"
               aria-label={`${quote.quoteNo} 삭제`}
-              className="border-0 bg-transparent text-[12px] font-semibold text-red-500"
+              className="border-0 bg-transparent text-[12px] font-semibold text-red-600"
               onClick={() => handlersRef.current.onDelete(quote)}
             >
               삭제

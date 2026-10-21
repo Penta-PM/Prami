@@ -230,6 +230,6 @@ describe('ChatPanel', () => {
     );
     await userEvent.type(within(panel).getByLabelText('질문 입력'), '가격{enter}');
     const bubble = await within(panel).findByText(/요청이 너무 잦습니다/);
-    expect(bubble.closest('[data-from="bot"]')).toHaveClass('text-red-500');
+    expect(bubble.closest('[data-from="bot"]')).toHaveClass('text-red-600');
   });
 });

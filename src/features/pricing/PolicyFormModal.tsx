@@ -136,7 +136,7 @@ function PolicyNotices({
       {itemStatus === '폐기' ? (
         <p
           role="note"
-          className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[12px] text-red-500"
+          className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[12px] text-red-600"
         >
           폐기 품목입니다. 폐기 품목은 운영중 상태를 가질 수 없어 저장해도 상태는{' '}
           <strong>미사용</strong>입니다.
@@ -151,7 +151,7 @@ function PolicyNotices({
       <Presence>
         {error ? (
           <Collapse key="error" role="alert">
-            <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-500">
+            <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-600">
               {error}
             </p>
           </Collapse>
@@ -265,7 +265,7 @@ function Field({
     <label className="flex flex-col gap-1.5">
       <span className="text-[12px] font-medium text-text-secondary">{label}</span>
       {children}
-      {error?.length ? <span className="text-[12px] text-red-500">{error.join(' ')}</span> : null}
+      {error?.length ? <span className="text-[12px] text-red-600">{error.join(' ')}</span> : null}
     </label>
   );
 }

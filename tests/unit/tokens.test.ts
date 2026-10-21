@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -135,5 +135,63 @@ describe('디자인 토큰 이식 (globals.css ↔ 원본 토큰 파일)', () =>
       const expected = AA_TEXT_ALIASES[alias] ?? `var(${name})`;
       expect(globalsDeclarations.get(alias)?.[0], `${alias} 별칭이 없습니다`).toBe(expected);
     }
+  });
+});
+
+/** WCAG 2.x 상대 휘도 대비 — #rrggbb 두 값 */
+function contrast(fg: number[], bg: number[]): number {
+  const lum = (rgb: number[]) => {
+    const [r, g, b] = rgb.map((v) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+  };
+  const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+const hex = (name: string): number[] => {
+  const value = globalsDeclarations.get(name)?.[0] ?? '';
+  expect(value, `${name} 는 #rrggbb 여야 합니다`).toMatch(/^#[0-9a-f]{6}$/i);
+  return [1, 3, 5].map((i) => parseInt(value.slice(i, i + 2), 16));
+};
+/** fg 를 alpha 만큼 bg 위에 겹친 색 (bg-red-500/10 같은 틴트) */
+const over = (fg: number[], bg: number[], alpha: number) =>
+  fg.map((v, i) => Math.round(v * alpha + bg[i]! * (1 - alpha)));
+
+describe('빨간 오류·삭제 글자 대비 (BL-3)', () => {
+  it('red-600 은 실제 배경 전부에서 4.5:1 이상 — red-500 은 옅은 배경에서 미달', () => {
+    const white = [255, 255, 255];
+    const gray75 = hex('--gray-75');
+    const red500 = hex('--red-500');
+    const red600 = hex('--red-600');
+    const backgrounds = {
+      white,
+      gray75,
+      'red/10 on white': over(red500, white, 0.1),
+      // 업로드 결과 상자(bg-gray-75) 안 오류 상자(bg-red-500/10) — BL-2 보고 3.65:1
+      'red/10 on gray-75': over(red500, gray75, 0.1),
+    };
+    for (const [label, bg] of Object.entries(backgrounds)) {
+      expect(contrast(red600, bg), `red-600 on ${label}`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(contrast(red500, backgrounds['red/10 on gray-75'])).toBeLessThan(4.5);
+  });
+
+  it('src 에 text-red-500(hover: 포함) 글자색이 없다 — 어두운 패널 위 빨간 글자도 없어 예외 없음', () => {
+    const hits: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (
+          /\.(ts|tsx)$/.test(entry.name) &&
+          /\btext-red-500\b/.test(readFileSync(full, 'utf8'))
+        )
+          hits.push(path.relative(ROOT, full));
+      }
+    };
+    walk(path.join(ROOT, 'src'));
+    expect(hits).toEqual([]);
   });
 });
