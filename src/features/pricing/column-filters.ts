@@ -55,19 +55,31 @@ export function priceTypeOptions(priceTypes: readonly string[]): FilterOption[] 
 const label = (key: PriceColumnKey): string =>
   PRICE_TABLE_COLUMNS.find((column) => column.key === key)?.label ?? key;
 
+/** 가격 변동 필터를 넣을지 (pricing-view-hide-price-change §2) — 관리 화면 + pricing.write 일 때만 true(서버 판정) */
+export type PriceFilterOptions = { withPriceChange?: boolean };
+
+/** 화면에 보이는 열 필터 id (가격 변동은 withPriceChange 일 때만) */
+export function priceFilterIds({
+  withPriceChange = false,
+}: PriceFilterOptions = {}): readonly PriceFilterId[] {
+  return withPriceChange ? PRICE_FILTER_IDS : PRICE_FILTER_IDS.filter((id) => id !== 'priceChange');
+}
+
 /**
  * 화이트리스트 (키 순서 = 필드 순서). currencies = 데이터에 있는 통화 코드(서버 listPriceCurrencies),
- * priceTypes = 데이터에 있는 단가 유형(서버 listPriceTypes — 빈 값은 PRICE_TYPE_NONE)
+ * priceTypes = 데이터에 있는 단가 유형(서버 listPriceTypes — 빈 값은 PRICE_TYPE_NONE).
+ * `withPriceChange: false`(조회 화면)면 priceChange 키가 없다 → URL `f.priceChange.*` 는 파싱에서 버려진다.
  */
 export function priceFilterDefs(
   currencies: readonly string[],
   priceTypes: readonly string[] = [],
-): Record<PriceFilterId, ColumnFilterDef> {
+  { withPriceChange = false }: PriceFilterOptions = {},
+): Partial<Record<PriceFilterId, ColumnFilterDef>> {
   return {
     priceType: { kind: 'enum', options: priceTypeOptions(priceTypes) },
     currency: { kind: 'enum', options: options(currencies) },
     price: { kind: 'money', currencyCol: 'currency' },
-    priceChange: { kind: 'number' },
+    ...(withPriceChange ? { priceChange: { kind: 'number' } as const } : {}),
     itemStatus: { kind: 'enum', options: options(STATUS_ORDERS.partMapping) },
     status: { kind: 'enum', options: options(STATUS_ORDERS.pricingState) },
     remark: { kind: 'text' },
@@ -79,7 +91,7 @@ const PRICE_FILTER_VALUES: Record<PriceFilterId, DataTableFilterField<PriceRowVi
   priceType: (row) => (isEmptySortValue(row.priceType) ? PRICE_TYPE_NONE : row.priceType),
   currency: (row) => row.currency,
   price: (row) => ({ amount: Number(row.unitPrice), currency: row.currency }),
-  priceChange: (row) => row.priceChangeRate,
+  priceChange: (row) => row.priceChangeRate ?? null,
   itemStatus: (row) => row.itemStatus,
   status: (row) => row.operationStatus,
   remark: (row) => row.remark,
@@ -99,12 +111,13 @@ const PRICE_FILTER_LABELS: Record<PriceFilterId, string> = {
 export function priceFilterFields(
   currencies: readonly string[],
   priceTypes: readonly string[] = [],
+  options: PriceFilterOptions = {},
 ): DataTableFilterField<PriceRowView>[] {
-  const defs = priceFilterDefs(currencies, priceTypes);
-  return PRICE_FILTER_IDS.map((id) => ({
-    id,
-    label: PRICE_FILTER_LABELS[id],
-    filter: defs[id],
-    value: PRICE_FILTER_VALUES[id],
-  }));
+  const defs = priceFilterDefs(currencies, priceTypes, options);
+  return priceFilterIds(options).flatMap((id) => {
+    const filter = defs[id];
+    return filter
+      ? [{ id, label: PRICE_FILTER_LABELS[id], filter, value: PRICE_FILTER_VALUES[id] }]
+      : [];
+  });
 }

@@ -114,8 +114,8 @@ export function PriceChangeButton({
     itemName: string;
     priceType: string | null;
     unitPrice: string;
-    previousPrice: string | null;
-    priceChangeRate: number | null;
+    previousPrice?: string | null;
+    priceChangeRate?: number | null;
   };
   onOpen: () => void;
 }) {
@@ -141,8 +141,8 @@ export function PriceChangeButton({
       <PriceChange
         id={textId}
         unitPrice={row.unitPrice}
-        previousPrice={row.previousPrice}
-        rate={row.priceChangeRate}
+        previousPrice={row.previousPrice ?? null}
+        rate={row.priceChangeRate ?? null}
       />
     </button>
   );

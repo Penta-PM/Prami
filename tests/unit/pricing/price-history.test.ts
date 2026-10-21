@@ -144,11 +144,15 @@ const id = (key: string) => ids.get(key)!;
 const history = async (key: string, includeRemark = false) =>
   (await getPriceHistory(handle.db, id(key), { includeRemark }))!;
 
+/** 관리 화면(가격 변동 노출) 표 행 전체 */
 async function allTableRows(): Promise<PriceRow[]> {
-  const first = await getPriceRows(handle.db, parsePriceFilter({}).filter);
+  const opts = { withPriceChange: true };
+  const first = await getPriceRows(handle.db, parsePriceFilter({}).filter, opts);
   const out = [...first.rows];
   for (let n = 2; n <= first.pageCount; n += 1)
-    out.push(...(await getPriceRows(handle.db, parsePriceFilter({ page: String(n) }).filter)).rows);
+    out.push(
+      ...(await getPriceRows(handle.db, parsePriceFilter({ page: String(n) }).filter, opts)).rows,
+    );
   return out;
 }
 
@@ -219,7 +223,11 @@ describe('getPriceHistory — 직전가·금액·변동률 (#55 와 같은 식)'
         base.priceChangeRate,
       ]);
       expect(priceChangeDisplay(row.unitPrice, row.previousPrice, row.changeRate)).toEqual(
-        priceChangeDisplay(base.unitPrice, base.previousPrice, base.priceChangeRate),
+        priceChangeDisplay(
+          base.unitPrice,
+          base.previousPrice ?? null,
+          base.priceChangeRate ?? null,
+        ),
       );
     }
   });

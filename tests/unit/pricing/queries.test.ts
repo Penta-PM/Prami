@@ -120,17 +120,24 @@ describe('검색·페이지·정렬', () => {
     expect(beyond.page).toBe(first.pageCount);
   });
 
-  it('행 상세: 원본 20컬럼 + 같은 계열 이력(최신순), 없는 id 는 null', async () => {
+  it('행 상세(관리 화면 includeHistory): 원본 20컬럼 + 같은 계열 이력(최신순), 없는 id 는 null', async () => {
     const [row] = (await getPriceRows(handle.db, filter({ q: 'P2002030005' }))).rows;
-    const detail = await getPriceRowDetail(handle.db, row!.id);
+    const detail = await getPriceRowDetail(handle.db, row!.id, { includeHistory: true });
     expect(detail?.row).toMatchObject({
       itemCode: 'P2002030005',
       source: 'erp',
       batchFileName: 'sales-200.xlsx',
     });
-    expect(detail?.history.length).toBeGreaterThanOrEqual(1);
-    expect(detail?.history.some((entry) => entry.id === row!.id)).toBe(true);
+    expect(detail?.history?.length).toBeGreaterThanOrEqual(1);
+    expect(detail?.history?.some((entry) => entry.id === row!.id)).toBe(true);
     expect(await getPriceRowDetail(handle.db, 999_999)).toBeNull();
+  });
+
+  it('행 상세 기본(조회 화면): history 키 없음 — 현재 행 정보만 (pricing-view-hide-price-change Q-V1 = B)', async () => {
+    const [row] = (await getPriceRows(handle.db, filter({ q: 'P2002030005' }))).rows;
+    const detail = await getPriceRowDetail(handle.db, row!.id);
+    expect(detail && Object.keys(detail)).toEqual(['row']);
+    expect(detail?.row.id).toBe(row!.id);
   });
 });
 

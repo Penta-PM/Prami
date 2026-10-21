@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { getDb, getDbHandle } from '@/db';
+import { hasPermission } from '@/lib/constants/permissions';
 import type { ActionResult } from '@/lib/result';
 import { AppError } from '@/lib/result';
 import { currentRequestMeta } from '@/server/audit/request-meta';
@@ -44,7 +45,27 @@ function refresh() {
   revalidatePath('/pricing');
 }
 
-export async function getPriceRowDetailAction(id: number): Promise<ActionResult<PriceRowDetail>> {
+/**
+ * 행 상세 드로어를 연 화면 (pricing-view-hide-price-change Q-V1 = B). 'manage' = 가격정책 관리(/admin/policies).
+ * 클라이언트가 보낸 값은 **요청**일 뿐 — 서버가 pricing.write 와 함께 판정한다(isManageScope).
+ */
+export type PriceDetailMode = 'view' | 'manage';
+
+const DETAIL_MODE = z.enum(['view', 'manage']).catch('view');
+
+/** 관리 화면 범위(계열 이력)인가 = 요청 mode 가 'manage' **그리고** pricing.write (USER 가 mode 를 바꿔 보내도 false) */
+function isManageScope(actor: SessionUser, mode: unknown): boolean {
+  return DETAIL_MODE.parse(mode) === 'manage' && hasPermission(actor.role, 'pricing.write');
+}
+
+/**
+ * 행 상세 (§4.7). pricing.read. 같은 계열 이력(`history`)은 관리 화면 + pricing.write 응답에만 —
+ * 그 밖(모든 USER, 조회 화면에서 연 ADMIN)은 키 자체가 없고 현재 행 정보만 (pricing-view-hide-price-change Q-V1 = B).
+ */
+export async function getPriceRowDetailAction(
+  id: number,
+  mode: PriceDetailMode = 'view',
+): Promise<ActionResult<PriceRowDetail>> {
   const guard = {
     permission: 'pricing.read',
     auditAction: 'price_policy.read',
@@ -54,7 +75,7 @@ export async function getPriceRowDetailAction(id: number): Promise<ActionResult<
     const detail = await getPriceRowDetail(
       await getDb(),
       z.coerce.number().int().positive().parse(id),
-      { includeRemark: actor.role === 'ADMIN' },
+      { includeRemark: actor.role === 'ADMIN', includeHistory: isManageScope(actor, mode) },
     );
     if (!detail) throw new AppError('NOT_FOUND', '가격정책을 찾을 수 없습니다');
     return detail;
@@ -63,12 +84,12 @@ export async function getPriceRowDetailAction(id: number): Promise<ActionResult<
 
 /**
  * 가격 변동 이력 모달 (price-change-history-modal §2.1-4): 가격 행 id(양의 정수)만 받는다 — series_key 입력 경로 없음.
- * pricing.read(USER·ADMIN). 품목 마스터 ERP 비고는 ADMIN 응답의 요약(series)에만(USER 응답에는 키 없음),
- * 행별 판매단가 비고(remark)는 모든 역할(§6 A). 원가 모듈 import·원가 키 없음.
+ * **pricing.write**(관리 화면 전용, pricing-view-hide-price-change §3) — 조회 권한만으로는 호출할 수 없다(거부·감사는 runAction).
+ * 품목 마스터 ERP 비고는 ADMIN 응답의 요약(series)에만, 행별 판매단가 비고(remark)는 응답 모두(§6 A). 원가 모듈 import·원가 키 없음.
  */
 export async function getPriceHistoryAction(id: number): Promise<ActionResult<PriceHistory>> {
   const guard = {
-    permission: 'pricing.read',
+    permission: 'pricing.write',
     auditAction: 'price_policy.read',
     name: 'getPriceHistory',
   } as const;

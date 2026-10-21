@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { isValidElement, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 /** 조회·관리 공용 서버 섹션 + /pricing 페이지 가드 — 쿼리·권한은 모킹 */
@@ -13,6 +14,10 @@ const calls = vi.hoisted(() => ({
   ratioFailed: false,
   // 가격 행 조회(본 기능) 실패 주입
   priceRowsError: null as Error | null,
+  // getPriceRows 세 번째 인자 (가격 변동 노출 — pricing-view-hide-price-change §1)
+  rowOptions: [] as unknown[],
+  // 세션 사용자 역할 (가격 변동 노출 판정: 관리 화면 + pricing.write)
+  role: 'ADMIN' as 'ADMIN' | 'USER',
 }));
 
 vi.mock('@/db', () => ({ getDb: async () => ({}) }));
@@ -23,9 +28,16 @@ vi.mock('@/server/pricing/queries', () => ({
   listEffectiveYears: async () => [2026, 2025],
   listPriceCurrencies: async () => ['KRW', 'USD'],
   listPriceTypes: async () => ['정상판매', '__none__'],
-  getPriceRows: async (_db: unknown, filter: unknown) => {
+  getPriceRows: async (
+    _db: unknown,
+    filter: unknown,
+    options: { withPriceChange?: boolean } = {},
+  ) => {
     if (calls.priceRowsError) throw calls.priceRowsError;
     calls.filters.push(filter);
+    calls.rowOptions.push(options);
+    // 실제 쿼리처럼: withPriceChange 일 때만 가격 변동 키
+    const change = options.withPriceChange ? { previousPrice: null, priceChangeRate: null } : {};
     return {
       rows: [
         {
@@ -44,8 +56,7 @@ vi.mock('@/server/pricing/queries', () => ({
           operationStatus: '운영중',
           remark: null,
           source: 'erp',
-          previousPrice: null,
-          priceChangeRate: null,
+          ...change,
         },
       ],
       total: 51,
@@ -59,6 +70,7 @@ vi.mock('@/server/auth/rbac', () => ({
     calls.guards.push(`${permission}:${path}`);
     return { id: 'u1', email: 'admin@pentasecurity.com', role: 'ADMIN' };
   },
+  getSessionUser: async () => ({ id: 'u1', email: 'x@pentasecurity.com', role: calls.role }),
 }));
 vi.mock('@/features/pricing/actions', () => ({}));
 vi.mock('@/features/costs/price-ratios', () => ({
@@ -244,5 +256,57 @@ describe('/pricing', () => {
     expect(screen.getByTestId('section')).toHaveAttribute('data-mode', 'view');
     expect(calls.guards).toContain('pricing.read:/pricing');
     expect(screen.getByRole('heading', { level: 1, name: '가격 정책 조회' })).toBeInTheDocument();
+  });
+});
+
+/** 서버 컴포넌트가 클라이언트(PricingBrowser 등)로 넘기는 props 전체 — RSC payload 에 실리는 값 */
+function clientProps(node: ReactNode): unknown[] {
+  if (Array.isArray(node)) return node.flatMap(clientProps);
+  if (!isValidElement(node)) return [];
+  const { children, ...props } = node.props as { children?: ReactNode };
+  return [props, ...clientProps(children)];
+}
+
+describe('가격 변동 노출 = 관리 화면 + pricing.write (pricing-view-hide-price-change §1·§2)', () => {
+  const PARAMS = { 'f.priceChange.gte': '1', sort: 'priceChange', dir: 'desc' };
+  const section = (mode: 'admin' | 'view') =>
+    PricingSection({
+      mode,
+      basePath: mode === 'admin' ? '/admin/policies' : '/pricing',
+      userId: 'u1',
+      searchParams: PARAMS,
+    });
+
+  it('조회(/pricing, ADMIN 이어도): 쿼리에 withPriceChange false, 가격 변동 필터·정렬 URL 은 무시(오류 없음), payload 에 키 0', async () => {
+    calls.role = 'ADMIN';
+    const element = await section('view');
+    expect(calls.rowOptions.at(-1)).toEqual({ withPriceChange: false });
+    const filter = calls.filters.at(-1) as Record<string, unknown>;
+    expect(filter.filters).toBeUndefined();
+    expect(filter.sort).toBeUndefined();
+    const payload = JSON.stringify(clientProps(element));
+    expect(payload).not.toMatch(/previousPrice|priceChange/);
+    render(element);
+    expect(screen.queryByRole('columnheader', { name: /가격 변동/ })).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('관리 + pricing.write(ADMIN): withPriceChange true, 가격 변동 필터·정렬 적용, 열 있음', async () => {
+    calls.role = 'ADMIN';
+    render(await section('admin'));
+    expect(calls.rowOptions.at(-1)).toEqual({ withPriceChange: true });
+    expect(calls.filters.at(-1)).toMatchObject({
+      filters: [{ col: 'priceChange', op: 'gte', value: '1' }],
+      sort: { id: 'priceChange', dir: 'desc' },
+    });
+    expect(screen.getByRole('columnheader', { name: /가격 변동/ })).toBeInTheDocument();
+  });
+
+  it('관리 모드라도 pricing.write 가 없으면(USER) 가격 변동 없음 — 서버 판정', async () => {
+    calls.role = 'USER';
+    const element = await section('admin');
+    expect(calls.rowOptions.at(-1)).toEqual({ withPriceChange: false });
+    expect(JSON.stringify(clientProps(element))).not.toMatch(/previousPrice|priceChange/);
+    calls.role = 'ADMIN';
   });
 });

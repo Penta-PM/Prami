@@ -1,7 +1,8 @@
 /**
  * 가격정책 표 공통 컬럼 정의 (§4.5.3, R-03·R-04·R-09·R-12). 순서 고정 — 조회·관리 표가 같은 배열을 쓴다.
  * 관리 표 = 조회 표 + 적용시작일(판매가 뒤) + 운영 연도(적용기간 뒤) + 관리(끝) (AC-12).
- * 가격 변동(cost-ratio-price-change §2.4)은 기간 열 묶음 뒤·품목상태 앞 — 조회 표는 적용기간 뒤, 관리 표는 운영 연도 뒤.
+ * 가격 변동(cost-ratio-price-change §2.4)은 운영 연도 뒤·품목상태 앞 — **관리 표이고 pricing.write 일 때만**
+ *   (pricing-view-hide-price-change §1, columnsFor(mode, withCost, withPriceChange)). 조회 표(/pricing)에는 열 정의 자체가 없다.
  * 원가 비중(§2.2·§2.3)은 판매가 바로 뒤 — 관리 표이고 cost.read 가 있을 때만(columnsFor(mode, withCost)).
  */
 export type PriceColumnKey =
@@ -31,6 +32,8 @@ export type PriceColumn = {
   pinned?: 'end';
   /** 원가 열 — 관리 표에서 pricing.write + cost.read 일 때만 (cost-ratio-price-change §2.3) */
   cost?: boolean;
+  /** 가격 변동 열 — 관리 표에서 pricing.write 일 때만 (pricing-view-hide-price-change §1) */
+  priceChange?: boolean;
 };
 
 export const PRICE_TABLE_COLUMNS: readonly PriceColumn[] = [
@@ -45,7 +48,15 @@ export const PRICE_TABLE_COLUMNS: readonly PriceColumn[] = [
   { key: 'effectiveFrom', label: '적용시작일', view: false, admin: true, align: 'center' },
   { key: 'period', label: '적용기간', view: true, admin: true, align: 'center' },
   { key: 'operationYears', label: '운영 연도', view: false, admin: true, align: 'center' },
-  { key: 'priceChange', label: '가격 변동', view: true, admin: true, align: 'left' },
+  // 가격 변동: 관리 표 + pricing.write 일 때만(조회 표는 열 정의 자체가 없음 — RSC payload 에 키 0)
+  {
+    key: 'priceChange',
+    label: '가격 변동',
+    view: false,
+    admin: false,
+    priceChange: true,
+    align: 'left',
+  },
   { key: 'itemStatus', label: '품목상태', view: true, admin: true, align: 'center' },
   { key: 'status', label: '상태', view: true, admin: true, align: 'left' },
   { key: 'remark', label: '비고', view: true, admin: true, align: 'left' },
@@ -54,21 +65,46 @@ export const PRICE_TABLE_COLUMNS: readonly PriceColumn[] = [
 
 export type TableMode = 'view' | 'admin';
 
-/** 'adminCost' = 관리 표 + 원가 비중 열 (같은 tableId — 저장 레이아웃 정규화가 새 열을 기본 위치에 끼운다) */
-type ColumnSet = TableMode | 'adminCost';
+/**
+ * 열 묶음: 조회 = view 열만. 관리 = admin 열 + 원가 비중(withCost) + 가격 변동(withPriceChange).
+ * 같은 tableId — 저장 레이아웃 정규화가 새 열을 기본 위치에 끼우고 없는 열 id 는 버린다.
+ */
+type ColumnSet = 'view' | `admin:${boolean}:${boolean}`;
 
-const BY_MODE: Record<ColumnSet, readonly PriceColumn[]> = {
-  view: PRICE_TABLE_COLUMNS.filter((column) => column.view),
-  admin: PRICE_TABLE_COLUMNS.filter((column) => column.admin),
-  adminCost: PRICE_TABLE_COLUMNS.filter((column) => column.admin || column.cost),
-};
+const columnSet = (mode: TableMode, withCost: boolean, withPriceChange: boolean): ColumnSet =>
+  mode === 'admin' ? `admin:${withCost}:${withPriceChange}` : 'view';
 
-const columnSet = (mode: TableMode, withCost: boolean): ColumnSet =>
-  mode === 'admin' && withCost ? 'adminCost' : mode;
+const BY_SET = new Map<ColumnSet, readonly PriceColumn[]>();
+const LAYOUT_BY_SET = new Map<ColumnSet, readonly { id: string; pinned?: 'end' }[]>();
 
-/** 모드별 컬럼 — 같은 배열 참조를 돌려준다(열 레이아웃 저장소의 기준 배열로 쓰임) */
-export function columnsFor(mode: TableMode, withCost = false): readonly PriceColumn[] {
-  return BY_MODE[columnSet(mode, withCost)];
+function columnsOf(set: ColumnSet): readonly PriceColumn[] {
+  let columns = BY_SET.get(set);
+  if (!columns) {
+    const [, cost, change] = set.split(':');
+    columns =
+      set === 'view'
+        ? PRICE_TABLE_COLUMNS.filter((column) => column.view)
+        : PRICE_TABLE_COLUMNS.filter(
+            (column) =>
+              column.admin ||
+              (column.cost === true && cost === 'true') ||
+              (column.priceChange === true && change === 'true'),
+          );
+    BY_SET.set(set, columns);
+  }
+  return columns;
+}
+
+/**
+ * 모드별 컬럼 — 같은 조합이면 같은 배열 참조를 돌려준다(열 레이아웃 저장소의 기준 배열로 쓰임).
+ * withPriceChange 기본 = false(가격 변동 열 없음 — 서버 판정 값을 넘긴다). 조회 표는 값과 관계없이 가격 변동 열이 없다.
+ */
+export function columnsFor(
+  mode: TableMode,
+  withCost = false,
+  withPriceChange = false,
+): readonly PriceColumn[] {
+  return columnsOf(columnSet(mode, withCost, withPriceChange));
 }
 
 /**
@@ -80,16 +116,17 @@ export const PRICE_TABLE_IDS: Record<TableMode, string> = {
   admin: 'pricing-manage',
 };
 
-const LAYOUT_BY_MODE: Record<ColumnSet, readonly { id: string; pinned?: 'end' }[]> = {
-  view: BY_MODE.view.map(({ key, pinned }) => ({ id: key, pinned })),
-  admin: BY_MODE.admin.map(({ key, pinned }) => ({ id: key, pinned })),
-  adminCost: BY_MODE.adminCost.map(({ key, pinned }) => ({ id: key, pinned })),
-};
-
 /** '열 초기화' 버튼이 표와 같은 저장값을 구독하도록 넘길 열 목록 (id·고정 여부만) */
 export function layoutColumnsFor(
   mode: TableMode,
   withCost = false,
+  withPriceChange = false,
 ): readonly { id: string; pinned?: 'end' }[] {
-  return LAYOUT_BY_MODE[columnSet(mode, withCost)];
+  const set = columnSet(mode, withCost, withPriceChange);
+  let layout = LAYOUT_BY_SET.get(set);
+  if (!layout) {
+    layout = columnsOf(set).map(({ key, pinned }) => ({ id: key, pinned }));
+    LAYOUT_BY_SET.set(set, layout);
+  }
+  return layout;
 }
