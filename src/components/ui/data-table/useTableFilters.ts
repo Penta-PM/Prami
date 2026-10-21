@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 
+import { navigateView } from '@/lib/page-state/view-navigation';
 import {
   parseFilterParams,
   withFiltersQuery,
@@ -24,6 +25,7 @@ export type TableFilterState = {
  * - 읽기: useSearchParams → parseFilterParams(defs) — 화이트리스트 밖 열·연산자, 한도·형식 위반 조건은 버린다.
  * - 쓰기: router.replace(경로 + withFiltersQuery) — 히스토리 누적 없음, 스크롤 유지. `page` 는 지우고(1페이지)
  *   그 밖의 파라미터(`family` 탭 등)는 순서대로 두며 `sort`·`dir` 는 맨 뒤.
+ * 다음 쿼리가 비면(마지막 조건 해제) navigateView 가 그 화면의 빈 상태 저장을 기다린 뒤 이동한다(page-state-memory §6 — 파라미터 없는 요청은 복원되므로).
  * 서버 표(A-2)는 같은 코덱을 서버에서 파싱하므로 이 훅의 setFilters 를 그대로 쓰면 된다(router.replace 가 RSC 를 다시 받는다).
  * 이 표들이 들어간 페이지는 모두 인증 쿠키를 읽는 동적 렌더라 useSearchParams 가 SSR 에서도 실제 값을 준다(하이드레이션 일치).
  *
@@ -37,7 +39,9 @@ export function useUrlFilters(defs: Readonly<Record<string, ColumnFilterDef>>): 
   const filters = useMemo(() => parseFilterParams(new URLSearchParams(query), defs), [query, defs]);
   const setFilters = useCallback(
     (next: readonly FilterCondition[]) => {
-      router.replace(`${pathname}${withFiltersQuery(query, next)}`, { scroll: false });
+      navigateView(`${pathname}${withFiltersQuery(query, next)}`, (href) =>
+        router.replace(href, { scroll: false }),
+      );
     },
     [router, pathname, query],
   );
@@ -75,13 +79,17 @@ export function useUrlTableState(
   );
   const setSort = useCallback(
     (next: DataTableSort) => {
-      router.replace(`${pathname}${withSortQuery(query, next)}`, { scroll: false });
+      navigateView(`${pathname}${withSortQuery(query, next)}`, (href) =>
+        router.replace(href, { scroll: false }),
+      );
     },
     [router, pathname, query],
   );
   const reset = useCallback(() => {
     const cleared = withFiltersQuery(query, []);
-    router.replace(`${pathname}${withSortQuery(cleared, null)}`, { scroll: false });
+    navigateView(`${pathname}${withSortQuery(cleared, null)}`, (href) =>
+      router.replace(href, { scroll: false }),
+    );
   }, [router, pathname, query]);
   return { filters, setFilters, sort, setSort, reset };
 }

@@ -1,5 +1,4 @@
-import Link from 'next/link';
-
+import { ViewStateLink } from '@/features/page-state/ViewStateLink';
 import { cn } from '@/lib/cn';
 import type { AuditFilter } from '@/server/audit/queries';
 
@@ -38,7 +37,7 @@ function PageLink({ href, disabled, label }: { href: string; disabled: boolean; 
     );
   }
   return (
-    <Link
+    <ViewStateLink
       href={href}
       className={cn(
         PAGE_LINK_BASE,
@@ -46,6 +45,6 @@ function PageLink({ href, disabled, label }: { href: string; disabled: boolean; 
       )}
     >
       {label}
-    </Link>
+    </ViewStateLink>
   );
 }

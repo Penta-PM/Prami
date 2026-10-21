@@ -1,5 +1,4 @@
-import Link from 'next/link';
-
+import { ViewStateLink } from '@/features/page-state/ViewStateLink';
 import { cn } from '@/lib/cn';
 
 import { filterToQuery, type PriceFilter } from './filter';
@@ -46,7 +45,7 @@ export function PricingPagination({
               {label}
             </span>
           ) : (
-            <Link
+            <ViewStateLink
               key={label}
               href={href(target)}
               className={cn(
@@ -55,7 +54,7 @@ export function PricingPagination({
               )}
             >
               {label}
-            </Link>
+            </ViewStateLink>
           ),
         )}
       </div>

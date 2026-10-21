@@ -7,6 +7,7 @@ import { productFamilyMajors } from '@/lib/constants/product-cards';
 import { Input } from '@/components/ui';
 import { Icon } from '@/features/shell/icons';
 import { cn } from '@/lib/cn';
+import { navigateView } from '@/lib/page-state/view-navigation';
 
 import { DateControls } from './DateFilter';
 import { ALL, filterToQuery, type FilterErrors, type PriceFilter } from './filter';
@@ -37,8 +38,8 @@ export function PricingFilters(props: PricingFiltersProps) {
   const [query, setQuery] = useState(filter.q ?? '');
 
   const go: Patch = (patch) =>
-    startTransition(() =>
-      router.push(`${pathname}${filterToQuery({ ...filter, ...patch, page: 1 })}`),
+    navigateView(`${pathname}${filterToQuery({ ...filter, ...patch, page: 1 })}`, (href) =>
+      startTransition(() => router.push(href)),
     );
 
   const submitSearch = (event: FormEvent) => {

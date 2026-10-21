@@ -12,6 +12,7 @@ import {
   type DataTableColumn,
   type DataTableSort,
 } from '@/components/ui/data-table';
+import { navigateView } from '@/lib/page-state/view-navigation';
 import type { FilterCondition } from '@/lib/table/filter';
 import { parseSortParams } from '@/lib/table/sort-param';
 import {
@@ -151,7 +152,9 @@ export function AuditTable({
   const [, startTransition] = useTransition();
 
   const go = (next: Partial<AuditFilter>) =>
-    startTransition(() => router.push(`${AUDIT_PATH}${filterToQuery(next)}`));
+    navigateView(`${AUDIT_PATH}${filterToQuery(next)}`, (href) =>
+      startTransition(() => router.push(href)),
+    );
 
   const changeSort = (next: DataTableSort) =>
     go({ ...filter, sort: urlSort(next, AUDIT_SORT_IDS), page: 1 });
