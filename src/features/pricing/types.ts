@@ -38,3 +38,19 @@ export type CategoryOptionsView = {
 export type CostRatioReason = 'no-cost' | 'zero-price' | 'currency';
 export type CostRatioView =
   { costRatio: number; costFrom: string } | { costRatio: null; reason: CostRatioReason };
+
+/**
+ * 원가 매핑 칸 값 (policy-cost-link-column §2.1-4·§2.2-3) — 품목코드마다 1개(같은 품목의 모든 가격 행이 같은 값).
+ * 자재번호·자재명·후보 범위 여부만, **원가 금액 없음**. 서버 모듈(server/cost/item-link-types)의 ItemLinkCell 과 같은 모양
+ * (화면은 원가 모듈을 import 하지 않는다).
+ */
+export type CostLinkCellView = {
+  /** 매핑 후보 범위(본품 + 대상 제품군) 안 */
+  inScope: boolean;
+  link: {
+    materialCode: string;
+    /** 원가표에 자재가 없으면 null */
+    materialName: string | null;
+    inCostTable: boolean;
+  } | null;
+};

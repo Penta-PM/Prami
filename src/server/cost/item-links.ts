@@ -4,7 +4,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import type { Db } from '@/db';
-import { costItemLinks, items, materialCosts } from '@/db/schema';
+import { costItemLinks, items, materialCosts, salesPrices } from '@/db/schema';
 import { withTransaction } from '@/db/tx';
 import { AppError } from '@/lib/result';
 import { writeAudit } from '@/server/audit/log';
@@ -18,9 +18,11 @@ import type {
   CostLinkFamily,
   CostLinkMaterial,
   CostLinkOrphan,
+  CostLinkPickerData,
   CostLinkView,
   DeleteCostLinkInput,
   DeleteCostLinkResult,
+  ItemLinkCell,
 } from './item-link-types';
 import type { CostMutationContext } from './mutations';
 
@@ -169,6 +171,149 @@ export async function listCostLinkView(access: CostAccess, db: Db): Promise<Cost
     .sort(byCode);
 
   return { candidates, orphans, outOfScope, materials };
+}
+
+/** 한 번에 조회하는 품목 수 상한 — 가격정책 관리 표는 현재 페이지(최대 200행)의 품목만 보낸다 */
+export const ITEM_LINK_CELLS_MAX = 200;
+
+/** 자재번호 → 원가표(표준구매원가·일반, 삭제 제외) 최근 자재명. 원가표에 없는 번호는 빠진다 */
+async function materialNames(db: Db, codes: readonly string[]): Promise<Map<string, string>> {
+  if (codes.length === 0) return new Map();
+  const rows = await db
+    .selectDistinctOn([materialCosts.materialCode], {
+      materialCode: materialCosts.materialCode,
+      materialName: materialCosts.materialName,
+    })
+    .from(materialCosts)
+    .where(
+      and(
+        inArray(materialCosts.materialCode, [...codes]),
+        isNull(materialCosts.deletedAt),
+        eq(materialCosts.priceType, COST_PRICE_TYPE),
+        eq(materialCosts.priceCategory, COST_PRICE_CATEGORY),
+      ),
+    )
+    .orderBy(materialCosts.materialCode, sql`${materialCosts.effectiveFrom} desc`);
+  return new Map(rows.map((row) => [row.materialCode, row.materialName]));
+}
+
+/** 품목코드들의 후보 범위 여부(본품 + 대상 제품군) — 품목 마스터에 없으면 범위 밖 */
+async function scopeOf(db: Db, codes: readonly string[]) {
+  if (codes.length === 0) return new Map<string, ScopeRow>();
+  const rows = await db
+    .select({
+      itemCode: items.itemCode,
+      itemName: items.itemName,
+      family: CANDIDATE_FAMILY_SQL,
+      itemKind: items.itemKind,
+      categoryMinor: items.categoryMinor,
+      itemStatus: items.itemStatusRaw,
+    })
+    .from(items)
+    .where(inArray(items.itemCode, [...codes]));
+  return new Map(rows.map((row) => [row.itemCode, row]));
+}
+type ScopeRow = {
+  itemCode: string;
+  itemName: string;
+  family: CostLinkFamily | null;
+  itemKind: string | null;
+  categoryMinor: string | null;
+  itemStatus: string | null;
+};
+const inScopeRow = (row: ScopeRow | undefined) =>
+  Boolean(row && row.family && row.itemKind === '본품');
+
+/**
+ * 가격정책 관리 표 '원가 매핑' 칸 (스펙 policy-cost-link-column §2.2-1): 품목코드 → 후보 범위 여부 + 매핑(자재번호·자재명·원가표 존재).
+ * 현재 페이지 품목만(최대 200). 요청한 품목코드마다 항목이 있다. 원가 금액은 읽지 않는다.
+ */
+export async function getItemLinkCells(
+  access: CostAccess,
+  db: Db,
+  itemCodes: readonly string[],
+): Promise<Record<string, ItemLinkCell>> {
+  assertCostAccess(access, 'read');
+  const codes = [...new Set(itemCodes.filter((c) => typeof c === 'string' && c !== ''))].slice(
+    0,
+    ITEM_LINK_CELLS_MAX,
+  );
+  if (codes.length === 0) return {};
+  const scope = await scopeOf(db, codes);
+  const links = await db
+    .select({ itemCode: costItemLinks.itemCode, materialCode: costItemLinks.materialCode })
+    .from(costItemLinks)
+    .where(inArray(costItemLinks.itemCode, codes));
+  const names = await materialNames(db, [...new Set(links.map((link) => link.materialCode))]);
+  const linkByItem = new Map(links.map((link) => [link.itemCode, link.materialCode]));
+  const result: Record<string, ItemLinkCell> = {};
+  for (const itemCode of codes) {
+    const materialCode = linkByItem.get(itemCode);
+    const materialName = materialCode ? (names.get(materialCode) ?? null) : null;
+    result[itemCode] = {
+      inScope: inScopeRow(scope.get(itemCode)),
+      link: materialCode
+        ? { materialCode, materialName, inCostTable: materialName !== null }
+        : null,
+    };
+  }
+  return result;
+}
+
+/**
+ * 가격정책 관리 매핑 수정 모달 (스펙 policy-cost-link-column §2.3-2): 품목 요약·현재 매핑·제안(#53 휴리스틱)·자재 목록·영향 건수.
+ * 품목 마스터에 없으면 가격 행의 품명으로 요약(범위 밖). 둘 다 없으면 NOT_FOUND. 원가 금액 없음.
+ */
+export async function getCostLinkPicker(
+  access: CostAccess,
+  db: Db,
+  rawItemCode: string,
+): Promise<CostLinkPickerData> {
+  assertCostAccess(access, 'read');
+  const itemCode = z.string().trim().min(1).max(100).parse(rawItemCode);
+  const row = (await scopeOf(db, [itemCode])).get(itemCode);
+  const [impact] = await db
+    .select({
+      priceRows: sql<number>`count(*)::int`,
+      normalPriceRows: sql<number>`(count(*) filter (where ${salesPrices.priceType} = ${NORMAL_PRICE_TYPE}))::int`,
+      itemName: sql<string | null>`max(${salesPrices.itemName})`,
+    })
+    .from(salesPrices)
+    .where(and(eq(salesPrices.itemCode, itemCode), isNull(salesPrices.deletedAt)));
+  const itemName = row?.itemName ?? impact?.itemName ?? null;
+  if (itemName === null) throw new AppError('NOT_FOUND', '품목을 찾을 수 없습니다');
+  const [linkRow] = await db
+    .select({ materialCode: costItemLinks.materialCode })
+    .from(costItemLinks)
+    .where(eq(costItemLinks.itemCode, itemCode));
+  const materials = await listMaterials(db);
+  const names = new Map(materials.map((m) => [m.materialCode, m.materialName]));
+  const inScope = inScopeRow(row);
+  const family = inScope ? (row!.family as CostLinkFamily) : null;
+  const suggested = family
+    ? suggestMaterial(itemName, family, buildMaterialIndex(materials))
+    : null;
+  const materialName = linkRow ? (names.get(linkRow.materialCode) ?? null) : null;
+  return {
+    item: {
+      itemCode,
+      itemName,
+      family,
+      categoryMinor: row?.categoryMinor ?? null,
+      itemStatus: row?.itemStatus ?? null,
+      inScope,
+    },
+    link: linkRow
+      ? { materialCode: linkRow.materialCode, materialName, inCostTable: materialName !== null }
+      : null,
+    suggestion: suggested && 'suggestion' in suggested ? suggested.suggestion : null,
+    noSuggestion: suggested && 'reason' in suggested ? suggested.reason : null,
+    materials,
+    impact: {
+      priceRows: Number(impact?.priceRows ?? 0),
+      normalPriceRows: Number(impact?.normalPriceRows ?? 0),
+    },
+  };
 }
 
 const code = (label: string) => z.string().trim().min(1, `${label}를 입력하세요`).max(100);

@@ -3,7 +3,8 @@
  * 관리 표 = 조회 표 + 적용시작일(판매가 뒤) + 운영 연도(적용기간 뒤) + 관리(끝) (AC-12).
  * 가격 변동(cost-ratio-price-change §2.4)은 운영 연도 뒤·품목상태 앞 — **관리 표이고 pricing.write 일 때만**
  *   (pricing-view-hide-price-change §1, columnsFor(mode, withCost, withPriceChange)). 조회 표(/pricing)에는 열 정의 자체가 없다.
- * 원가 비중(§2.2·§2.3)은 판매가 바로 뒤 — 관리 표이고 cost.read 가 있을 때만(columnsFor(mode, withCost)).
+ * 원가 비중(§2.2·§2.3)은 판매가 뒤 — 관리 표이고 pricing.write + cost.read 일 때만(columnsFor(mode, withCost)).
+ * 원가 매핑(policy-cost-link-column §2.1)은 원가 비중 바로 왼쪽 — 원가 비중과 같은 판정(withCost).
  */
 export type PriceColumnKey =
   | 'priceType'
@@ -12,6 +13,7 @@ export type PriceColumnKey =
   | 'minor'
   | 'itemName'
   | 'price'
+  | 'costLink'
   | 'costRatio'
   | 'effectiveFrom'
   | 'period'
@@ -43,7 +45,9 @@ export const PRICE_TABLE_COLUMNS: readonly PriceColumn[] = [
   { key: 'minor', label: '소분류', view: true, admin: true, align: 'left' },
   { key: 'itemName', label: '품목명', view: true, admin: true, align: 'left' },
   { key: 'price', label: '판매가', view: true, admin: true, align: 'right' },
-  // 원가 비중: 판매가 바로 뒤, 관리 표 + cost.read 일 때만(열 정의 자체가 없음 — RSC payload 에 키 0)
+  // 원가 매핑: 원가 비중 바로 왼쪽(원인 → 결과), 원가 비중과 같은 판정(열 정의 자체가 없음 — RSC payload 에 키 0)
+  { key: 'costLink', label: '원가 매핑', view: false, admin: false, cost: true, align: 'left' },
+  // 원가 비중: 판매가 뒤, 관리 표 + cost.read 일 때만(열 정의 자체가 없음 — RSC payload 에 키 0)
   { key: 'costRatio', label: '원가 비중', view: false, admin: false, cost: true, align: 'right' },
   { key: 'effectiveFrom', label: '적용시작일', view: false, admin: true, align: 'center' },
   { key: 'period', label: '적용기간', view: true, admin: true, align: 'center' },

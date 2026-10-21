@@ -26,7 +26,8 @@ vi.mock('@/server/auth/auth', () => ({
 vi.mock('@/server/audit/request-meta', () => ({
   currentRequestMeta: async () => ({ ip: null, userAgent: 'vitest' }),
 }));
-vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+const revalidatePath = vi.hoisted(() => vi.fn());
+vi.mock('next/cache', () => ({ revalidatePath }));
 
 const actions = await import('@/features/costs/link-actions');
 const { invalidateSessionUser } = await import('@/server/auth/session-user');
@@ -132,5 +133,94 @@ describe('ADMIN', () => {
       links: [{ itemCode: 'NOPE', materialCode: 'W1' }],
     });
     expect(result).toMatchObject({ ok: false, error: { code: 'VALIDATION' } });
+  });
+});
+
+describe('가격정책 관리 매핑 수정 모달 (policy-cost-link-column §2.3)', () => {
+  it('loadCostLinkPickerAction: USER → FORBIDDEN + cost.read denied 1행, 데이터 없음', async () => {
+    state.sessionUserId = userId;
+    const audits = await state.handle!.db.$count(auditLogs);
+    expect(await actions.loadCostLinkPickerAction({ itemCode: 'P1' })).toEqual({
+      ok: false,
+      error: { code: 'FORBIDDEN', message: '이 작업을 수행할 권한이 없습니다' },
+    });
+    expect(await state.handle!.db.$count(auditLogs)).toBe(audits + 1);
+    expect((await auditByAction(state.handle!, 'cost.read')).at(-1)).toMatchObject({
+      actorUserId: userId,
+      result: 'denied',
+    });
+  });
+
+  it('loadCostLinkPickerAction: ADMIN → 요약·제안·자재·영향 건수, 원가 금액 키 없음. 없는 품목 NOT_FOUND', async () => {
+    state.sessionUserId = adminId;
+    const result = await actions.loadCostLinkPickerAction({ itemCode: 'P1' });
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        item: { itemCode: 'P1', family: 'WAPPLES', inScope: true },
+        link: null,
+        suggestion: { materialCode: 'W1' },
+        materials: [{ materialCode: 'W1', materialName: 'WAPPLES-1700 T2' }],
+        impact: { priceRows: 0, normalPriceRows: 0 },
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(/unit_?cost|unitCost/i);
+    expect(await actions.loadCostLinkPickerAction({ itemCode: 'NOPE' })).toMatchObject({
+      ok: false,
+      error: { code: 'NOT_FOUND' },
+    });
+  });
+
+  it('확정·변경·해제: 각각 감사 1건, /admin/costs/links 와 /admin/policies 둘 다 revalidate', async () => {
+    state.sessionUserId = adminId;
+    await state.handle!.db.insert(materialCosts).values({
+      materialCode: 'W2',
+      materialName: 'WAPPLES-2600',
+      unit: 'EA',
+      priceType: '표준구매원가',
+      priceCategory: '일반',
+      currency: 'KRW',
+      unitCost: '1.00',
+      effectiveFrom: '2026-01-01',
+      isFinalSource: true,
+      appliesToAllCustomers: true,
+      source: 'erp',
+    });
+    const upserts = (await auditByAction(state.handle!, 'cost_link.upsert')).length;
+    const deletes = (await auditByAction(state.handle!, 'cost_link.delete')).length;
+    revalidatePath.mockClear();
+    expect(await actions.confirmCostLinksAction({ links: [PAIR] })).toMatchObject({ ok: true });
+    expect(await auditByAction(state.handle!, 'cost_link.upsert')).toHaveLength(upserts + 1);
+    expect(revalidatePath.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/costs/links',
+      '/admin/policies',
+    ]);
+    expect(
+      await actions.confirmCostLinksAction({ links: [{ itemCode: 'P1', materialCode: 'W2' }] }),
+    ).toMatchObject({ ok: true, data: { saved: 1 } });
+    expect((await auditByAction(state.handle!, 'cost_link.upsert')).at(-1)).toMatchObject({
+      before: { materialCode: 'W1' },
+      after: { materialCode: 'W2' },
+    });
+    expect(await auditByAction(state.handle!, 'cost_link.upsert')).toHaveLength(upserts + 2);
+    revalidatePath.mockClear();
+    expect(await actions.deleteCostLinkAction({ itemCode: 'P1' })).toMatchObject({ ok: true });
+    expect(await auditByAction(state.handle!, 'cost_link.delete')).toHaveLength(deletes + 1);
+    expect(revalidatePath.mock.calls.map(([path]) => path)).toEqual([
+      '/admin/costs/links',
+      '/admin/policies',
+    ]);
+  });
+
+  it('원가표에 없는 자재 확정 → VALIDATION 봉투, 저장 없음', async () => {
+    state.sessionUserId = adminId;
+    const before = await links();
+    expect(
+      await actions.confirmCostLinksAction({ links: [{ itemCode: 'P1', materialCode: 'W404' }] }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION', message: expect.stringContaining('원가표에 없는') },
+    });
+    expect(await links()).toEqual(before);
   });
 });

@@ -82,10 +82,10 @@ describe('PRICE_TABLE_COLUMNS (AC-12, R-03·R-12)', () => {
     ).toEqual(labels('view'));
     // 가격 변동 = 관리 표 + pricing.write 일 때만 (withPriceChange 없으면 관리 표에도 없다)
     expect(columnsFor('admin').map((column) => column.key)).not.toContain('priceChange');
-    // 공용 배열 15 = 관리 14 + 원가 비중(관리 표 + cost.read 일 때만, columnsFor('admin', true))
-    expect(PRICE_TABLE_COLUMNS).toHaveLength(15);
+    // 공용 배열 16 = 관리 14 + 원가 매핑·원가 비중(관리 표 + pricing.write + cost.read 일 때만, columnsFor('admin', true))
+    expect(PRICE_TABLE_COLUMNS).toHaveLength(16);
     expect(PRICE_TABLE_COLUMNS.filter((column) => column.cost).map((column) => column.key)).toEqual(
-      ['costRatio'],
+      ['costLink', 'costRatio'],
     );
   });
 });

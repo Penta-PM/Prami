@@ -69,3 +69,32 @@ export type ConfirmCostLinksResult = { saved: number; unchanged: number };
 
 export type DeleteCostLinkInput = { itemCode: string };
 export type DeleteCostLinkResult = { deleted: boolean };
+
+/**
+ * 가격정책 관리 표의 '원가 매핑' 칸 (스펙 policy-cost-link-column §2.2-1) — 품목코드마다 1개. 원가 금액 없음.
+ * inScope = 매핑 후보 범위(본품 + 대상 제품군 분류) 안. inCostTable = 자재번호가 원가표(표준구매원가·일반, 삭제 제외)에 있음.
+ */
+export type ItemLinkCell = {
+  inScope: boolean;
+  link: { materialCode: string; materialName: string | null; inCostTable: boolean } | null;
+};
+
+/** 가격정책 관리 매핑 수정 모달이 여는 한 품목의 매핑 정보 (§2.3-2) — 원가 금액 없음 */
+export type CostLinkPickerData = {
+  item: {
+    itemCode: string;
+    itemName: string;
+    /** 후보 제품군. 후보 범위 밖이면 null */
+    family: CostLinkFamily | null;
+    categoryMinor: string | null;
+    itemStatus: string | null;
+    inScope: boolean;
+  };
+  link: { materialCode: string; materialName: string | null; inCostTable: boolean } | null;
+  /** 후보 범위 안 품목만 — 범위 밖이면 둘 다 null */
+  suggestion: CostLinkMaterial | null;
+  noSuggestion: CostLinkNoSuggestion | null;
+  materials: CostLinkMaterial[];
+  /** 같은 매핑이 적용되는 가격 행(삭제 제외)·그중 정상판매 건수 */
+  impact: { priceRows: number; normalPriceRows: number };
+};

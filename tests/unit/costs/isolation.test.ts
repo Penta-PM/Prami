@@ -238,6 +238,29 @@ describe('AC-42 server/cost import 제한', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('가격정책 화면(features/pricing)은 server/cost 를 import 하지 않고 lint 통과 — 원가 열은 features/costs 입구·자체 뷰 타입으로만 (policy-cost-link-column §2.2-3)', async () => {
+    const dir = path.join(ROOT, 'src/features/pricing');
+    const files = readdirSync(dir)
+      .filter((name) => /\.(ts|tsx)$/.test(name) && !name.includes('.tmp.'))
+      .map((name) => path.join(dir, name));
+    const offenders = files.filter((file) =>
+      /from\s+['"][^'"]*server\/cost[/'"]|import\(\s*['"][^'"]*server\/cost/.test(
+        readFileSync(file, 'utf8'),
+      ),
+    );
+    expect(offenders).toEqual([]);
+    const results = await eslint.lintFiles(files);
+    expect(
+      results.flatMap((result) =>
+        result.messages
+          .filter(
+            (m) => m.ruleId === 'no-restricted-imports' || m.ruleId === 'no-restricted-syntax',
+          )
+          .map((m) => `${path.basename(result.filePath)}: ${m.message}`),
+      ),
+    ).toEqual([]);
+  }, 180_000);
+
   it('허용 목록(features/costs)에서는 통과 — 동적 import 포함', async () => {
     const dynamicImport = [
       'export async function g() {',

@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
@@ -11,6 +11,7 @@ import {
   DataTableResetButton,
   type DataTableSort,
 } from '@/components/ui/data-table';
+import { CostLinkEditModal, type CostLinkSaved } from '@/features/costs/CostLinkEditModal';
 import type { FilterCondition } from '@/lib/table/filter';
 import { parseSortParams } from '@/lib/table/sort-param';
 
@@ -24,7 +25,7 @@ import { PolicyFormModal, type PolicyFormMode } from './PolicyFormModal';
 import { PriceHistoryModal } from './PriceHistoryModal';
 import { PriceTable } from './PriceTable';
 import { RowDetailDrawer } from './RowDetailDrawer';
-import type { CostRatioView, PriceRowView } from './types';
+import type { CostLinkCellView, CostRatioView, PriceRowView } from './types';
 
 /** 표 헤더의 정렬 → URL 정렬. 화이트리스트 파서를 그대로 거쳐 허용된 id 만 남긴다 (#32 스펙 §3) */
 function urlSort<Id extends string>(next: DataTableSort, allowed: readonly Id[]) {
@@ -80,6 +81,47 @@ function usePolicyEditing() {
   };
 
   return { form, setForm, deleting, setDeleting, flash, openCreate, openFromRow, done };
+}
+
+/**
+ * 원가 매핑 칸 → 매핑 수정 모달 (policy-cost-link-column §2.3-7): 성공 시 모달 닫기 → router.refresh()(원가 비중·매핑 열 서버 재계산,
+ * URL 필터·페이지 유지) → aria-live "P… 원가 매핑 변경 — 가격 행 N건" → 포커스를 연 칸으로. 낙관적 UI 없음.
+ */
+function useCostLinkEditing(costLinks: Readonly<Record<string, CostLinkCellView>> | undefined) {
+  const router = useRouter();
+  const [target, setTarget] = useState<{ rowId: number; itemCode: string } | null>(null);
+  const [message, setMessage] = useState('');
+  // 새로 고친 표에서 다시 포커스할 칸(가격 행 id) — refresh 로 칸이 다시 그려져도 같은 행의 버튼으로 돌아간다
+  const refocusRef = useRef<number | null>(null);
+
+  const open = useCallback(
+    (row: PriceRowView) => setTarget({ rowId: row.id, itemCode: row.itemCode }),
+    [],
+  );
+  const close = useCallback(() => setTarget(null), []);
+  const focusTrigger = (rowId: number) => {
+    const button = document.querySelector<HTMLElement>(`[data-cost-link-trigger="${rowId}"]`);
+    if (button && document.activeElement !== button) button.focus();
+  };
+
+  const saved = ({ itemCode, priceRows }: { itemCode: string; priceRows: number }) => {
+    const rowId = target?.rowId ?? null;
+    refocusRef.current = rowId;
+    setTarget(null);
+    setMessage(`${itemCode} 원가 매핑 변경 — 가격 행 ${priceRows}건`);
+    router.refresh();
+    if (rowId !== null) focusTrigger(rowId);
+  };
+
+  // 서버가 새 값을 보내면(refresh 완료) 연 칸으로 포커스를 한 번 더 맞춘다
+  useEffect(() => {
+    const rowId = refocusRef.current;
+    if (rowId === null) return;
+    refocusRef.current = null;
+    focusTrigger(rowId);
+  }, [costLinks]);
+
+  return { target, message, open, close, saved: saved as (saved: CostLinkSaved) => void };
 }
 
 /** 등록·수정·삭제 결과 배너 — `Presence` 안에서 `Collapse` 로 펼쳐지고 접힌다 (Motion 도입 스펙 §3.3 인라인 피드백) */
@@ -148,6 +190,13 @@ type PricingBrowserProps = {
   /** 원가 비중 계산 실패 — 원가 비중 열이 있는(cost.read) 사용자에게만 표 위 안내 (migration-apply-lan §2-3) */
   costRatioFailed?: boolean;
   /**
+   * 원가 매핑 칸 (policy-cost-link-column §2.1) — 품목코드 → 값. costRatios 와 같은 판정(관리 + pricing.write + cost.read)일 때만.
+   * 원가 비중 계산이 실패하면 빈 객체(칸 '—')
+   */
+  costLinks?: Readonly<Record<string, CostLinkCellView>>;
+  /** cost.write (서버 판정) — 원가 매핑 칸이 매핑 수정 모달 버튼이 된다. 없으면 텍스트만 */
+  costLinkEditable?: boolean;
+  /**
    * 가격 변동 노출 (pricing-view-hide-price-change §1) — 서버가 판정(관리 화면 + pricing.write)해 넘긴다.
    * false 면 가격 변동 열·필터·정렬·셀 이력 모달·드로어 계열 이력과 "변동 이력 보기" 모두 없다
    */
@@ -168,6 +217,8 @@ export function PricingBrowser({
   userId,
   costRatios,
   costRatioFailed = false,
+  costLinks,
+  costLinkEditable = false,
   withPriceChange = false,
 }: PricingBrowserProps) {
   const router = useRouter();
@@ -177,6 +228,7 @@ export function PricingBrowser({
   // 가격 변동 칸 → 변동 이력 모달 (price-change-history-modal §2.2). 드로어와 별개 상태 — 칸 클릭은 드로어를 열지 않는다
   const [historyId, setHistoryId] = useState<number | null>(null);
   const openHistory = useCallback((row: PriceRowView) => setHistoryId(row.id), []);
+  const costLink = useCostLinkEditing(costLinks);
   const editing = usePolicyEditing();
   const { openFromRow, setDeleting } = editing;
   const admin = mode === 'admin';
@@ -241,6 +293,12 @@ export function PricingBrowser({
       <Presence>
         {editing.flash ? <FlashMessage key="flash" flash={editing.flash} /> : null}
       </Presence>
+      {/* 원가 매핑 변경 안내 (policy-cost-link-column §2.3-7) — 영역은 늘 두고 문구만 바꾼다 */}
+      {admin && costLinks !== undefined ? (
+        <p aria-live="polite" className="sr-only" data-cost-link-live="">
+          {costLink.message}
+        </p>
+      ) : null}
       {admin && costRatios !== undefined && costRatioFailed ? (
         <p
           role="status"
@@ -262,6 +320,10 @@ export function PricingBrowser({
         onRowClick={(row) => setDetailId(row.id)}
         renderActions={admin ? renderActions : undefined}
         costRatios={admin ? costRatios : undefined}
+        costLinks={admin ? costLinks : undefined}
+        onCostLink={
+          admin && costLinks !== undefined && costLinkEditable ? costLink.open : undefined
+        }
         withPriceChange={priceChange}
         onPriceHistory={priceChange ? openHistory : undefined}
       />
@@ -269,6 +331,16 @@ export function PricingBrowser({
       <Presence>
         {priceChange && historyId !== null ? (
           <PriceHistoryModal key={historyId} rowId={historyId} onClose={() => setHistoryId(null)} />
+        ) : null}
+      </Presence>
+      <Presence>
+        {admin && costLinkEditable && costLink.target ? (
+          <CostLinkEditModal
+            key={costLink.target.rowId}
+            itemCode={costLink.target.itemCode}
+            onClose={costLink.close}
+            onSaved={costLink.saved}
+          />
         ) : null}
       </Presence>
       <Presence>

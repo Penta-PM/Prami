@@ -12,6 +12,10 @@ const calls = vi.hoisted(() => ({
   ratios: null as Record<number, unknown> | null,
   // 원가 비중 계산 실패(migration-apply-lan §2-3)
   ratioFailed: false,
+  // 원가 매핑 칸(policy-cost-link-column §2.2) — 원가 비중과 같은 로더가 함께 돌려준다
+  links: {} as Record<string, unknown>,
+  canEditLinks: true,
+  loaderRows: [] as unknown[],
   // 가격 행 조회(본 기능) 실패 주입
   priceRowsError: null as Error | null,
   // getPriceRows 세 번째 인자 (가격 변동 노출 — pricing-view-hide-price-change §1)
@@ -73,10 +77,19 @@ vi.mock('@/server/auth/rbac', () => ({
   getSessionUser: async () => ({ id: 'u1', email: 'x@pentasecurity.com', role: calls.role }),
 }));
 vi.mock('@/features/pricing/actions', () => ({}));
+vi.mock('@/features/costs/link-actions', () => ({}));
 vi.mock('@/features/costs/price-ratios', () => ({
-  loadPolicyCostRatios: async (ids: number[]) => {
-    calls.ratioIds.push(ids);
-    return calls.ratios ? { ratios: calls.ratios, failed: calls.ratioFailed } : null;
+  loadPolicyCostColumns: async (rows: { id: number; itemCode: string }[]) => {
+    calls.ratioIds.push(rows.map((row) => row.id));
+    calls.loaderRows.push(rows);
+    return calls.ratios
+      ? {
+          ratios: calls.ratios,
+          links: calls.links,
+          canEditLinks: calls.canEditLinks,
+          failed: calls.ratioFailed,
+        }
+      : null;
   },
 }));
 const push = vi.hoisted(() => vi.fn());
@@ -177,7 +190,8 @@ describe('원가 비중 열 (cost-ratio-price-change §2.3)', () => {
     await render2('admin');
     expect(calls.ratioIds).toEqual([[1]]);
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent?.trim());
-    expect(headers.indexOf('원가 비중')).toBe(headers.indexOf('판매가') + 1);
+    // 판매가 → 원가 매핑 → 원가 비중 (policy-cost-link-column §2.1-1)
+    expect(headers.indexOf('원가 비중')).toBe(headers.indexOf('판매가') + 2);
     // 1차 정렬 불가: 헤더(이동용 버튼만 있음)를 눌러도 정렬되지 않고 aria-sort·정렬 아이콘이 없다
     const header = screen.getByRole('columnheader', { name: /원가 비중/ });
     await userEvent.click(within(header).getByRole('button'));
@@ -308,5 +322,87 @@ describe('가격 변동 노출 = 관리 화면 + pricing.write (pricing-view-hid
     expect(calls.rowOptions.at(-1)).toEqual({ withPriceChange: false });
     expect(JSON.stringify(clientProps(element))).not.toMatch(/previousPrice|priceChange/);
     calls.role = 'ADMIN';
+  });
+});
+
+describe('원가 매핑 열 노출 = 관리 화면 + pricing.write + cost.read (policy-cost-link-column §2.1-2)', () => {
+  const PARAMS = { sort: 'costLink', dir: 'asc', 'f.costLink.in': 'W1', 'f.costLink.has': 'x' };
+  const section = (mode: 'admin' | 'view') =>
+    PricingSection({
+      mode,
+      basePath: mode === 'admin' ? '/admin/policies' : '/pricing',
+      userId: 'u1',
+      searchParams: PARAMS,
+    });
+  const LINKS = {
+    P1: { inScope: true, link: { materialCode: 'W1', materialName: '자재 1', inCostTable: true } },
+  };
+
+  it('ADMIN(+cost.read): 현재 페이지 행 id·품목코드로 로더 1회, 판매가 → 원가 매핑 → 원가 비중, payload 에 costLinks', async () => {
+    calls.role = 'ADMIN';
+    calls.loaderRows = [];
+    calls.ratios = {};
+    calls.links = LINKS;
+    const element = await section('admin');
+    expect(calls.loaderRows).toEqual([[{ id: 1, itemCode: 'P1' }]]);
+    const payload = JSON.stringify(clientProps(element));
+    expect(payload).toContain('"costLinks"');
+    expect(payload).toContain('"costLinkEditable":true');
+    // 원가 금액 키 없음
+    expect(payload).not.toMatch(/unit_?cost|unitCost/i);
+    // sort=costLink·f.costLink.* 는 화이트리스트 밖 — 무시(기본 정렬, 오류 없음)
+    const filter = calls.filters.at(-1) as Record<string, unknown>;
+    expect(filter.sort).toBeUndefined();
+    expect(filter.filters).toBeUndefined();
+    render(element);
+    const headers = screen.getAllByRole('columnheader').map((th) => th.textContent?.trim());
+    expect(headers.indexOf('원가 매핑')).toBe(headers.indexOf('판매가') + 1);
+    expect(headers.indexOf('원가 비중')).toBe(headers.indexOf('원가 매핑') + 1);
+    // 정렬 아이콘·aria-sort 없음
+    const header = screen.getByRole('columnheader', { name: /원가 매핑/ });
+    expect(header).not.toHaveAttribute('aria-sort');
+    expect(header.querySelector('svg')).toBeNull();
+    expect(screen.getByRole('button', { name: '모델 1 원가 매핑 수정' })).toHaveTextContent('W1');
+    expect(screen.queryByRole('alert')).toBeNull();
+    calls.links = {};
+  });
+
+  it('cost.write 없음: 칸은 텍스트만(버튼 없음)', async () => {
+    calls.role = 'ADMIN';
+    calls.ratios = {};
+    calls.links = LINKS;
+    calls.canEditLinks = false;
+    render(await section('admin'));
+    expect(screen.getByRole('columnheader', { name: /원가 매핑/ })).toBeInTheDocument();
+    expect(screen.getByText('W1')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /원가 매핑 수정/ })).toBeNull();
+    calls.canEditLinks = true;
+    calls.links = {};
+  });
+
+  it('cost.read 없음(로더 null): 헤더·payload 키 0', async () => {
+    calls.role = 'ADMIN';
+    calls.ratios = null;
+    const element = await section('admin');
+    expect(JSON.stringify(clientProps(element))).not.toMatch(/costLink|costRatio/);
+    render(element);
+    expect(screen.queryByRole('columnheader', { name: /원가 매핑/ })).toBeNull();
+  });
+
+  it.each([
+    ['관리 + pricing.write 없음(USER)', 'admin', 'USER'],
+    ['조회(/pricing, ADMIN 이어도)', 'view', 'ADMIN'],
+  ] as const)('%s: 로더를 부르지 않고 헤더·payload 키 0', async (_name, mode, role) => {
+    calls.role = role;
+    calls.loaderRows = [];
+    calls.ratios = {};
+    calls.links = LINKS;
+    const element = await section(mode);
+    expect(calls.loaderRows).toEqual([]);
+    expect(JSON.stringify(clientProps(element))).not.toMatch(/costLink|costRatio|materialCode/);
+    render(element);
+    expect(screen.queryByRole('columnheader', { name: /원가 매핑/ })).toBeNull();
+    calls.role = 'ADMIN';
+    calls.links = {};
   });
 });

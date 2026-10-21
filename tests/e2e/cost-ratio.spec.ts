@@ -164,7 +164,7 @@ function expectNoAmount(text: string, amount: number) {
   expect(text).not.toMatch(new RegExp(`(?<![\\d.,])${amount}(?![\\d.,])`));
 }
 
-test('ADMIN: 원가 비중 열 — 판매가 바로 뒤, NN.N% + 원가 적용일 툴팁, 해당 시기 원가 없음 사유', async ({
+test('ADMIN: 원가 비중 열 — 판매가 → 원가 매핑 뒤, NN.N% + 원가 적용일 툴팁, 해당 시기 원가 없음 사유', async ({
   page,
 }) => {
   const { a, b } = target();
@@ -173,7 +173,8 @@ test('ADMIN: 원가 비중 열 — 판매가 바로 뒤, NN.N% + 원가 적용�
   await expect(table).toBeVisible();
 
   const headers = await headerTexts(page, ADMIN_TABLE);
-  expect(headers.indexOf('원가 비중')).toBe(headers.indexOf('판매가') + 1);
+  // 판매가 → 원가 매핑 → 원가 비중 (policy-cost-link-column §2.1-1)
+  expect(headers.indexOf('원가 비중')).toBe(headers.indexOf('판매가') + 2);
 
   const ratio = table
     .locator(`span[title="원가 적용일 ${COST_FROM_A}"]`)
@@ -260,6 +261,7 @@ test('USER: /pricing — 원가 비중·가격 변동 열 없음, HTML·RSC 에 
   const rsc = await (await page.request.get(`${path}&_rsc=1`, { headers: { RSC: '1' } })).text();
   for (const body of [html, rsc]) {
     expect(body).not.toContain('costRatio');
+    expect(body).not.toContain('costLink');
     expect(body).not.toMatch(/previousPrice|priceChangeRate/);
     expect(body).not.toContain('원가 적용일');
     expect(body).not.toMatch(ratioText);
