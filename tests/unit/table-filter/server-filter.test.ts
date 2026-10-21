@@ -22,6 +22,7 @@ import { filterAccessorsOf, filterDefsOf } from '@/components/ui/data-table/filt
 import {
   filterRows,
   FILTER_LIMITS,
+  joinInValues,
   parseFilterParams,
   type FilterCondition,
 } from '@/lib/table/filter';
@@ -369,10 +370,16 @@ describe('가격 표 서버 필터 — 클라이언트 술어와 일치', () => 
     expect(Object.keys(defs)).not.toEqual(
       expect.arrayContaining(['costRatio', 'major', 'itemName']),
     );
-    // in 값 21개 → 그 조건만 버림
-    const many = Array.from({ length: 21 }, () => '운영중').join(',');
-    expect(parse({ 'f.status.in': many, 'f.remark.has': 'a' }).filters).toEqual([
+    // in 값 21개(중복 제거 뒤) → 그 조건만 버림 (§7 Q1 A-c)
+    expect(priceTypes.length).toBeGreaterThan(FILTER_LIMITS.inMax);
+    const many = joinInValues(priceTypes.slice(0, FILTER_LIMITS.inMax + 1));
+    expect(parse({ 'f.priceType.in': many, 'f.remark.has': 'a' }).filters).toEqual([
       { col: 'remark', op: 'has', value: 'a' },
+    ]);
+    // 같은 값 21번은 중복 제거로 1개 → 유지
+    const dup = Array.from({ length: 21 }, () => '운영중').join(',');
+    expect(parse({ 'f.status.in': dup }).filters).toEqual([
+      { col: 'status', op: 'in', values: ['운영중'] },
     ]);
   });
 

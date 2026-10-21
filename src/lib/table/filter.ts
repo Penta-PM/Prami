@@ -95,17 +95,26 @@ const numberValue = z
   .regex(/^-?\d+(\.\d+)?$/)
   .refine((value) => Number.isFinite(Number(value)));
 
-/** 실재하는 날짜만 (2025-02-30 불가) */
+/**
+ * 실재하는 날짜만 (2025-02-30 불가). 앞뒤 공백은 지우고 검증(§7 Q1 A-a). 0000–0099 년은 거부한다(§7 Q1 A-d) —
+ * Date.UTC 가 0–99 년을 1900–1999 로 해석해 아래 왕복 비교에서 떨어진다(현재 동작 유지, 단위 테스트로 고정)
+ */
 const dateValue = z.iso.date().refine((value) => {
   const [y, m, d] = value.split('-').map(Number) as [number, number, number];
   const date = new Date(Date.UTC(y, m - 1, d));
   return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
 });
 
+/**
+ * 값 하나 검증 (§7 Q1 A): 제어 문자 → 형식 오류. 모든 종류 앞뒤 공백을 지운 뒤 검증하고, 100자 한도도 trim 뒤 길이로 센다
+ * (`in` 은 언이스케이프 뒤 — splitInValues 가 먼저 푼다).
+ */
 function validateScalar(def: ColumnFilterDef, raw: string): string | undefined {
-  if (raw.length > FILTER_LIMITS.valueMax || hasControlChar(raw)) return undefined;
+  if (hasControlChar(raw)) return undefined;
+  const value = raw.trim();
+  if (value.length > FILTER_LIMITS.valueMax) return undefined;
   const schema = def.kind === 'text' ? textValue : def.kind === 'date' ? dateValue : numberValue;
-  const result = schema.safeParse(raw);
+  const result = schema.safeParse(value);
   return result.success ? result.data : undefined;
 }
 
@@ -140,17 +149,25 @@ export function joinInValues(values: readonly string[]): string {
   return values.map((value) => value.replace(/[\\,]/g, (char) => `\\${char}`)).join(',');
 }
 
+/**
+ * `in` 값 목록 검증 (§7 Q1 A): 제어 문자 → 형식 오류. 각 값은 선택지에 그대로 있으면 그 값, 아니면 앞뒤 공백을 지운 값으로
+ * 선택지를 찾는다(데이터에서 온 선택지가 공백을 품어도 정확히 맞춘 값은 그대로 통과). 100자 한도는 trim 뒤 길이,
+ * 20개 한도는 중복 제거(조용히 합침) 뒤 개수로 센다.
+ */
 function validateIn(
   def: Extract<ColumnFilterDef, { kind: 'enum' }>,
   parts: readonly string[],
 ): string[] | undefined {
-  if (parts.length > FILTER_LIMITS.inMax || parts.some(hasControlChar)) return undefined;
+  if (parts.some(hasControlChar)) return undefined;
   const allowed = def.options.map((option) => option.value);
   if (allowed.length === 0) return undefined;
+  const normalized = parts.map((part) => (allowed.includes(part) ? part : part.trim()));
+  if (normalized.some((value) => value.length > FILTER_LIMITS.valueMax)) return undefined;
+  const values = [...new Set(normalized)];
+  if (values.length > FILTER_LIMITS.inMax) return undefined;
   const schema = z.array(z.enum(allowed as [string, ...string[]])).min(1);
-  const result = schema.safeParse(parts);
-  if (!result.success) return undefined;
-  return [...new Set(result.data)];
+  const result = schema.safeParse(values);
+  return result.success ? result.data : undefined;
 }
 
 /** 조건 하나 검증·정규화(값 trim·`in` 중복 제거). 화이트리스트·한도·형식 위반이면 undefined */
@@ -163,8 +180,7 @@ export function validateCondition(
   if (!isOpAllowed(def, cond.op)) return undefined;
   if (cond.op === 'in') {
     if (def.kind !== 'enum') return undefined;
-    // 한도는 언이스케이프한 값 기준 (Plan §7)
-    if (cond.values.some((value) => value.length > FILTER_LIMITS.valueMax)) return undefined;
+    // 한도는 언이스케이프한 값 기준 (Plan §7) — trim·중복 제거 뒤 (validateIn)
     const values = validateIn(def, cond.values);
     return values ? { col: cond.col, op: 'in', values } : undefined;
   }

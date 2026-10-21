@@ -59,6 +59,7 @@ type Position = { top: number; left: number; placement: 'bottom' | 'top' };
  * - Esc: 팝오버만 닫고 트리거로 포커스 복귀. keydown 의 기본 동작·전파를 막아 바깥 <dialog> 의 cancel(모달 닫힘)이
  *   일어나지 않는다. 같은 키 입력에서 cancel 이 오더라도 한 틱 동안 가로채 막는다(브라우저 차이 대비).
  * - 바깥 클릭(터치 포함 — click 은 탭에도 발생)·Tab 이탈 시 닫힌다. 트리거 클릭은 무시해 호출자의 토글과 겹치지 않는다.
+ *   Modal 안에서 백드롭을 클릭하면 첫 클릭은 팝오버만 닫고 모달은 유지한다(Esc 와 같은 순서, §7 Q2 A).
  *   비활성(disabled) 컨트롤은 click 이 오지 않으므로 pointerdown(캡처)에서 닫는다(A-1 QA 백로그 — 열린 채 포커스가 body 로 가던 문제).
  * - 포커스가 팝오버 밖(body 등)으로 빠진 채 열려 있어도 Esc 는 문서 단위로 받아 닫는다.
  * - 모션: scaleIn (MotionProvider 의 reducedMotion="user" 로 감속 모드 준수). 퇴장 중에는 이벤트를 처리하지 않는다.
@@ -155,6 +156,14 @@ function PopoverPanel({
       if (!target) return;
       if (panelRef.current?.contains(target)) return;
       if (anchorRef.current?.contains(target)) return;
+      // 팝오버를 담은 모달(<dialog>)의 백드롭 클릭(click 대상 = <dialog> 자신): 이번 클릭은 팝오버만 닫고 모달까지 가지 않게
+      // 전파를 끊는다 — Esc 와 같은 "팝오버 먼저" 규칙(table-column-filter §7 Q2 A). 다음 백드롭 클릭(Q-M1 누름·놓음 규칙)이 모달을 닫는다
+      if (
+        target instanceof HTMLDialogElement &&
+        panelRef.current &&
+        target.contains(panelRef.current)
+      )
+        event.stopPropagation();
       const active = document.activeElement;
       const focusElsewhere =
         active && active !== document.body && !panelRef.current?.contains(active);

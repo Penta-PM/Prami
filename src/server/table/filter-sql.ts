@@ -90,10 +90,14 @@ function conditionSql(
   if (!isOpAllowed(def, cond.op)) return null;
   if (cond.op === 'in') {
     if (def.kind !== 'enum') return null;
-    const values = cond.values.filter(
-      (value) =>
-        value.length > 0 && value.length <= FILTER_LIMITS.valueMax && !hasControlChar(value),
-    );
+    const values = [
+      ...new Set(
+        cond.values.filter(
+          (value) =>
+            value.length > 0 && value.length <= FILTER_LIMITS.valueMax && !hasControlChar(value),
+        ),
+      ),
+    ];
     if (values.length === 0 || values.length > FILTER_LIMITS.inMax) return null;
     const matchEmpty = emptyValue !== undefined && values.includes(emptyValue);
     const listed = matchEmpty ? values.filter((value) => value !== emptyValue) : values;
