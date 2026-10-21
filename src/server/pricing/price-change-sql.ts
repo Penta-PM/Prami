@@ -13,14 +13,24 @@ export const LIVE_PRICE: SQL = isNull(salesPrices.deletedAt) as SQL;
 /**
  * 직전가 윈도: 삭제 제외 행에서 계열별 lag 로 직전 적용시작일 행 판매가를 구해 `price_prev(id, previous_price)` 로 붙인다.
  * 계열 키 = 품번|단가유형|단가구분|화폐|거래처코드(series_key). 계열·적용시작일은 삭제 제외 유니크라 lag 순서가 결정적이다.
- * - 표: 인자 없음 = 필터·페이지 적용 **전** 전체 — 직전 행이 다른 페이지·필터 밖이어도 같은 값
- * - 이력: 한 계열로 좁힌다 — 같은 계열 안의 lag 라 전체 윈도와 값이 같다(인덱스 (series_key, effective_from))
+ * lag 는 계열(partition) 안에서만 보므로, 계열로 좁혀도 그 계열 행의 값은 전체 윈도와 같다(인덱스 (series_key, effective_from)).
+ * - 표(가격 변동 정렬·필터): 인자 없음 = 필터·페이지 적용 **전** 전체 — 직전 행이 다른 페이지·필터 밖이어도 같은 값
+ * - 표(그 밖, #55 성능 Plan §8 C/A): 현재 페이지 행들의 계열 목록으로 좁힌다(2단계)
+ * - 이력: 한 계열로 좁힌다
+ * 빈 목록이면 행이 없다.
  */
-export function previousPrices(seriesKey?: string): SQL {
-  const where =
-    seriesKey === undefined
-      ? LIVE_PRICE
-      : sql`${LIVE_PRICE} and ${salesPrices.seriesKey} = ${seriesKey}`;
+export function previousPrices(seriesKey?: string | readonly string[]): SQL {
+  let where: SQL = LIVE_PRICE;
+  if (typeof seriesKey === 'string')
+    where = sql`${LIVE_PRICE} and ${salesPrices.seriesKey} = ${seriesKey}`;
+  else if (seriesKey !== undefined)
+    where =
+      seriesKey.length > 0
+        ? sql`${LIVE_PRICE} and ${salesPrices.seriesKey} in (${sql.join(
+            seriesKey.map((key) => sql`${key}`),
+            sql`, `,
+          )})`
+        : sql`false`;
   return sql`(select ${salesPrices.id} as id,
     lag(${salesPrices.unitPrice}) over (partition by ${salesPrices.seriesKey} order by ${salesPrices.effectiveFrom}) as previous_price
   from ${salesPrices} where ${where}) as price_prev`;

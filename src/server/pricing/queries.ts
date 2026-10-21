@@ -1,4 +1,15 @@
-import { and, asc, count, desc, eq, isNull, sql, type AnyColumn, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from 'drizzle-orm';
 
 import type { Db } from '@/db';
 import { ITEM_REMARK_HEADER } from '@/server/imports/schemas/items';
@@ -183,8 +194,19 @@ function buildWhere(filter: PriceFilter, withPriceChange: boolean): SQL | undefi
 }
 
 /** 가격 변동 열 필터가 있으면 count 도 직전가 윈도를 조인해야 한다 (가격 변동을 싣는 관리 화면만) */
-function needsPreviousPrices(filter: PriceFilter, withPriceChange: boolean): boolean {
+function filtersByPriceChange(filter: PriceFilter, withPriceChange: boolean): boolean {
   return withPriceChange && (filter.filters ?? []).some((cond) => cond.col === 'priceChange');
+}
+
+/**
+ * 가격 변동으로 정렬·필터하면 페이지를 고르기 전에 모든 행의 변동률이 필요하다 → 전체 윈도(현행).
+ * 그 밖에는 페이지를 먼저 고르고 그 계열만 윈도를 돈다 (#55 성능, Plan §8 C/A)
+ */
+function needsFullWindow(filter: PriceFilter, withPriceChange: boolean): boolean {
+  return (
+    filtersByPriceChange(filter, withPriceChange) ||
+    (withPriceChange && filter.sort?.id === 'priceChange')
+  );
 }
 
 /** 기본 정렬 (§4.5.3) — 정렬을 고르면 tie-breaker 로 그대로 뒤에 붙는다(stable, 끝은 id) */
@@ -236,8 +258,109 @@ export type PriceRowsOptions = {
   withPriceChange?: boolean;
 };
 
+type Paging = Omit<PricePage, 'rows'> & { offset: number };
+
+const offsetOf = (page: number) => (page - 1) * PRICE_PAGE_SIZE;
+
+/** 건수 → 페이지 수·현재 페이지(범위 밖 = 마지막)·offset. 가격 변동 필터가 있을 때만 count 도 직전가 윈도를 조인한다 */
+async function countPaging(
+  db: Db,
+  filter: PriceFilter,
+  where: SQL | undefined,
+  withPriceChange: boolean,
+): Promise<Paging> {
+  const countQuery = db
+    .select({ total: count() })
+    .from(salesPrices)
+    .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
+    .$dynamic();
+  const [counted] = await (
+    filtersByPriceChange(filter, withPriceChange)
+      ? countQuery.leftJoin(ALL_PREVIOUS_PRICES, PREVIOUS_PRICE_JOIN)
+      : countQuery
+  ).where(where);
+  const total = counted?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PRICE_PAGE_SIZE));
+  const page = Math.min(filter.page, pageCount);
+  return { total, page, pageCount, offset: offsetOf(page) };
+}
+
+/** 전체 직전가 윈도를 id 로 조인해 고른 페이지 (가격 변동 정렬·필터 경로) */
+function selectFullWindowPage(db: Db, filter: PriceFilter, where: SQL | undefined, offset: number) {
+  return db
+    .select(CHANGE_FIELDS)
+    .from(salesPrices)
+    .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
+    .leftJoin(ALL_PREVIOUS_PRICES, PREVIOUS_PRICE_JOIN)
+    .where(where)
+    .orderBy(...buildOrderBy(filter.sort, PRICE_SORT_SQL, DEFAULT_ORDER))
+    .limit(PRICE_PAGE_SIZE)
+    .offset(offset);
+}
+
+/** 2단계 ① — 윈도 없이 페이지 행(필터·정렬·limit/offset 은 전체 윈도 경로와 같다) + 계열 키 */
+function selectPageWithSeries(db: Db, filter: PriceFilter, where: SQL | undefined, offset: number) {
+  return db
+    .select({ ...BASE_FIELDS, seriesKey: salesPrices.seriesKey })
+    .from(salesPrices)
+    .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
+    .where(where)
+    .orderBy(...buildOrderBy(filter.sort, PRICE_SORT_SQL, DEFAULT_ORDER))
+    .limit(PRICE_PAGE_SIZE)
+    .offset(offset);
+}
+
 /**
- * getPriceRows (§4.7) — 원가 조인 없음. 가격 변동(직전가·변동률)은 `withPriceChange` 일 때만 전체 기준 윈도를 id 로 조인
+ * 2단계 (#55 성능, Plan §8 C/A): ① 윈도 없이 페이지 행 ② 그 행들의 계열만 윈도를 돌려 직전가·변동률을 id 로 붙인다.
+ * lag 는 계열 안에서만 보므로 값은 전체 윈도와 같다(식은 공용 상수 그대로). count 는 윈도 없이 ①과 함께(동시에) 돈다 —
+ * 요청 페이지가 범위 밖(마지막 페이지로 접힘)일 때만 ①을 다시 한다.
+ */
+async function getTwoStepPage(
+  db: Db,
+  filter: PriceFilter,
+  where: SQL | undefined,
+): Promise<PricePage> {
+  const [{ offset, ...paging }, guessed] = await Promise.all([
+    countPaging(db, filter, where, true),
+    selectPageWithSeries(db, filter, where, offsetOf(filter.page)),
+  ]);
+  const pageRows =
+    paging.page === filter.page ? guessed : await selectPageWithSeries(db, filter, where, offset);
+  if (pageRows.length === 0) return { rows: [], ...paging };
+  const changes = await db
+    .select({
+      id: salesPrices.id,
+      previousPrice: PREVIOUS_PRICE,
+      priceChangeRate: PRICE_CHANGE_RATE.mapWith(Number),
+    })
+    .from(salesPrices)
+    .innerJoin(
+      previousPrices([...new Set(pageRows.map((row) => row.seriesKey))]),
+      PREVIOUS_PRICE_JOIN,
+    )
+    .where(
+      inArray(
+        salesPrices.id,
+        pageRows.map((row) => row.id),
+      ),
+    );
+  const byId = new Map(changes.map((change) => [change.id, change]));
+  // series_key 는 응답 키가 아니다(조회·관리 행 모양 그대로)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 구조 분해로 키를 뺀다
+  const rows = pageRows.map(({ seriesKey: _seriesKey, ...row }) => {
+    const change = byId.get(row.id);
+    return {
+      ...row,
+      previousPrice: change?.previousPrice ?? null,
+      priceChangeRate: change?.priceChangeRate ?? null,
+    };
+  });
+  return { rows, ...paging };
+}
+
+/**
+ * getPriceRows (§4.7) — 원가 조인 없음. 가격 변동(직전가·변동률)은 `withPriceChange` 일 때만:
+ * 가격 변동으로 정렬·필터하면 전체 기준 윈도를 id 로 조인, 아니면 현재 페이지 계열만 윈도(2단계, 같은 값)
  */
 export async function getPriceRows(
   db: Db,
@@ -246,30 +369,11 @@ export async function getPriceRows(
 ): Promise<PricePage> {
   const withPriceChange = options.withPriceChange === true;
   const where = buildWhere(filter, withPriceChange);
-  const countQuery = db
-    .select({ total: count() })
-    .from(salesPrices)
-    .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
-    .$dynamic();
-  const [counted] = await (
-    needsPreviousPrices(filter, withPriceChange)
-      ? countQuery.leftJoin(ALL_PREVIOUS_PRICES, PREVIOUS_PRICE_JOIN)
-      : countQuery
-  ).where(where);
-  const total = counted?.total ?? 0;
-  const pageCount = Math.max(1, Math.ceil(total / PRICE_PAGE_SIZE));
-  const page = Math.min(filter.page, pageCount);
-  const offset = (page - 1) * PRICE_PAGE_SIZE;
+  if (withPriceChange && !needsFullWindow(filter, withPriceChange))
+    return getTwoStepPage(db, filter, where);
+  const { offset, ...paging } = await countPaging(db, filter, where, withPriceChange);
   const rows: PriceRow[] = withPriceChange
-    ? await db
-        .select(CHANGE_FIELDS)
-        .from(salesPrices)
-        .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))
-        .leftJoin(ALL_PREVIOUS_PRICES, PREVIOUS_PRICE_JOIN)
-        .where(where)
-        .orderBy(...buildOrderBy(filter.sort, PRICE_SORT_SQL, DEFAULT_ORDER))
-        .limit(PRICE_PAGE_SIZE)
-        .offset(offset)
+    ? await selectFullWindowPage(db, filter, where, offset)
     : await db
         .select(BASE_FIELDS)
         .from(salesPrices)
@@ -278,7 +382,17 @@ export async function getPriceRows(
         .orderBy(...buildOrderBy(filter.sort, PRICE_SORT_SQL_NO_CHANGE, DEFAULT_ORDER))
         .limit(PRICE_PAGE_SIZE)
         .offset(offset);
-  return { rows, total, page, pageCount };
+  return { rows, ...paging };
+}
+
+/**
+ * 가격 변동을 싣는 표를 항상 전체 직전가 윈도로 고른다 (2단계 이전 getPriceRows 와 같은 쿼리).
+ * 등가 테스트·벤치의 기준(oracle)으로만 쓴다
+ */
+export async function getPriceRowsFullWindow(db: Db, filter: PriceFilter): Promise<PricePage> {
+  const where = buildWhere(filter, true);
+  const { offset, ...paging } = await countPaging(db, filter, where, true);
+  return { rows: await selectFullWindowPage(db, filter, where, offset), ...paging };
 }
 
 /** 통화 열 필터 선택지: 데이터에 있는 통화 코드 (삭제 제외, 오름차순) */
