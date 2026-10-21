@@ -33,3 +33,4 @@
 ## 진행 기록
 - 2026-10-21: #60(542de6f) · #61(99c78fd) · #62 BL-1(bfed59b) 머지 — QA 생략 모드.
 - 후속 후보 **BL-2**(B-2 다음, 작은 PR): 일반 텍스트 `text-amber-500` 경고 문구 대비 2.1:1(CartPanel·QuoteSheet·SearchResults·CostEditModal·PartsEditor) → 4.5:1+ 토큰, 원가 매핑 셀 경고색 #a86a00(4.44:1) → 4.5:1+. 출처: #62 머지 보고(msg_092f7303285c).
+- BL-2 추가: 정렬 머리글 빠른 두 번 클릭 토글 문제(page-state-memory.md §6).
