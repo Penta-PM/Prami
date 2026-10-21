@@ -51,6 +51,14 @@ describe('normalizeQuery', () => {
     expect(normalizeQuery(undefined)).toBe('');
     expect(normalizeQuery('x'.repeat(200))).toHaveLength(100);
   });
+
+  it('제어 문자(NUL·탭·DEL 등)가 든 검색어는 형식 오류 → 검색 없음 (BL-1, Postgres 가 NUL 거부 → 500 방지)', async () => {
+    for (const raw of ['\u0000', '\u0000abc', 'a\tb', 'ab\u007F', ['\u0001x', 'ok']])
+      expect(normalizeQuery(raw)).toBe('');
+    const result = await searchAll(handle.db, '\u0000wapples');
+    expect(result.items).toEqual([]);
+    expect(result.notices).toEqual([]);
+  });
 });
 
 describe('searchAll', () => {

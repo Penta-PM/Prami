@@ -150,6 +150,24 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
     expect(screen.getByText('미사용')).toBeInTheDocument();
   });
 
+  it('상태 표시 대비 4.5:1 이상 (BL-1, QA #59 백로그 — 모달·드로어·표 공용 셀): 운영중 blue-600·미사용 gray-600·폐기 red-600·임시 amber-700', async () => {
+    const { ItemStatusPill, OperationStatus } = await import('@/features/pricing/cells');
+    render(
+      <>
+        <OperationStatus status="운영중" />
+        <OperationStatus status="미사용" />
+        <ItemStatusPill status="폐기" />
+        <ItemStatusPill status="임시" />
+      </>,
+    );
+    expect(screen.getByText('운영중')).toHaveClass('text-blue-600');
+    expect(screen.getByText('미사용')).toHaveClass('text-gray-600');
+    expect(screen.getByText('폐기')).toHaveClass('text-red-600');
+    expect(screen.getByText('임시')).toHaveClass('text-amber-700');
+    for (const text of ['운영중', '미사용', '폐기', '임시'])
+      expect(screen.getByText(text).className).not.toMatch(/#3075FF|#797C85|#a86a00|text-red-500/i);
+  });
+
   it('관리 표: 적용시작일·운영 연도·관리 컬럼, 행 클릭(관리 칸 제외)', async () => {
     const onRowClick = vi.fn();
     render(

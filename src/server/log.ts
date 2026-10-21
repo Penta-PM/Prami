@@ -106,3 +106,29 @@ export const logger = {
   warn: (event: string, fields?: LogFields) => write('warn', event, fields),
   error: (event: string, fields?: LogFields) => write('error', event, fields),
 };
+
+const QUERY_TEXT_RE = /failed query:|params:/i;
+const MAX_SUMMARY = 200;
+
+/**
+ * DB 오류 → 로그용 요약 `{ code, message }` (BL-1 — 원가 비중 실패 로그 축소). SQL 원문·바인딩 값을 남기지 않는다.
+ * - drizzle `DrizzleQueryError` 는 메시지가 `Failed query: <sql>\nparams: <값>` 이고 원래 오류(pg)가 cause 다 → cause 를 본다.
+ * - code: 원래 오류의 SQLSTATE(예: 42P01) 등 문자열 code 만.
+ * - message: 첫 줄만, `Failed query`·`params:` 이후는 자르고, 3자리 이상 숫자열은 `#` 으로(값이 섞인 pg 메시지 —
+ *   예: `invalid input syntax for type numeric: "1234567"` — 에서 금액·자재번호가 새지 않도록), 200자 상한.
+ * stack·query·params 는 싣지 않는다.
+ */
+export function summarizeQueryError(error: unknown): { code: string | null; message: string } {
+  const outer = error as { cause?: unknown } | null;
+  const inner =
+    outer && typeof outer === 'object' && outer.cause instanceof Error ? outer.cause : error;
+  const rawCode = (inner as { code?: unknown } | null)?.code;
+  const code = typeof rawCode === 'string' && /^[A-Za-z0-9_]{1,32}$/.test(rawCode) ? rawCode : null;
+  const text = inner instanceof Error ? inner.message : '';
+  let line = text.split('\n')[0] ?? '';
+  const cut = line.search(QUERY_TEXT_RE);
+  if (cut >= 0) line = line.slice(0, cut);
+  line = maskString(line.replace(/\d{3,}/g, '#').trim()).slice(0, MAX_SUMMARY);
+  const name = inner instanceof Error ? inner.name : typeof inner;
+  return { code, message: line || name };
+}

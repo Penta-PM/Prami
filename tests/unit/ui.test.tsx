@@ -55,6 +55,17 @@ describe('Pill', () => {
       expect(screen.getByText('사용')).toBeInTheDocument();
     },
   );
+  it('글자색은 배경 위 4.5:1 이상 토큰 — amber-700·red-600 (원본 amber-500 1.9:1·red-500 3.7:1 아님, BL-1)', () => {
+    render(
+      <>
+        <Pill tone="amber">가견적</Pill>
+        <Pill tone="red">비활성</Pill>
+      </>,
+    );
+    expect(screen.getByText('가견적')).toHaveClass('text-amber-700');
+    expect(screen.getByText('가견적')).not.toHaveClass('text-amber-500');
+    expect(screen.getByText('비활성')).toHaveClass('text-red-600');
+  });
 });
 
 describe('Segmented', () => {

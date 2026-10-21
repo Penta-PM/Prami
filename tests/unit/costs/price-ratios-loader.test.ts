@@ -80,4 +80,37 @@ describe('loadPolicyCostColumns (원가 비중 + 원가 매핑, policy-cost-link
     expect(line).toMatchObject({ level: 'error', event: 'pricing.cost_ratio_failed', rows: 3 });
     error.mockRestore();
   });
+
+  it('실패 로그 = 대상 함수·오류 코드·메시지 첫 줄만 — SQL 원문·바인딩 값(자재번호·금액)·stack 없음 (BL-1)', async () => {
+    // 앞 테스트에서 cost_item_links 가 없어졌다 → getCostRatios 가 가격 행 id(금액처럼 보이는 숫자)를 바인딩한 쿼리에서 실패
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const result = await loadPolicyCostColumns([
+      { id: 1234567, itemCode: 'W1001010015' },
+      { id: 7654321, itemCode: 'W2002020026' },
+    ]);
+    expect(result?.failed).toBe(true);
+    expect(error).toHaveBeenCalledTimes(1);
+    const raw = String(error.mock.calls[0]![0]);
+    const line = JSON.parse(raw) as Record<string, unknown>;
+    expect(line).toMatchObject({
+      event: 'pricing.cost_ratio_failed',
+      target: 'getCostRatios',
+      code: '42P01',
+      rows: 2,
+    });
+    expect(line.message).toMatch(/cost_item_links/);
+    for (const leaked of [
+      'W1001010015',
+      'W2002020026',
+      '1234567',
+      '7654321',
+      'select',
+      'params',
+      'Failed query',
+    ])
+      expect(raw).not.toContain(leaked);
+    expect(line).not.toHaveProperty('error');
+    expect(line).not.toHaveProperty('stack');
+    error.mockRestore();
+  });
 });

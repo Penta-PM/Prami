@@ -7,11 +7,12 @@ import type { CostLinkCellView, CostRatioReason, CostRatioView } from './types';
 
 /**
  * 표 셀 표시 (디자인 가격정책 표): 품목상태 색상 필(R-09, AC-14/22), 운영상태 아이콘+텍스트.
- * 상태는 색상만이 아니라 텍스트로도 구분한다 (§4.8 접근성).
+ * 상태는 색상만이 아니라 텍스트로도 구분한다 (§4.8 접근성). 글자색은 배경 위 4.5:1 이상(BL-1 — 폐기 red-600 5.1:1, 임시 amber-700 5.2:1,
+ * 운영중 blue-600·미사용 gray-600 은 흰색~gray-200·강조 행 배경에서 4.58:1 이상).
  */
 const ITEM_STATUS_CLASSES: Record<string, string> = {
-  폐기: 'bg-red-500/12 text-red-500',
-  임시: 'bg-[#fdf1de] text-[#a86a00]',
+  폐기: 'bg-red-500/12 text-red-600',
+  임시: 'bg-[#fdf1de] text-amber-700',
   사용: 'bg-gray-100 text-text-secondary',
   미확인: 'bg-transparent text-text-tertiary shadow-(--hairline-default)',
 };
@@ -37,7 +38,7 @@ export function OperationStatus({ status }: { status: '운영중' | '미사용' 
     <span
       className={cn(
         'inline-flex items-center gap-[5px] text-[12px] font-semibold whitespace-nowrap',
-        active ? 'text-[#3075FF]' : 'text-[#797C85]',
+        active ? 'text-blue-600' : 'text-gray-600',
       )}
     >
       <svg aria-hidden="true" viewBox="0 0 14 14" className="size-3.5 shrink-0">

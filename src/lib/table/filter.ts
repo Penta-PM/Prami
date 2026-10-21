@@ -10,7 +10,7 @@ import { isEmptySortValue, type MoneyValue, type SortValue } from './compare';
  * 순수 모듈(React 없음): 서버(파싱·화이트리스트)와 클라이언트(술어·URL 갱신)가 같이 쓴다.
  *
  * - URL: `f.<colId>.<op>=<value>`, `in` 은 쉼표 구분. 열·연산자는 표마다 넘기는 `defs` 로만 받는다(화이트리스트).
- * - 한도·형식 오류는 그 조건만 버린다(§2.1-4). 같은 열+연산자가 여러 번 오면 마지막 값.
+ * - 한도·형식 오류(제어 문자 포함 — hasControlChar)는 그 조건만 버린다(§2.1-4). 같은 열+연산자가 여러 번 오면 마지막 값.
  * - 텍스트 비교는 #32 와 같은 ASCII 소문자화(`asciiLowerText`) — `toLowerCase`·`localeCompare` 금지(서버 `lower(x COLLATE "C")` 와 일치).
  */
 
@@ -74,6 +74,17 @@ export function asciiLowerText(value: string): string {
 
 // ── 값 검증 (zod) ─────────────────────────────────────────────────────────
 
+const CONTROL_CHAR_RE = /[\u0000-\u001F\u007F]/;
+
+/**
+ * C0 제어 문자(U+0000–U+001F, 탭·줄바꿈 포함)나 DEL(U+007F)이 들어 있는가 (BL-1, #57 QA).
+ * 필터 값·검색어 등 URL 문자열 파라미터에 있으면 형식 오류 — 그 조건(파라미터)만 버린다.
+ * Postgres 는 text 에 NUL 을 받지 않아(22021) 그대로 바인딩하면 500 이 된다.
+ */
+export function hasControlChar(value: string): boolean {
+  return CONTROL_CHAR_RE.test(value);
+}
+
 const textValue = z.string().trim().min(1).max(FILTER_LIMITS.valueMax);
 
 /** 유한한 10진수(부호·소수 허용, 지수·16진수·공백·Infinity 불가) */
@@ -92,7 +103,7 @@ const dateValue = z.iso.date().refine((value) => {
 });
 
 function validateScalar(def: ColumnFilterDef, raw: string): string | undefined {
-  if (raw.length > FILTER_LIMITS.valueMax) return undefined;
+  if (raw.length > FILTER_LIMITS.valueMax || hasControlChar(raw)) return undefined;
   const schema = def.kind === 'text' ? textValue : def.kind === 'date' ? dateValue : numberValue;
   const result = schema.safeParse(raw);
   return result.success ? result.data : undefined;
@@ -133,7 +144,7 @@ function validateIn(
   def: Extract<ColumnFilterDef, { kind: 'enum' }>,
   parts: readonly string[],
 ): string[] | undefined {
-  if (parts.length > FILTER_LIMITS.inMax) return undefined;
+  if (parts.length > FILTER_LIMITS.inMax || parts.some(hasControlChar)) return undefined;
   const allowed = def.options.map((option) => option.value);
   if (allowed.length === 0) return undefined;
   const schema = z.array(z.enum(allowed as [string, ...string[]])).min(1);

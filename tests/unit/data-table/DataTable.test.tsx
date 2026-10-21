@@ -672,3 +672,42 @@ describe('DataTable 저장', () => {
     expect(headers()).toEqual(['판매가', '이름', '역할', '등록일', '관리']);
   });
 });
+
+describe('DataTable 빈 상태 (table-column-filter §2.5-7, A-1 백로그 — 320px 잘림)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('빈 상태는 가로 스크롤 영역의 왼쪽에 고정(sticky)되고 폭 = 스크롤 영역의 보이는 폭', () => {
+    // jsdom 은 레이아웃이 없다 — 스크롤 영역(overflow-x-auto) 보이는 폭 296px(320px 화면 - 여백)을 흉내
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains('overflow-x-auto') ? 296 : 0;
+    });
+    renderTable({ rows: [], empty: <button type="button">필터 초기화</button> });
+    const box = screen.getByTestId('data-table-empty');
+    expect(box).toHaveClass('sticky', 'left-0');
+    expect(box.style.width).toBe('296px');
+    expect(box.closest('td')).toHaveAttribute('colspan', String(DEFAULT_HEADERS.length));
+    expect(within(box).getByRole('button', { name: '필터 초기화' })).toBeInTheDocument();
+  });
+
+  it('측정 전(서버 렌더)에는 폭 지정 없음 — 하이드레이션 불일치 없음, 행이 있으면 빈 상태 없음', () => {
+    const html = renderToString(
+      <DataTable
+        tableId="t"
+        userId="u1"
+        columns={COLUMNS}
+        rows={[]}
+        getRowKey={(r) => r.id}
+        aria-label="테스트 표"
+        empty="없음"
+      />,
+    );
+    expect(html).toContain('data-testid="data-table-empty"');
+    expect(html).not.toMatch(/data-table-empty"[^>]*style=/);
+    renderTable({ empty: '없음' });
+    expect(screen.queryByTestId('data-table-empty')).toBeNull();
+  });
+});

@@ -30,6 +30,10 @@ const EXTENSION_TOKENS = [
   { name: '--slate-600-aa', value: '#6c6b7d', block: '@theme static' },
   { name: '--purple-600', value: '#6c55e0', block: '@theme static' },
   { name: '--green-700', value: '#1e7353', block: '@theme static' },
+  // BL-1 상태 표시 텍스트 AA (운영상태·amber 필·임시 품목상태)
+  { name: '--blue-600', value: '#2563eb', block: '@theme static' },
+  { name: '--gray-600', value: '#6a6d75', block: '@theme static' },
+  { name: '--amber-700', value: '#8f5a00', block: '@theme static' },
 ] as const;
 
 /**

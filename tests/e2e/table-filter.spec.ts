@@ -187,3 +187,40 @@ test('내 견적 목록 모달: 필터는 URL 이 아닌 상태, 모달 안 Esc 
   await modal.getByRole('button', { name: `${quoteNo} 삭제` }).click();
   await expect(page.getByRole('status')).toContainText(`견적을 삭제했습니다: ${quoteNo}`);
 });
+
+test('사용자 표 320px: 결과 없음 빈 상태 문구·[필터 초기화]가 보이는 영역 안, 클릭하면 해제 (§2.5-7, A-1 백로그)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await loginAs(page, FIXTURE_ADMIN, '/admin/users?f.email.has=zzz-bl1-no-match');
+  await expect(chipList(page).getByRole('listitem')).toHaveText([
+    /이메일: "zzz-bl1-no-match" 포함/,
+  ]);
+  const message = usersTable(page).getByText('조건에 맞는 결과가 없습니다');
+  const reset = usersTable(page).getByRole('button', { name: '필터 초기화' });
+  await expect(message).toBeInViewport({ ratio: 1 });
+  await expect(reset).toBeInViewport({ ratio: 1 });
+  // 표 가로 스크롤 영역 안에서도 잘리지 않는다 (스크롤 영역의 보이는 폭 안)
+  const scroller = usersTable(page).locator('xpath=..');
+  const area = (await scroller.boundingBox())!;
+  for (const target of [message, reset]) {
+    const box = (await target.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(area.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(area.x + area.width + 0.5);
+  }
+  await reset.click();
+  await expect(page).not.toHaveURL(/f\.email/);
+  await expect(usersTable(page)).toContainText(FIXTURE_USER);
+  expectNoHydrationErrors(page);
+});
+
+test('사용자 표(클라이언트): 제어 문자 필터 값(f.email.has=%00abc) → 그 조건만 무시, 칩 없음 (BL-1)', async ({
+  page,
+}) => {
+  await loginAs(page, FIXTURE_ADMIN, '/admin/users');
+  const response = await page.goto('/admin/users?f.email.has=%00abc&f.role.in=ADMIN');
+  expect(response?.status()).toBe(200);
+  await expect(chipList(page).getByRole('listitem')).toHaveText([/역할: ADMIN/]);
+  await expect(usersTable(page)).not.toContainText('조건에 맞는 결과가 없습니다');
+  expectNoHydrationErrors(page);
+});

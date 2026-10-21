@@ -9,6 +9,7 @@ import {
   type FilterCondition,
   filterRows,
   groupConditions,
+  hasControlChar,
   isMoneyRangeActive,
   joinInValues,
   matchesFilters,
@@ -16,6 +17,7 @@ import {
   parseFilterParams,
   serializeFilters,
   splitInValues,
+  validateCondition,
   withFilters,
   withFiltersQuery,
   withoutColumn,
@@ -474,5 +476,37 @@ describe('in 값 백슬래시 이스케이프 (스펙 §2.2 개정, Plan §7)', 
     expect(parseFilterParams({ 'f.priceType.in': raw }, longDefs)).toEqual([
       { col: 'priceType', op: 'in', values: [value] },
     ]);
+  });
+});
+
+describe('제어 문자 값 (BL-1, QA #57 백로그 — NUL 값 → 500)', () => {
+  it('hasControlChar: C0(U+0000–U+001F, 탭·줄바꿈 포함)·DEL(U+007F) 만', () => {
+    for (const ch of ['\u0000', '\u0001', '\t', '\n', '\r', '\u001F', '\u007F'])
+      expect(hasControlChar(`a${ch}b`)).toBe(true);
+    for (const value of ['abc', 'a b', '가격', '\u0080', '\u00A0', '—', '\\0', '%00'])
+      expect(hasControlChar(value)).toBe(false);
+  });
+
+  it('URL 코덱: f.<text>.has=%00abc 등 제어 문자 값은 그 조건만 버리고 나머지는 유지', () => {
+    const params = new URLSearchParams(
+      'f.name.has=%00abc&f.name.eq=ok&f.qty.gte=1%7F&f.qty.lte=10&f.status.in=active,%01inactive',
+    );
+    expect(params.get('f.name.has')).toBe('\u0000abc');
+    expect(parseFilterParams(params, DEFS)).toEqual([
+      { col: 'name', op: 'eq', value: 'ok' },
+      { col: 'qty', op: 'lte', value: '10' },
+    ]);
+  });
+
+  it('앞뒤 탭·줄바꿈도 trim 으로 지우지 않고 형식 오류(값 전체를 버림)', () => {
+    for (const value of ['\tabc', 'abc\n', 'a\u0000']) {
+      expect(validateCondition({ col: 'name', op: 'has', value }, DEFS)).toBeUndefined();
+      expect(parseFilterParams({ 'f.name.has': value }, DEFS)).toEqual([]);
+    }
+    expect(validateCondition({ col: 'name', op: 'has', value: ' abc ' }, DEFS)).toEqual({
+      col: 'name',
+      op: 'has',
+      value: 'abc',
+    });
   });
 });

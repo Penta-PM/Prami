@@ -2,6 +2,7 @@ import type { DataTableFilterField } from '@/components/ui/data-table/filter-fie
 import { AUDIT_RESULT_LABELS, formatAuditTarget, type AuditDisplayRow } from '@/lib/audit-format';
 import {
   FILTER_LIMITS,
+  hasControlChar,
   parseFilterParams,
   serializeFilters,
   validateCondition,
@@ -113,9 +114,9 @@ function sortConditions(conds: FilterCondition[]): FilterCondition[] {
   );
 }
 
-/** 행위 값 목록: 쉼표 구분·trim·중복 제거, 값 100자·20개 한도. 선택지 소속은 보지 않는다(모르는 행위 = 결과 없음, 옛 동작과 같음) */
+/** 행위 값 목록: 쉼표 구분·trim·중복 제거, 값 100자·20개 한도, 제어 문자가 있으면 조건 전체를 버림. 선택지 소속은 보지 않는다(모르는 행위 = 결과 없음, 옛 동작과 같음) */
 function parseActions(raw: string | undefined): string[] | undefined {
-  if (raw === undefined) return undefined;
+  if (raw === undefined || hasControlChar(raw)) return undefined;
   const values = [
     ...new Set(
       raw

@@ -1,7 +1,8 @@
 // @vitest-environment node
+import { DrizzleQueryError } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { formatLog, logger, MASK } from '@/server/log';
+import { formatLog, logger, MASK, summarizeQueryError } from '@/server/log';
 import { contextRequestId, withRequestContext } from '@/server/request-context';
 
 const headerState = vi.hoisted(() => ({ requestId: null as string | null, fail: false }));
@@ -90,5 +91,66 @@ describe('inRequestScope (runAction·runRoute 경계)', () => {
   it('요청 밖(headers() 실패)이면 null', async () => {
     headerState.fail = true;
     expect(await inRequestScope(async () => formatLog('info', 'e').requestId)).toBeNull();
+  });
+});
+
+/** BL-1: 원가 비중 실패 로그 축소 — DB 오류는 코드·메시지 첫 줄만, SQL 원문·바인딩 값 없음 */
+describe('summarizeQueryError', () => {
+  const SQL_TEXT =
+    'select "unit_cost" from "material_costs" where "material_code" in ($1, $2) and "unit_cost" >= $3';
+  const PARAMS = ['W1001010015', 'W1001010016', 1234567];
+
+  it('drizzle 오류(Failed query + params) → cause 의 코드·첫 줄만, SQL·값 없음', () => {
+    const cause = Object.assign(
+      new Error('relation "cost_item_links" does not exist\nLINE 1: select ...'),
+      {
+        code: '42P01',
+      },
+    );
+    const error = new DrizzleQueryError(SQL_TEXT, PARAMS, cause);
+    expect(error.message).toContain('W1001010015'); // 재현 조건: 원래 메시지엔 값이 실린다
+    const summary = summarizeQueryError(error);
+    expect(summary).toEqual({
+      code: '42P01',
+      message: 'relation "cost_item_links" does not exist',
+    });
+    const line = JSON.stringify(
+      formatLog('error', 'pricing.cost_ratio_failed', { target: 'getCostRatios', ...summary }),
+    );
+    for (const leaked of [
+      'W1001010015',
+      '1234567',
+      'material_costs',
+      'select',
+      'params',
+      'Failed query',
+      'LINE 1',
+    ])
+      expect(line).not.toContain(leaked);
+    expect(line).toContain('42P01');
+    expect(line).toContain('getCostRatios');
+  });
+
+  it('cause 가 없으면 바깥 메시지에서 Failed query·params 이후를 자른다 (빈 줄이면 오류 이름)', () => {
+    const error = new DrizzleQueryError(SQL_TEXT, PARAMS);
+    expect(summarizeQueryError(error)).toEqual({ code: null, message: 'Error' });
+    expect(summarizeQueryError(new Error('boom params: [W1001010015]'))).toEqual({
+      code: null,
+      message: 'boom',
+    });
+  });
+
+  it('값이 섞인 pg 메시지의 숫자열(금액·자재번호)은 # 로, 코드는 SQLSTATE 형식만', () => {
+    const cause = Object.assign(new Error('invalid input syntax for type numeric: "1234567"'), {
+      code: '22P02',
+    });
+    expect(summarizeQueryError({ cause })).toEqual({
+      code: '22P02',
+      message: 'invalid input syntax for type numeric: "#"',
+    });
+    expect(
+      summarizeQueryError(Object.assign(new Error('key W1001010015 exists'), { code: { x: 1 } })),
+    ).toEqual({ code: null, message: 'key W# exists' });
+    expect(summarizeQueryError('not an error')).toEqual({ code: null, message: 'string' });
   });
 });
