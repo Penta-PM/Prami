@@ -145,10 +145,11 @@ test('ADMIN: 칸 클릭 → 모달 → 자재 확정 → 모달 닫힘·안내·
   );
   expect(await modal(page).innerText()).not.toContain(fixture.unitCost.toLocaleString('ko-KR'));
 
-  await modal(page).getByRole('searchbox', { name: '자재명·자재번호 검색' }).fill(MATERIAL);
+  await modal(page).getByRole('combobox', { name: '자재명·자재번호 검색' }).fill(MATERIAL);
   await modal(page)
     .getByRole('listbox', { name: /원가 자재/ })
-    .selectOption(MATERIAL);
+    .getByRole('option', { name: new RegExp(MATERIAL) })
+    .click();
   await modal(page).getByRole('button', { name: '확정' }).click();
   await expect(modal(page)).toHaveCount(0);
 

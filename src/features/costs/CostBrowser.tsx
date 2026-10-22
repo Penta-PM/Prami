@@ -143,7 +143,7 @@ export function CostBrowser({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <DataTableQuickFilterBar
-          className="min-w-0 flex-1"
+          className="w-full min-w-0 xl:w-auto xl:flex-1"
           mode="server"
           fields={filterFields}
           filters={columnFilters}
@@ -156,7 +156,8 @@ export function CostBrowser({
           flush={{ path: COSTS_PATH, apply: withColumnFilterParams }}
           leading={leading}
         />
-        <div className="flex items-center gap-2">
+        {/* 바 옆 버튼 묶음 — 좁으면 다른 줄로(§7.1 A3) */}
+        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
           <DataTableResetButton tableId={COSTS_TABLE_ID} userId={userId} columns={columns} />
           <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
             + 등록

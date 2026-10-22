@@ -47,7 +47,12 @@ export function CostFilters({ filter, errors, families, years }: CostFiltersProp
       <FamilyTabs filter={filter} families={families} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <DateControls filter={filter} errors={errors} years={years} onChange={go} />
-        <form role="search" aria-label="원가 검색" onSubmit={submitSearch} className="w-[240px]">
+        <form
+          role="search"
+          aria-label="원가 검색"
+          onSubmit={submitSearch}
+          className="w-full sm:w-[260px]"
+        >
           <Input
             type="search"
             name="q"
@@ -71,7 +76,7 @@ function FamilyTabs({ filter, families }: Pick<CostFiltersProps, 'filter' | 'fam
     ...families.map((tab) => ({ ...tab, label: tab.family })),
   ];
   return (
-    <nav aria-label="제품군" className="flex gap-1.5 border-b border-border-subtle">
+    <nav aria-label="제품군" className="flex gap-1.5 overflow-x-auto border-b border-border-subtle">
       {tabs.map((tab) => {
         const active = (filter.family ?? '') === tab.family;
         return (
@@ -80,7 +85,7 @@ function FamilyTabs({ filter, families }: Pick<CostFiltersProps, 'filter' | 'fam
             href={`${COSTS_PATH}${costFilterToQuery({ ...filter, family: tab.family || undefined, page: 1 })}`}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              '-mb-px border-b-2 px-3.5 py-2.5 text-[13px] no-underline hover:no-underline',
+              '-mb-px shrink-0 border-b-2 px-3.5 py-2.5 text-[13px] whitespace-nowrap no-underline hover:no-underline',
               active
                 ? 'border-ink-900 font-semibold text-ink-900'
                 : 'border-transparent font-medium text-text-tertiary hover:text-ink-900',

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useId, useMemo, useState, useTransition, type FormEvent } from 'react';
 
 import { Presence } from '@/components/motion/Presence';
-import { Button, Input, Modal, Segmented } from '@/components/ui';
+import { Button, Checkbox, Input, Modal, Segmented } from '@/components/ui';
 import { DataTable, type DataTableColumn } from '@/components/ui/data-table';
 import { formatAuditTime } from '@/lib/audit-format';
 import { cn } from '@/lib/cn';
@@ -179,10 +179,13 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
             id: 'select',
             label: '선택',
             header: (
-              <input
-                type="checkbox"
+              <Checkbox
+                size="sm"
                 aria-label="보이는 제안 전체 선택"
                 checked={allVisibleSelected}
+                indeterminate={
+                  !allVisibleSelected && visibleSelectable.some((row) => selected.has(row.itemCode))
+                }
                 disabled={visibleSelectable.length === 0 || isPending}
                 onChange={toggleAllVisible}
               />
@@ -195,8 +198,8 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
             cellClassName: CELL_CLASS,
             cell: (row: CostLinkCandidate) =>
               selectable(row) ? (
-                <input
-                  type="checkbox"
+                <Checkbox
+                  size="sm"
                   aria-label={`${row.itemName} 선택`}
                   checked={selected.has(row.itemCode)}
                   disabled={isPending}
@@ -348,8 +351,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
           onChange={setFamily}
         />
         <label className="flex items-center gap-2 text-[13px] font-medium text-text-secondary">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={unlinkedOnly}
             onChange={(event) => setUnlinkedOnly(event.target.checked)}
           />
@@ -364,7 +366,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
           placeholder="품목코드·품목명 검색"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          wrapperClassName="w-[240px]"
+          wrapperClassName="w-full sm:w-[240px]"
         />
       </div>
 
@@ -585,7 +587,13 @@ function MaterialPickerModal({
         <p className="m-0">
           <strong className="text-ink-900">{row.itemName}</strong> ({row.itemCode})
         </p>
-        <CostLinkPicker materials={materials} chosen={chosen} onChosenChange={setChosen} />
+        <CostLinkPicker
+          materials={materials}
+          chosen={chosen}
+          onChosenChange={setChosen}
+          currentCode={row.link?.materialCode ?? null}
+          suggestedCode={row.suggestion?.materialCode ?? null}
+        />
         {error ? (
           <p role="alert" className="m-0 text-[12px] text-red-600">
             {error}

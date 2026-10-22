@@ -284,7 +284,7 @@ function PopoverPanel({
         close();
       }}
       className={cn(
-        'fixed z-40 max-h-[calc(100vh-32px)] w-[min(320px,calc(100vw-32px))] overflow-auto rounded-xl bg-surface-card p-4 text-ink-900 shadow-(--shadow-elevated) outline-none',
+        'fixed z-40 max-h-[calc(100vh-32px)] w-[min(320px,calc(100vw-32px))] overflow-x-hidden overflow-y-auto rounded-xl bg-surface-card p-4 text-ink-900 shadow-(--shadow-elevated) outline-none',
         !isPresent && 'pointer-events-none',
         className,
       )}

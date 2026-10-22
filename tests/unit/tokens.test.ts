@@ -195,3 +195,33 @@ describe('빨간 오류·삭제 글자 대비 (BL-3)', () => {
     expect(hits).toEqual([]);
   });
 });
+
+describe('공용 Checkbox·드롭다운 행·피커 대비 (빠른 필터 바 디자인 보정 §7.3·§7.4)', () => {
+  const white = [255, 255, 255];
+
+  it('Checkbox 테두리 slate-600-aa 는 흰색·gray-75·선택 행(purple-600/8) 위 3:1 이상 — border-default 는 미달이라 쓰지 않는다', () => {
+    const border = hex('--slate-600-aa');
+    const gray75 = hex('--gray-75');
+    const selectedRow = over(hex('--purple-600'), white, 0.08);
+    for (const [label, bg] of Object.entries({ white, gray75, selectedRow })) {
+      expect(contrast(border, bg), `slate-600-aa on ${label}`).toBeGreaterThanOrEqual(3);
+    }
+    expect(contrast(hex('--gray-150'), white)).toBeLessThan(3);
+  });
+
+  it('checked 배경 purple-600: 흰 체크 4.5:1 이상, 흰·gray-75 배경 위 상자 3:1 이상. focus 링 purple-500 3:1 이상', () => {
+    const purple = hex('--purple-600');
+    expect(contrast(white, purple)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(purple, hex('--gray-75'))).toBeGreaterThanOrEqual(3);
+    expect(contrast(hex('--purple-500'), white)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('선택 행(purple-600/8) 위 글자: ink-900·보조(slate-600-aa) 4.5:1 이상, [제안] 배지(purple-600 on purple-600/10) 4.5:1 이상', () => {
+    const selectedRow = over(hex('--purple-600'), white, 0.08);
+    expect(contrast(hex('--ink-900'), selectedRow)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(hex('--slate-600-aa'), selectedRow)).toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrast(hex('--purple-600'), over(hex('--purple-600'), white, 0.1)),
+    ).toBeGreaterThanOrEqual(4.5);
+  });
+});

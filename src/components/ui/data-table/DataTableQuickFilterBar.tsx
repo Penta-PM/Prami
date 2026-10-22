@@ -371,14 +371,14 @@ export function DataTableQuickFilterBar<T>({
             }}
           />
         ) : (
-          <div className="flex flex-col gap-1">
-            <p className="m-0 mb-1 text-[12px] font-semibold text-text-secondary">필터할 열</p>
+          <div className="flex flex-col gap-0.5">
+            <p className="m-0 mb-2 text-[12px] font-semibold text-text-secondary">필터할 열</p>
             {more.map((field) => (
               <button
                 key={field.id}
                 type="button"
                 onClick={() => setOpened({ id: field.id, via: 'more' })}
-                className="flex w-full items-center justify-between rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-ink-900 hover:bg-gray-75 focus-visible:outline-2 focus-visible:outline-purple-500"
+                className="flex min-h-10 w-full min-w-0 items-center justify-between rounded-lg border-0 bg-transparent px-2.5 py-2 text-left text-[13px] break-words text-ink-900 hover:bg-gray-75 focus-visible:outline-2 focus-visible:outline-purple-500"
               >
                 {field.label}
               </button>
@@ -410,7 +410,7 @@ export function DataTableQuickFilterBar<T>({
       ) : null}
 
       {note || count || pending ? (
-        <span className="ml-auto inline-flex items-center gap-2 text-[12px] text-text-tertiary max-sm:w-full max-sm:justify-end">
+        <span className="ml-auto inline-flex min-w-0 flex-wrap items-center justify-end gap-2 text-[12px] text-text-tertiary max-sm:w-full">
           {note ? <span>{note}</span> : null}
           {pending ? (
             <span

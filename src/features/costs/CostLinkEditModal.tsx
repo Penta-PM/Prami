@@ -177,6 +177,8 @@ export function CostLinkEditModal({ itemCode, onClose, onSaved }: CostLinkEditMo
                 materials={state.data.materials}
                 chosen={chosen}
                 onChosenChange={setChosen}
+                currentCode={state.data.link?.materialCode ?? null}
+                suggestedCode={state.data.suggestion?.materialCode ?? null}
                 disabled={pending}
               />
               <p className="m-0 text-[12px] text-text-secondary">

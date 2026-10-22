@@ -4,7 +4,7 @@ import { m, useIsPresent } from 'motion/react';
 import type { ReactNode } from 'react';
 
 import { Presence } from '@/components/motion/Presence';
-import { Input } from '@/components/ui';
+import { Checkbox, Input } from '@/components/ui';
 import { VARIANT_KEYS, scaleIn, transition } from '@/lib/motion/tokens';
 import { formatAmount, priceLabel } from '@/lib/pricing/format';
 import { rateFromTarget } from '@/lib/pricing/quote';
@@ -242,8 +242,7 @@ export function StepOptions({
             className="flex items-center justify-between rounded-[10px] px-3.5 py-3 text-[13px] font-medium shadow-(--hairline-subtle)"
           >
             <span className="flex items-center gap-2.5">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={checked.has(option.itemCode)}
                 onChange={(event) => onToggle(option.itemCode, event.target.checked)}
               />

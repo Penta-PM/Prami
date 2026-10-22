@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Select } from '@/components/ui';
+import { Button, Checkbox, Select } from '@/components/ui';
 import { priceLabel } from '@/lib/pricing/format';
 import { groupSubtotal } from '@/lib/pricing/quote';
 
@@ -138,8 +138,7 @@ export function GroupSolution({
                   className="flex items-center justify-between gap-3 rounded-[10px] px-3 py-2 text-[12px] font-medium shadow-(--hairline-subtle)"
                 >
                   <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={state.checked}
                       onChange={(event) => update(item.itemCode, { checked: event.target.checked })}
                     />

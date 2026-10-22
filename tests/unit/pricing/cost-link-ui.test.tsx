@@ -238,7 +238,7 @@ describe('칸 클릭 → 매핑 수정 모달 (§2.1-6·§2.3)', () => {
       '/admin/costs/links',
     );
     expect(
-      within(dialog()).getByRole('searchbox', { name: '자재명·자재번호 검색' }),
+      within(dialog()).getByRole('combobox', { name: '자재명·자재번호 검색' }),
     ).toBeInTheDocument();
     expect(dialog()).not.toHaveTextContent(/원가 금액|단가|원$/);
 
@@ -254,10 +254,22 @@ describe('칸 클릭 → 매핑 수정 모달 (§2.1-6·§2.3)', () => {
     render(<PricingBrowser {...BROWSER} costLinkEditable />);
     await userEvent.click(trigger());
     const select = await within(dialog()).findByRole('listbox', { name: /원가 자재/ });
-    expect(select).toHaveValue('W1700');
+    expect(within(select).getByRole('option', { selected: true })).toHaveAttribute(
+      'data-material-code',
+      'W1700',
+    );
+    // 현재 매핑·제안 배지 (§7.4) — 이 품목은 둘 다 W1700
+    const current = within(select).getByRole('option', { selected: true });
+    expect(within(current).getByText('현재')).toBeInTheDocument();
+    expect(within(current).getByText('제안')).toBeInTheDocument();
     const confirm = within(dialog()).getByRole('button', { name: '확정' });
     expect(confirm).toBeDisabled();
-    await userEvent.selectOptions(select, 'W2600');
+    // Enter 는 모달 폼을 제출하지 않는다 — 활성 행 선택만
+    within(dialog()).getByRole('combobox', { name: '자재명·자재번호 검색' }).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(mocks.confirm).not.toHaveBeenCalled();
+    expect(dialog()).toBeInTheDocument();
+    await userEvent.click(within(select).getByRole('option', { name: /W2600/ }));
     expect(confirm).toBeEnabled();
     await userEvent.click(confirm);
     expect(mocks.confirm).toHaveBeenCalledWith({
@@ -276,7 +288,10 @@ describe('칸 클릭 → 매핑 수정 모달 (§2.1-6·§2.3)', () => {
     const { unmount } = render(<PricingBrowser {...BROWSER} costLinkEditable />);
     await userEvent.click(trigger('Wapples-4600'));
     const select = await within(dialog()).findByRole('listbox', { name: /원가 자재/ });
-    expect(select).toHaveValue('W1700');
+    expect(within(select).getByRole('option', { selected: true })).toHaveAttribute(
+      'data-material-code',
+      'W1700',
+    );
     expect(within(dialog()).getByRole('button', { name: '확정' })).toBeEnabled();
     expect(within(dialog()).queryByRole('button', { name: '매핑 해제' })).toBeNull();
     unmount();
@@ -345,9 +360,11 @@ describe('칸 클릭 → 매핑 수정 모달 (§2.1-6·§2.3)', () => {
     });
     render(<PricingBrowser {...BROWSER} costLinkEditable />);
     await userEvent.click(trigger());
-    await userEvent.selectOptions(
-      await within(dialog()).findByRole('listbox', { name: /원가 자재/ }),
-      'W2600',
+    await userEvent.click(
+      within(await within(dialog()).findByRole('listbox', { name: /원가 자재/ })).getByRole(
+        'option',
+        { name: /W2600/ },
+      ),
     );
     await userEvent.click(within(dialog()).getByRole('button', { name: '확정' }));
     expect(await within(dialog()).findByRole('alert')).toHaveTextContent(
