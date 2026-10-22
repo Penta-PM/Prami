@@ -20,6 +20,10 @@ import {
   MAX_ITEM_TOTAL_BYTES,
   TOO_LARGE_ITEM_TOTAL_MESSAGE,
 } from '@/lib/constants/upload-limits';
+import {
+  COST_LINK_FILE_MISUPLOAD_MESSAGE,
+  looksLikeCostLinkFile,
+} from '@/lib/imports/cost-link-file';
 import { EMPTY_DUPLICATE_WARNINGS } from '@/lib/imports/duplicates';
 import { AppError } from '@/lib/result';
 import { writeAudit } from '@/server/audit/log';
@@ -37,7 +41,7 @@ import {
 } from './item-checks';
 import { STAGE_CHUNK_SIZE } from './kinds';
 import { MAX_STORED_ERRORS, parseSheet, type ParseOutcome } from './parse-sheet';
-import { readWorkbook, WorkbookReadError } from './parse-xlsx';
+import { readWorkbook, WorkbookReadError, type Worksheet } from './parse-xlsx';
 import { ITEM_SPEC, type ItemRow } from './schemas/items';
 import {
   AUDIT_IMPORT_UPLOAD,
@@ -73,9 +77,21 @@ function fileError(name: string, error: ImportRowError): ImportRowError {
   return { ...error, file: name };
 }
 
+/**
+ * 품목-원가 매칭 파일(품목조회(추가정보))을 품목상태 칸에 올린 경우 (erp-upload-guide §6.2-7): 헤더가 품목조회와 겹쳐
+ * 통과할 수 있으므로 파싱 전에 거부한다 — 배치·스테이징을 만들지 않아 행 원문이 남지 않는다.
+ */
+function rejectCostLinkFile(sheets: readonly Worksheet[]): void {
+  if (sheets.some((sheet) => looksLikeCostLinkFile(sheet.rows))) {
+    throw new AppError('VALIDATION', COST_LINK_FILE_MISUPLOAD_MESSAGE);
+  }
+}
+
 async function parseFile(file: ItemFileInput): Promise<ParseOutcome<ItemRow>> {
   try {
-    return parseSheet(ITEM_SPEC, await readWorkbook(file.bytes));
+    const sheets = await readWorkbook(file.bytes);
+    rejectCostLinkFile(sheets);
+    return parseSheet(ITEM_SPEC, sheets);
   } catch (error) {
     if (!(error instanceof WorkbookReadError)) throw error;
     return {
