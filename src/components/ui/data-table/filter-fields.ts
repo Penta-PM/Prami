@@ -5,6 +5,7 @@ import {
   type FilterAccessorValue,
   type FilterCondition,
 } from '@/lib/table/filter';
+import type { MoneyRange } from '@/lib/table/money-range';
 
 import type { DataTableColumn } from './types';
 
@@ -20,6 +21,12 @@ export type DataTableFilterField<T> = {
   value: (row: T) => FilterAccessorValue;
   /** 빠른 필터 바 고정 필드 (§2.2) — 항상 버튼으로 보인다. 없으면 "＋ N개 더" 안(조건이 걸리면 바에 나타남) */
   quick?: boolean;
+  /**
+   * money 슬라이더 범위 — 통화별 표 전체 최소·최대 (빠른 필터 바 §7.5). 화면 전용(화이트리스트 ColumnFilterDef 에 넣지 않음).
+   * 가격은 서버 listPriceCurrencyRanges, 원가는 원가 화면 props(listCostCurrencyRanges), 내 견적 목록은 브라우저에서 행으로 계산.
+   * 없으면 슬라이더 대신 "범위를 알 수 없습니다" 문구
+   */
+  ranges?: readonly MoneyRange[];
 };
 
 /** 라이브 영역·칩에 쓰는 열 이름 — DataTable 의 columnLabel 과 같은 규칙 */

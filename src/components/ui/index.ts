@@ -21,6 +21,12 @@ export { Input, type InputProps } from './input';
 export { CloseButton, Modal, type ModalProps, type ModalSize } from './modal';
 export { Popover, type PopoverAlign, type PopoverProps } from './popover';
 export { Pill, type PillProps, type PillTone } from './pill';
+export {
+  RangeSlider,
+  RANGE_SLIDER_PAGE,
+  type RangeSliderProps,
+  type RangeSliderValue,
+} from './range-slider';
 export { Select } from './select';
 export { Segmented, type SegmentedOption, type SegmentedProps } from './segmented';
 export { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from './table';

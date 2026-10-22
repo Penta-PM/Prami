@@ -17,6 +17,7 @@ import { NOTICES_ADMIN_FILTER_DEFS } from '@/features/notices/table-state';
 import { PARTS_MAPPING_FILTER_DEFS } from '@/features/parts/table-state';
 import { PRICE_FILTER_IDS } from '@/features/pricing/column-filters';
 import { USERS_FILTER_DEFS } from '@/features/users/table-state';
+import type { FilterCondition } from '@/lib/table/filter';
 
 /** 빠른 필터 바 공용 헬퍼 (표 열 필터 빠른 필터 바 §2.1·§2.2·§2.3) */
 type Row = { id: string };
@@ -183,8 +184,27 @@ describe('summarizeField (버튼 요약·접근성 이름)', () => {
     const range = { col: 'price', op: 'gte', value: '1000' } as const;
     expect(
       summarizeField(PRICE, [{ col: 'currency', op: 'in', values: ['KRW'] }, range])?.text,
-    ).toBe('KRW ≥ 1,000');
+    ).toBe('KRW ₩1,000 이상');
     expect(summarizeField(PRICE, [range])?.text).toBe('≥ 1,000 (통화 선택 시 적용)');
+  });
+
+  it('money 칩은 compact(만·억), 접근성 이름(full)은 전체 금액 — §7.5 "단가: KRW ₩130만 이상"', () => {
+    const krw: FilterCondition = { col: 'currency', op: 'in', values: ['KRW'] };
+    expect(summarizeField(PRICE, [krw, { col: 'price', op: 'gte', value: '1300000' }])).toEqual({
+      text: 'KRW ₩130만 이상',
+      full: 'KRW ₩1,300,000 이상',
+    });
+    expect(summarizeField(PRICE, [krw, { col: 'price', op: 'lte', value: '1650000000' }])).toEqual({
+      text: 'KRW ₩16.5억 이하',
+      full: 'KRW ₩1,650,000,000 이하',
+    });
+    expect(
+      summarizeField(PRICE, [
+        { col: 'currency', op: 'in', values: ['USD'] },
+        { col: 'price', op: 'gte', value: '1300' },
+        { col: 'price', op: 'lte', value: '5000' },
+      ])?.text,
+    ).toBe('USD $1.3K ~ $5K');
   });
 });
 

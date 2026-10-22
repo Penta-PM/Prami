@@ -24,6 +24,9 @@ import { splitQuickFields, summarizeField } from './quick-filters';
 /** 서버 표 enum 즉시 적용의 디바운스(ms) — 마지막 체크 후 이 시간 동안 더 바뀌지 않으면 이동 요청 1회 (§2.3) */
 export const SERVER_ENUM_DEBOUNCE_MS = 400;
 
+/** money 슬라이더 확정의 디바운스(ms) — 손을 뗀 뒤(pointerup·keyup·blur) 이 시간 동안 더 움직이지 않으면 적용 (§7.5). 클라이언트·서버 표 공통 */
+export const MONEY_RANGE_DEBOUNCE_MS = 400;
+
 export type DataTableQuickFilterBarProps<T> = {
   /** 필터할 수 있는 필드(열 정의 순서). quick: true 인 필드가 고정 버튼(filterFieldsOf·withQuickFields) */
   fields: readonly DataTableFilterField<T>[];
@@ -212,9 +215,8 @@ export function DataTableQuickFilterBar<T>({
     onChangeRef.current(ordered);
   };
 
-  /** enum 체크 — 클라이언트 표는 즉시, 서버 표는 마지막 토글 후 디바운스 */
-  const toggle = (next: readonly FilterCondition[]) => {
-    if (mode === 'client') return send(next);
+  /** 디바운스 후 보낸다 — 대기 조건(R1)·flush 경로는 같다. 기다리는 동안 버튼 요약은 staged 를 먼저 보인다 */
+  const stage = (next: readonly FilterCondition[], delay: number) => {
     const ordered = order(next);
     setTrack((prev) => ({ ...prev, staged: ordered }));
     clearTimer();
@@ -228,8 +230,12 @@ export function DataTableQuickFilterBar<T>({
         pending: requestFilters(prev.pending, ordered),
       }));
       onChangeRef.current(ordered);
-    }, SERVER_ENUM_DEBOUNCE_MS);
+    }, delay);
   };
+
+  /** enum 체크 — 클라이언트 표는 즉시, 서버 표는 마지막 토글 후 디바운스 */
+  const toggle = (next: readonly FilterCondition[]) =>
+    mode === 'client' ? send(next) : stage(next, SERVER_ENUM_DEBOUNCE_MS);
 
   const find = (target: string): HTMLElement | null => {
     const root = rootRef.current;
@@ -364,6 +370,8 @@ export function DataTableQuickFilterBar<T>({
             fields={fields}
             filters={effective}
             onToggle={toggle}
+            // money 슬라이더: 손을 뗀 뒤 디바운스, 팝오버는 열어 둔다 (§7.5 — §6 의 "범위 적용 후 닫힘"을 money 에 한해 개정)
+            onStage={(next) => stage(next, MONEY_RANGE_DEBOUNCE_MS)}
             onApply={(next) => {
               send(next);
               close();

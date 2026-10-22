@@ -21,6 +21,7 @@ import {
 } from '@/features/pricing/column-filters';
 import type { PriceFilter, PriceSortId } from '@/features/pricing/filter';
 import { STATUS_ORDERS, type SortDir } from '@/lib/table/compare';
+import { toMoneyRange, type MoneyRange } from '@/lib/table/money-range';
 import { productFamilyMajors } from '@/lib/constants/product-cards';
 import { ITEM_STATUS_UNKNOWN } from '@/lib/constants/item-status';
 
@@ -395,14 +396,30 @@ export async function getPriceRowsFullWindow(db: Db, filter: PriceFilter): Promi
   return { rows: await selectFullWindowPage(db, filter, where, offset), ...paging };
 }
 
-/** 통화 열 필터 선택지: 데이터에 있는 통화 코드 (삭제 제외, 오름차순) */
-export async function listPriceCurrencies(db: Db): Promise<string[]> {
+/**
+ * 통화 열 필터 선택지 + 판매가 슬라이더 범위 (빠른 필터 바 §7.5): 데이터에 있는 통화 코드별 표 전체 최소·최대·0 초과 최소
+ * (삭제 제외, 통화 오름차순). 다른 필터와 무관한 안정 범위 — 같은 스캔(group by 통화) 하나로 선택지와 범위를 함께 읽는다.
+ */
+export async function listPriceCurrencyRanges(db: Db): Promise<MoneyRange[]> {
   const rows = await db
-    .selectDistinct({ currency: sql<string>`${salesPrices.currency}::text` })
+    .select({
+      currency: sql<string>`${salesPrices.currency}::text`,
+      min: sql<string>`min(${salesPrices.unitPrice})::text`,
+      max: sql<string>`max(${salesPrices.unitPrice})::text`,
+      minPositive: sql<
+        string | null
+      >`(min(${salesPrices.unitPrice}) filter (where ${salesPrices.unitPrice} > 0))::text`,
+    })
     .from(salesPrices)
     .where(isNull(salesPrices.deletedAt))
+    .groupBy(salesPrices.currency)
     .orderBy(sql`1`);
-  return rows.map((row) => row.currency);
+  return rows.map(toMoneyRange);
+}
+
+/** 통화 열 필터 선택지만 (조회 상태 정규화 등) — listPriceCurrencyRanges 의 통화 코드 */
+export async function listPriceCurrencies(db: Db): Promise<string[]> {
+  return (await listPriceCurrencyRanges(db)).map((range) => range.currency);
 }
 
 /**

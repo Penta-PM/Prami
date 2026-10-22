@@ -13,12 +13,14 @@ import {
   DataTableResetButton,
   QUICK_FILTER_FIELDS,
   withColumnFilterParams,
+  withMoneyRanges,
   withQuickFields,
   type DataTableColumn,
   type DataTableSort,
 } from '@/components/ui/data-table';
 import { navigateView } from '@/lib/page-state/view-navigation';
 import type { FilterCondition } from '@/lib/table/filter';
+import type { MoneyRange } from '@/lib/table/money-range';
 import { parseSortParams } from '@/lib/table/sort-param';
 import { OperationStatus } from '@/features/pricing/cells';
 import { cn } from '@/lib/cn';
@@ -84,6 +86,11 @@ type CostBrowserProps = {
   total?: number;
   /** 통화 열 필터 선택지 (데이터에 있는 통화 코드) */
   currencies?: readonly string[];
+  /**
+   * 원가 슬라이더 범위 — 통화별 표 전체 최소·최대 (서버 listCostCurrencyRanges, cost.read — 빠른 필터 바 §7.5).
+   * 원가 화면 props 로만 내려온다(공용 필드 정의·가격 화면에는 없다). 없으면 슬라이더 대신 문구
+   */
+  costRanges?: readonly MoneyRange[];
   /** 열 너비·순서 저장 키 (#32 스펙 §5) */
   userId: string;
   /** 기존 페이지 필터(제품군 탭·기간·검색 — CostFilters). 빠른 필터 바와 같은 카드 안, 바 위 (빠른 필터 바 §2.5) */
@@ -98,6 +105,7 @@ export function CostBrowser({
   filter,
   total = rows.length,
   currencies = NO_CURRENCIES,
+  costRanges,
   userId,
   leading,
 }: CostBrowserProps) {
@@ -128,10 +136,10 @@ export function CostBrowser({
     go({ ...filter, sort: urlSort(next, COST_SORT_IDS), page: 1 });
 
   // 열 필터 (표 열 필터 스펙 §2) — 기존 필터·정렬은 그대로, 1페이지로. 고정 필드 = 통화·원가·상태 (빠른 필터 바 §2.2)
-  const filterFields = useMemo(
-    () => withQuickFields(costFilterFields(currencies), QUICK_FILTER_FIELDS.costs),
-    [currencies],
-  );
+  const filterFields = useMemo(() => {
+    const fields = withQuickFields(costFilterFields(currencies), QUICK_FILTER_FIELDS.costs);
+    return costRanges ? withMoneyRanges(fields, 'cost', costRanges) : fields;
+  }, [currencies, costRanges]);
   const columnFilters = filter.filters ?? [];
   const changeFilters = (next: readonly FilterCondition[]) =>
     go({ ...filter, filters: [...next], page: 1 }, 'replace');

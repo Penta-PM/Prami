@@ -62,6 +62,7 @@ function EditorHarness({ field = STATUS }: { field?: DataTableFilterField<Row> }
         filters={filters}
         onToggle={setFilters}
         onApply={setFilters}
+        onStage={setFilters}
       />
       <output data-testid="filters">{JSON.stringify(filters)}</output>
     </>

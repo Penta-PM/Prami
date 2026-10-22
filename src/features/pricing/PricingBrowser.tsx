@@ -19,12 +19,14 @@ import {
   DataTableResetButton,
   QUICK_FILTER_FIELDS,
   withColumnFilterParams,
+  withMoneyRanges,
   withQuickFields,
   type DataTableSort,
 } from '@/components/ui/data-table';
 import { CostLinkEditModal, type CostLinkSaved } from '@/features/costs/CostLinkEditModal';
 import { navigateView } from '@/lib/page-state/view-navigation';
 import type { FilterCondition } from '@/lib/table/filter';
+import type { MoneyRange } from '@/lib/table/money-range';
 import { parseSortParams } from '@/lib/table/sort-param';
 
 import { getPriceRowDetailAction } from './actions';
@@ -193,6 +195,8 @@ type PricingBrowserProps = {
   total?: number;
   /** 통화 열 필터 선택지 (데이터에 있는 통화 코드). 없으면 통화·판매가 범위를 고를 수 없다 */
   currencies?: readonly string[];
+  /** 판매가 슬라이더 범위 — 통화별 표 전체 최소·최대 (서버 listPriceCurrencyRanges, 빠른 필터 바 §7.5). 없으면 슬라이더 대신 문구 */
+  currencyRanges?: readonly MoneyRange[];
   /** 단가 유형 열 필터 선택지 (데이터 distinct, 빈 값은 PRICE_TYPE_NONE). 없으면 단가 유형을 고를 수 없다 */
   priceTypes?: readonly string[];
   /** 열 너비·순서 저장 키 (#32 스펙 §5) */
@@ -230,6 +234,7 @@ export function PricingBrowser({
   filter,
   total = rows.length,
   currencies = NO_OPTIONS,
+  currencyRanges,
   priceTypes = NO_OPTIONS,
   userId,
   costRatios,
@@ -263,14 +268,13 @@ export function PricingBrowser({
     go({ ...filter, sort: urlSort(next, priceSortIds(priceChange)), page: 1 });
 
   // 열 필터 (표 열 필터 스펙 §2) — 기존 필터·정렬은 그대로, 1페이지로. 고정 필드 = 단가 유형·상태·단가 (빠른 필터 바 §2.2)
-  const filterFields = useMemo(
-    () =>
-      withQuickFields(
-        priceFilterFields(currencies, priceTypes, { withPriceChange: priceChange }),
-        QUICK_FILTER_FIELDS.pricing,
-      ),
-    [currencies, priceTypes, priceChange],
-  );
+  const filterFields = useMemo(() => {
+    const fields = withQuickFields(
+      priceFilterFields(currencies, priceTypes, { withPriceChange: priceChange }),
+      QUICK_FILTER_FIELDS.pricing,
+    );
+    return currencyRanges ? withMoneyRanges(fields, 'price', currencyRanges) : fields;
+  }, [currencies, currencyRanges, priceTypes, priceChange]);
   const columnFilters = filter.filters ?? [];
   const changeFilters = (next: readonly FilterCondition[]) =>
     go({ ...filter, filters: [...next], page: 1 }, 'replace');

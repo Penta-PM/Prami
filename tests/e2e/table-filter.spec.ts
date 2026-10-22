@@ -5,7 +5,7 @@ import { expectNoHydrationErrors, FIXTURE_ADMIN, FIXTURE_USER, loginAs } from '.
 
 /**
  * 표 열 필터 A-1 (docs/specs/table-column-filter.md §2.5·§4) + 빠른 필터 바 PR-2 (table-filter-quickbar §2) —
- * 사용자 표 + 내 견적 목록 모달. 고정 필드 버튼 → 편집기 바로(열 선택 단계 없음), 고정 아닌 필드는 "＋ N개 더",
+ * 사용자 표 + 내 견적 목록 모달(금액 슬라이더 §7.5 포함). 고정 필드 버튼 → 편집기 바로(열 선택 단계 없음), 고정 아닌 필드는 "＋ N개 더",
  * enum 체크 즉시 적용, 키보드만으로 열기·적용, URL f.* 반영(router.replace)·새로고침 유지, 필드 버튼 × 해제,
  * 필터 초기화, axe, 모달 안 Esc. 별도 '적용된 필터' 칩 줄은 없다(필드 버튼이 곧 칩).
  */
@@ -249,4 +249,63 @@ test('사용자 표(클라이언트): 제어 문자 필터 값(f.email.has=%00ab
   await expect(activeFields(page)).toHaveText([/역할: ADMIN/]);
   await expect(usersTable(page)).not.toContainText('조건에 맞는 결과가 없습니다');
   expectNoHydrationErrors(page);
+});
+
+test('내 견적 목록 모달 금액 슬라이더(§7.5): 숫자 입력 없음, 통화 라디오 → 상한 Home(최소 금액) → 그 금액 이하만, URL 변화 없음', async ({
+  page,
+}) => {
+  await loginAs(page, FIXTURE_USER, '/calculator');
+  // 금액이 다른 견적 2건 — 금액이 하나뿐이면 슬라이더 대신 "값이 하나뿐입니다" 가 나온다(§7.5)
+  const saved: string[] = [];
+  for (const quantityUp of [0, 2]) {
+    await page.getByRole('list', { name: '품목 목록' }).getByRole('button').first().click();
+    for (let i = 0; i < quantityUp; i += 1) {
+      await page.getByRole('button', { name: '수량 증가' }).click();
+    }
+    await page.getByRole('button', { name: /장바구니에 담기 \(/ }).click();
+    await page.getByRole('button', { name: '견적 저장' }).click();
+    const status = page.getByRole('status').filter({ hasText: '견적을 저장했습니다' });
+    await expect(status).toContainText(/Q-\d{4}-/);
+    saved.push(((await status.innerText()).match(/Q-\d{4}-\d+/) ?? [''])[0]);
+    await page.getByRole('button', { name: '견적 초기화' }).click();
+  }
+  await page.getByRole('button', { name: '전체보기' }).click();
+  const modal = page.getByRole('dialog', { name: '내 견적 목록' });
+  await expect(modal).toBeVisible();
+  const urlBefore = page.url();
+
+  await modal.getByRole('button', { name: /^＋ \d+개 더$/ }).click();
+  await page
+    .getByRole('dialog', { name: '필터 더 보기' })
+    .getByRole('button', { name: '금액' })
+    .click();
+  const dialog = page.getByRole('dialog', { name: '금액 필터' });
+  await expect(dialog.getByRole('textbox')).toHaveCount(0);
+  // 범위는 지금 목록에서 계산 — 첫 통화를 고르면(즉시 적용) 슬라이더가 켜진다
+  await dialog.getByRole('radio').first().check();
+  const upper = dialog.getByRole('slider', { name: '금액 최대' });
+  await expect(upper).toBeEnabled();
+  await expect(upper).toHaveAttribute('aria-valuetext', '제한 없음');
+  await upper.focus();
+  await page.keyboard.press('Home');
+  // 상한 칸 0 = 그 통화의 실제 최소 금액 → 그 금액 이하 행만 (1건 이상)
+  await expect(activeFields(modal)).toHaveText([/금액: [A-Z]{3} .+ 이하/, /통화: [A-Z]{3}/]);
+  await expect(dialog).toBeVisible();
+  expect(await modal.locator('tbody tr').count()).toBeGreaterThan(0);
+  expect(page.url()).toBe(urlBefore);
+
+  // 상한을 오른쪽 끝으로 = 금액 조건 없음 (통화만)
+  await page.keyboard.press('End');
+  await expect(activeFields(modal)).toHaveText([/통화: [A-Z]{3}/]);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+
+  // 정리: 필터 초기화 후 방금 저장한 견적 삭제
+  await modal.getByRole('button', { name: '필터 초기화' }).first().click();
+  for (const quoteNo of saved) {
+    await modal.getByRole('button', { name: `${quoteNo} 삭제` }).click();
+    await expect(page.getByRole('status').filter({ hasText: '견적을 삭제했습니다' })).toContainText(
+      quoteNo,
+    );
+  }
 });

@@ -1,10 +1,11 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CostRowView } from '@/features/costs/types';
 import type { PriceRowView } from '@/features/pricing/types';
 import type { AuditDisplayRow } from '@/lib/audit-format';
+import { stepValue, type MoneyRange } from '@/lib/table/money-range';
 
 import {
   activeFields,
@@ -93,6 +94,16 @@ const AUDIT_ROW: AuditDisplayRow = {
 };
 
 const enc = (pairs: [string, string][]) => new URLSearchParams(pairs).toString();
+
+/** 슬라이더 범위 (빠른 필터 바 §7.5) — 통화별 표 전체 최소·최대 */
+const KRW_PRICE_RANGE: MoneyRange = {
+  currency: 'KRW',
+  min: 0,
+  max: 1_650_000_000,
+  minPositive: 500,
+};
+const USD_PRICE_RANGE: MoneyRange = { currency: 'USD', min: 126, max: 9_800, minPositive: 126 };
+const KRW_COST_RANGE: MoneyRange = { currency: 'KRW', min: 1200, max: 984_000, minPositive: 1200 };
 
 /** replace 가 새로 불렸는지 — enum 즉시 적용(400ms 디바운스) 대기용 */
 const replacedAfter = (before: number) => () => mocks.replace.mock.calls.length > before;
@@ -220,7 +231,7 @@ describe('가격 관리 표 빠른 필터 바', () => {
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
-  it('판매가: 통화 미지정이면 같은 팝오버의 통화 라디오 + 범위 → 적용 시 통화 in·범위 두 조건 (§2.3)', async () => {
+  it('판매가 슬라이더: 통화 미지정이면 라디오 먼저(슬라이더 disabled) → 라디오 = 통화 즉시 → 키보드 하한 → 손을 뗀 뒤 디바운스 1회 replace, 팝오버 유지 (§7.5)', async () => {
     const ue = userEvent.setup();
     render(
       <PricingBrowser
@@ -228,22 +239,71 @@ describe('가격 관리 표 빠른 필터 바', () => {
         rows={[PRICE_ROW]}
         filter={{ dateMode: 'start', page: 1 }}
         currencies={['KRW', 'USD']}
+        currencyRanges={[KRW_PRICE_RANGE, USD_PRICE_RANGE]}
         userId="u1"
       />,
     );
     const dialog = await openField(ue, '판매가');
     expect(within(dialog).getByText('통화를 먼저 선택하세요')).toBeInTheDocument();
-    expect(within(dialog).getByLabelText('최소')).toBeDisabled();
-    await ue.keyboard('{Escape}');
+    expect(within(dialog).getByRole('slider', { name: '판매가 최소' })).toBeDisabled();
+    // 숫자 입력 없음 (사용자 확정)
+    expect(within(dialog).queryByRole('textbox')).toBeNull();
 
-    await applyField(ue, '판매가', range(ue, '1000', '5000', 'number', 'KRW'));
+    await ue.click(within(dialog).getByRole('radio', { name: 'KRW' }));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledTimes(1), { timeout: 2000 });
+    expect(mocks.replace).toHaveBeenLastCalledWith(
+      `/admin/policies?${enc([['f.currency.in', 'KRW']])}`,
+    );
+
+    const lower = within(dialog).getByRole('slider', { name: '판매가 최소' });
+    lower.focus();
+    await ue.keyboard('{PageUp}');
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledTimes(2), { timeout: 2000 });
     expect(mocks.replace).toHaveBeenLastCalledWith(
       `/admin/policies?${enc([
         ['f.currency.in', 'KRW'],
-        ['f.price.gte', '1000'],
-        ['f.price.lte', '5000'],
+        ['f.price.gte', stepValue(10, 'lower', KRW_PRICE_RANGE)],
       ])}`,
     );
+    expect(screen.getByRole('dialog', { name: '판매가 필터' })).toBeInTheDocument();
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it('판매가 슬라이더 디바운스 중 → 400ms 안에 정렬 헤더 클릭: 범위와 정렬이 한 이동에 (§6 #7 flush)', async () => {
+    const ue = userEvent.setup();
+    mocks.pathname = '/pricing';
+    render(
+      <PricingBrowser
+        mode="view"
+        rows={[PRICE_ROW]}
+        filter={{
+          dateMode: 'start',
+          page: 1,
+          filters: [{ col: 'currency', op: 'in', values: ['KRW'] }],
+        }}
+        currencies={['KRW', 'USD']}
+        currencyRanges={[KRW_PRICE_RANGE, USD_PRICE_RANGE]}
+        userId="u1"
+      />,
+    );
+    const dialog = await openField(ue, '판매가');
+    within(dialog).getByRole('slider', { name: '판매가 최대' }).focus();
+    await ue.keyboard('{PageDown}');
+    await ue.keyboard('{Escape}');
+    const table = screen.getByRole('table', { name: '가격정책 표' });
+    await ue.click(
+      within(within(table).getByRole('columnheader', { name: /^판매가/ })).getByRole('button'),
+    );
+    expect(mocks.push.mock.calls).toEqual([
+      [
+        `/pricing?${enc([
+          ['f.currency.in', 'KRW'],
+          ['f.price.lte', stepValue(190, 'upper', KRW_PRICE_RANGE)],
+        ])}&sort=price&dir=asc`,
+      ],
+    ]);
+    await new Promise((done) => setTimeout(done, 600));
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 
   it("× 는 그 열만 해제(replace), '필터 초기화' 는 열 필터 + 분류·기간·검색 + 정렬을 모두 해제(push)", async () => {
@@ -370,6 +430,52 @@ describe('원가 표 빠른 필터 바', () => {
     );
     await ue.click(screen.getByRole('button', { name: '필터 초기화' }));
     expect(mocks.push).toHaveBeenLastCalledWith('/admin/costs?family=WAPPLES');
+  });
+
+  it('원가 슬라이더: 원가 화면 props(costRanges)의 범위, 통화가 정해져 있으면 바로 슬라이더 → 하한 End = 실제 최대 → f.cost.gte (§7.5)', async () => {
+    const ue = userEvent.setup();
+    render(
+      <CostBrowser
+        rows={[COST_ROW]}
+        filter={{ ...FILTER, filters: [{ col: 'currency', op: 'in', values: ['KRW'] }] }}
+        total={42}
+        currencies={['KRW', 'USD']}
+        costRanges={[KRW_COST_RANGE]}
+        userId="u1"
+      />,
+    );
+    const dialog = await openField(ue, '원가');
+    expect(within(dialog).getByRole('radio', { name: 'KRW' })).toBeChecked();
+    const lower = within(dialog).getByRole('slider', { name: '원가 최소' });
+    expect(lower).toHaveAttribute('aria-valuetext', '제한 없음');
+    lower.focus();
+    await ue.keyboard('{End}');
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledTimes(1), { timeout: 2000 });
+    expect(mocks.replace).toHaveBeenLastCalledWith(
+      `/admin/costs?family=WAPPLES&q=W1&${enc([
+        ['f.currency.in', 'KRW'],
+        ['f.cost.gte', '984000'],
+      ])}&sort=name&dir=asc`,
+    );
+  });
+
+  it('원가 범위가 없으면(props 없음) 슬라이더 대신 문구 — 원가 범위는 원가 화면 props 로만 온다', async () => {
+    const ue = userEvent.setup();
+    render(
+      <CostBrowser
+        rows={[COST_ROW]}
+        filter={{
+          dateMode: 'start',
+          page: 1,
+          filters: [{ col: 'currency', op: 'in', values: ['KRW'] }],
+        }}
+        currencies={['KRW']}
+        userId="u1"
+      />,
+    );
+    const dialog = await openField(ue, '원가');
+    expect(within(dialog).queryByRole('slider')).toBeNull();
+    expect(within(dialog).getByText(/범위 정보가 없습니다/)).toBeInTheDocument();
   });
 
   it("제품군 탭만 있으면 필터가 아니다: '필터 초기화' 없음, 0건은 데이터 없음 문구", () => {

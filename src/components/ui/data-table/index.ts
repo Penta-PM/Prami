@@ -2,9 +2,11 @@ export { DataTable, type DataTableProps } from './DataTable';
 export { DataTableFilterEmpty } from './DataTableFilterEmpty';
 export {
   DataTableQuickFilterBar,
+  MONEY_RANGE_DEBOUNCE_MS,
   SERVER_ENUM_DEBOUNCE_MS,
   type DataTableQuickFilterBarProps,
 } from './DataTableQuickFilterBar';
+export { MoneyRangeEditor, type MoneyRangeEditorProps } from './MoneyRangeEditor';
 export { QuickFilterEditor, type QuickFilterEditorProps } from './QuickFilterEditor';
 export {
   DATE_PRESETS,
@@ -12,6 +14,7 @@ export {
   QUICK_FILTER_FIELDS,
   splitQuickFields,
   summarizeField,
+  withMoneyRanges,
   withQuickFields,
   type DatePresetId,
   type QuickFilterTable,

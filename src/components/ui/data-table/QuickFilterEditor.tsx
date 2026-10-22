@@ -5,8 +5,6 @@ import { useId, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEve
 import { cn } from '@/lib/cn';
 import {
   FILTER_LIMITS,
-  isMoneyRangeActive,
-  selectedCurrency,
   validateCondition,
   withoutColumn,
   type ColumnFilterDef,
@@ -15,9 +13,10 @@ import {
 } from '@/lib/table/filter';
 
 import { Button } from '../button';
-import { Checkbox, Radio } from '../checkbox';
+import { Checkbox } from '../checkbox';
 import { chipClass } from '../chip';
 import type { DataTableFilterField } from './filter-fields';
+import { MoneyRangeEditor } from './MoneyRangeEditor';
 import { DATE_PRESETS, datePresetRange } from './quick-filters';
 
 /**
@@ -27,7 +26,9 @@ import { DATE_PRESETS, datePresetRange } from './quick-filters';
  * - enum: 체크 즉시 onToggle(디바운스·적용 시점은 바가 정한다), 팝오버는 열린 채. "선택 해제" 로 그 열만 해제. 적용 버튼 없음.
  * - text: 포함/같음 2버튼 토글(기본 포함) + 값, Enter 또는 "적용"(입력·한글 조합 중에는 요청 없음).
  * - date: 프리셋(오늘·최근 7일·최근 30일·이번 달)은 누르면 바로 onApply, 시작·종료 입력은 Enter/적용.
- * - number/money: Enter/적용. 통화가 섞이는 money 는 단일 통화가 정해지지 않았으면 위에 통화 라디오 — 적용 시 통화 `in` 과 범위를 함께 기록.
+ * - number(가격 변동률): 최소·최대 입력 + Enter/적용.
+ * - money(판매가·원가·금액): 양쪽 슬라이더(숫자 입력 없음, §7.5) — MoneyRangeEditor. 통화 라디오는 즉시 적용(onToggle),
+ *   범위는 손을 뗄 때 onStage(바가 디바운스), 팝오버는 열린 채.
  */
 export type QuickFilterEditorProps<T> = {
   field: DataTableFilterField<T>;
@@ -39,6 +40,8 @@ export type QuickFilterEditorProps<T> = {
   onToggle: (next: FilterCondition[]) => void;
   /** 적용(Enter·적용·날짜 프리셋) — 다음 전체 조건. 바가 팝오버를 닫는다 */
   onApply: (next: FilterCondition[]) => void;
+  /** money 슬라이더 확정 — 다음 전체 조건. 바가 디바운스해 보내고 팝오버는 열어 둔다 (§7.5) */
+  onStage: (next: FilterCondition[]) => void;
 };
 
 const LABEL_CLASS = 'text-[12px] font-semibold text-text-secondary';
@@ -110,6 +113,7 @@ export function QuickFilterEditor<T>(props: QuickFilterEditorProps<T>) {
   const def = props.field.filter;
   if (def.kind === 'enum') return <EnumEditor {...props} options={def.options} />;
   if (def.kind === 'text') return <TextEditor {...props} />;
+  if (def.kind === 'money') return <MoneyRangeEditor {...props} />;
   return <RangeEditor {...props} />;
 }
 
@@ -229,10 +233,10 @@ function ErrorText({ id, error }: { id: string; error: string | null }) {
   ) : null;
 }
 
-function ApplyRow({ disabled }: { disabled?: boolean }) {
+function ApplyRow() {
   return (
     <div className="flex justify-end">
-      <Button type="submit" variant="primary" size="sm" disabled={disabled}>
+      <Button type="submit" variant="primary" size="sm">
         적용
       </Button>
     </div>
@@ -313,49 +317,23 @@ function TextEditor<T>({ field, filters, onApply }: QuickFilterEditorProps<T>) {
   );
 }
 
-// ── number·money·date ──────────────────────────────────────────────────────
+// ── number·date ────────────────────────────────────────────────────────────
 
-function RangeEditor<T>({ field, fields, filters, onApply }: QuickFilterEditorProps<T>) {
+function RangeEditor<T>({ field, filters, onApply }: QuickFilterEditorProps<T>) {
   const id = useId();
   const def = field.filter;
   const own = filters.filter((cond) => cond.col === field.id);
   const [min, setMin] = useState(scalarValue(own, 'gte'));
   const [max, setMax] = useState(scalarValue(own, 'lte'));
-  const [currency, setCurrency] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const currencyCol = def.kind === 'money' ? def.currencyCol : undefined;
-  const currencyDef = currencyCol
-    ? fields.find((item) => item.id === currencyCol)?.filter
-    : undefined;
-  const currencyOptions = currencyDef?.kind === 'enum' ? currencyDef.options : [];
-  /** 통화가 섞이는 금액 열에서 단일 통화가 아직 안 정해졌으면 라디오로 고른다(§2.3) */
-  const needsCurrency = def.kind === 'money' && !isMoneyRangeActive(filters, def);
-  const fixedCurrency = def.kind === 'money' ? selectedCurrency(filters, def) : null;
-  const locked = needsCurrency && currency === null;
-
-  const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
-  const describedBy =
-    [locked ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
+  const describedBy = error ? errorId : undefined;
 
   const submit = () => {
     const range = rangeConditions(field.id, def, min, max);
     if (typeof range === 'string') return setError(range);
-    let rest = withoutColumn(filters, field.id);
-    const extra: FilterCondition[] = [];
-    if (needsCurrency && currency !== null && currencyCol && currencyDef) {
-      const valid = validateCondition(
-        { col: currencyCol, op: 'in', values: [currency] },
-        { [currencyCol]: currencyDef },
-      );
-      if (!valid) return setError(invalidMessage(currencyDef));
-      rest = withoutColumn(rest, currencyCol);
-      extra.push(valid);
-    } else if (locked && range.length > 0) {
-      return setError('통화를 먼저 선택하세요');
-    }
-    const next = [...rest, ...extra, ...range];
+    const next = [...withoutColumn(filters, field.id), ...range];
     if (next.length > FILTER_LIMITS.conditionsMax) return setError(LIMIT_MESSAGE);
     onApply(next);
   };
@@ -376,39 +354,6 @@ function RangeEditor<T>({ field, fields, filters, onApply }: QuickFilterEditorPr
       onKeyDown={enterSubmits(submit)}
       className="flex flex-col gap-3"
     >
-      {needsCurrency && currencyOptions.length > 0 ? (
-        <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
-          <legend className={cn('mb-1 p-0', LABEL_CLASS)}>통화</legend>
-          <div className="flex flex-wrap gap-x-1.5">
-            {currencyOptions.map((option) => (
-              <label
-                key={option.value}
-                className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-1.5 text-[13px] text-ink-900 hover:bg-gray-75"
-              >
-                <Radio
-                  name={`${id}-currency`}
-                  value={option.value}
-                  checked={currency === option.value}
-                  onChange={() => {
-                    setCurrency(option.value);
-                    setError(null);
-                  }}
-                />
-                {option.label}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ) : fixedCurrency ? (
-        <p className="m-0 text-[12px] font-semibold text-text-secondary">통화: {fixedCurrency}</p>
-      ) : null}
-
-      {locked ? (
-        <p id={hintId} className="m-0 text-[12px] font-semibold text-text-secondary">
-          통화를 먼저 선택하세요
-        </p>
-      ) : null}
-
       {presetRange ? (
         <div role="group" aria-label="빠른 기간" className="flex flex-wrap gap-1.5">
           {DATE_PRESETS.map((preset) => {
@@ -443,7 +388,6 @@ function RangeEditor<T>({ field, fields, filters, onApply }: QuickFilterEditorPr
             inputMode={def.kind === 'date' ? undefined : 'decimal'}
             className={FIELD_CLASS}
             value={min}
-            disabled={locked}
             aria-describedby={describedBy}
             onChange={(event) => {
               setMin(event.target.value);
@@ -458,7 +402,6 @@ function RangeEditor<T>({ field, fields, filters, onApply }: QuickFilterEditorPr
             inputMode={def.kind === 'date' ? undefined : 'decimal'}
             className={FIELD_CLASS}
             value={max}
-            disabled={locked}
             aria-describedby={describedBy}
             onChange={(event) => {
               setMax(event.target.value);
@@ -468,7 +411,7 @@ function RangeEditor<T>({ field, fields, filters, onApply }: QuickFilterEditorPr
         </label>
       </div>
       <ErrorText id={errorId} error={error} />
-      <ApplyRow disabled={locked && currencyOptions.length === 0} />
+      <ApplyRow />
     </form>
   );
 }

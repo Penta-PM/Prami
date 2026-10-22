@@ -17,6 +17,7 @@ import {
   getCostRows,
   getCurrentCostApply,
   listCostCurrencies,
+  listCostCurrencyRanges,
   listCostFamilies,
   listCostYears,
 } from '@/server/cost/queries';
@@ -44,12 +45,14 @@ export default async function AdminCostsPage({ searchParams }: AdminCostsPagePro
   // 통화 열 필터 선택지(데이터)가 화이트리스트에 들어가므로 먼저 읽고 URL 을 파싱한다 (표 열 필터 스펙 §2.3)
   const currencies = await listCostCurrencies(access, db);
   const { filter, errors } = parseCostFilter(params, costFilterDefs(currencies));
-  const [page, families, years, current, options] = await Promise.all([
+  // 원가 슬라이더 범위(통화별 표 전체 최소·최대, cost.read — 빠른 필터 바 §7.5)는 이 화면 props 로만 내려간다
+  const [page, families, years, current, options, costRanges] = await Promise.all([
     getCostRows(access, db, filter),
     listCostFamilies(access, db),
     listCostYears(access, db),
     getCurrentCostApply(access, db),
     listReusableBatches(db, 'material_cost'),
+    listCostCurrencyRanges(access, db),
   ]);
 
   return (
@@ -98,6 +101,7 @@ export default async function AdminCostsPage({ searchParams }: AdminCostsPagePro
         filter={filter}
         total={page.total}
         currencies={currencies}
+        costRanges={costRanges}
         userId={access.userId ?? ''}
       />
       <CostPagination

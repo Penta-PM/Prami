@@ -20,7 +20,7 @@ import type { FilterCondition } from '@/lib/table/filter';
 
 /**
  * 빠른 필터 바 (표 열 필터 빠른 필터 바 §2) — 필드 버튼 = 칩, "＋ N개 더", enum 즉시 적용(서버 400ms 디바운스),
- * text 포함/같음 + Enter/적용, 날짜 프리셋, money 통화 라디오, 포커스 규칙, Esc·바깥 클릭, 마우스 이탈 무시,
+ * text 포함/같음 + Enter/적용, 날짜 프리셋, 포커스 규칙, Esc·바깥 클릭, 마우스 이탈 무시,
  * aria-busy·진행 표시, 라이브 안내 1회, 대기 중 조건 기준(R1), 320px 줄바꿈.
  */
 type Row = {
@@ -324,44 +324,7 @@ describe('DataTableQuickFilterBar — 적용 규칙 (§2.3)', () => {
     await closed('등록일 필터');
     expect(names()).toEqual(['charlie', 'Alpha', 'delta']);
   });
-
-  it('money: 통화 미지정이면 같은 팝오버에서 통화 라디오 + 범위 → 적용 시 통화 in·범위 두 조건', async () => {
-    const user = setupClient();
-    await user.click(fieldButton('금액'));
-    const dialog = await screen.findByRole('dialog', { name: '금액 필터' });
-    const currency = within(dialog).getByRole('group', { name: '통화' });
-    expect(within(dialog).getByText('통화를 먼저 선택하세요')).toBeInTheDocument();
-    expect(within(dialog).getByLabelText('최소')).toBeDisabled();
-
-    await user.click(within(currency).getByRole('radio', { name: 'KRW' }));
-    expect(within(dialog).getByLabelText('최소')).toBeEnabled();
-    await user.type(within(dialog).getByLabelText('최소'), '1,500');
-    await user.keyboard('{Enter}');
-    await closed('금액 필터');
-
-    expect(names()).toEqual(['charlie', 'delta']);
-    // 통화 필드("＋ 더" 안이었음)도 조건이 걸려 바에 활성 버튼으로 나타나고, 금액 요약에 통화가 붙는다
-    expect(fieldButton('금액')).toHaveTextContent('금액: KRW ≥ 1,500');
-    expect(fieldButton('통화')).toHaveAccessibleName('통화 필터, KRW 적용 중');
-    expect(screen.queryByRole('button', { name: /개 더$/ })).toBeNull();
-
-    // 통화가 정해진 뒤에는 라디오 없이 범위만
-    await user.click(fieldButton('금액'));
-    const again = await screen.findByRole('dialog', { name: '금액 필터' });
-    expect(within(again).queryByRole('radio')).toBeNull();
-    expect(within(again).getByText('통화: KRW')).toBeInTheDocument();
-  });
-
-  it('money: 통화를 고르지 않고 범위만 넣으면 적용하지 않고 알린다(검증 규칙 그대로)', async () => {
-    const user = setupClient();
-    await user.click(fieldButton('금액'));
-    const dialog = await screen.findByRole('dialog', { name: '금액 필터' });
-    await user.click(within(dialog).getByRole('radio', { name: 'USD' }));
-    await user.type(within(dialog).getByLabelText('최소'), 'abc');
-    await user.click(within(dialog).getByRole('button', { name: '적용' }));
-    expect(within(dialog).getByRole('alert')).toHaveTextContent('숫자만 입력하세요');
-    expect(names()).toHaveLength(4);
-  });
+  // money(슬라이더·통화 라디오)는 money-range-editor.test.tsx (§7.5)
 });
 
 describe('DataTableQuickFilterBar — ＋ N개 더·포커스·팝오버 (§2.1·§2.6)', () => {
