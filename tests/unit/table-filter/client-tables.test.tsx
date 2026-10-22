@@ -151,6 +151,10 @@ describe('UsersTable 열 필터 (파일럿)', () => {
     await ue.click(within(table).getByRole('button', { name: '필터 초기화' }));
     expect(navigation.search()).toBe('');
     expect(firstCells('사용자 목록')).toHaveLength(4);
+    // 빈 상태의 [필터 초기화] 는 사라지므로 포커스는 바의 첫 필드 버튼으로 (A-1 QA 백로그 — 옛 바 테스트에서 이전)
+    await waitFor(() =>
+      expect(document.activeElement).toHaveAttribute('data-table-filter-trigger'),
+    );
   });
 
   it('사용자가 하나도 없으면 "등록된 사용자가 없습니다"', () => {

@@ -1,9 +1,5 @@
 export { DataTable, type DataTableProps } from './DataTable';
-export {
-  DataTableFilterBar,
-  DataTableFilterEmpty,
-  type DataTableFilterBarProps,
-} from './DataTableFilterBar';
+export { DataTableFilterEmpty } from './DataTableFilterEmpty';
 export {
   DataTableQuickFilterBar,
   SERVER_ENUM_DEBOUNCE_MS,
