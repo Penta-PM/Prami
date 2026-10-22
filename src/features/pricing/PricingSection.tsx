@@ -67,16 +67,19 @@ export async function PricingSection({
     : null;
   return (
     <div className="flex flex-col gap-4">
-      <PricingFilters
-        // 검색어 입력은 로컬 상태 — '필터 초기화' 등으로 q 가 바뀌면 새로 그려 입력값을 URL 과 맞춘다
-        key={filter.q ?? ''}
-        filter={filter}
-        errors={errors}
-        options={options}
-        years={years}
-        searchPlaceholder={mode === 'admin' ? '모델명, 코드로 검색' : '모델명으로 검색'}
-      />
       <PricingBrowser
+        // 기존 페이지 필터는 빠른 필터 바와 같은 카드 안, 바 위 (빠른 필터 바 §2.5)
+        leading={
+          <PricingFilters
+            // 검색어 입력은 로컬 상태 — '필터 초기화' 등으로 q 가 바뀌면 새로 그려 입력값을 URL 과 맞춘다
+            key={filter.q ?? ''}
+            filter={filter}
+            errors={errors}
+            options={options}
+            years={years}
+            searchPlaceholder={mode === 'admin' ? '모델명, 코드로 검색' : '모델명으로 검색'}
+          />
+        }
         mode={mode}
         rows={page.rows}
         filter={filter}

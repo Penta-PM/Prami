@@ -8,12 +8,18 @@ import type { AuditDisplayRow } from '@/lib/audit-format';
 
 /**
  * #32 PR-3 서버 정렬 표 (가격·원가·감사): 헤더 클릭 → router.push 로 URL 의 sort/dir 만 바꾸고(맨 뒤) 1페이지로 간다.
+ * 열 필터 변경은 router.replace (빠른 필터 바 §2.3).
  * 필터·탭·페이지 이동·감사 열 필터(옛 GET 폼 흡수)가 정렬을 끌고 다닌다. Server Action·라우터는 모킹
  */
-const mocks = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn(), pathname: '/pricing' }));
+const mocks = vi.hoisted(() => ({
+  push: vi.fn(),
+  replace: vi.fn(),
+  refresh: vi.fn(),
+  pathname: '/pricing',
+}));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }),
+  useRouter: () => ({ push: mocks.push, replace: mocks.replace, refresh: mocks.refresh }),
   usePathname: () => mocks.pathname,
 }));
 vi.mock('@/features/pricing/actions', () => ({ getPriceRowDetailAction: vi.fn() }));
@@ -286,7 +292,7 @@ describe('감사 로그 표 (서버 정렬)', () => {
     expect(mocks.push).toHaveBeenLastCalledWith('/admin/audit?action=user.update');
   });
 
-  it('옛 GET 폼은 없고, 열 필터 칩 해제가 정렬을 맨 뒤에 유지한다 (표 열 필터 §2.4)', async () => {
+  it('옛 GET 폼은 없고, 열 필터 해제(×, replace)가 정렬을 맨 뒤에 유지한다 (표 열 필터 §2.4)', async () => {
     render(
       <AuditTable
         rows={[AUDIT_ROW]}
@@ -297,7 +303,8 @@ describe('감사 로그 표 (서버 정렬)', () => {
     );
     expect(screen.queryByRole('form', { name: '감사 로그 필터' })).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: '행위 필터 해제' }));
-    expect(mocks.push).toHaveBeenLastCalledWith('/admin/audit?sort=ip&dir=desc');
+    expect(mocks.replace).toHaveBeenLastCalledWith('/admin/audit?sort=ip&dir=desc');
+    expect(mocks.push).not.toHaveBeenCalled();
   });
 
   it('페이지 링크는 정렬을 맨 뒤에 유지한다', () => {

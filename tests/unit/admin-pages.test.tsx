@@ -98,7 +98,9 @@ describe('관리자 페이지', () => {
     );
     // 행위 필터(별칭 action)가 걸린 0건 → 필터 결과 없음 빈 상태 + [필터 초기화], 옛 GET 폼은 없다 (표 열 필터 §2.4)
     expect(screen.getByText('조건에 맞는 결과가 없습니다')).toBeInTheDocument();
-    expect(screen.getByRole('listitem')).toHaveTextContent('행위: auth.login');
+    expect(screen.getByRole('button', { name: '행위 필터, auth.login 적용 중' })).toHaveTextContent(
+      '행위: auth.login',
+    );
     expect(screen.queryByRole('form', { name: '감사 로그 필터' })).toBeNull();
   });
 

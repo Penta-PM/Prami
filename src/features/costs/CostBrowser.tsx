@@ -8,9 +8,12 @@ import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import {
   DataTable,
-  DataTableFilterBar,
   DataTableFilterEmpty,
+  DataTableQuickFilterBar,
   DataTableResetButton,
+  QUICK_FILTER_FIELDS,
+  withColumnFilterParams,
+  withQuickFields,
   type DataTableColumn,
   type DataTableSort,
 } from '@/components/ui/data-table';
@@ -83,6 +86,8 @@ type CostBrowserProps = {
   currencies?: readonly string[];
   /** 열 너비·순서 저장 키 (#32 스펙 §5) */
   userId: string;
+  /** 기존 페이지 필터(제품군 탭·기간·검색 — CostFilters). 빠른 필터 바와 같은 카드 안, 바 위 (빠른 필터 바 §2.5) */
+  leading?: ReactNode;
 };
 
 const NO_CURRENCIES: readonly string[] = [];
@@ -94,9 +99,10 @@ export function CostBrowser({
   total = rows.length,
   currencies = NO_CURRENCIES,
   userId,
+  leading,
 }: CostBrowserProps) {
   const router = useRouter();
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<CostRowView | null>(null);
   const [deleting, setDeleting] = useState<CostRowView | null>(null);
@@ -112,25 +118,52 @@ export function CostBrowser({
 
   const columns = useMemo(() => costColumns({ onEdit: setEditing, onDelete: setDeleting }), []);
 
-  const go = (next: Partial<CostFilterView>) =>
+  // 열 필터 변경은 replace(즉시 적용이 뒤로 가기 기록을 쌓지 않게 — 빠른 필터 바 §2.3), 정렬·초기화는 현행 push
+  const go = (next: Partial<CostFilterView>, history: 'push' | 'replace' = 'push') =>
     navigateView(`${COSTS_PATH}${costFilterToQuery(next)}`, (href) =>
-      startTransition(() => router.push(href)),
+      startTransition(() => (history === 'replace' ? router.replace(href) : router.push(href))),
     );
 
   const changeSort = (next: DataTableSort) =>
     go({ ...filter, sort: urlSort(next, COST_SORT_IDS), page: 1 });
 
-  // 열 필터 (표 열 필터 스펙 §2) — 기존 필터·정렬은 그대로, 1페이지로. 기존 정렬·페이지 이동과 같은 router.push
-  const filterFields = useMemo(() => costFilterFields(currencies), [currencies]);
+  // 열 필터 (표 열 필터 스펙 §2) — 기존 필터·정렬은 그대로, 1페이지로. 고정 필드 = 통화·원가·상태 (빠른 필터 바 §2.2)
+  const filterFields = useMemo(
+    () => withQuickFields(costFilterFields(currencies), QUICK_FILTER_FIELDS.costs),
+    [currencies],
+  );
   const columnFilters = filter.filters ?? [];
   const changeFilters = (next: readonly FilterCondition[]) =>
-    go({ ...filter, filters: [...next], page: 1 });
+    go({ ...filter, filters: [...next], page: 1 }, 'replace');
   // '필터 초기화' = 열 필터 + 기간·검색 + 정렬 (§2.5-4, Plan Q1 B). 제품군 탭은 화면 이동이라 유지 (§7 Q5)
   const resetFilters = () => go({ family: filter.family, dateMode: 'start', page: 1 });
   const filtered = isCostFiltered(filter);
 
   return (
     <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <DataTableQuickFilterBar
+          className="min-w-0 flex-1"
+          mode="server"
+          fields={filterFields}
+          filters={columnFilters}
+          onFiltersChange={changeFilters}
+          onReset={resetFilters}
+          sorted={filter.sort !== undefined}
+          canReset={filtered || filter.sort !== undefined}
+          total={total}
+          pending={isPending}
+          flush={{ path: COSTS_PATH, apply: withColumnFilterParams }}
+          leading={leading}
+        />
+        <div className="flex items-center gap-2">
+          <DataTableResetButton tableId={COSTS_TABLE_ID} userId={userId} columns={columns} />
+          <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
+            + 등록
+          </Button>
+        </div>
+      </div>
+      {/* 등록·수정·삭제 결과 — 페이지 필터·바 카드 아래(가격 관리와 같은 위치) */}
       <Presence>
         {flash ? (
           <Collapse key="flash" role={flash.tone === 'error' ? 'alert' : 'status'}>
@@ -147,23 +180,6 @@ export function CostBrowser({
           </Collapse>
         ) : null}
       </Presence>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <DataTableFilterBar
-          className="min-w-0 flex-1"
-          fields={filterFields}
-          filters={columnFilters}
-          onFiltersChange={changeFilters}
-          onReset={resetFilters}
-          sorted={filter.sort !== undefined}
-          canReset={filtered || filter.sort !== undefined}
-        />
-        <div className="flex items-center gap-2">
-          <DataTableResetButton tableId={COSTS_TABLE_ID} userId={userId} columns={columns} />
-          <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
-            + 등록
-          </Button>
-        </div>
-      </div>
       <div className="overflow-x-auto rounded-[10px] bg-surface-card shadow-(--hairline-default)">
         <DataTable
           tableId={COSTS_TABLE_ID}

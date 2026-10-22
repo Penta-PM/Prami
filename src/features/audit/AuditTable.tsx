@@ -6,9 +6,13 @@ import { useMemo, useTransition } from 'react';
 import { Pill } from '@/components/ui';
 import {
   DataTable,
-  DataTableFilterBar,
   DataTableFilterEmpty,
+  DataTableQuickFilterBar,
   DataTableResetButton,
+  isColumnFilterParam,
+  QUICK_FILTER_FIELDS,
+  replaceFilterParams,
+  withQuickFields,
   type DataTableColumn,
   type DataTableSort,
 } from '@/components/ui/data-table';
@@ -136,6 +140,16 @@ type AuditTableProps = {
 
 const NO_ACTIONS: readonly string[] = [];
 
+/** 별칭 열 필터 파라미터(일시·행위·사용자 포함 — features/audit/filter) */
+const ALIAS_PARAMS = new Set(['from', 'to', 'action', 'actor']);
+const isAuditFilterParam = (key: string) => ALIAS_PARAMS.has(key) || isColumnFilterParam(key);
+
+/** 디바운스 중인 조건 flush (빠른 필터 바 §6 #7) — href 의 별칭·f.* 를 next 로 바꾼다(같은 filterToQuery 인코딩) */
+function withAuditFilterParams(href: string, next: readonly FilterCondition[]): string {
+  const query = filterToQuery({ ...auditFilterFromConditions(next), page: 1 });
+  return replaceFilterParams(href, isAuditFilterParam, [...new URLSearchParams(query.slice(1))]);
+}
+
 /**
  * 감사 로그 표 — 공용 DataTable 서버 정렬 모드 (#32 PR-3) + 열 필터 (표 열 필터 스펙 §2.4: 기존 GET 폼을 흡수).
  * 일시·행위·사용자 조건은 기존 파라미터(from·to·action·actor)에 기록한다(별칭, features/audit/filter).
@@ -149,11 +163,12 @@ export function AuditTable({
   userId,
 }: AuditTableProps) {
   const router = useRouter();
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
 
-  const go = (next: Partial<AuditFilter>) =>
+  // 열 필터 변경은 replace(즉시 적용이 뒤로 가기 기록을 쌓지 않게 — 빠른 필터 바 §2.3), 정렬·초기화는 현행 push
+  const go = (next: Partial<AuditFilter>, history: 'push' | 'replace' = 'push') =>
     navigateView(`${AUDIT_PATH}${filterToQuery(next)}`, (href) =>
-      startTransition(() => router.push(href)),
+      startTransition(() => (history === 'replace' ? router.replace(href) : router.push(href))),
     );
 
   const changeSort = (next: DataTableSort) =>
@@ -163,11 +178,12 @@ export function AuditTable({
   const actionKey = (filter.action ?? []).join(',');
   const filterFields = useMemo(() => {
     const extra = actionKey ? actionKey.split(',').filter((a) => !actions.includes(a)) : [];
-    return auditFilterFields([...actions, ...extra]);
+    // 고정 필드 = 일시·사용자·행위·결과 (빠른 필터 바 §2.2)
+    return withQuickFields(auditFilterFields([...actions, ...extra]), QUICK_FILTER_FIELDS.audit);
   }, [actions, actionKey]);
   const conditions = useMemo(() => auditConditions(filter), [filter]);
   const changeFilters = (next: readonly FilterCondition[]) =>
-    go({ ...filter, ...auditFilterFromConditions(next), page: 1 });
+    go({ ...filter, ...auditFilterFromConditions(next), page: 1 }, 'replace');
   // '필터 초기화' = 열 필터(기간·행위·사용자 포함) + 정렬 (§2.5-4)
   const resetFilters = () => go({ page: 1 });
   const filtered = isAuditFiltered(filter);
@@ -175,13 +191,17 @@ export function AuditTable({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <DataTableFilterBar
+        <DataTableQuickFilterBar
           className="min-w-0 flex-1"
+          mode="server"
           fields={filterFields}
           filters={conditions}
           onFiltersChange={changeFilters}
           onReset={resetFilters}
           sorted={filter.sort !== undefined}
+          total={total}
+          pending={isPending}
+          flush={{ path: AUDIT_PATH, apply: withAuditFilterParams }}
         />
         <DataTableResetButton tableId={AUDIT_TABLE_ID} userId={userId} columns={AUDIT_COLUMNS} />
       </div>

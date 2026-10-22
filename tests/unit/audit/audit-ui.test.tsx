@@ -70,7 +70,7 @@ describe('AuditTable', () => {
 });
 
 describe('감사 열 필터 / AuditPagination', () => {
-  it('옛 폼 값(from·action·actor)은 열 필터 칩으로 보인다 — 폼 없음', () => {
+  it('옛 폼 값(from·action·actor)은 빠른 필터 바의 필드 버튼 값으로 보인다 — 폼 없음', () => {
     render(
       <AuditTable
         rows={[ROW]}
@@ -80,14 +80,17 @@ describe('감사 열 필터 / AuditPagination', () => {
       />,
     );
     expect(screen.queryByRole('form', { name: '감사 로그 필터' })).toBeNull();
-    const chips = within(screen.getByRole('list', { name: '적용된 필터' })).getAllByRole(
-      'listitem',
+    const bar = within(screen.getByRole('group', { name: '필터' }));
+    expect(bar.getByRole('button', { name: '일시 필터, 2026-09-01 ~ 적용 중' })).toHaveTextContent(
+      '일시: 2026-09-01 ~',
     );
-    expect(chips.map((chip) => chip.textContent)).toEqual([
-      '일시: 2026-09-01 ~×',
-      '사용자: "kim" 포함×',
-      '행위: user.update×',
-    ]);
+    expect(bar.getByRole('button', { name: '사용자 필터, "kim" 포함 적용 중' })).toHaveTextContent(
+      '사용자: "kim" 포함',
+    );
+    expect(bar.getByRole('button', { name: '행위 필터, user.update 적용 중' })).toHaveTextContent(
+      '행위: user.update',
+    );
+    expect(bar.getByRole('button', { name: '결과 필터' })).toBeInTheDocument();
   });
 
   it('페이지 링크는 필터를 유지하고 끝에서는 비활성', () => {

@@ -137,7 +137,7 @@ for (const [role, email] of [
       );
       await expect(table).toBeVisible();
       await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
-      await expect(page.getByRole('list', { name: '적용된 필터' })).toHaveCount(0);
+      await expect(page.locator('[data-quick-field][aria-label$="적용 중"]')).toHaveCount(0);
       expect(await table.locator('tbody tr').allTextContents()).toEqual(defaultRows);
     });
   });

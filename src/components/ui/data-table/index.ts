@@ -23,8 +23,11 @@ export {
 export {
   filtersBase,
   filtersKey,
+  isColumnFilterParam,
   reconcileFilters,
+  replaceFilterParams,
   requestFilters,
+  withColumnFilterParams,
   type PendingFilters,
 } from './pending-filters';
 export { DataTableResetButton, type DataTableResetButtonProps } from './DataTableResetButton';
