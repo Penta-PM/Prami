@@ -8,12 +8,14 @@ import { Presence } from '@/components/motion/Presence';
 import { Button, Modal, Pill } from '@/components/ui';
 import {
   DataTable,
-  DataTableFilterBar,
   DataTableFilterEmpty,
+  DataTableQuickFilterBar,
   DataTableResetButton,
   filterDefsOf,
   filterFieldsOf,
+  QUICK_FILTER_FIELDS,
   useUrlTableState,
+  withQuickFields,
   type DataTableColumn,
 } from '@/components/ui/data-table';
 import { formatAuditTime } from '@/lib/audit-format';
@@ -184,7 +186,11 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
     [currentUserId],
   );
 
-  const filterFields = useMemo(() => filterFieldsOf(columns), [columns]);
+  // 빠른 필터 바 고정 필드: 이름·부서·역할·상태 (＋ 더: 이메일·마지막 로그인)
+  const filterFields = useMemo(
+    () => withQuickFields(filterFieldsOf(columns), QUICK_FILTER_FIELDS.users),
+    [columns],
+  );
   const filterDefs = useMemo(() => filterDefsOf(filterFields), [filterFields]);
   // 열 필터·정렬은 URL 상태 (page-state-memory §2.2-6 — #32 §5 개정). '필터 초기화' 는 둘을 한 번에 해제
   const {
@@ -219,7 +225,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
         ) : null}
       </Presence>
 
-      <DataTableFilterBar
+      <DataTableQuickFilterBar
         className="mb-3"
         fields={filterFields}
         filters={filters}

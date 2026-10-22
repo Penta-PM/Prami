@@ -4,12 +4,14 @@ import { useMemo } from 'react';
 
 import {
   DataTable,
-  DataTableFilterBar,
   DataTableFilterEmpty,
+  DataTableQuickFilterBar,
   DataTableResetButton,
   filterDefsOf,
   filterFieldsOf,
+  QUICK_FILTER_FIELDS,
   useUrlTableState,
+  withQuickFields,
   type DataTableColumn,
 } from '@/components/ui/data-table';
 
@@ -96,7 +98,11 @@ export function PartsMappingTable({ mappings, onEdit, onDelete, userId }: PartsM
     [onEdit, onDelete],
   );
 
-  const filterFields = useMemo(() => filterFieldsOf(columns), [columns]);
+  // 빠른 필터 바 고정 필드: 모델 (유일한 필터 필드 — "＋ 더" 없음)
+  const filterFields = useMemo(
+    () => withQuickFields(filterFieldsOf(columns), QUICK_FILTER_FIELDS.partsMapping),
+    [columns],
+  );
   const filterDefs = useMemo(() => filterDefsOf(filterFields), [filterFields]);
   // URL 의 `?family` 제품군 탭은 그대로 두고 f.*·sort·dir 만 바꾼다. '필터 초기화' 도 탭은 유지(탭은 화면 이동이지 필터가 아님)
   const {
@@ -115,7 +121,7 @@ export function PartsMappingTable({ mappings, onEdit, onDelete, userId }: PartsM
         </h2>
         <DataTableResetButton tableId={PARTS_MAPPING_TABLE_ID} userId={userId} columns={columns} />
       </div>
-      <DataTableFilterBar
+      <DataTableQuickFilterBar
         fields={filterFields}
         filters={filters}
         onFiltersChange={setFilters}
