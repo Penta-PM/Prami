@@ -68,3 +68,6 @@ venv/
 /playwright-report/
 /test-results/
 /blob-report/
+
+# 루트 assets 디렉터리 (로컬 전용 자료, 저장소에 넣지 않음) — src/assets 는 추적 유지
+/assets/
