@@ -6,11 +6,13 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Modal } from '@/components/ui';
 import {
   DataTable,
-  DataTableFilterBar,
   DataTableFilterEmpty,
+  DataTableQuickFilterBar,
   DataTableResetButton,
   filterFieldsOf,
+  QUICK_FILTER_FIELDS,
   useStateFilters,
+  withQuickFields,
   type DataTableColumn,
   type DataTableFilterField,
   type DataTableSort,
@@ -425,7 +427,8 @@ function SavedQuotesModal({
       filter: { kind: 'enum', options: currencyOptions(saved) },
       value: (quote) => quote.currency,
     };
-    return filterFieldsOf(columns, [currency]);
+    // 빠른 필터 바 고정 필드: 일자·제품·내용 (＋ 더: 견적 번호·금액·통화)
+    return withQuickFields(filterFieldsOf(columns, [currency]), QUICK_FILTER_FIELDS.myQuotes);
   }, [columns, saved]);
   const resetFilters = () => {
     setFilters([]);
@@ -435,7 +438,7 @@ function SavedQuotesModal({
   return (
     <Modal open onClose={onClose} title="내 견적 목록" className="w-[min(860px,calc(100vw-32px))]">
       <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-        <DataTableFilterBar
+        <DataTableQuickFilterBar
           className="min-w-0 flex-1"
           fields={filterFields}
           filters={filters}
