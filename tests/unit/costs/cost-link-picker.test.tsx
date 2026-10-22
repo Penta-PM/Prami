@@ -97,16 +97,21 @@ describe('CostLinkPicker', () => {
         .getAllByRole('option')
         .map((el) => el.dataset.materialCode),
     ).toEqual(['W1700', 'K300']);
-    expect(list()).toHaveAccessibleName('원가 자재 (2건)');
+    // 건수는 검색어에 실제로 맞는 자재만(검색과 무관하게 남긴 선택 자재 W1700 은 세지 않음)
+    expect(list()).toHaveAccessibleName('원가 자재 (1건)');
     await userEvent.clear(combo());
     await userEvent.type(combo(), 'zzz');
-    // 선택 자재(W1700)는 검색과 무관하게 남는다
+    // 선택 자재(W1700)는 검색과 무관하게 남고, 맞는 자재가 없으므로 "검색 결과가 없습니다" 도 보인다
     expect(within(list()).getAllByRole('option')).toHaveLength(1);
+    expect(within(list()).getByText('검색 결과가 없습니다')).toBeInTheDocument();
+    expect(list()).toHaveAccessibleName('원가 자재 (0건)');
 
-    render(<Harness />, { container: document.body.appendChild(document.createElement('div')) });
-    const [, second] = screen.getAllByRole('combobox');
-    await userEvent.type(second!, 'zzz');
-    expect(screen.getByText('검색 결과가 없습니다')).toBeInTheDocument();
+    const second = render(<Harness />, {
+      container: document.body.appendChild(document.createElement('div')),
+    });
+    await userEvent.type(within(second.container).getByRole('combobox'), 'zzz');
+    expect(within(second.container).getByText('검색 결과가 없습니다')).toBeInTheDocument();
+    expect(within(second.container).queryAllByRole('option')).toHaveLength(0);
   });
 
   it('↑↓ 로 활성 행 이동(aria-activedescendant), Enter 로 선택 — 폼은 제출되지 않는다', async () => {

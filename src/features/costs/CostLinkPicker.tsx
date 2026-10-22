@@ -90,6 +90,16 @@ export function CostLinkPicker({
     return picked ? [...head, picked] : head;
   }, [filtered, chosen]);
   const truncated = filtered.length > COST_LINK_PICKER_RENDER_MAX;
+  // 검색어에 실제로 맞는 자재 수 — 검색과 무관하게 남긴 선택 자재는 세지 않는다(그것만 남으면 "검색 결과가 없습니다")
+  const matchCount = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (needle === '') return filtered.length;
+    return filtered.filter(
+      (material) =>
+        material.materialName.toLowerCase().includes(needle) ||
+        material.materialCode.toLowerCase().includes(needle),
+    ).length;
+  }, [filtered, search]);
 
   // 활성 행(키보드 커서) — 자재번호로 들고, 목록에 없으면 선택한 행
   const [active, setActive] = useState<string | null>(null);
@@ -177,7 +187,7 @@ export function CostLinkPicker({
       />
       <div className="mt-1.5 flex items-baseline justify-between gap-2">
         <span id={labelId} className="text-[12px] font-medium text-text-secondary">
-          원가 자재 ({filtered.length}건)
+          원가 자재 ({matchCount}건)
         </span>
         {truncated ? (
           <span role="status" className="text-[12px] text-text-tertiary">
@@ -193,60 +203,61 @@ export function CostLinkPicker({
         aria-disabled={disabled || undefined}
         className="max-h-[min(320px,45vh)] divide-y divide-border-subtle overflow-x-hidden overflow-y-auto rounded-xl bg-surface-card shadow-(--hairline-default)"
       >
-        {visible.length === 0 ? (
+        {matchCount === 0 ? (
           <p className="m-0 px-3 py-4 text-center text-[13px] text-text-tertiary">
             검색 결과가 없습니다
           </p>
-        ) : (
-          visible.map((material) => {
-            const selected = material.materialCode === chosen;
-            const isActive = material.materialCode === activeCode;
-            return (
-              <div
-                key={material.materialCode}
-                id={optionId(material.materialCode)}
-                role="option"
-                aria-selected={selected}
-                aria-disabled={disabled || undefined}
-                data-material-code={material.materialCode}
-                data-active={isActive ? '' : undefined}
-                // 포커스는 검색창에 둔 채 고른다 — 마우스 down 으로 검색창 포커스를 잃지 않게
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  if (disabled) return;
-                  setActive(material.materialCode);
-                  onChosenChange(material.materialCode);
-                }}
-                className={cn(
-                  'flex min-h-11 cursor-pointer items-center gap-2 px-3 py-2',
-                  selected ? 'bg-purple-600/8' : 'hover:bg-gray-75',
-                  isActive && 'shadow-[inset_0_0_0_2px_var(--purple-500)]',
-                  disabled && 'cursor-not-allowed opacity-50',
-                )}
-              >
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="line-clamp-2 text-[13px] font-medium break-words text-ink-900">
-                    {material.materialName}
-                  </span>
-                  <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[12px] text-text-tertiary tabular-nums">
-                      {material.materialCode}
+        ) : null}
+        {visible.length === 0
+          ? null
+          : visible.map((material) => {
+              const selected = material.materialCode === chosen;
+              const isActive = material.materialCode === activeCode;
+              return (
+                <div
+                  key={material.materialCode}
+                  id={optionId(material.materialCode)}
+                  role="option"
+                  aria-selected={selected}
+                  aria-disabled={disabled || undefined}
+                  data-material-code={material.materialCode}
+                  data-active={isActive ? '' : undefined}
+                  // 포커스는 검색창에 둔 채 고른다 — 마우스 down 으로 검색창 포커스를 잃지 않게
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    if (disabled) return;
+                    setActive(material.materialCode);
+                    onChosenChange(material.materialCode);
+                  }}
+                  className={cn(
+                    'flex min-h-11 cursor-pointer items-center gap-2 px-3 py-2',
+                    selected ? 'bg-purple-600/8' : 'hover:bg-gray-75',
+                    isActive && 'shadow-[inset_0_0_0_2px_var(--purple-500)]',
+                    disabled && 'cursor-not-allowed opacity-50',
+                  )}
+                >
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="line-clamp-2 text-[13px] font-medium break-words text-ink-900">
+                      {material.materialName}
                     </span>
-                    {material.materialCode === currentCode ? (
-                      <span className={cn(BADGE_CLASS, 'bg-ink-900/8 text-ink-900')}>현재</span>
-                    ) : null}
-                    {material.materialCode === suggestedCode ? (
-                      <span className={cn(BADGE_CLASS, 'bg-purple-600/10 text-purple-600')}>
-                        제안
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[12px] text-text-tertiary tabular-nums">
+                        {material.materialCode}
                       </span>
-                    ) : null}
+                      {material.materialCode === currentCode ? (
+                        <span className={cn(BADGE_CLASS, 'bg-ink-900/8 text-ink-900')}>현재</span>
+                      ) : null}
+                      {material.materialCode === suggestedCode ? (
+                        <span className={cn(BADGE_CLASS, 'bg-purple-600/10 text-purple-600')}>
+                          제안
+                        </span>
+                      ) : null}
+                    </span>
                   </span>
-                </span>
-                {selected ? <CheckMark className="size-4 shrink-0 text-purple-600" /> : null}
-              </div>
-            );
-          })
-        )}
+                  {selected ? <CheckMark className="size-4 shrink-0 text-purple-600" /> : null}
+                </div>
+              );
+            })}
       </div>
     </div>
   );
