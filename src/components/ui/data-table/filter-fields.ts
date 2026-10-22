@@ -18,6 +18,8 @@ export type DataTableFilterField<T> = {
   label: string;
   filter: ColumnFilterDef;
   value: (row: T) => FilterAccessorValue;
+  /** 빠른 필터 바 고정 필드 (§2.2) — 항상 버튼으로 보인다. 없으면 "＋ N개 더" 안(조건이 걸리면 바에 나타남) */
+  quick?: boolean;
 };
 
 /** 라이브 영역·칩에 쓰는 열 이름 — DataTable 의 columnLabel 과 같은 규칙 */
@@ -35,11 +37,14 @@ export function filterFieldsOf<T>(
   const fields: DataTableFilterField<T>[] = [];
   for (const column of columns) {
     if (!column.filter) continue;
+    // quick 은 화면 전용 — 화이트리스트(filterDefsOf → 서버·URL 파싱)로 가는 filter 에는 넣지 않는다
+    const { quick, ...def } = column.filter;
     fields.push({
       id: column.id,
       label: columnLabelOf(column),
-      filter: column.filter,
+      filter: quick === undefined ? column.filter : (def as ColumnFilterDef),
       value: column.filterValue ?? column.sortValue ?? EMPTY,
+      ...(quick ? { quick: true } : {}),
     });
   }
   return [...fields, ...extra];

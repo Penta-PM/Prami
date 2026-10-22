@@ -65,6 +65,9 @@ const RESIZE_STEP = 16;
 
 const NO_FILTERS: readonly FilterCondition[] = [];
 
+/** 필터 결과 라이브 안내 지연(ms) — 마지막 조건 변경 후 이 시간 뒤 1회 (표 열 필터 빠른 필터 바 §2.4) */
+export const FILTER_ANNOUNCE_DELAY_MS = 300;
+
 const ALIGN_CLASSES: Record<DataTableAlign, string> = {
   left: 'text-left',
   center: 'text-center',
@@ -194,7 +197,8 @@ export function DataTable<T>({
   const [announcement, setAnnouncement] = useState('');
 
   // 필터 조건이 바뀌면 결과 건수를 알린다 (§2.5-6). 첫 렌더(새로고침으로 URL 에 조건이 있던 경우)는 알리지 않는다.
-  // 렌더 중 상태 보정 — 이전 렌더의 조건 키와 비교 (effect 의 연쇄 렌더 없이)
+  // 빠른 필터 바의 즉시 적용으로 연달아 바뀌면 마지막 변경 후 FILTER_ANNOUNCE_DELAY_MS 에 1회만(빠른 필터 바 §2.4).
+  // 같은 조건으로 돌아오면(A → B → A) 알리지 않는다. 문구의 건수는 알리는 시점의 최신 값
   const filterKey = useMemo(
     () =>
       serializeFilters(conditions)
@@ -202,12 +206,21 @@ export function DataTable<T>({
         .join('&'),
     [conditions],
   );
+  const filterCount = sortMode === 'server' ? (filteredTotal ?? rows.length) : filteredRows.length;
+  const filterMessage = filterKey ? `필터 적용 · ${filterCount}건` : `필터 해제 · ${filterCount}건`;
+  const filterMessageRef = useRef(filterMessage);
+  useEffect(() => {
+    filterMessageRef.current = filterMessage;
+  }, [filterMessage]);
   const [announcedFilterKey, setAnnouncedFilterKey] = useState(filterKey);
-  if (announcedFilterKey !== filterKey) {
-    setAnnouncedFilterKey(filterKey);
-    const count = sortMode === 'server' ? (filteredTotal ?? rows.length) : filteredRows.length;
-    setAnnouncement(filterKey ? `필터 적용 · ${count}건` : `필터 해제 · ${count}건`);
-  }
+  useEffect(() => {
+    if (announcedFilterKey === filterKey) return;
+    const timer = window.setTimeout(() => {
+      setAnnouncedFilterKey(filterKey);
+      setAnnouncement(filterMessageRef.current);
+    }, FILTER_ANNOUNCE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [filterKey, announcedFilterKey]);
 
   // 아직 URL(sort prop)에 반영되지 않은 정렬 요청 — 빠른 두 번 클릭이 낡은 URL 에서 계산되지 않게 (BL-2, pending-sort.ts)
   const pendingSortRef = useRef<PendingSort | null>(null);

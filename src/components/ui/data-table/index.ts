@@ -4,6 +4,29 @@ export {
   DataTableFilterEmpty,
   type DataTableFilterBarProps,
 } from './DataTableFilterBar';
+export {
+  DataTableQuickFilterBar,
+  SERVER_ENUM_DEBOUNCE_MS,
+  type DataTableQuickFilterBarProps,
+} from './DataTableQuickFilterBar';
+export { QuickFilterEditor, type QuickFilterEditorProps } from './QuickFilterEditor';
+export {
+  DATE_PRESETS,
+  datePresetRange,
+  QUICK_FILTER_FIELDS,
+  splitQuickFields,
+  summarizeField,
+  withQuickFields,
+  type DatePresetId,
+  type QuickFilterTable,
+} from './quick-filters';
+export {
+  filtersBase,
+  filtersKey,
+  reconcileFilters,
+  requestFilters,
+  type PendingFilters,
+} from './pending-filters';
 export { DataTableResetButton, type DataTableResetButtonProps } from './DataTableResetButton';
 export {
   applyFilterFields,
@@ -14,6 +37,7 @@ export {
 export type {
   DataTableAlign,
   DataTableColumn,
+  DataTableColumnFilter,
   DataTableSort,
   SortDir,
   SortType,

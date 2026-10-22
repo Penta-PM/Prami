@@ -1,8 +1,9 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DataTable, filterFieldsOf, type DataTableColumn } from '@/components/ui/data-table';
+import { FILTER_ANNOUNCE_DELAY_MS } from '@/components/ui/data-table/DataTable';
 import { STATUS_ORDERS } from '@/lib/table/compare';
 import type { FilterCondition } from '@/lib/table/filter';
 
@@ -121,24 +122,56 @@ describe('DataTable 열 필터', () => {
     expect(within(table()).getByText('비어 있음')).toBeInTheDocument();
   });
 
-  it('조건이 바뀌면 라이브 영역에 "필터 적용 · M건", 모두 풀리면 "필터 해제 · N건". 첫 렌더는 알리지 않는다', () => {
-    const { update } = renderTable([{ col: 'role', op: 'in', values: ['ADMIN'] }]);
-    expect(liveRegion()).toHaveTextContent('');
-    update([{ col: 'role', op: 'in', values: ['USER'] }]);
-    expect(liveRegion()).toHaveTextContent('필터 적용 · 2건');
-    // 같은 조건(새 배열)으로 다시 렌더해도 다시 알리지 않는다
-    update([{ col: 'role', op: 'in', values: ['USER'] }]);
-    expect(liveRegion()).toHaveTextContent('필터 적용 · 2건');
-    update([]);
-    expect(liveRegion()).toHaveTextContent('필터 해제 · 4건');
-  });
+  describe('라이브 영역 알림 (마지막 변경 후 FILTER_ANNOUNCE_DELAY_MS 에 1회 — 빠른 필터 바 §2.4)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+    const settle = () => act(() => vi.advanceTimersByTime(FILTER_ANNOUNCE_DELAY_MS));
 
-  it('server 모드: 행을 그대로 쓰고(서버가 이미 거름) 점·알림은 같다 — 알림 건수는 filteredTotal', () => {
-    const { update } = renderTable([], 'server');
-    update([{ col: 'name', op: 'has', value: 'zzz' }], 57);
-    expect(names()).toEqual(['charlie', 'Alpha', 'bravo', 'alpine']);
-    expect(th('이름')).toHaveAttribute('data-filtered', 'true');
-    expect(liveRegion()).toHaveTextContent('필터 적용 · 57건');
+    it('조건이 바뀌면 라이브 영역에 "필터 적용 · M건", 모두 풀리면 "필터 해제 · N건". 첫 렌더는 알리지 않는다', () => {
+      const { update } = renderTable([{ col: 'role', op: 'in', values: ['ADMIN'] }]);
+      settle();
+      expect(liveRegion()).toHaveTextContent('');
+      update([{ col: 'role', op: 'in', values: ['USER'] }]);
+      settle();
+      expect(liveRegion()).toHaveTextContent('필터 적용 · 2건');
+      // 같은 조건(새 배열)으로 다시 렌더해도 다시 알리지 않는다
+      update([{ col: 'role', op: 'in', values: ['USER'] }]);
+      settle();
+      expect(liveRegion()).toHaveTextContent('필터 적용 · 2건');
+      update([]);
+      settle();
+      expect(liveRegion()).toHaveTextContent('필터 해제 · 4건');
+    });
+
+    it('연달아 바뀌면 마지막 변경 후 1회만 알린다(중간 결과는 알리지 않음)', () => {
+      const { update } = renderTable([]);
+      update([{ col: 'role', op: 'in', values: ['ADMIN'] }]);
+      act(() => vi.advanceTimersByTime(FILTER_ANNOUNCE_DELAY_MS - 50));
+      expect(liveRegion()).toHaveTextContent('');
+      update([{ col: 'role', op: 'in', values: ['ADMIN', 'USER'] }]);
+      act(() => vi.advanceTimersByTime(FILTER_ANNOUNCE_DELAY_MS - 50));
+      expect(liveRegion()).toHaveTextContent('');
+      settle();
+      expect(liveRegion()).toHaveTextContent('필터 적용 · 4건');
+      // 원래 조건으로 돌아오면(A → B → A) 알리지 않는다
+      update([{ col: 'role', op: 'in', values: ['USER'] }]);
+      update([{ col: 'role', op: 'in', values: ['ADMIN', 'USER'] }]);
+      settle();
+      expect(liveRegion()).toHaveTextContent('필터 적용 · 4건');
+    });
+
+    it('server 모드: 행을 그대로 쓰고(서버가 이미 거름) 점·알림은 같다 — 알림 건수는 filteredTotal', () => {
+      const { update } = renderTable([], 'server');
+      update([{ col: 'name', op: 'has', value: 'zzz' }], 57);
+      expect(names()).toEqual(['charlie', 'Alpha', 'bravo', 'alpine']);
+      expect(th('이름')).toHaveAttribute('data-filtered', 'true');
+      settle();
+      expect(liveRegion()).toHaveTextContent('필터 적용 · 57건');
+    });
   });
 
   it('filterFieldsOf: filter 있는 열만(열 순서), 접근자 기본값은 sortValue', () => {
