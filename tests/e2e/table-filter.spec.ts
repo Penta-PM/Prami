@@ -255,16 +255,23 @@ test('내 견적 목록 모달 금액 슬라이더(§7.5): 숫자 입력 없음,
   page,
 }) => {
   await loginAs(page, FIXTURE_USER, '/calculator');
-  await page.getByRole('list', { name: '품목 목록' }).getByRole('button').first().click();
-  await page.getByRole('button', { name: /장바구니에 담기 \(/ }).click();
-  await page.getByRole('button', { name: '견적 저장' }).click();
-  await expect(page.getByRole('status')).toContainText('견적을 저장했습니다');
+  // 금액이 다른 견적 2건 — 금액이 하나뿐이면 슬라이더 대신 "값이 하나뿐입니다" 가 나온다(§7.5)
+  const saved: string[] = [];
+  for (const quantityUp of [0, 2]) {
+    await page.getByRole('list', { name: '품목 목록' }).getByRole('button').first().click();
+    for (let i = 0; i < quantityUp; i += 1) {
+      await page.getByRole('button', { name: '수량 증가' }).click();
+    }
+    await page.getByRole('button', { name: /장바구니에 담기 \(/ }).click();
+    await page.getByRole('button', { name: '견적 저장' }).click();
+    const status = page.getByRole('status').filter({ hasText: '견적을 저장했습니다' });
+    await expect(status).toContainText(/Q-\d{4}-/);
+    saved.push(((await status.innerText()).match(/Q-\d{4}-\d+/) ?? [''])[0]);
+    await page.getByRole('button', { name: '견적 초기화' }).click();
+  }
   await page.getByRole('button', { name: '전체보기' }).click();
   const modal = page.getByRole('dialog', { name: '내 견적 목록' });
   await expect(modal).toBeVisible();
-  const quoteNo = (
-    await modal.locator('tbody tr').first().locator('td').first().innerText()
-  ).trim();
   const urlBefore = page.url();
 
   await modal.getByRole('button', { name: /^＋ \d+개 더$/ }).click();
@@ -295,6 +302,10 @@ test('내 견적 목록 모달 금액 슬라이더(§7.5): 숫자 입력 없음,
 
   // 정리: 필터 초기화 후 방금 저장한 견적 삭제
   await modal.getByRole('button', { name: '필터 초기화' }).first().click();
-  await modal.getByRole('button', { name: `${quoteNo} 삭제` }).click();
-  await expect(page.getByRole('status')).toContainText(`견적을 삭제했습니다: ${quoteNo}`);
+  for (const quoteNo of saved) {
+    await modal.getByRole('button', { name: `${quoteNo} 삭제` }).click();
+    await expect(page.getByRole('status').filter({ hasText: '견적을 삭제했습니다' })).toContainText(
+      quoteNo,
+    );
+  }
 });

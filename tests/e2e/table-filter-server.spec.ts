@@ -315,6 +315,24 @@ test('가격 관리: 제어 문자 값(f.remark.has=%00abc·q=%00) → 200, 그 
   expectNoHydrationErrors(page);
 });
 
+/**
+ * 통화 선택(§7.5): 선택지가 여럿이면 "통화를 먼저 선택하세요" + 슬라이더 비활성 → KRW 라디오 = 통화 조건 즉시 적용.
+ * 선택지가 하나(E2E 픽스처는 KRW 뿐)면 미리 선택돼 슬라이더가 바로 켜지고, 범위를 기록할 때 통화 조건이 함께 들어간다.
+ */
+async function chooseOrPreselectedKrw(page: Page, dialog: Locator, sliderName: string) {
+  const slider = dialog.getByRole('slider', { name: sliderName });
+  if ((await dialog.getByRole('radio').count()) > 1) {
+    await expect(dialog.getByText('통화를 먼저 선택하세요')).toBeVisible();
+    await expect(slider).toBeDisabled();
+    await dialog.getByRole('radio', { name: 'KRW' }).check();
+    await expect(page).toHaveURL(/[?&]f\.currency\.in=KRW$/);
+  } else {
+    await expect(dialog.getByRole('radio', { name: 'KRW' })).toBeChecked();
+    await expect(dialog.getByText('통화를 먼저 선택하세요')).toHaveCount(0);
+  }
+  await expect(slider).toBeEnabled();
+}
+
 test('가격 관리 판매가 슬라이더(§7.5): 숫자 입력 없음, 통화 라디오 즉시 → 키보드로 하한 → URL f.price.gte·팝오버 유지, 양 끝 → 조건 해제, 옛 URL 값 표시', async ({
   page,
 }) => {
@@ -324,11 +342,7 @@ test('가격 관리 판매가 슬라이더(§7.5): 숫자 입력 없음, 통화 
 
   const dialog = await openField(page, '판매가');
   await expect(dialog.getByRole('textbox')).toHaveCount(0);
-  await expect(dialog.getByText('통화를 먼저 선택하세요')).toBeVisible();
-  await expect(dialog.getByRole('slider', { name: '판매가 최소' })).toBeDisabled();
-  // 통화 라디오 = 통화 조건 즉시 적용 (팝오버는 열린 채)
-  await dialog.getByRole('radio', { name: 'KRW' }).check();
-  await expect(page).toHaveURL(/[?&]f\.currency\.in=KRW$/);
+  await chooseOrPreselectedKrw(page, dialog, '판매가 최소');
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText(/로그 눈금/)).toBeVisible();
 
@@ -336,7 +350,9 @@ test('가격 관리 판매가 슬라이더(§7.5): 숫자 입력 없음, 통화 
   const lower = dialog.getByRole('slider', { name: '판매가 최소' });
   await lower.focus();
   for (let i = 0; i < 10; i += 1) await page.keyboard.press('PageUp');
-  await expect(page).toHaveURL(/[?&]f\.currency\.in=KRW&f\.price\.gte=\d+(\.\d+)?$/);
+  // 범위를 기록할 때 통화 조건도 함께(미리 선택된 통화 포함 — §2.3)
+  await expect(page).toHaveURL(/[?&]f\.price\.gte=\d+(\.\d+)?(&|$)/);
+  expect(new URL(page.url()).searchParams.get('f.currency.in')).toBe('KRW');
   await expect(dialog).toBeVisible();
   await expect(lower).toHaveAttribute('aria-valuetext', /^₩[\d,]+$/);
   await expect(activeFields(page)).toHaveText([/통화: KRW/, /판매가: KRW ₩[\d.,]+[만억조]? 이상/]);
@@ -373,12 +389,12 @@ test('원가 슬라이더(§7.5): 통화 KRW → 하한 키보드 → URL f.cost
 
   const dialog = await openField(page, '원가');
   await expect(dialog.getByRole('textbox')).toHaveCount(0);
-  await dialog.getByRole('radio', { name: 'KRW' }).check();
-  await expect(page).toHaveURL(/[?&]f\.currency\.in=KRW$/);
+  await chooseOrPreselectedKrw(page, dialog, '원가 최소');
   const lower = dialog.getByRole('slider', { name: '원가 최소' });
   await lower.focus();
   for (let i = 0; i < 5; i += 1) await page.keyboard.press('PageUp');
-  await expect(page).toHaveURL(/[?&]f\.cost\.gte=\d+(\.\d+)?$/);
+  await expect(page).toHaveURL(/[?&]f\.cost\.gte=\d+(\.\d+)?(&|$)/);
+  expect(new URL(page.url()).searchParams.get('f.currency.in')).toBe('KRW');
   const gte = Number(new URL(page.url()).searchParams.get('f.cost.gte'));
   await page.keyboard.press('Escape');
   const costs = await table.locator('tbody tr td:nth-child(4)').allInnerTexts();
