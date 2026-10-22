@@ -1,6 +1,13 @@
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './button';
 export { Card, CardTitle } from './card';
 export { Drawer, type DrawerProps } from './drawer';
+export {
+  ErpPathHint,
+  InfoHint,
+  INFO_HINT_LEAVE_DELAY_MS,
+  type ErpPathHintProps,
+  type InfoHintProps,
+} from './info-hint';
 export { Input, type InputProps } from './input';
 export { CloseButton, Modal, type ModalProps, type ModalSize } from './modal';
 export { Popover, type PopoverAlign, type PopoverProps } from './popover';

@@ -286,3 +286,52 @@ describe('Popover (표 열 필터 스펙 §2.5-5)', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 });
+
+describe('Popover 선택형 id·describedBy·포인터 콜백 (erp-upload-guide §2-1 — InfoHint 용)', () => {
+  it('기본(열 필터): id·aria-describedby 없음, 포인터 이탈로 닫히지 않는다', async () => {
+    render(<Harness />, withMotion);
+    await userEvent.click(trigger());
+    const dialog = screen.getByRole('dialog', { name: '품목명 필터' });
+    expect(dialog).not.toHaveAttribute('aria-describedby');
+    expect(dialog).not.toHaveAttribute('id');
+    fireEvent.pointerLeave(dialog, { pointerType: 'mouse' });
+    fireEvent.pointerLeave(trigger(), { pointerType: 'mouse' });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
+    expect(screen.getByRole('dialog', { name: '품목명 필터' })).toBeInTheDocument();
+  });
+
+  it('id·describedBy 를 넘기면 본문이 설명으로 연결되고, 포인터 콜백이 불린다', async () => {
+    const onPointerEnter = vi.fn();
+    const onPointerLeave = vi.fn();
+    function DescribedHarness() {
+      const ref = useRef<HTMLButtonElement>(null);
+      return (
+        <>
+          <button ref={ref} type="button">
+            안내
+          </button>
+          <Popover
+            open
+            onOpenChange={() => {}}
+            anchorRef={ref}
+            label="안내 팝오버"
+            id="hint-popover"
+            describedBy="hint-body"
+            onPointerEnter={onPointerEnter}
+            onPointerLeave={onPointerLeave}
+          >
+            <p id="hint-body">본문 설명</p>
+          </Popover>
+        </>
+      );
+    }
+    render(<DescribedHarness />, withMotion);
+    const dialog = screen.getByRole('dialog', { name: '안내 팝오버' });
+    expect(dialog).toHaveAttribute('id', 'hint-popover');
+    expect(dialog).toHaveAccessibleDescription('본문 설명');
+    fireEvent.pointerEnter(dialog, { pointerType: 'mouse' });
+    fireEvent.pointerLeave(dialog, { pointerType: 'mouse' });
+    expect(onPointerEnter).toHaveBeenCalledTimes(1);
+    expect(onPointerLeave).toHaveBeenCalledTimes(1);
+  });
+});
