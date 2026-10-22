@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
 } from 'react';
@@ -31,6 +32,16 @@ export type PopoverProps = {
   align?: PopoverAlign;
   /** 열릴 때 포커스할 요소. 없으면 첫 입력/선택/버튼, 그것도 없으면 팝오버 자신 */
   initialFocusRef?: RefObject<HTMLElement | null>;
+  /** 팝오버 요소 id — 트리거의 `aria-controls` 대상 (선택) */
+  id?: string;
+  /**
+   * 본문 설명 요소 id (`aria-describedby`, 선택) — 포커스할 컨트롤이 없는 안내 팝오버(InfoHint)에서 열릴 때 본문이 낭독되게 한다.
+   * 열 필터처럼 입력이 있는 팝오버는 넘기지 않는다(기본 없음 — 기존 동작 그대로)
+   */
+  describedBy?: string;
+  /** 팝오버 영역 포인터 진입·이탈 (선택) — InfoHint 의 마우스 이탈 닫기용. 기본 동작에는 없다(열 필터 무영향) */
+  onPointerEnter?: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerLeave?: (event: ReactPointerEvent<HTMLDivElement>) => void;
   className?: string;
   children: ReactNode;
 };
@@ -74,6 +85,10 @@ function PopoverPanel({
   label,
   align = 'start',
   initialFocusRef,
+  id,
+  describedBy,
+  onPointerEnter,
+  onPointerLeave,
   className,
   children,
 }: PopoverProps) {
@@ -246,8 +261,12 @@ function PopoverPanel({
   return (
     <m.div
       ref={panelRef}
+      id={id}
       role="dialog"
       aria-label={label}
+      aria-describedby={describedBy}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
       tabIndex={-1}
       data-placement={position?.placement}
       variants={scaleIn}

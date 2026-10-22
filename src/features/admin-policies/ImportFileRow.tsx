@@ -1,10 +1,11 @@
 'use client';
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
-import { Button, Segmented, Select } from '@/components/ui';
+import { Button, ErpPathHint, Segmented, Select } from '@/components/ui';
+import type { ErpHint } from '@/lib/constants/erp-guide';
 import { checkUploadFiles, PLATFORM_TOO_LARGE_MESSAGE } from '@/lib/constants/upload-limits';
 import { formatDate } from '@/lib/date-format';
 
@@ -34,6 +35,11 @@ type ImportFileRowProps = {
   /** 여러 파일을 한 배치로 (품목조회 1~5개, PRAMI-003 §4.2.3) */
   multiple?: boolean;
   note?: ReactNode;
+  /**
+   * ERP 메뉴 경로 안내 (erp-upload-guide §2-2) — 라벨 옆 InfoHint + 업로드 버튼 `aria-describedby`(sr-only 경로).
+   * 신규 업로드·기존 파일 재사용 두 모드 모두 표시한다
+   */
+  erpHint?: ErpHint;
   /** 현재 사용자 id — 업로드 미리보기 표의 열 설정 저장 키 (#32 스펙 §5) */
   userId: string;
 };
@@ -78,7 +84,9 @@ function optionLabel(option: BatchOption): string {
 /** 파일 1행 (디자인 "판매단가 파일" / "품목상태 파일"): 신규 업로드 ↔ 기존 파일 재사용 토글 (R-11) */
 export function ImportFileRow(props: ImportFileRowProps) {
   const { kind, label, uploadLabel, options, selection, onChange, optional = false } = props;
-  const { multiple = false, note } = props;
+  const { multiple = false, note, erpHint } = props;
+  const hintId = useId();
+  const describedBy = erpHint ? hintId : undefined;
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -120,7 +128,16 @@ export function ImportFileRow(props: ImportFileRowProps) {
   return (
     <div className="flex flex-col gap-2.5 rounded-lg bg-surface-card px-3.5 py-2.5 shadow-(--hairline-default)">
       <div className="flex flex-wrap items-center gap-2.5">
-        <span className="w-[110px] text-[12px] font-semibold">{label}</span>
+        {/* 라벨과 ⓘ 를 한 덩어리(inline-flex)로 — 줄바꿈돼도 순서 유지. 폭은 기존 라벨 칸 110px 그대로 */}
+        <span className="inline-flex w-[110px] items-center gap-0.5 text-[12px] font-semibold">
+          {label}
+          {erpHint ? <ErpPathHint label={label} item={erpHint.item} path={erpHint.path} /> : null}
+        </span>
+        {erpHint ? (
+          <span id={hintId} className="sr-only">
+            {`${erpHint.item}: ${erpHint.path}`}
+          </span>
+        ) : null}
         <Segmented
           aria-label={`${label} 방식`}
           options={MODE_OPTIONS}
@@ -134,6 +151,7 @@ export function ImportFileRow(props: ImportFileRowProps) {
               type="file"
               accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               aria-label={uploadLabel}
+              aria-describedby={describedBy}
               className="sr-only"
               multiple={multiple}
               onChange={(event) => {
@@ -141,13 +159,19 @@ export function ImportFileRow(props: ImportFileRowProps) {
                 if (files.length > 0) void upload(files);
               }}
             />
-            <Button size="sm" disabled={busy} onClick={() => inputRef.current?.click()}>
+            <Button
+              size="sm"
+              disabled={busy}
+              aria-describedby={describedBy}
+              onClick={() => inputRef.current?.click()}
+            >
               {busy ? '검증 중…' : uploadLabel}
             </Button>
           </>
         ) : (
           <Select
             aria-label={`${label} 기존 배치`}
+            aria-describedby={describedBy}
             value={selection.reuseId}
             onChange={(event) => onChange({ ...selection, reuseId: event.target.value })}
             className="w-auto min-w-[320px] py-2 text-[12px]"

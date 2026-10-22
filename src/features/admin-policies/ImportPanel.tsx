@@ -7,9 +7,11 @@ import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import type { PolicyApplyStats } from '@/db/schema';
+import { ERP_HINT_ITEMS, ERP_HINT_SALES } from '@/lib/constants/erp-guide';
 
 import { applyPolicyAction, previewItemMergeAction } from './actions';
 import { ApplyStatsView } from './ApplyStatsView';
+import { ErpDataGuide } from './ErpDataGuide';
 import { ImportFileRow } from './ImportFileRow';
 import {
   ItemMergeChoice,
@@ -127,6 +129,7 @@ export function ImportPanel({
 
   return (
     <section aria-label="가격정책 파일 적용" className="flex flex-col gap-2.5">
+      <ErpDataGuide />
       <ImportFileRow
         userId={userId}
         kind="sales"
@@ -135,6 +138,7 @@ export function ImportPanel({
         options={salesOptions}
         selection={sales}
         onChange={setSales}
+        erpHint={ERP_HINT_SALES}
       />
       <ImportFileRow
         userId={userId}
@@ -146,6 +150,7 @@ export function ImportPanel({
         onChange={setItem}
         optional
         multiple
+        erpHint={ERP_HINT_ITEMS}
         note={
           <span className="text-[11px] text-text-tertiary">
             폐기 품목은 운영중 상태를 가질 수 없습니다.

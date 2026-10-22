@@ -1,8 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { ErpPathHint } from '@/components/ui';
 import { getDb } from '@/db';
 import { CostLinkManager } from '@/features/costs/CostLinkManager';
+import {
+  ERP_HINT_COST_LINK,
+  ERP_HINT_ITEM_COST_LINK_ON_LINKS_PAGE,
+} from '@/lib/constants/erp-guide';
 import { hasPermission } from '@/lib/constants/permissions';
 import { getSessionUser } from '@/server/auth/rbac';
 import { requireCostPageAccess } from '@/server/cost/access';
@@ -27,9 +32,19 @@ export default async function AdminCostLinksPage() {
       <Link href="/admin/costs" className="text-[12px] font-semibold text-text-tertiary">
         ← 원가 관리로
       </Link>
-      <h1 id="page-title" className="m-0 [font:var(--text-page-title)]">
-        원가 매핑
-      </h1>
+      {/* 항목 4(품목-원가 매칭) ERP 경로 — erp-upload-guide Q-E3 기본 (b): 업로드가 없어 공통 박스 없이 토글팁만 */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <h1 id="page-title" className="m-0 [font:var(--text-page-title)]">
+          원가 매핑
+        </h1>
+        {ERP_HINT_ITEM_COST_LINK_ON_LINKS_PAGE ? (
+          <ErpPathHint
+            label="원가 매핑"
+            item={ERP_HINT_COST_LINK.item}
+            path={ERP_HINT_COST_LINK.path}
+          />
+        ) : null}
+      </div>
       <p className="m-0 text-[12px] text-text-tertiary">
         가격 품목(품목코드)마다 원가 자재(자재번호) 하나를 연결합니다. 모델명으로 고른 제안은
         저장되지 않으며, 확정한 행만 저장됩니다.

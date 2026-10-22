@@ -12,7 +12,8 @@ export type IconName =
   | 'log'
   | 'chat'
   | 'search'
-  | 'bell';
+  | 'bell'
+  | 'info';
 
 type IconProps = SVGProps<SVGSVGElement> & { name: IconName };
 
@@ -95,6 +96,14 @@ const PATHS: Record<IconName, React.ReactNode> = {
         strokeLinejoin="round"
       />
       <path d="M10 20a2 2 0 0 0 4 0" {...STROKE} />
+    </>
+  ),
+  /** 안내(원 안 i) — InfoHint 트리거·ERP 안내 제목. 유니코드 ⓘ 대신 쓴다 (erp-upload-guide §2-1) */
+  info: (
+    <>
+      <circle cx="12" cy="12" r="8.5" {...STROKE} />
+      <path d="M12 11v5.5" {...STROKE} strokeLinecap="round" />
+      <circle cx="12" cy="7.8" r="1.05" fill="currentColor" />
     </>
   ),
 };

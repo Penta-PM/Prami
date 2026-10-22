@@ -7,6 +7,7 @@ import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import { DuplicateWarningLists } from '@/features/admin-policies/DuplicateWarningLists';
+import { ErpDataGuide } from '@/features/admin-policies/ErpDataGuide';
 import { ImportFileRow } from '@/features/admin-policies/ImportFileRow';
 import {
   selectedBatchId,
@@ -14,6 +15,7 @@ import {
   type BatchOption,
   type FileSelection,
 } from '@/features/admin-policies/types';
+import { ERP_HINT_COSTS } from '@/lib/constants/erp-guide';
 
 import { applyCostImportAction } from './actions';
 
@@ -70,6 +72,7 @@ export function CostImportPanel({ userId, options, currentBatchId }: CostImportP
 
   return (
     <section aria-label="원가 파일 적용" className="flex flex-col gap-2.5">
+      <ErpDataGuide />
       <ImportFileRow
         userId={userId}
         kind="costs"
@@ -78,6 +81,7 @@ export function CostImportPanel({ userId, options, currentBatchId }: CostImportP
         options={options}
         selection={selection}
         onChange={setSelection}
+        erpHint={ERP_HINT_COSTS}
         note={
           <span className="text-[11px] text-text-tertiary">
             구매단가등록 12컬럼 · 제품군은 자재번호 접두(W1/W2/W4)로 분류
