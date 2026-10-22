@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
-import { Button, Input, Modal } from '@/components/ui';
+import { Button, Checkbox, Input, Modal } from '@/components/ui';
 import type { ActionResult } from '@/lib/result';
 import { priceLabel } from '@/lib/pricing/format';
 
@@ -129,8 +129,7 @@ export function GroupFormModal({ mode, family, candidates, onClose, onDone }: Gr
                 className="flex items-center justify-between gap-3 rounded-[10px] px-3 py-2 text-[12px] font-medium shadow-(--hairline-subtle)"
               >
                 <span className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={checked.has(item.itemCode)}
                     onChange={(event) => toggle(item.itemCode, event.target.checked)}
                   />

@@ -56,7 +56,7 @@ export function PricingFilters(props: PricingFiltersProps) {
           role="search"
           aria-label="가격정책 검색"
           onSubmit={submitSearch}
-          className="w-[260px]"
+          className="w-full sm:w-[260px]"
         >
           <Input
             type="search"

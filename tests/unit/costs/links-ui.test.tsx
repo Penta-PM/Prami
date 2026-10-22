@@ -297,6 +297,22 @@ describe('CostLinkManager 동작', () => {
     expect(screen.getByRole('button', { name: '선택 1건 제안대로 확정' })).toBeEnabled();
   });
 
+  it('일부만 선택하면 헤더 체크박스는 indeterminate(공용 Checkbox), 전체 선택 시 checked', async () => {
+    const many = Array.from({ length: 3 }, (_, i) =>
+      candidate({ itemCode: `P${1000 + i}`, itemName: `WAPPLES-${1000 + i}`, suggestion: W100 }),
+    );
+    render(<CostLinkManager view={{ ...VIEW, candidates: many }} canWrite userId="u1" />);
+    const all = screen.getByRole<HTMLInputElement>('checkbox', { name: '보이는 제안 전체 선택' });
+    expect(all).toHaveClass('appearance-none');
+    expect(all.indeterminate).toBe(false);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'WAPPLES-1000 선택' }));
+    expect(all).toBePartiallyChecked();
+    await userEvent.click(all);
+    expect(all.indeterminate).toBe(false);
+    expect(all).toBeChecked();
+    expect(screen.getByRole('button', { name: '선택 3건 제안대로 확정' })).toBeEnabled();
+  });
+
   it('500건을 넘으면 500건씩 나눠 보낸다', async () => {
     const many = Array.from({ length: 501 }, (_, i) =>
       candidate({ itemCode: `P${1000 + i}`, itemName: `WAPPLES-${1000 + i}`, suggestion: W100 }),
@@ -326,12 +342,12 @@ describe('CostLinkManager 동작', () => {
     expect(confirmButton).toBeDisabled(); // 제안·확정이 없으면 미선택
 
     await userEvent.type(
-      within(dialog).getByRole('searchbox', { name: '자재명·자재번호 검색' }),
+      within(dialog).getByRole('combobox', { name: '자재명·자재번호 검색' }),
       'KMS',
     );
     const list = within(dialog).getByRole('listbox', { name: /원가 자재/ });
     expect(within(list).getAllByRole('option')).toHaveLength(1);
-    await userEvent.selectOptions(list, 'W300');
+    await userEvent.click(within(list).getByRole('option', { name: /W300/ }));
     await userEvent.click(confirmButton);
 
     expect(mocks.confirm).toHaveBeenCalledWith({

@@ -5,7 +5,7 @@ import { useState } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
-import { Button, Input } from '@/components/ui';
+import { Button, Checkbox, Input } from '@/components/ui';
 import { Icon } from '@/features/shell/icons';
 import { cn } from '@/lib/cn';
 import { VARIANT_KEYS, scaleIn, transition } from '@/lib/motion/tokens';
@@ -224,8 +224,7 @@ function PartsChecklist({
             key={item.itemCode}
             className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[13px] font-medium shadow-(--hairline-subtle)"
           >
-            <input
-              type="checkbox"
+            <Checkbox
               checked={checked.has(item.itemCode)}
               onChange={(event) => onToggle(item.itemCode, event.target.checked)}
             />

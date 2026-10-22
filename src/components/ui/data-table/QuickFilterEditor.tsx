@@ -15,6 +15,7 @@ import {
 } from '@/lib/table/filter';
 
 import { Button } from '../button';
+import { Checkbox, Radio } from '../checkbox';
 import { chipClass } from '../chip';
 import type { DataTableFilterField } from './filter-fields';
 import { DATE_PRESETS, datePresetRange } from './quick-filters';
@@ -42,7 +43,13 @@ export type QuickFilterEditorProps<T> = {
 
 const LABEL_CLASS = 'text-[12px] font-semibold text-text-secondary';
 const FIELD_CLASS =
-  'w-full rounded-lg border-0 bg-gray-75 px-3 py-2 text-[13px] text-ink-900 shadow-(--hairline-default) outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--purple-500)] disabled:cursor-not-allowed disabled:opacity-50';
+  'w-full min-w-0 rounded-lg border-0 bg-gray-75 px-3 py-2 text-[13px] text-ink-900 shadow-(--hairline-default) outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--purple-500)] disabled:cursor-not-allowed disabled:opacity-50';
+
+/** enum 목록 행 (§7.2) — 행 전체가 클릭 영역(label), 40px 이상. 선택 행은 옅은 보라 + font-medium */
+export const OPTION_ROW_CLASS =
+  'flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-ink-900';
+export const OPTION_ROW_IDLE = 'hover:bg-gray-75';
+export const OPTION_ROW_SELECTED = 'bg-purple-600/8 font-medium';
 
 const LIMIT_MESSAGE = `조건은 최대 ${FILTER_LIMITS.conditionsMax}개까지 걸 수 있습니다`;
 
@@ -139,40 +146,45 @@ function EnumEditor<T>({
   return (
     <div className="flex flex-col gap-3">
       <fieldset
-        className="m-0 flex flex-col gap-1.5 border-0 p-0"
+        className="m-0 flex min-w-0 flex-col border-0 p-0"
         aria-describedby={error ? errorId : undefined}
       >
-        <legend className={cn('mb-1 p-0', LABEL_CLASS)}>{field.label}</legend>
+        <legend className={cn('mb-2 p-0', LABEL_CLASS)}>{field.label}</legend>
         {/* 선택지가 많으면(감사 행위 등) 목록만 스크롤 */}
         <div
           data-filter-options
-          className="-mx-1 flex max-h-[min(240px,40vh)] flex-col gap-1.5 overflow-y-auto px-1"
+          className="-mx-1 flex max-h-[min(280px,45vh)] flex-col gap-0.5 overflow-y-auto px-1"
         >
-          {options.map((option) => (
-            <label key={option.value} className="flex items-center gap-2 text-[13px] text-ink-900">
-              <input
-                type="checkbox"
-                className="size-4 accent-purple-600"
-                checked={values.includes(option.value)}
-                onChange={(event) =>
-                  change(
-                    event.target.checked
-                      ? // 정의 순서(statusOrder·options 순)로 유지 — 선택지에 없는 URL 값은 뒤에 그대로
-                        [
-                          ...options
-                            .map((item) => item.value)
-                            .filter((value) => value === option.value || values.includes(value)),
-                          ...values.filter(
-                            (value) => !options.some((item) => item.value === value),
-                          ),
-                        ]
-                      : values.filter((value) => value !== option.value),
-                  )
-                }
-              />
-              {option.label}
-            </label>
-          ))}
+          {options.map((option) => {
+            const selected = values.includes(option.value);
+            return (
+              <label
+                key={option.value}
+                data-filter-option={option.value}
+                className={cn(OPTION_ROW_CLASS, selected ? OPTION_ROW_SELECTED : OPTION_ROW_IDLE)}
+              >
+                <Checkbox
+                  checked={selected}
+                  onChange={(event) =>
+                    change(
+                      event.target.checked
+                        ? // 정의 순서(statusOrder·options 순)로 유지 — 선택지에 없는 URL 값은 뒤에 그대로
+                          [
+                            ...options
+                              .map((item) => item.value)
+                              .filter((value) => value === option.value || values.includes(value)),
+                            ...values.filter(
+                              (value) => !options.some((item) => item.value === value),
+                            ),
+                          ]
+                        : values.filter((value) => value !== option.value),
+                    )
+                  }
+                />
+                <span className="min-w-0 break-words">{option.label}</span>
+              </label>
+            );
+          })}
         </div>
       </fieldset>
       {error ? (
@@ -180,7 +192,10 @@ function EnumEditor<T>({
           {error}
         </p>
       ) : null}
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2 border-t border-border-subtle pt-2">
+        <span data-filter-selected-count="" className="text-[12px] text-text-tertiary">
+          {values.length}개 선택됨
+        </span>
         <Button size="sm" variant="ghost" disabled={values.length === 0} onClick={() => change([])}>
           선택 해제
         </Button>
@@ -364,16 +379,14 @@ function RangeEditor<T>({ field, fields, filters, onApply }: QuickFilterEditorPr
       {needsCurrency && currencyOptions.length > 0 ? (
         <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
           <legend className={cn('mb-1 p-0', LABEL_CLASS)}>통화</legend>
-          <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+          <div className="flex flex-wrap gap-x-1.5">
             {currencyOptions.map((option) => (
               <label
                 key={option.value}
-                className="flex items-center gap-1.5 text-[13px] text-ink-900"
+                className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-1.5 text-[13px] text-ink-900 hover:bg-gray-75"
               >
-                <input
-                  type="radio"
+                <Radio
                   name={`${id}-currency`}
-                  className="size-4 accent-purple-600"
                   value={option.value}
                   checked={currency === option.value}
                   onChange={() => {
@@ -422,8 +435,8 @@ function RangeEditor<T>({ field, fields, filters, onApply }: QuickFilterEditorPr
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-1">
+      <div className="grid grid-cols-1 gap-2">
+        <label className="flex min-w-0 flex-col gap-1">
           <span className={LABEL_CLASS}>{def.kind === 'date' ? '시작일' : '최소'}</span>
           <input
             type={def.kind === 'date' ? 'date' : 'text'}
@@ -438,7 +451,7 @@ function RangeEditor<T>({ field, fields, filters, onApply }: QuickFilterEditorPr
             }}
           />
         </label>
-        <label className="flex flex-col gap-1">
+        <label className="flex min-w-0 flex-col gap-1">
           <span className={LABEL_CLASS}>{def.kind === 'date' ? '종료일' : '최대'}</span>
           <input
             type={def.kind === 'date' ? 'date' : 'text'}

@@ -4,7 +4,7 @@ import { useState, useTransition, type FormEvent } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
-import { Button, Input, Modal } from '@/components/ui';
+import { Button, Checkbox, Input, Modal } from '@/components/ui';
 import type { ActionResult } from '@/lib/result';
 
 import { upsertNoticeAction } from './actions';
@@ -100,11 +100,7 @@ export function NoticeFormModal({ mode, defaultAuthor, onClose, onDone }: Notice
           />
         </Field>
         <label className="flex items-center gap-2 text-[13px] font-medium">
-          <input
-            type="checkbox"
-            name="isImportant"
-            defaultChecked={editing?.isImportant ?? false}
-          />
+          <Checkbox name="isImportant" defaultChecked={editing?.isImportant ?? false} />
           중요 공지로 표시
         </label>
       </form>

@@ -4,7 +4,7 @@ import { useState, useTransition, type FormEvent, type ReactNode } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
-import { Button, Input, Modal, Select } from '@/components/ui';
+import { Button, Checkbox, Input, Modal, Select } from '@/components/ui';
 
 import { createPricePolicyAction, lookupItemAction, updatePricePolicyAction } from './actions';
 import { formToInput, type PolicyFormValues } from './policy-form';
@@ -231,11 +231,7 @@ function PolicyFields({ values, errors, set, onItemCodeBlur }: FieldsProps) {
       <div className="col-span-2 flex items-center gap-4 text-[12px] text-text-secondary">
         {CHECKBOXES.map(({ key, label }) => (
           <label key={key} className="flex items-center gap-1.5">
-            <input
-              type="checkbox"
-              checked={values[key]}
-              onChange={(event) => set(key, event.target.checked)}
-            />
+            <Checkbox checked={values[key]} onChange={(event) => set(key, event.target.checked)} />
             {label}
           </label>
         ))}
