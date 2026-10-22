@@ -67,7 +67,7 @@ test('ADMIN: 헤더·현재 적용·재적용 경고(중복 2그룹/값 다름 1
   await expect(page).toHaveURL(/dateMode=period/);
   await page.reload();
   await expect(page.getByRole('radio', { name: '적용기간 기준' })).toBeChecked();
-  await expect(page.getByText(/총 [\d,]+건/)).toBeVisible();
+  await expect(page.getByText(/^총 [\d,]+건$/)).toBeVisible();
 });
 
 test('ADMIN: 수동 등록 — 같은 계열·적용시작일이면 필드 오류·무변경 (AC-40 ⑦), 새 날짜면 등록 → 삭제', async ({

@@ -63,3 +63,39 @@ export function reconcileFilters(
   if (index === -1 || index === pending.requested.length - 1) return null;
   return { ...pending, landed: index };
 }
+
+/** 열 필터 파라미터 `f.<열>.<연산자>` 인가 */
+export const isColumnFilterParam = (key: string): boolean => key.startsWith('f.');
+
+/** 쿼리 끝에 두는 키 — 열 필터는 이 앞에 넣는다(각 표 filterToQuery 의 순서: 기존 필터 → f.* → page → sort·dir) */
+const TAIL_PARAMS = new Set(['page', 'sort', 'dir']);
+
+/**
+ * href 의 열 필터 파라미터를 바꾼다 (빠른 필터 바 §6 #7 — 대기 중 조건 flush). isFilterKey 가 true 인 키를 모두 지우고
+ * entries(새 조건의 [키, 값], 인코딩 전)를 page·sort·dir 앞에 넣는다. 다른 파라미터(분류·기간·검색·page·정렬)와 순서는 그대로.
+ * 해시는 버린다(표 화면 주소에는 없음).
+ */
+export function replaceFilterParams(
+  href: string,
+  isFilterKey: (key: string) => boolean,
+  entries: readonly (readonly [string, string])[],
+): string {
+  const withoutHash = href.split('#', 1)[0] ?? '';
+  const index = withoutHash.indexOf('?');
+  const path = index >= 0 ? withoutHash.slice(0, index) : withoutHash;
+  const source = new URLSearchParams(index >= 0 ? withoutHash.slice(index + 1) : '');
+  const head: [string, string][] = [];
+  const tail: [string, string][] = [];
+  for (const [key, value] of source) {
+    if (isFilterKey(key)) continue;
+    (TAIL_PARAMS.has(key) ? tail : head).push([key, value]);
+  }
+  const query = new URLSearchParams([...head, ...entries.map(([k, v]) => [k, v]), ...tail]);
+  const text = query.toString();
+  return text ? `${path}?${text}` : path;
+}
+
+/** 열 필터를 `f.*` 로만 쓰는 표(가격·원가)의 flush — href 의 f.* 를 next 로 바꾼다 */
+export function withColumnFilterParams(href: string, next: readonly FilterCondition[]): string {
+  return replaceFilterParams(href, isColumnFilterParam, serializeFilters(next));
+}

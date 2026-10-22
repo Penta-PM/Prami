@@ -82,15 +82,18 @@ export default async function AdminCostsPage({ searchParams }: AdminCostsPagePro
         options={options}
         currentBatchId={current?.batchId ?? null}
       />
-      <CostFilters
-        // 검색어 입력은 로컬 상태 — '필터 초기화' 등으로 q 가 바뀌면 새로 그려 입력값을 URL 과 맞춘다
-        key={filter.q ?? ''}
-        filter={filter}
-        errors={errors}
-        families={families}
-        years={years}
-      />
       <CostBrowser
+        // 기존 페이지 필터(제품군 탭·기간·검색)는 빠른 필터 바와 같은 카드 안, 바 위 (빠른 필터 바 §2.5)
+        leading={
+          <CostFilters
+            // 검색어 입력은 로컬 상태 — '필터 초기화' 등으로 q 가 바뀌면 새로 그려 입력값을 URL 과 맞춘다
+            key={filter.q ?? ''}
+            filter={filter}
+            errors={errors}
+            families={families}
+            years={years}
+          />
+        }
         rows={page.rows}
         filter={filter}
         total={page.total}

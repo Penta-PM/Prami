@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { cn } from '@/lib/cn';
+import { registerViewFlush } from '@/lib/page-state/view-navigation';
 import { OP_ORDER, withoutColumn, type FilterCondition } from '@/lib/table/filter';
 
 import { Button } from '../button';
@@ -49,6 +50,12 @@ export type DataTableQuickFilterBarProps<T> = {
   conditionCount?: number;
   /** 서버 표 이동 대기 중(useTransition 의 isPending) — 바에 aria-busy·진행 표시 */
   pending?: boolean;
+  /**
+   * 서버 표: 디바운스 중인 조건 먼저 반영 (§6 #7). path = 표 화면 경로, apply = href 에 조건을 합친 href.
+   * 바가 마운트돼 있는 동안 그 경로로 가는 다른 이동(정렬·페이지·탭·페이지 필터 — navigateView·ViewStateLink)이
+   * 디바운스 중인 조건을 버리지 않고 합쳐서 나간다. 버리는 것은 바가 사라질 때와 외부 URL 변경뿐
+   */
+  flush?: { path: string; apply: (href: string, next: readonly FilterCondition[]) => string };
   /** 같은 카드 안, 바 위에 놓을 기존 페이지 필터(가격 분류·날짜 기준·검색, 원가 제품군 탭) */
   leading?: ReactNode;
   /** 건수 앞의 안내 문구 (예: "최근 100건 안에서 필터합니다") */
@@ -82,6 +89,8 @@ type Track = {
  *   조건이 걸리면 바에 활성 버튼으로 나타난다. 별도 '적용된 필터' 칩 줄은 없다.
  * - 즉시 적용·디바운스·R1: 다음 조건은 '보낸(대기 중) 조건'(pending-filters) → 없으면 URL 조건에서 계산한다.
  *   빠르게 연달아 바꿔도 앞 변경이 지워지지 않는다. 버튼 요약도 대기 중 조건을 먼저 보인다(낙관적 표시).
+ * - 서버 표의 디바운스 중인 조건은 같은 표의 다른 이동(정렬·페이지·탭·페이지 필터·다른 필드 적용·초기화) 직전에 반영된다(flush, §6 #7).
+ *   버리는 것은 바가 사라질 때(화면 이탈)와 외부 URL 변경(뒤로 가기·사이드바·조회 상태 복원)뿐.
  * - 팝오버는 마우스 이탈로 닫지 않는다. Esc·바깥 클릭 → 닫힘, 포커스는 그 필드 버튼(Popover 가 anchor 로 돌려준다).
  * - 포커스: × 뒤 같은 필드 버튼(사라지면 "＋ N개 더"), 초기화 뒤 첫 필드 버튼.
  * - 건수는 바 오른쪽 끝(좁은 화면은 다음 줄). 대기 중이면 aria-busy + 진행 표시. 결과 안내는 DataTable 라이브 영역(디바운스 1회).
@@ -99,6 +108,7 @@ export function DataTableQuickFilterBar<T>({
   total,
   conditionCount,
   pending = false,
+  flush,
   leading,
   note,
   label = '필터',
@@ -108,6 +118,8 @@ export function DataTableQuickFilterBar<T>({
   const anchorRef = useRef<HTMLElement | null>(null);
   const focusRequestRef = useRef<string | null>(null);
   const timerRef = useRef<number | null>(null);
+  // 디바운스 중인 조건(track.staged 와 같은 값) — 다른 이동 직전 flush 가 동기로 읽는다
+  const stagedRef = useRef<readonly FilterCondition[] | null>(null);
   const onChangeRef = useRef(onFiltersChange);
   useEffect(() => {
     onChangeRef.current = onFiltersChange;
@@ -141,6 +153,7 @@ export function DataTableQuickFilterBar<T>({
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+    if (live.staged === null) stagedRef.current = null;
   }, [live.staged]);
   useEffect(
     () => () => {
@@ -163,7 +176,33 @@ export function DataTableQuickFilterBar<T>({
   const clearTimer = () => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
     timerRef.current = null;
+    stagedRef.current = null;
   };
+
+  // ── 디바운스 중인 조건 flush (§6 #7) ── 같은 경로로 가는 다른 이동 직전에 불린다(view-navigation)
+  const flushPath = flush?.path;
+  const flushApplyRef = useRef(flush?.apply);
+  useEffect(() => {
+    flushApplyRef.current = flush?.apply;
+  });
+  useEffect(() => {
+    if (!flushPath) return;
+    return registerViewFlush(flushPath, (href) => {
+      const staged = stagedRef.current;
+      const apply = flushApplyRef.current;
+      if (staged === null || timerRef.current === null || !apply) return href;
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+      stagedRef.current = null;
+      // 보낸 요청으로 옮긴다 — 합친 이동이 반영되면 URL 조건 = staged 라 대기 상태가 정리된다
+      setTrack((prev) => ({
+        ...prev,
+        staged: null,
+        pending: requestFilters(prev.pending, staged),
+      }));
+      return apply(href, staged);
+    });
+  }, [flushPath]);
 
   /** 지금 보낸다 — 디바운스 중인 조건은 next 에 이미 들어 있으므로 취소 */
   const send = (next: readonly FilterCondition[]) => {
@@ -179,8 +218,10 @@ export function DataTableQuickFilterBar<T>({
     const ordered = order(next);
     setTrack((prev) => ({ ...prev, staged: ordered }));
     clearTimer();
+    stagedRef.current = ordered;
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;
+      stagedRef.current = null;
       setTrack((prev) => ({
         ...prev,
         staged: null,

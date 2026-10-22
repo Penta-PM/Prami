@@ -1,14 +1,25 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import {
-  DataTableFilterBar,
+  DataTableQuickFilterBar,
   DataTableResetButton,
+  QUICK_FILTER_FIELDS,
+  withColumnFilterParams,
+  withQuickFields,
   type DataTableSort,
 } from '@/components/ui/data-table';
 import { CostLinkEditModal, type CostLinkSaved } from '@/features/costs/CostLinkEditModal';
@@ -202,6 +213,11 @@ type PricingBrowserProps = {
    * false 면 가격 변동 열·필터·정렬·셀 이력 모달·드로어 계열 이력과 "변동 이력 보기" 모두 없다
    */
   withPriceChange?: boolean;
+  /**
+   * 기존 페이지 필터(분류 연쇄·적용기간 기준·검색 — PricingFilters). 빠른 필터 바와 같은 카드 안, 바 위에 놓는다
+   * (빠른 필터 바 §2.5 — 동작·URL·순서 무변경)
+   */
+  leading?: ReactNode;
 };
 
 /**
@@ -221,10 +237,11 @@ export function PricingBrowser({
   costLinks,
   costLinkEditable = false,
   withPriceChange = false,
+  leading,
 }: PricingBrowserProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
   const [detailId, setDetailId] = useState<number | null>(null);
   // 가격 변동 칸 → 변동 이력 모달 (price-change-history-modal §2.2). 드로어와 별개 상태 — 칸 클릭은 드로어를 열지 않는다
   const [historyId, setHistoryId] = useState<number | null>(null);
@@ -236,22 +253,27 @@ export function PricingBrowser({
   // 조회 화면은 값과 관계없이 가격 변동 없음 (서버가 이미 false 로 넘긴다 — 한 번 더 막는다)
   const priceChange = admin && withPriceChange;
 
-  const go = (next: Partial<PriceFilter>) =>
+  // 열 필터 변경은 replace(즉시 적용이 뒤로 가기 기록을 쌓지 않게 — 빠른 필터 바 §2.3), 정렬·초기화는 현행 push
+  const go = (next: Partial<PriceFilter>, history: 'push' | 'replace' = 'push') =>
     navigateView(`${pathname}${filterToQuery(next)}`, (href) =>
-      startTransition(() => router.push(href)),
+      startTransition(() => (history === 'replace' ? router.replace(href) : router.push(href))),
     );
 
   const changeSort = (next: DataTableSort) =>
     go({ ...filter, sort: urlSort(next, priceSortIds(priceChange)), page: 1 });
 
-  // 열 필터 (표 열 필터 스펙 §2) — 기존 필터·정렬은 그대로, 1페이지로. 기존 서버 표의 정렬·페이지 이동과 같은 router.push
+  // 열 필터 (표 열 필터 스펙 §2) — 기존 필터·정렬은 그대로, 1페이지로. 고정 필드 = 단가 유형·상태·단가 (빠른 필터 바 §2.2)
   const filterFields = useMemo(
-    () => priceFilterFields(currencies, priceTypes, { withPriceChange: priceChange }),
+    () =>
+      withQuickFields(
+        priceFilterFields(currencies, priceTypes, { withPriceChange: priceChange }),
+        QUICK_FILTER_FIELDS.pricing,
+      ),
     [currencies, priceTypes, priceChange],
   );
   const columnFilters = filter.filters ?? [];
   const changeFilters = (next: readonly FilterCondition[]) =>
-    go({ ...filter, filters: [...next], page: 1 });
+    go({ ...filter, filters: [...next], page: 1 }, 'replace');
   // '필터 초기화' = 열 필터 + 분류 연쇄·적용기간 기준·검색 + 정렬 (§2.5-4, Plan Q1 B)
   const resetFilters = () => go({ dateMode: 'start', page: 1 });
   const filtered = isPriceFiltered(filter);
@@ -271,14 +293,19 @@ export function PricingBrowser({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <DataTableFilterBar
+        <DataTableQuickFilterBar
           className="min-w-0 flex-1"
+          mode="server"
           fields={filterFields}
           filters={columnFilters}
           onFiltersChange={changeFilters}
           onReset={resetFilters}
           sorted={filter.sort !== undefined}
           canReset={filtered || filter.sort !== undefined}
+          total={total}
+          pending={isPending}
+          flush={{ path: pathname, apply: withColumnFilterParams }}
+          leading={leading}
         />
         <div className="flex items-center gap-2">
           <DataTableResetButton

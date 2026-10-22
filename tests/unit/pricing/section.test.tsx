@@ -165,16 +165,22 @@ describe('PricingSection', () => {
         ['f.status.in', '운영중'],
       ])}`,
     );
-    const chips = screen.getByRole('list', { name: '적용된 필터' });
+    // 빠른 필터 바: 조건이 걸린 필드 버튼에 값 (통화는 ＋ 더 필드지만 조건이 걸려 바에 보인다)
     expect(
-      within(chips)
-        .getAllByRole('listitem')
-        .map((li) => li.textContent),
+      [...document.querySelectorAll('[data-quick-field]')]
+        .filter((button) => button.getAttribute('aria-label')?.endsWith('적용 중'))
+        .map((button) => button.textContent),
     ).toEqual([
       expect.stringContaining('통화: USD'),
-      expect.stringContaining('판매가: ≥ 100'),
+      expect.stringContaining('판매가: USD ≥ 100'),
       expect.stringContaining('상태: 운영중'),
     ]);
+    // 페이지 필터(분류·기간·검색)는 바와 같은 카드(필터 그룹) 안
+    expect(
+      within(screen.getByRole('group', { name: '필터' })).getByRole('search', {
+        name: '가격정책 검색',
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '필터 초기화' })).toBeInTheDocument();
   });
 });

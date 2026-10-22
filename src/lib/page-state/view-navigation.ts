@@ -43,6 +43,32 @@ export function beforeViewNavigation(href: string): Promise<void> | null {
 }
 
 /**
+ * 대기 중인(디바운스 중인) 열 필터 변경 먼저 반영 (표 열 필터 빠른 필터 바 §6 #7). 서버 표의 enum 체크는 400ms 디바운스라,
+ * 그 사이 같은 표의 다른 이동(정렬·페이지·제품군 탭·페이지 필터)을 누르면 그 이동의 href 에는 체크가 없다 →
+ * 이동하기 전에 대기 중인 조건을 그 href 에 합쳐(flush) 둘 다 남긴다. 버리는 것은 바가 사라질 때(화면 이탈)와 외부 URL 변경뿐.
+ *
+ * - 서버 표가 마운트돼 있는 동안 그 경로의 flush 함수(href → 대기 중 조건을 합친 href, 대기 중이 없으면 그대로)를 등록한다.
+ * - navigateView·ViewStateLink 는 이동 직전에 flushPendingView 로 href 를 바꾼다. flush 는 대기 중 조건을 '보낸 요청'으로 옮기고 타이머를 끈다.
+ */
+type ViewFlush = (href: string) => string;
+
+const viewFlushes = new Map<string, ViewFlush>();
+
+/** 경로의 대기 중 조건 flush 함수를 등록한다. 해제 함수를 돌려준다(그 사이 다른 등록이 덮었으면 건드리지 않는다) */
+export function registerViewFlush(path: string, flush: ViewFlush): () => void {
+  viewFlushes.set(path, flush);
+  return () => {
+    if (viewFlushes.get(path) === flush) viewFlushes.delete(path);
+  };
+}
+
+/** 이동 직전 — href 경로에 대기 중인 열 필터 변경이 있으면 합친 href, 없으면 그대로 */
+export function flushPendingView(href: string): string {
+  const flush = viewFlushes.get(splitHref(href).path);
+  return flush ? flush(href) : href;
+}
+
+/**
  * 이동 순번 (표 열 필터 빠른 필터 바 §2.4 R2). 빈 쿼리 이동은 저장을 기다리는 동안 뒤의 이동(즉시 적용 필터 등)이 먼저 나갈 수 있다 —
  * 저장이 끝난 뒤 낡은 빈 이동이 새 이동을 덮지 않도록, 이동을 요청할 때마다 순번을 올리고 기다린 이동은 자기 순번이 최신일 때만 나간다.
  * 화면이 하나뿐인 클라이언트 전역 순번이다(경로와 무관 — 어떤 이동이든 나중 요청이 이긴다).
@@ -50,10 +76,11 @@ export function beforeViewNavigation(href: string): Promise<void> | null {
 let navigationSeq = 0;
 
 /**
- * href 로 이동 — 빈 상태가 되는 이동이면 빈 상태 저장을 기다린 뒤, 아니면 바로 navigate(href).
+ * href 로 이동 — 같은 표에 대기 중인 열 필터 변경이 있으면 먼저 합친다(flushPendingView). 빈 상태가 되는 이동이면 빈 상태 저장을 기다린 뒤, 아니면 바로 navigate(href).
  * 기다리는 사이 다른 navigateView 요청이 있었으면 이 이동은 버린다(R2 — 마지막 요청이 최종 URL).
  */
-export function navigateView(href: string, navigate: (href: string) => void): void {
+export function navigateView(target: string, navigate: (href: string) => void): void {
+  const href = flushPendingView(target);
   const seq = ++navigationSeq;
   const pending = beforeViewNavigation(href);
   if (!pending) {

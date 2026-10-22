@@ -70,7 +70,7 @@ test('USER 조회: 헤더 순서, 연도 칩(적용시작일 기준) → URL·�
   );
   await page.getByRole('radio', { name: '적용기간 기준' }).click();
   await expect(page).toHaveURL(/dateMode=period/);
-  await expect(page.getByText(/총 [\d,]+건/)).toBeVisible();
+  await expect(page.getByText(/^총 [\d,]+건$/)).toBeVisible();
 });
 
 test('USER 조회: 대분류 선택 → URL, 품목 마스터 없으면 중/소분류 비활성 안내 (AC-11)', async ({
