@@ -177,7 +177,10 @@ export async function listCostLinkView(access: CostAccess, db: Db): Promise<Cost
 export const ITEM_LINK_CELLS_MAX = 200;
 
 /** 자재번호 → 원가표(표준구매원가·일반, 삭제 제외) 최근 자재명. 원가표에 없는 번호는 빠진다 */
-async function materialNames(db: Db, codes: readonly string[]): Promise<Map<string, string>> {
+export async function materialNames(
+  db: Db,
+  codes: readonly string[],
+): Promise<Map<string, string>> {
   if (codes.length === 0) return new Map();
   const rows = await db
     .selectDistinctOn([materialCosts.materialCode], {
@@ -198,7 +201,7 @@ async function materialNames(db: Db, codes: readonly string[]): Promise<Map<stri
 }
 
 /** 품목코드들의 후보 범위 여부(본품 + 대상 제품군) — 품목 마스터에 없으면 범위 밖 */
-async function scopeOf(db: Db, codes: readonly string[]) {
+export async function scopeOf(db: Db, codes: readonly string[]) {
   if (codes.length === 0) return new Map<string, ScopeRow>();
   const rows = await db
     .select({
@@ -213,7 +216,7 @@ async function scopeOf(db: Db, codes: readonly string[]) {
     .where(inArray(items.itemCode, [...codes]));
   return new Map(rows.map((row) => [row.itemCode, row]));
 }
-type ScopeRow = {
+export type ScopeRow = {
   itemCode: string;
   itemName: string;
   family: CostLinkFamily | null;
@@ -221,7 +224,7 @@ type ScopeRow = {
   categoryMinor: string | null;
   itemStatus: string | null;
 };
-const inScopeRow = (row: ScopeRow | undefined) =>
+export const inScopeRow = (row: ScopeRow | undefined) =>
   Boolean(row && row.family && row.itemKind === '본품');
 
 /**

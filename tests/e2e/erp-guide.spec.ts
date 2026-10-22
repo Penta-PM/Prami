@@ -89,13 +89,13 @@ test('ADMIN: ERP 안내 버튼·칸별 ⓘ — 키보드 열기, Esc 포커스 �
   await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 1280, height: 800 });
 
-  // 원가 매핑 화면 — 항목 4 ⓘ (공통 설명 버튼 없음)
+  // 원가 매핑 화면 — 항목 4 ⓘ 는 매칭 파일 업로드 영역 옆 (§6.2-1, 공통 설명 버튼 없음)
   await page.goto('/admin/costs/links');
-  const linkHint = page.getByRole('button', { name: '원가 매핑 ERP 메뉴 경로' });
+  const linkHint = page.getByRole('button', { name: '매칭 파일 업로드 ERP 메뉴 경로' });
   await expect(linkHint).toBeVisible();
   await expect(page.getByRole('button', { name: 'PRAMI ERP 데이터' })).toHaveCount(0);
   await linkHint.click();
-  await expect(page.getByRole('dialog', { name: '원가 매핑 ERP 메뉴 경로' })).toContainText(
+  await expect(page.getByRole('dialog', { name: '매칭 파일 업로드 ERP 메뉴 경로' })).toContainText(
     '기본정보 > 품목 > 품목조회(추가정보)',
   );
 });

@@ -98,3 +98,70 @@ export type CostLinkPickerData = {
   /** 같은 매핑이 적용되는 가격 행(삭제 제외)·그중 정상판매 건수 */
   impact: { priceRows: number; normalPriceRows: number };
 };
+
+/**
+ * 품목-원가 매칭 파일 업로드 (스펙 erp-upload-guide §6.2, 분류 규칙 cost-ratio-price-change §9).
+ * 브라우저가 파일에서 읽은 {품목코드, 자재번호} 쌍만 받는다 — 파일·파일명·다른 열은 서버에 오지 않는다.
+ * 미리보기 결과는 응답(화면)에만 있고 DB·로그에 남지 않는다.
+ */
+export const COST_LINK_IMPORT_REASONS = [
+  'no-item',
+  'out-of-scope',
+  'no-cost',
+  'multiple',
+  'format',
+] as const;
+export type CostLinkImportReason = (typeof COST_LINK_IMPORT_REASONS)[number];
+
+export const COST_LINK_IMPORT_REASON_TEXT: Record<CostLinkImportReason, string> = {
+  'no-item': '품목 마스터 없음',
+  'out-of-scope': '후보 범위 밖',
+  'no-cost': '원가표에 없는 품번',
+  multiple: '한 품목에 품번 2개 이상',
+  format: '형식 오류',
+};
+
+export type CostLinkImportInput = { pairs: { itemCode: string; materialCode: string }[] };
+
+export type CostLinkImportMaterial = { materialCode: string; materialName: string | null };
+
+export type CostLinkImportEntry = {
+  itemCode: string;
+  itemName: string;
+  family: CostLinkFamily;
+  /** 변경이면 지금 매핑, 추가면 null */
+  before: CostLinkImportMaterial | null;
+  after: CostLinkImportMaterial;
+};
+
+export type CostLinkImportFailure = {
+  itemCode: string;
+  /** 파일의 원자재품번(한 품목에 2개 이상이면 모두) */
+  materialCodes: string[];
+  reason: CostLinkImportReason;
+};
+
+export type CostLinkImportPreview = {
+  /** 중복을 뺀 쌍 수 · 품목 수 */
+  pairs: number;
+  items: number;
+  /** 이미 같은 자재로 매핑됨 */
+  same: number;
+  changed: CostLinkImportEntry[];
+  added: CostLinkImportEntry[];
+  failed: CostLinkImportFailure[];
+  failedByReason: Record<CostLinkImportReason, number>;
+  /** 파일에 없는 기존 링크 — 해제하지 않고 유지(Q-F1). family null = 품목 없음·후보 범위 밖 링크 */
+  kept: { family: CostLinkFamily | null; count: number }[];
+};
+
+/** 확정: 미리보기 때의 변경·추가 건수 — 서버가 다시 분류한 결과와 다르면 '다시 미리보기'(CONFLICT) */
+export type ApplyCostLinkImportInput = CostLinkImportInput & {
+  expected: { changed: number; added: number };
+};
+
+export type ApplyCostLinkImportResult = {
+  saved: number;
+  unchanged: number;
+  failedByReason: Record<CostLinkImportReason, number>;
+};
