@@ -349,9 +349,15 @@ describe('내 견적 목록 모달 열 필터', () => {
     const modal = await openQuotes(ue);
     expect(within(modal).getByText('최근 100건 안에서 필터합니다')).toBeInTheDocument();
     await quickFilter(ue, '통화', check(ue, 'KRW'), modal);
-    await quickFilter(ue, '금액', range(ue, '1000', null), modal);
-    expect(firstCells('견적 목록 표')).toEqual(['Q-0001']);
-    expect(activeFields()).toEqual(['금액: KRW ≥ 1,000', '통화: KRW']);
+    // 금액 = 슬라이더(숫자 입력 없음, §7.5) — 범위는 지금 목록(KRW 200~5,000)에서 계산, 하한 End = 실제 최대
+    const dialog = await openField(ue, '금액', modal);
+    expect(within(dialog).queryByRole('textbox')).toBeNull();
+    within(dialog).getByRole('slider', { name: '금액 최소' }).focus();
+    await ue.keyboard('{End}');
+    await waitFor(() => expect(firstCells('견적 목록 표')).toEqual(['Q-0001']));
+    expect(screen.getByRole('dialog', { name: '금액 필터' })).toBeInTheDocument();
+    await ue.keyboard('{Escape}');
+    expect(activeFields()).toEqual(['금액: KRW ₩5,000 이상', '통화: KRW']);
     expect(within(modal).getByText('전체 4건 중 1건')).toBeInTheDocument();
     expect(navigation.replace).not.toHaveBeenCalled();
     expect(navigation.push).not.toHaveBeenCalled();
@@ -375,12 +381,22 @@ describe('내 견적 목록 모달 열 필터', () => {
     ).toEqual(['견적 번호', '금액', '통화']);
   });
 
-  it('금액: 통화 미지정이면 같은 팝오버에서 통화 라디오 + 범위 → 통화·금액 두 조건', async () => {
+  it('금액 슬라이더: 통화 미지정이면 라디오 먼저 → 라디오 = 통화 즉시 → 범위(목록에서 계산) → 통화·금액 두 조건 (§7.5)', async () => {
     const ue = userEvent.setup();
     const modal = await openQuotes(ue);
-    await quickFilter(ue, '금액', range(ue, '1000', null, 'number', 'KRW'), modal);
-    expect(firstCells('견적 목록 표')).toEqual(['Q-0001']);
-    expect(activeFields(modal)).toEqual(['금액: KRW ≥ 1,000', '통화: KRW']);
+    const dialog = await openField(ue, '금액', modal);
+    expect(within(dialog).getByRole('slider', { name: '금액 최소' })).toBeDisabled();
+    await ue.click(within(dialog).getByRole('radio', { name: 'KRW' }));
+    expect(firstCells('견적 목록 표')).toEqual(['Q-0001', 'Q-0004']);
+    const upper = within(dialog).getByRole('slider', { name: '금액 최대' });
+    expect(upper).toHaveAttribute('aria-valuetext', '제한 없음');
+    upper.focus();
+    await ue.keyboard('{Home}');
+    // 상한 칸 0 = 실제 최소(₩200)
+    await waitFor(() => expect(firstCells('견적 목록 표')).toEqual(['Q-0004']));
+    expect(upper).toHaveAttribute('aria-valuetext', '₩200');
+    await ue.keyboard('{Escape}');
+    expect(activeFields(modal)).toEqual(['금액: KRW ₩200 이하', '통화: KRW']);
     expect(within(modal).getByRole('button', { name: '＋ 1개 더' })).toBeInTheDocument();
   });
 

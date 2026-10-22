@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { isValidElement, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 /** /admin/costs 페이지 — 토큰 가드(requireCostPageAccess) 호출과 렌더 구성을 확인. 쿼리·권한은 모킹 */
@@ -39,6 +40,10 @@ vi.mock('@/server/cost/queries', () => ({
   listCostFamilies: async () => [{ family: 'iSIGN', count: 108 }],
   listCostYears: async () => [2026, 2025],
   listCostCurrencies: async () => ['KRW', 'USD'],
+  listCostCurrencyRanges: async () => [
+    { currency: 'KRW', min: 0, max: 9_840_000, minPositive: 1200 },
+    { currency: 'USD', min: 3, max: 3, minPositive: 3 },
+  ],
   getCurrentCostApply: async () => ({
     batchId: 'b1',
     fileName: '원자재코드 정보_260825.xlsx',
@@ -80,4 +85,32 @@ describe('/admin/costs', () => {
     expect(screen.getByRole('table', { name: '원가 표' })).toHaveTextContent('310,000원');
     expect(screen.getByText('총 108건 · 2 / 3 페이지')).toBeInTheDocument();
   });
+
+  it('원가 슬라이더 범위(listCostCurrencyRanges)는 원가 화면 CostBrowser props 로 내려간다 (빠른 필터 바 §7.5)', async () => {
+    const element = await AdminCostsPage({ searchParams: Promise.resolve({}) });
+    const browser = findProps(element, (props) => 'costRanges' in props);
+    expect(browser?.costRanges).toEqual([
+      { currency: 'KRW', min: 0, max: 9_840_000, minPositive: 1200 },
+      { currency: 'USD', min: 3, max: 3, minPositive: 3 },
+    ]);
+    expect(browser?.currencies).toEqual(['KRW', 'USD']);
+  });
 });
+
+/** 서버 컴포넌트 트리에서 조건에 맞는 첫 클라이언트 props */
+function findProps(
+  node: ReactNode,
+  match: (props: Record<string, unknown>) => boolean,
+): Record<string, unknown> | undefined {
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findProps(child, match);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (!isValidElement(node)) return undefined;
+  const props = node.props as Record<string, unknown> & { children?: ReactNode };
+  if (match(props)) return props;
+  return findProps(props.children, match);
+}

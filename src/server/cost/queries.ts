@@ -9,6 +9,7 @@ import { costFilterDefs, type CostFilterId } from '@/features/costs/column-filte
 import type { CostSortId } from '@/features/costs/sort';
 import { MATERIAL_FAMILIES } from '@/lib/constants/material-family';
 import { STATUS_ORDERS, type SortDir } from '@/lib/table/compare';
+import { toMoneyRange, type MoneyRange } from '@/lib/table/money-range';
 import { dateConditions } from '@/server/pricing/date-filter';
 import { buildOrderBy, byMoney, byStatus, byText, byValue } from '@/server/pricing/sort-sql';
 import { buildFilterSpec, filterSqlConditions } from '@/server/table/filter-sql';
@@ -156,6 +157,28 @@ export async function listCostCurrencies(access: CostAccess, db: Db): Promise<st
     .where(isNull(materialCosts.deletedAt))
     .orderBy(sql`1`);
   return rows.map((row) => row.currency);
+}
+
+/**
+ * 원가 슬라이더 범위 (빠른 필터 바 §7.5): 통화별 표 전체 최소·최대·0 초과 최소 (삭제 제외, 통화 오름차순).
+ * cost.read 필요 — 원가 화면(/admin/costs) props 로만 내려간다(가격 화면·공용 필드 정의에는 없다).
+ */
+export async function listCostCurrencyRanges(access: CostAccess, db: Db): Promise<MoneyRange[]> {
+  assertCostAccess(access, 'read');
+  const rows = await db
+    .select({
+      currency: sql<string>`${materialCosts.currency}::text`,
+      min: sql<string>`min(${materialCosts.unitCost})::text`,
+      max: sql<string>`max(${materialCosts.unitCost})::text`,
+      minPositive: sql<
+        string | null
+      >`(min(${materialCosts.unitCost}) filter (where ${materialCosts.unitCost} > 0))::text`,
+    })
+    .from(materialCosts)
+    .where(isNull(materialCosts.deletedAt))
+    .groupBy(materialCosts.currency)
+    .orderBy(sql`1`);
+  return rows.map(toMoneyRange);
 }
 
 export async function listCostYears(access: CostAccess, db: Db): Promise<number[]> {

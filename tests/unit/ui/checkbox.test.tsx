@@ -203,7 +203,8 @@ describe('앱 전체 적용 (§7.3 — 필터 2곳 + 폼 8곳)', () => {
       (readFileSync(path.join(ROOT, file), 'utf8').match(new RegExp(`<${tag}\\b`, 'g')) ?? [])
         .length;
     expect(uses('src/components/ui/data-table/QuickFilterEditor.tsx', 'Checkbox')).toBe(1);
-    expect(uses('src/components/ui/data-table/QuickFilterEditor.tsx', 'Radio')).toBe(1);
+    // money 통화 라디오는 슬라이더 편집기(MoneyRangeEditor, §7.5)로 옮겼다
+    expect(uses('src/components/ui/data-table/MoneyRangeEditor.tsx', 'Radio')).toBe(1);
     for (const file of [
       'src/features/notices/NoticeFormModal.tsx',
       'src/features/calculator/GroupSolution.tsx',

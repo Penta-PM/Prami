@@ -101,17 +101,10 @@ export const typeText =
     await user.type(within(dialog).getByRole('textbox', { name: '값' }), value);
   };
 
-/** number/money/date 열: 범위 입력 (money 는 currency 를 주면 통화 라디오를 먼저 고른다) */
+/** number/date 열: 범위 입력 (money 는 숫자 입력 없이 슬라이더 — §7.5, money-range-editor.test.tsx) */
 export const range =
-  (
-    user: UserEvent,
-    from: string | null,
-    to: string | null,
-    kind: 'number' | 'date' = 'number',
-    currency?: string,
-  ) =>
+  (user: UserEvent, from: string | null, to: string | null, kind: 'number' | 'date' = 'number') =>
   async (dialog: HTMLElement) => {
-    if (currency) await user.click(within(dialog).getByRole('radio', { name: currency }));
     const [lo, hi] = kind === 'date' ? ['시작일', '종료일'] : ['최소', '최대'];
     // date 입력은 jsdom 에서 타이핑이 아니라 값 변경으로 넣는다
     const put = async (label: string, value: string) => {

@@ -12,6 +12,7 @@ import {
   filterFieldsOf,
   QUICK_FILTER_FIELDS,
   useStateFilters,
+  withMoneyRanges,
   withQuickFields,
   type DataTableColumn,
   type DataTableFilterField,
@@ -22,6 +23,7 @@ import { formatDate } from '@/lib/date-format';
 import { VARIANT_KEYS, listItem, transition } from '@/lib/motion/tokens';
 import { priceLabel } from '@/lib/pricing/format';
 import { cartTotals } from '@/lib/pricing/quote';
+import { moneyRangesOf } from '@/lib/table/money-range';
 
 import { describeLine } from './cart';
 import type { CartLine, SavedQuoteView } from './types';
@@ -427,8 +429,20 @@ function SavedQuotesModal({
       filter: { kind: 'enum', options: currencyOptions(saved) },
       value: (quote) => quote.currency,
     };
+    // 금액 슬라이더 범위(통화별 최소·최대 — 빠른 필터 바 §7.5)는 서버 쿼리 없이 지금 목록(최근 100건)에서 계산한다
+    const ranges = moneyRangesOf(
+      saved.map((quote) =>
+        quote.totalAmount && quote.currency
+          ? { amount: Number(quote.totalAmount), currency: quote.currency }
+          : null,
+      ),
+    );
     // 빠른 필터 바 고정 필드: 일자·제품·내용 (＋ 더: 견적 번호·금액·통화)
-    return withQuickFields(filterFieldsOf(columns, [currency]), QUICK_FILTER_FIELDS.myQuotes);
+    return withMoneyRanges(
+      withQuickFields(filterFieldsOf(columns, [currency]), QUICK_FILTER_FIELDS.myQuotes),
+      'totalAmount',
+      ranges,
+    );
   }, [columns, saved]);
   const resetFilters = () => {
     setFilters([]);

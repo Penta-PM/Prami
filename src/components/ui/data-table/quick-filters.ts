@@ -6,6 +6,8 @@ import {
   type FilterCondition,
 } from '@/lib/table/filter';
 
+import { moneyRangeText, type MoneyRange } from '@/lib/table/money-range';
+
 import type { DataTableFilterField } from './filter-fields';
 
 /**
@@ -45,6 +47,15 @@ export function withQuickFields<T>(
   return fields.map((field) => (ids.includes(field.id) ? { ...field, quick: true } : field));
 }
 
+/** 그 필드에 money 슬라이더 범위를 붙인다 (빠른 필터 바 §7.5) — 다른 필드는 그대로 */
+export function withMoneyRanges<T>(
+  fields: readonly DataTableFilterField<T>[],
+  id: string,
+  ranges: readonly MoneyRange[],
+): DataTableFilterField<T>[] {
+  return fields.map((field) => (field.id === id ? { ...field, ranges } : field));
+}
+
 /** 선택지가 없는 enum(예: 통화가 하나도 없는 목록)은 고를 수 없다 */
 export function isChoosable<T>(field: DataTableFilterField<T>): boolean {
   return field.filter.kind !== 'enum' || field.filter.options.length > 0;
@@ -74,7 +85,8 @@ export const QUICK_SUMMARY_VALUES = 2;
 /**
  * 필드 버튼 요약 — `{ text, full }`. text 는 버튼에 보이는 짧은 요약(enum 은 쉼표·넘치면 "+N"),
  * full 은 접근성 이름("{열} 필터, {full} 적용 중")에 쓰는 전체 문구. 조건이 없으면 null.
- * money 는 통화가 하나로 정해졌으면 앞에 통화를 붙이고(통화 필드가 "＋ 더" 안이어도 보이게 — §2.3),
+ * money 는 통화가 하나로 정해졌으면 앞에 통화를 붙이고(통화 필드가 "＋ 더" 안이어도 보이게 — §2.3) 금액은 통화 기호 형식
+ * (버튼 compact "KRW ₩130만 이상", 접근성 이름 전체 금액 — §7.5),
  * 통화가 정해지지 않은 범위는 "(통화 선택 시 적용)" 을 덧붙인다(범위가 아직 효과가 없음).
  */
 export function summarizeField<T>(
@@ -96,7 +108,18 @@ export function summarizeField<T>(
   }
   if (def.kind === 'money') {
     const currency = selectedCurrency(conds, def);
-    if (currency) return { text: `${currency} ${body}`, full: `${currency} ${body}` };
+    if (currency) {
+      // 칩은 compact("KRW ₩130만 이상"), 접근성 이름은 전체 금액("KRW ₩1,300,000 이상") — §7.5
+      const bound = (op: 'gte' | 'lte') => {
+        const found = own.find((cond) => cond.op === op);
+        return found && found.op !== 'in' ? found.value : null;
+      };
+      const [gte, lte] = [bound('gte'), bound('lte')];
+      return {
+        text: `${currency} ${moneyRangeText(gte, lte, currency, 'compact')}`,
+        full: `${currency} ${moneyRangeText(gte, lte, currency, 'full')}`,
+      };
+    }
     if (!isMoneyRangeActive(conds, def)) {
       const text = `${body} (통화 선택 시 적용)`;
       return { text, full: text };

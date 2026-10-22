@@ -30,7 +30,11 @@ vi.mock('@/server/pricing/categories', () => ({
 }));
 vi.mock('@/server/pricing/queries', () => ({
   listEffectiveYears: async () => [2026, 2025],
-  listPriceCurrencies: async () => ['KRW', 'USD'],
+  // 통화 선택지 + 판매가 슬라이더 범위(같은 스캔 — 빠른 필터 바 §7.5)
+  listPriceCurrencyRanges: async () => [
+    { currency: 'KRW', min: 0, max: 1_650_000_000, minPositive: 500 },
+    { currency: 'USD', min: 126, max: 9_800, minPositive: 126 },
+  ],
   listPriceTypes: async () => ['정상판매', '__none__'],
   getPriceRows: async (
     _db: unknown,
@@ -78,6 +82,14 @@ vi.mock('@/server/auth/rbac', () => ({
 }));
 vi.mock('@/features/pricing/actions', () => ({}));
 vi.mock('@/features/costs/link-actions', () => ({}));
+// 원가 슬라이더 범위(cost.read)는 원가 화면 전용 — 가격 섹션은 부르지 않는다 (빠른 필터 바 §7.5 노출 차단)
+const costRangeCalls = vi.hoisted(() => ({ count: 0 }));
+vi.mock('@/server/cost/queries', () => ({
+  listCostCurrencyRanges: async () => {
+    costRangeCalls.count += 1;
+    return [{ currency: 'KRW', min: 111, max: 999_999, minPositive: 111 }];
+  },
+}));
 vi.mock('@/features/costs/price-ratios', () => ({
   loadPolicyCostColumns: async (rows: { id: number; itemCode: string }[]) => {
     calls.ratioIds.push(rows.map((row) => row.id));
@@ -172,7 +184,7 @@ describe('PricingSection', () => {
         .map((button) => button.textContent),
     ).toEqual([
       expect.stringContaining('통화: USD'),
-      expect.stringContaining('판매가: USD ≥ 100'),
+      expect.stringContaining('판매가: USD $100 이상'),
       expect.stringContaining('상태: 운영중'),
     ]);
     // 페이지 필터(분류·기간·검색)는 바와 같은 카드(필터 그룹) 안
@@ -417,4 +429,39 @@ describe('원가 매핑 열 노출 = 관리 화면 + pricing.write + cost.read (
     calls.role = 'ADMIN';
     calls.links = {};
   });
+});
+
+describe('판매가 슬라이더 범위 (빠른 필터 바 §7.5) — 가격 범위만, 원가 범위 노출 0', () => {
+  it.each([
+    ['조회(/pricing)', 'view', 'USER'],
+    ['조회(/pricing, ADMIN)', 'view', 'ADMIN'],
+    ['관리 + pricing.write(ADMIN, cost.read)', 'admin', 'ADMIN'],
+    ['관리 + pricing.write 없음(USER)', 'admin', 'USER'],
+  ] as const)(
+    '%s: payload 에 판매가 범위(currencyRanges)만, 원가 범위·쿼리 0',
+    async (_n, mode, role) => {
+      calls.role = role;
+      calls.ratios = mode === 'admin' && role === 'ADMIN' ? {} : null;
+      costRangeCalls.count = 0;
+      const element = await PricingSection({
+        mode,
+        basePath: mode === 'admin' ? '/admin/policies' : '/pricing',
+        userId: 'u1',
+        searchParams: {},
+      });
+      const props = clientProps(element) as Record<string, unknown>[];
+      const browser = props.find((p) => 'currencyRanges' in p);
+      expect(browser?.currencyRanges).toEqual([
+        { currency: 'KRW', min: 0, max: 1_650_000_000, minPositive: 500 },
+        { currency: 'USD', min: 126, max: 9_800, minPositive: 126 },
+      ]);
+      expect(browser?.currencies).toEqual(['KRW', 'USD']);
+      const payload = JSON.stringify(props);
+      // 원가 범위 키·값(모킹한 원가 최소 111·최대 999,999) 없음, 원가 범위 쿼리도 부르지 않는다
+      expect(payload).not.toMatch(/costRanges|999999|"min":111/);
+      expect(costRangeCalls.count).toBe(0);
+      calls.role = 'ADMIN';
+      calls.ratios = null;
+    },
+  );
 });

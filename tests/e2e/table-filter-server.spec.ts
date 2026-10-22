@@ -11,6 +11,7 @@ import { expectNoHydrationErrors, FIXTURE_ADMIN, loginAs } from './helpers';
  *   디바운스 중 정렬 → 조건과 정렬이 함께(§6 #7), '필터 초기화' 가 기존 검색 q·정렬까지 해제.
  * 감사: 옛 GET 폼 없음, 옛 ?action=X → 행위 버튼 값, 행위 다중 선택 → action=a,b, CSV 링크에 같은 필터.
  * 원가: 제품군 탭(같은 카드) + 조건 하나 → URL·결과, 초기화는 탭 유지.
+ * 판매가·원가 슬라이더(§7.5, PR-5): 숫자 입력 없음, 통화 라디오 즉시, 키보드로 핸들 → URL gte, 양 끝 = 조건 해제, 옛 숫자 URL 값 표시.
  */
 
 /** 빠른 필터 바 (페이지 필터가 있으면 카드 안의 바 줄) */
@@ -312,4 +313,74 @@ test('가격 관리: 제어 문자 값(f.remark.has=%00abc·q=%00) → 200, 그 
   expect(response?.status()).toBe(200);
   await expect(activeFields(page)).toHaveText([/상태: 운영중/]);
   expectNoHydrationErrors(page);
+});
+
+test('가격 관리 판매가 슬라이더(§7.5): 숫자 입력 없음, 통화 라디오 즉시 → 키보드로 하한 → URL f.price.gte·팝오버 유지, 양 끝 → 조건 해제, 옛 URL 값 표시', async ({
+  page,
+}) => {
+  await loginAs(page, FIXTURE_ADMIN, '/admin/policies');
+  await expect(page.getByRole('table', { name: '가격정책 관리 표' })).toBeVisible();
+  const before = await totalCount(page);
+
+  const dialog = await openField(page, '판매가');
+  await expect(dialog.getByRole('textbox')).toHaveCount(0);
+  await expect(dialog.getByText('통화를 먼저 선택하세요')).toBeVisible();
+  await expect(dialog.getByRole('slider', { name: '판매가 최소' })).toBeDisabled();
+  // 통화 라디오 = 통화 조건 즉시 적용 (팝오버는 열린 채)
+  await dialog.getByRole('radio', { name: 'KRW' }).check();
+  await expect(page).toHaveURL(/[?&]f\.currency\.in=KRW$/);
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText(/로그 눈금/)).toBeVisible();
+
+  // 하한: PageUp 10번(칸 100) — 손을 뗀 뒤 400ms 디바운스로 한 번에 기록
+  const lower = dialog.getByRole('slider', { name: '판매가 최소' });
+  await lower.focus();
+  for (let i = 0; i < 10; i += 1) await page.keyboard.press('PageUp');
+  await expect(page).toHaveURL(/[?&]f\.currency\.in=KRW&f\.price\.gte=\d+(\.\d+)?$/);
+  await expect(dialog).toBeVisible();
+  await expect(lower).toHaveAttribute('aria-valuetext', /^₩[\d,]+$/);
+  await expect(activeFields(page)).toHaveText([/통화: KRW/, /판매가: KRW ₩[\d.,]+[만억조]? 이상/]);
+  expect(await totalCount(page)).toBeLessThanOrEqual(before);
+
+  // 하한을 왼쪽 끝으로 = 조건 없음 (통화만 남는다)
+  await lower.focus();
+  await page.keyboard.press('Home');
+  await expect(page).toHaveURL(/[?&]f\.currency\.in=KRW$/);
+  await expect(lower).toHaveAttribute('aria-valuetext', '제한 없음');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+
+  // 옛 숫자 URL(범위 밖·2자리가 아닌 값) — 실제 값 그대로 표시, 움직이지 않으면 다시 기록하지 않는다
+  await page.goto('/admin/policies?f.currency.in=KRW&f.price.gte=1234567');
+  const old = await openField(page, '판매가');
+  await expect(old.locator('[data-money-range-text]')).toHaveText(/^₩1,234,567 이상/);
+  await expect(old.getByRole('slider', { name: '판매가 최소' })).toHaveAttribute(
+    'aria-valuetext',
+    /^₩1,234,567/,
+  );
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
+  await expect(page).toHaveURL(/f\.price\.gte=1234567$/);
+  expectNoHydrationErrors(page);
+});
+
+test('원가 슬라이더(§7.5): 통화 KRW → 하한 키보드 → URL f.cost.gte, 결과 원가가 모두 그 이상', async ({
+  page,
+}) => {
+  await loginAs(page, FIXTURE_ADMIN, '/admin/costs');
+  const table = page.getByRole('table', { name: '원가 표' });
+  await expect(table).toBeVisible();
+
+  const dialog = await openField(page, '원가');
+  await expect(dialog.getByRole('textbox')).toHaveCount(0);
+  await dialog.getByRole('radio', { name: 'KRW' }).check();
+  await expect(page).toHaveURL(/[?&]f\.currency\.in=KRW$/);
+  const lower = dialog.getByRole('slider', { name: '원가 최소' });
+  await lower.focus();
+  for (let i = 0; i < 5; i += 1) await page.keyboard.press('PageUp');
+  await expect(page).toHaveURL(/[?&]f\.cost\.gte=\d+(\.\d+)?$/);
+  const gte = Number(new URL(page.url()).searchParams.get('f.cost.gte'));
+  await page.keyboard.press('Escape');
+  const costs = await table.locator('tbody tr td:nth-child(4)').allInnerTexts();
+  for (const text of costs) expect(Number(text.replace(/[^\d.]/g, ''))).toBeGreaterThanOrEqual(gte);
 });

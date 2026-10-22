@@ -8,7 +8,7 @@ import { getCategoryOptions } from '@/server/pricing/categories';
 import {
   getPriceRows,
   listEffectiveYears,
-  listPriceCurrencies,
+  listPriceCurrencyRanges,
   listPriceTypes,
 } from '@/server/pricing/queries';
 
@@ -43,12 +43,14 @@ export async function PricingSection({
   // 필터·정렬 화이트리스트에서도 빠져 `f.priceChange.*`·`sort=priceChange` URL 은 무시(기본 정렬, 오류 없음)
   const withPriceChange =
     mode === 'admin' && hasPermission((await getSessionUser())?.role, 'pricing.write');
-  // 통화·단가 유형 열 필터 선택지(데이터)가 화이트리스트에 들어가므로 먼저 읽고 URL 을 파싱한다 (표 열 필터 스펙 §2.3·§7 Q3 B)
-  const [currencies, priceTypes, years] = await Promise.all([
-    listPriceCurrencies(db),
+  // 통화·단가 유형 열 필터 선택지(데이터)가 화이트리스트에 들어가므로 먼저 읽고 URL 을 파싱한다 (표 열 필터 스펙 §2.3·§7 Q3 B).
+  // 통화 선택지와 판매가 슬라이더 범위(통화별 표 전체 최소·최대 — 빠른 필터 바 §7.5)는 같은 스캔 하나로 읽는다
+  const [currencyRanges, priceTypes, years] = await Promise.all([
+    listPriceCurrencyRanges(db),
     listPriceTypes(db),
     listEffectiveYears(db),
   ]);
+  const currencies = currencyRanges.map((range) => range.currency);
   const { filter, errors } = parsePriceFilter(
     searchParams,
     priceFilterDefs(currencies, priceTypes, { withPriceChange }),
@@ -85,6 +87,7 @@ export async function PricingSection({
         filter={filter}
         total={page.total}
         currencies={currencies}
+        currencyRanges={currencyRanges}
         priceTypes={priceTypes}
         userId={userId}
         withPriceChange={withPriceChange}

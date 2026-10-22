@@ -82,17 +82,10 @@ export const check =
       await user.click(within(dialog).getByRole('checkbox', { name: label }));
   };
 
-/** number/money/date 열: 범위 입력. currency 를 주면 money 팝오버 상단 통화 라디오를 먼저 고른다 */
+/** number/date 열: 범위 입력 (money 는 숫자 입력 없이 슬라이더 — §7.5, money-range-editor.test.tsx) */
 export const range =
-  (
-    user: UserEvent,
-    from: string | null,
-    to: string | null,
-    kind: 'number' | 'date' = 'number',
-    currency?: string,
-  ) =>
+  (user: UserEvent, from: string | null, to: string | null, kind: 'number' | 'date' = 'number') =>
   async (dialog: HTMLElement) => {
-    if (currency) await user.click(within(dialog).getByRole('radio', { name: currency }));
     const [lo, hi] = kind === 'date' ? ['시작일', '종료일'] : ['최소', '최대'];
     if (from !== null) await user.type(within(dialog).getByLabelText(lo), from);
     if (to !== null) await user.type(within(dialog).getByLabelText(hi), to);
