@@ -174,7 +174,7 @@ describe('DataTableFilterBar', () => {
     expect(names()).toEqual(['charlie', 'Alpha', 'bravo', 'delta']);
     expect(th('이름')).toHaveAttribute('data-filtered', 'true');
     expect(screen.getByText('전체 4건 중 4건')).toBeInTheDocument();
-    expect(liveRegion()).toHaveTextContent('필터 적용 · 4건');
+    await waitFor(() => expect(liveRegion()).toHaveTextContent('필터 적용 · 4건'));
   });
 
   it('같음(eq) 연산자와 enum 다중 선택 — 2개 조건 AND, × 로 그 열만 해제', async () => {

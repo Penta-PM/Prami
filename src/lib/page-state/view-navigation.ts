@@ -42,12 +42,25 @@ export function beforeViewNavigation(href: string): Promise<void> | null {
   return save().catch(() => undefined);
 }
 
-/** href 로 이동 — 빈 상태가 되는 이동이면 빈 상태 저장을 기다린 뒤, 아니면 바로 navigate(href) */
+/**
+ * 이동 순번 (표 열 필터 빠른 필터 바 §2.4 R2). 빈 쿼리 이동은 저장을 기다리는 동안 뒤의 이동(즉시 적용 필터 등)이 먼저 나갈 수 있다 —
+ * 저장이 끝난 뒤 낡은 빈 이동이 새 이동을 덮지 않도록, 이동을 요청할 때마다 순번을 올리고 기다린 이동은 자기 순번이 최신일 때만 나간다.
+ * 화면이 하나뿐인 클라이언트 전역 순번이다(경로와 무관 — 어떤 이동이든 나중 요청이 이긴다).
+ */
+let navigationSeq = 0;
+
+/**
+ * href 로 이동 — 빈 상태가 되는 이동이면 빈 상태 저장을 기다린 뒤, 아니면 바로 navigate(href).
+ * 기다리는 사이 다른 navigateView 요청이 있었으면 이 이동은 버린다(R2 — 마지막 요청이 최종 URL).
+ */
 export function navigateView(href: string, navigate: (href: string) => void): void {
+  const seq = ++navigationSeq;
   const pending = beforeViewNavigation(href);
   if (!pending) {
     navigate(href);
     return;
   }
-  void pending.then(() => navigate(href));
+  void pending.then(() => {
+    if (seq === navigationSeq) navigate(href);
+  });
 }

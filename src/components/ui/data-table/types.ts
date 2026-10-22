@@ -11,6 +11,13 @@ export type DataTableSort = { id: string; dir: SortDir } | null;
 export type DataTableAlign = 'left' | 'center' | 'right';
 
 /**
+ * 열 정의의 필터 설정 = 서버 화이트리스트 타입(ColumnFilterDef) + 화면 전용 플래그.
+ * `quick: true` 면 빠른 필터 바에 필드 버튼이 항상 보인다(표 열 필터 빠른 필터 바 §2.2 — 고정 필드). 아니면 "＋ N개 더" 안.
+ * `pinned`(열 고정)와 다른 이름을 쓰고, ColumnFilterDef(서버·URL 화이트리스트)에는 넣지 않는다 — filterFieldsOf 가 떼어 낸다.
+ */
+export type DataTableColumnFilter = ColumnFilterDef & { quick?: boolean };
+
+/**
  * 열 정의 (#32 스펙 §4). 헤더와 본문은 같은 (정렬된) 열 배열로 렌더해 어긋남을 구조적으로 막는다.
  * 관리·액션 열은 `type: 'none', pinned: 'end'` — 정렬·재배치하지 않고 아이콘·aria-sort 도 없다.
  */
@@ -29,9 +36,9 @@ export type DataTableColumn<T> = {
   statusOrder?: readonly string[];
   /**
    * 열 필터 (표 열 필터 스펙 §2.1). 없으면 이 열은 필터할 수 없다(관리·목록·JSON 열).
-   * id 는 URL 키 `f.<id>.<op>` 에 들어가므로 영문자만(`^[A-Za-z]+$`).
+   * id 는 URL 키 `f.<id>.<op>` 에 들어가므로 영문자만(`^[A-Za-z]+$`). `quick` 은 빠른 필터 바 고정 필드(DataTableColumnFilter).
    */
-  filter?: ColumnFilterDef;
+  filter?: DataTableColumnFilter;
   /** 클라이언트 필터 값. 기본은 sortValue (배열이면 원소 중 하나라도 맞으면 통과) */
   filterValue?: (row: T) => FilterAccessorValue;
   /** 기본 true. 터치에서는 항상 꺼진다 */

@@ -498,8 +498,11 @@ function boundText(def: ColumnFilterDef, value: string): string {
   return def.kind === 'date' ? value : formatAmount(value);
 }
 
-/** 조건 본문(열 이름 제외). 범위는 gte·lte 를 함께 받으면 `a ~ b` */
-function describeBody(conds: readonly FilterCondition[], def: ColumnFilterDef): string {
+/** 조건 본문(열 이름 제외). 범위는 gte·lte 를 함께 받으면 `a ~ b`. 빠른 필터 바의 버튼 요약·접근성 이름도 쓴다 */
+export function describeConditionBody(
+  conds: readonly FilterCondition[],
+  def: ColumnFilterDef,
+): string {
   const parts: string[] = [];
   let gte: string | undefined;
   let lte: string | undefined;
@@ -541,5 +544,5 @@ export function describeCondition(
   def: ColumnFilterDef,
 ): string {
   const list: readonly FilterCondition[] = Array.isArray(cond) ? cond : [cond as FilterCondition];
-  return `${label}: ${describeBody(list, def)}`;
+  return `${label}: ${describeConditionBody(list, def)}`;
 }
