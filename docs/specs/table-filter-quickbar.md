@@ -89,3 +89,46 @@
 ## 6. 구현 중 판단 (2026-10-22, Dev msg_84fef4a11561 — PR-1)
 - 1·2·3·4·5·6·8 수용: PR-1 은 공용 부품만(표 전환은 PR-2·3) / '이번 달' = KST 기준 1일~말일 / '조건 K개' = 조건 걸린 필드 수(범위는 1개, 페이지 필터 제외) / 프리셋·text·범위 적용 후 팝오버 닫고 필드 버튼 포커스, enum 만 유지 / money 통화만 → 통화 조건만, 범위만 → "통화를 먼저 선택하세요" / 카드 테두리는 leading 있을 때만 / 라이브 안내 300ms 지연 전 표 공통.
 - 7 **보정**: 디바운스 대기 중 변경은 **같은 표에서 시작한 다른 이동(정렬·페이지·필터 초기화·다른 필드 적용) 직전에 먼저 반영(flush)** — 체크 직후 정렬을 눌러도 체크가 사라지지 않게. 바가 사라지거나(페이지 이탈) 외부에서 URL 이 바뀐 경우(뒤로가기·사이드바·다른 탭 복원)에만 버림. 회귀 단위 1건(체크 → 400ms 안에 정렬 클릭 → URL 에 둘 다).
+
+## 7. 디자인 보정 (2026-10-22, Main msg_f5bdd593a733 — 사용자 :3000 피드백, 설계 Plan 재량 연장)
+검토: UI/UX·기능/기술 서브에이전트(main 54fd521 + PR-3 브랜치, 실데이터 분포 SELECT). 두 결과 일치·보완 — 사용자 결정 필요 없음. 앱에 다크 테마 없음 → 대비는 라이트 기준.
+
+### 7.1 넘침 (PR-4)
+- A1 날짜 입력 2열(`QuickFilterEditor` `grid-cols-2`) → 1열, label·input `min-w-0`.
+- A2 `popover.tsx` `overflow-auto` → `overflow-y-auto overflow-x-hidden`(근본 원인 수정 후).
+- A3 바 옆 버튼 묶음(PricingBrowser·CostBrowser): 바 `w-full min-w-0 xl:w-auto xl:flex-1`, 버튼 묶음 `ml-auto flex shrink-0 flex-wrap gap-2`(좁으면 다른 줄).
+- A4 검색창 고정 폭 → `w-full sm:w-[260px]`(가격·원가).
+- A5 원가 제품군 탭 nav `overflow-x-auto`, 탭 `shrink-0 whitespace-nowrap`.
+- A6 건수 영역 `min-w-0 flex-wrap justify-end`.
+- 기준: 320·375·768·1280px 에서 바·페이지 필터 카드·모든 팝오버 `scrollWidth ≤ clientWidth`(E2E). 사용자가 본 다른 넘침이 있으면 Main 이 스크린샷으로 추가.
+
+### 7.2 드롭다운 간격 (PR-4)
+- enum 목록 행 `min-h-10 px-2.5 py-2 rounded-lg gap-2.5 text-[13px]`, 행 전체가 클릭 영역, hover `bg-gray-75`, 선택 `bg-purple-600/8 font-medium`, 긴 글자 `min-w-0 break-words`. 목록 `gap-0.5`, 높이 `max-h-[min(280px,45vh)]`.
+- 하단 구분선 아래 왼쪽 "N개 선택됨" + 오른쪽 "선택 해제". 제목 `mb-2`. "＋ N개 더" 목록 행도 `min-h-10 px-2.5`.
+
+### 7.3 공용 Checkbox·Radio (PR-4) — `components/ui/checkbox.tsx`(+ radio)
+- 네이티브 input `appearance-none` + SVG(체크·가로선 — 아이콘 세트에 check·minus 추가 또는 내장). 크기 sm 16 / md 18(기본), 클릭 영역은 행(40px+).
+- 기본: 흰 배경 + 테두리 1.5px `slate-600-aa`(5.2:1) / hover: 테두리 `ink-900`·배경 `gray-75` / checked·indeterminate: `purple-600` 배경 + 흰 체크/가로선(5.23:1) / disabled: `opacity-50` / focus-visible: 2px `purple-500` outline offset 2(Button 과 동일). `--border-default` 테두리 사용 금지(3:1 미달).
+- Radio: 같은 체계, 원형 + 가운데 점 8px.
+- **적용 범위: 앱 전체**(필터 2곳 + 폼 8곳 — NoticeFormModal·GroupSolution·QuoteSteps·CostLinkManager×3·PartsEditor·GroupFormModal·PolicyFormModal). 체크 표시 디자인을 앱에서 하나로.
+
+### 7.4 원가 자재 피커 (PR-4) — `CostLinkPicker`(매핑 모달·`/admin/costs/links` 공용)
+- 네이티브 `Select size=8` → 검색 `role="combobox"`(aria-controls·aria-activedescendant) + `role="listbox"`/`option`(aria-selected).
+- 행 `min-h-11 px-3 py-2`, `divide-y divide-border-subtle`: 1행 자재명 `text-[13px] font-medium`(최대 2줄), 2행 자재번호 `text-[12px] tabular-nums text-text-tertiary` + [현재]/[제안] 배지, 선택 행 `bg-purple-600/8` + 오른쪽 체크, hover `bg-gray-75`. 목록 `max-h-[min(320px,45vh)]`, 결과 수 표시, 결과 없음 문구.
+- ↑↓ 이동·Enter 선택, Enter 가 모달 폼 제출로 이어지지 않게. 렌더 200건 상한 + "검색어를 좁혀 주세요"(현재 자재 157개).
+
+### 7.5 판매가·원가 범위 = 양쪽 슬라이더 (PR-5, 숫자 입력 없음 — 사용자 확정)
+- 공용 `RangeSlider`(네이티브 `<input type="range">` 2개 겹침, 값은 칸 번호 0..200): role=slider·aria-valuemin/max/now·`aria-valuetext`(통화 형식, 끝이면 "제한 없음"), 키보드 ←→↑↓ 1칸·PageUp/Down 10칸·Home/End, 핸들 교차 금지, 트랙 클릭/탭 → 가까운 핸들 이동(드래그 대안), 핸들 20px·터치 영역 44px.
+- **범위(bounds) = 통화별 표 전체 최소·최대**(다른 필터와 무관, 안정). 가격: `listPriceCurrencies` 를 `{currency, min, max}` 로 확장(같은 스캔, 실측 7.7ms — #67 영향 없음). 원가: `listCostCurrencyRanges(access, db)`(cost.read), 원가 화면 props 로만(공용 정의·/pricing 으로 새지 않게 단위 테스트). 장바구니(내 견적 목록): 브라우저에서 현재 행으로 계산.
+- **로그 눈금**(실데이터 KRW 판매가 500원~16.5억, 중앙값 975만, 0원 287건): 칸 0 = 하한 없음(0원 포함), 칸 1..200 = [0 초과 최소, 최대] 로그 구간, 확정 값은 유효숫자 2자리 반올림(하한 내림·상한 올림), 양 끝은 실제 최소·최대. 팝오버에 "로그 눈금" 안내 한 줄.
+- **양 끝 = 조건 없음**: 하한 핸들이 왼쪽 끝이면 `gte` 없음, 상한 핸들이 오른쪽 끝이면 `lte` 없음. 칩 예 "단가: KRW ₩130만 이상"(칩은 compact 표기, 팝오버·aria 는 전체 금액).
+- 통화: 기존 규칙 유지 — 단일 통화 미정이면 라디오 먼저(슬라이더 disabled + "통화를 먼저 선택하세요"). **통화 라디오 선택 즉시 통화 조건 적용**(enum 과 일관). 통화 선택지가 1개면 미리 선택. 통화 변경 시 범위 초기화. 값이 1개뿐/행 없음이면 슬라이더 숨기고 문구.
+- **적용 시점: 손을 뗄 때(pointerup·keyup·blur) 400ms 디바운스 후**, enum 과 같은 대기 조건(R1) 경로 + flush 규칙, 팝오버는 열어 둠(§6 의 "범위 적용 후 닫힘"을 money 에 한해 개정). 드래그 중에는 표시만.
+- 옛 URL·범위 밖 값: 핸들은 가까운 칸/끝에 표시, 글자·칩·aria 는 URL 실제 값("₩5,000 이상 · 현재 데이터 범위 밖"), 사용자가 그 핸들을 움직이기 전까지 그 조건 URL 무변경(움직인 쪽만 다시 기록).
+- URL 코덱·서버 SQL 무변경(정수 문자열을 `f.<col>.gte/lte` 로).
+- 가격 변동률(number, 음수·%)은 숫자 입력 유지 — 이번 범위 아님.
+
+### 7.6 PR 순서
+- PR-3(#73, 서버 3표) 그대로 머지 → **PR-4(디자인: 7.1~7.4)** → **PR-5(슬라이더: 7.5)**. 편집기·슬라이더 부품 작업은 #73 과 겹치지 않으니 먼저 시작 가능, 페이지·섹션 파일은 #73 머지 후.
+- 테스트: 넘침 폭별 E2E, Checkbox 상태·포커스·indeterminate 단위, 피커 listbox 키보드·Enter 미제출, 슬라이더 칸↔금액 왕복·0 칸·끝=조건 없음·옛 URL 보존·R1/flush·원가 범위 노출 차단 단위, 키보드로 핸들 이동 → URL 기록 E2E, 옛 숫자 URL 진입 E2E. 기존 `selectOption`·`accent-` 의존 테스트 갱신.
+- Dev 게이트 + `ci:run` 녹색(QA 생략 모드).
