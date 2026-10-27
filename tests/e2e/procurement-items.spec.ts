@@ -179,7 +179,17 @@ test('320px: 페이지 가로 스크롤 없음 — 표는 표 상자 안에서�
     client: document.documentElement.clientWidth,
   }));
   expect(overflow.scroll).toBeLessThanOrEqual(overflow.client);
-  const box = page.locator('[data-procurement-items-scroll]');
-  const inner = await box.evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
-  expect(inner.scroll).toBeGreaterThan(inner.client);
+  // 표는 표 상자 안의 가로 스크롤 컨테이너(DataTable 자체 래퍼)에서 스크롤 — 표에서 가장 가까운 스크롤 조상을 잰다
+  const inner = await page
+    .locator('[data-procurement-items-scroll] table')
+    .first()
+    .evaluate((table) => {
+      let node = table.parentElement;
+      while (node && !['auto', 'scroll'].includes(getComputedStyle(node).overflowX)) {
+        node = node.parentElement;
+      }
+      return node ? { scroll: node.scrollWidth, client: node.clientWidth } : null;
+    });
+  expect(inner).not.toBeNull();
+  expect(inner!.scroll).toBeGreaterThan(inner!.client);
 });
