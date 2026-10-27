@@ -157,10 +157,10 @@ test('제품 탭·기간 프리셋·기준월 → URL(replace)', async ({ page }
 test('콤보 차트 ↔ 제조사 표 강조 연동 → 월 클릭 → 계약 목록(서버 페이지네이션)', async ({
   page,
 }) => {
-  await manufacturerTable(page).getByRole('button', { name: 'E2E가상보안' }).click();
+  await manufacturerTable(page).getByRole('button', { name: 'E2E가상보안', exact: true }).click();
   await expect(page).toHaveURL(/mfr=m%3AE2E%EA%B0%80%EC%83%81%EB%B3%B4%EC%95%88/);
   const legend = page.getByRole('list', { name: '전체 월별 매출 추이 범례' });
-  await expect(legend.getByRole('button', { name: 'E2E가상보안' })).toHaveAttribute(
+  await expect(legend.getByRole('button', { name: 'E2E가상보안', exact: true })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
@@ -180,7 +180,7 @@ test('콤보 차트 ↔ 제조사 표 강조 연동 → 월 클릭 → 계약 �
   await expect(list.locator('[data-contract-row]')).toHaveCount(5);
 
   // 강조 해제 → 전체 계약
-  await legend.getByRole('button', { name: 'E2E가상보안' }).click();
+  await legend.getByRole('button', { name: 'E2E가상보안', exact: true }).click();
   await expect(list.getByRole('heading', { level: 3 })).toContainText(
     '전체 · 25.01 계약 목록 (56건',
   );
