@@ -60,7 +60,12 @@ test.describe('USER', () => {
       await expect(page.getByTestId('procurement-collected-at')).toHaveText(
         '아직 수집 기록이 없습니다',
       );
-      await expect(page.getByText('화면 준비 중')).toBeVisible();
+      // 입찰 공고는 UI-3 화면(tests/e2e/procurement-bids.spec.ts) — E2E DB 에 공고가 없으면 빈 상태
+      await expect(
+        page.getByText(
+          link.path === '/procurement/bids' ? '진행 중인 입찰 공고가 없습니다' : '화면 준비 중',
+        ),
+      ).toBeVisible();
     }
   });
 

@@ -110,11 +110,14 @@ describe('조달 화면 가드 (직접 URL 접근)', () => {
     });
   });
 
-  it.each(PAGES)('USER 는 $path 를 연다 (procurement.read)', async ({ page, title }) => {
+  it.each(PAGES)('USER 는 $path 를 연다 (procurement.read)', async ({ path, page, title }) => {
     state.sessionUserId = userId;
     render(await open(page));
     expect(screen.getByRole('heading', { level: 1, name: title })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('화면 준비 중');
+    // 입찰 공고는 UI-3 화면(tests/unit/procurement/bids-page.test.tsx) — 데이터 0행이면 빈 상태
+    expect(screen.getByRole('status')).toHaveTextContent(
+      path === '/procurement/bids' ? '진행 중인 입찰 공고가 없습니다' : '화면 준비 중',
+    );
   });
 });
 
