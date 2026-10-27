@@ -19,10 +19,14 @@ export const PERMISSIONS = {
   'settings.self': ['USER', 'ADMIN'],
   /** #31 앱 내 알림: 본인 알림 조회·읽음 처리 (대상은 항상 본인) */
   'notification.self': ['USER', 'ADMIN'],
+  /** 조달이 통합 D-1: 조달 실적·등록 품목·입찰 공고 조회 */
+  'procurement.read': ['USER', 'ADMIN'],
   'pricing.write': ['ADMIN'],
   'notice.write': ['ADMIN'],
   'cost.read': ['ADMIN'],
   'cost.write': ['ADMIN'],
+  /** 조달이 통합 D-1: 조달 관리(실적·품목·키워드 편집) */
+  'procurement.write': ['ADMIN'],
   'parts.write': ['ADMIN'],
   'groups.write': ['ADMIN'],
   'users.manage': ['ADMIN'],
@@ -51,8 +55,10 @@ export const PERMISSION_GROUPS: readonly PermissionGroup[] = [
   { label: '검색 / 공지사항 / 챗봇', keys: ['search', 'notice.read', 'chat.use'] },
   { label: '사용자 설정 (본인 LLM 키 · 기본 모델)', keys: ['settings.self'] },
   { label: '내 알림', keys: ['notification.self'] },
+  { label: '조달 조회 (실적 현황 · 등록 품목 · 입찰 공고)', keys: ['procurement.read'] },
   { label: '가격정책 등록 · 수정 · 삭제', keys: ['pricing.write'] },
   { label: '원가 조회 · 등록 · 수정 · 삭제', keys: ['cost.read', 'cost.write'] },
+  { label: '조달 관리 (실적 · 품목 · 키워드)', keys: ['procurement.write'] },
   { label: '파츠 · 솔루션 그룹 관리', keys: ['parts.write', 'groups.write'] },
   { label: '사용자 · 권한 관리', keys: ['users.manage'] },
   { label: '감사 로그 · 시스템 설정', keys: ['audit.read', 'system.settings'] },
