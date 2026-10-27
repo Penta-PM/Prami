@@ -13,6 +13,10 @@ export const PAGE_KEYS = [
   'admin-notices',
   'admin-parts',
   'calculator',
+  'procurement',
+  'procurement-items',
+  'procurement-bids',
+  'admin-procurement',
 ] as const;
 export type PageKey = (typeof PAGE_KEYS)[number];
 
@@ -26,6 +30,10 @@ export const PAGE_PATHS: Readonly<Record<PageKey, string>> = {
   'admin-notices': '/admin/notices',
   'admin-parts': '/admin/parts',
   calculator: '/calculator',
+  procurement: '/procurement',
+  'procurement-items': '/procurement/items',
+  'procurement-bids': '/procurement/bids',
+  'admin-procurement': '/admin/procurement',
 };
 
 /** 화면을 여는 권한 — 저장 액션도 같은 권한을 요구하고, 복원은 현재 권한으로 다시 판정한다(§2.7-1) */
@@ -38,6 +46,11 @@ export const PAGE_PERMISSIONS: Readonly<Record<PageKey, PermissionKey>> = {
   'admin-notices': 'notice.write',
   'admin-parts': 'parts.write',
   calculator: 'calculator.use',
+  // 조달이 통합 UI-1 (D-1·D-2): 조회 화면 = procurement.read, 관리 화면 = procurement.write
+  procurement: 'procurement.read',
+  'procurement-items': 'procurement.read',
+  'procurement-bids': 'procurement.read',
+  'admin-procurement': 'procurement.write',
 };
 
 /** 저장 쿼리 최대 크기(UTF-8 바이트, §2.2-3) */

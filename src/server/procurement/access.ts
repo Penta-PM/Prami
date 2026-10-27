@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { requirePagePermission, requirePermission } from '@/server/auth/rbac';
+import type { SessionUser } from '@/server/auth/session-user';
 
 import {
   AUDIT_PROCUREMENT_READ,
@@ -42,9 +43,20 @@ export async function requireProcurementPageAccess(
   path: string,
   scope: ProcurementScope = 'read',
 ): Promise<ProcurementAccess> {
+  return (await requireProcurementPage(path, scope)).access;
+}
+
+/**
+ * requireProcurementPageAccess 와 같은 가드 + 세션 사용자 (조달이 통합 UI-1). 화면 RSC 가 조회 상태 복원(restoreViewState —
+ * 세션 사용자의 id·role 필요)을 함께 할 때 쓴다 — 세션을 두 번 읽지 않게.
+ */
+export async function requireProcurementPage(
+  path: string,
+  scope: ProcurementScope = 'read',
+): Promise<{ user: SessionUser; access: ProcurementAccess }> {
   const user = await requirePagePermission(
     scope === 'read' ? 'procurement.read' : 'procurement.write',
     path,
   );
-  return grantProcurementAccess(user, scope);
+  return { user, access: grantProcurementAccess(user, scope) };
 }

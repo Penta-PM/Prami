@@ -13,7 +13,11 @@ export type IconName =
   | 'chat'
   | 'search'
   | 'bell'
-  | 'info';
+  | 'info'
+  | 'chart'
+  | 'list'
+  | 'doc'
+  | 'cart';
 
 type IconProps = SVGProps<SVGSVGElement> & { name: IconName };
 
@@ -104,6 +108,42 @@ const PATHS: Record<IconName, React.ReactNode> = {
       <circle cx="12" cy="12" r="8.5" {...STROKE} />
       <path d="M12 11v5.5" {...STROKE} strokeLinecap="round" />
       <circle cx="12" cy="7.8" r="1.05" fill="currentColor" />
+    </>
+  ),
+  /** 조달 실적 현황 — 막대 차트 */
+  chart: (
+    <>
+      <path d="M4 20h16" {...STROKE} strokeLinecap="round" />
+      <path d="M7 16v-5M12 16V6M17 16v-8" {...STROKE} strokeLinecap="round" />
+    </>
+  ),
+  /** 등록 품목 — 목록 */
+  list: (
+    <>
+      <path d="M9 6h11M9 12h11M9 18h11" {...STROKE} strokeLinecap="round" />
+      <circle cx="5" cy="6" r="1" fill="currentColor" />
+      <circle cx="5" cy="12" r="1" fill="currentColor" />
+      <circle cx="5" cy="18" r="1" fill="currentColor" />
+    </>
+  ),
+  /** 입찰 공고 — 접힌 모서리 문서 */
+  doc: (
+    <>
+      <path d="M6 3h8l4 4v14H6V3Z" {...STROKE} strokeLinejoin="round" />
+      <path d="M14 3v4h4M9 12h6M9 16h6" {...STROKE} strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
+  /** 조달 관리 — 장바구니 */
+  cart: (
+    <>
+      <path
+        d="M3 4h2.5l2.2 10.5a1 1 0 0 0 1 .8h8.6a1 1 0 0 0 1-.8L20 8H6.6"
+        {...STROKE}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="9.5" cy="19" r="1.3" fill="currentColor" />
+      <circle cx="16.5" cy="19" r="1.3" fill="currentColor" />
     </>
   ),
 };

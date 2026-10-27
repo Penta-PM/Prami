@@ -10,7 +10,14 @@ import { cn } from '@/lib/cn';
 import { transition } from '@/lib/motion/tokens';
 
 import { Icon } from './icons';
-import { NAV_ADMIN, NAV_MAIN, isNavActive, type NavItem } from './nav';
+import {
+  NAV_MAIN,
+  NAV_PROCUREMENT,
+  adminNavItems,
+  isNavActive,
+  type NavItem,
+  type NavVisibility,
+} from './nav';
 
 /**
  * 앱 셸 사이드바. 접기/펼치기 상태를 가진다.
@@ -25,8 +32,15 @@ import { NAV_ADMIN, NAV_MAIN, isNavActive, type NavItem } from './nav';
  * 라벨이 자리를 차지하면 justify-center 된 링크에서 아이콘이 링크 밖(음수 x)으로 밀렸다가 튀어 돌아온다 (스펙 §9.3, Plan A안).
  * 서버 렌더 요소라 첫 렌더에는 숨김 initial 을 주지 않는다 — 사용자가 토글한 뒤(`labelsFadeIn`)부터만 fade-in. Motion `layout` 은 쓰지 않는다.
  * 제거는 Presence 를 거치지 않는 조건부 렌더라 접는 커밋에서 바로 빠진다(Presence 는 exit 가 없어도 한 프레임 늦게 제거).
+ *
+ * 섹션: 일반 → "조달"(procurement.read, 조달이 통합 UI-1) → "관리자"(관리자 영역, "조달 관리"는 procurement.write 일 때만 — D-2).
+ * 노출 값은 레이아웃이 세션 역할로 계산한다(navVisibility).
  */
-export function Sidebar({ showAdminNav = false }: { showAdminNav?: boolean }) {
+export function Sidebar({
+  showAdminNav = false,
+  showProcurementNav = false,
+  showProcurementAdminNav = false,
+}: Partial<NavVisibility>) {
   const [isExpanded, setIsExpanded] = useState(true);
   // 사용자가 접기/펼치기를 한 번이라도 했는지 — 그 뒤부터만 라벨 fade-in (첫 서버 렌더는 initial 없음)
   const [labelsFadeIn, setLabelsFadeIn] = useState(false);
@@ -110,23 +124,33 @@ export function Sidebar({ showAdminNav = false }: { showAdminNav?: boolean }) {
             />
           ))}
 
-          {showAdminNav ? (
+          {showProcurementNav ? (
             <>
-              {isExpanded ? (
-                <m.div
-                  {...labelFade(labelsFadeIn)}
-                  className="mx-2 mt-5 mb-2 text-[11px] font-semibold tracking-[0.04em] text-text-tertiary"
-                >
-                  관리자
-                </m.div>
-              ) : (
-                <div aria-hidden="true" className="my-3 border-t border-border-subtle" />
-              )}
-              {NAV_ADMIN.map((item) => (
+              <SectionHeader isExpanded={isExpanded} fadeIn={labelsFadeIn}>
+                조달
+              </SectionHeader>
+              {NAV_PROCUREMENT.map((item) => (
                 <SidebarLink
                   key={item.key}
                   item={item}
-                  isActive={isNavActive(pathname, item.href)}
+                  isActive={isNavActive(pathname, item.href, item.exact)}
+                  isExpanded={isExpanded}
+                  fadeIn={labelsFadeIn}
+                />
+              ))}
+            </>
+          ) : null}
+
+          {showAdminNav ? (
+            <>
+              <SectionHeader isExpanded={isExpanded} fadeIn={labelsFadeIn}>
+                관리자
+              </SectionHeader>
+              {adminNavItems({ showProcurementAdminNav }).map((item) => (
+                <SidebarLink
+                  key={item.key}
+                  item={item}
+                  isActive={isNavActive(pathname, item.href, item.exact)}
                   isExpanded={isExpanded}
                   fadeIn={labelsFadeIn}
                 />
@@ -165,6 +189,28 @@ function labelFade(fadeIn: boolean) {
     animate: { opacity: 1 },
     transition: transition.fast,
   } as const;
+}
+
+/** 섹션 머리("조달"·"관리자"). 접힌 사이드바에서는 구분선 */
+function SectionHeader({
+  isExpanded,
+  fadeIn,
+  children,
+}: {
+  isExpanded: boolean;
+  fadeIn: boolean;
+  children: string;
+}) {
+  return isExpanded ? (
+    <m.div
+      {...labelFade(fadeIn)}
+      className="mx-2 mt-5 mb-2 text-[11px] font-semibold tracking-[0.04em] text-text-tertiary"
+    >
+      {children}
+    </m.div>
+  ) : (
+    <div aria-hidden="true" className="my-3 border-t border-border-subtle" />
+  );
 }
 
 function SidebarLogo({ isExpanded }: { isExpanded: boolean }) {
