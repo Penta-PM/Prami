@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { getDb } from '@/db';
 import { ViewStateTracker } from '@/features/page-state/ViewStateTracker';
+import { ItemsAdminSection } from '@/features/procurement/admin/items/ItemsAdminSection';
 import { KeywordsAdminSection } from '@/features/procurement/admin/keywords/KeywordsAdminSection';
 import { PROCUREMENT_PAGES } from '@/features/procurement/copy';
 import { ProcurementAdminTabs } from '@/features/procurement/ProcurementAdminTabs';
@@ -42,12 +43,7 @@ export default async function AdminProcurementPage({ searchParams }: PageProps) 
       );
       break;
     case 'items':
-      section = (
-        <ProcurementPlaceholder
-          title="품목 관리 — 단계 3에서 제공"
-          description="신규 품목 검토·등록 품목 편집·휴지통은 단계 3에서 제공합니다."
-        />
-      );
+      section = <ItemsAdminSection params={params} access={access} user={user} />;
       break;
     case 'keywords':
       section = <KeywordsAdminSection params={params} access={access} user={user} />;
