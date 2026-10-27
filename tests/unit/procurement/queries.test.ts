@@ -725,6 +725,69 @@ describe('합성 데이터', () => {
       ]);
     });
 
+    it('마감 시각 없는 공고: 공고 후 14일(14×24시간) 안만 진행 중 — 13·14·15일째 경계, 공고 시각도 없으면 마감 (Plan msg_8115402efbd1)', async () => {
+      // B-3: 마감 시각 없음, 공고 2025-06-03T00:00Z
+      const posted = new Date('2025-06-03T00:00:00Z').getTime();
+      const day = 24 * 60 * 60 * 1000;
+      const at = (ms: number) => new Date(posted + ms);
+      const state = async (when: Date) => {
+        const open = await getBidNoticeRows(access, handle.db, { now: when, product: 'D.AMO' });
+        const all = await getBidNoticeRows(access, handle.db, {
+          now: when,
+          product: 'D.AMO',
+          includeClosed: true,
+        });
+        const row = all.rows.find((item) => item.bidNo === 'B-3')!;
+        return {
+          listed: open.rows.some((item) => item.bidNo === 'B-3'),
+          count: open.productCounts.find((entry) => entry.product === 'D.AMO')!.count,
+          closed: row.closed,
+          daysLeft: row.daysLeft,
+        };
+      };
+      expect(await state(at(13 * day))).toEqual({
+        listed: true,
+        count: 1,
+        closed: false,
+        daysLeft: null,
+      });
+      expect(await state(at(14 * day - 1))).toMatchObject({ listed: true, closed: false });
+      expect(await state(at(14 * day))).toEqual({
+        listed: false,
+        count: 0,
+        closed: true,
+        daysLeft: null,
+      });
+      expect(await state(at(15 * day))).toEqual({
+        listed: false,
+        count: 0,
+        closed: true,
+        daysLeft: null,
+      });
+
+      // 마감·공고 시각 모두 없음 → 마감 취급(진행 중 목록·칩 건수에 없음)
+      await handle.db
+        .insert(procurementBidNotices)
+        .values({ bidNo: 'B-UNDATED', title: '가상 일시 없음', products: ['D.AMO'] });
+      try {
+        const open = await getBidNoticeRows(access, handle.db, { now, product: 'D.AMO' });
+        expect(open.rows.map((item) => item.bidNo)).not.toContain('B-UNDATED');
+        const all = await getBidNoticeRows(access, handle.db, {
+          now,
+          product: 'D.AMO',
+          includeClosed: true,
+        });
+        expect(all.rows.find((item) => item.bidNo === 'B-UNDATED')).toMatchObject({
+          closed: true,
+          daysLeft: null,
+        });
+      } finally {
+        await handle.db
+          .delete(procurementBidNotices)
+          .where(sql`${procurementBidNotices.bidNo} = 'B-UNDATED'`);
+      }
+    });
+
     it("제품 칩·'상'만·공고 최신순·페이지네이션", async () => {
       const isign = await getBidNoticeRows(access, handle.db, { now, product: 'iSIGN' });
       expect(isign.rows.map((row) => row.bidNo)).toEqual(['B-6', 'B-5']);

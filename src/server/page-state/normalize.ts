@@ -17,6 +17,7 @@ import {
 import { USERS_FILTER_DEFS, USERS_SORT_IDS } from '@/features/users/table-state';
 import { hasPermission, type Role } from '@/lib/constants/permissions';
 import { normalizeProcurementAdminTab } from '@/lib/procurement/admin-tabs';
+import { bidFilterToQuery, parseBidFilter } from '@/lib/procurement/bid-filter';
 import { PAGE_PERMISSIONS, stripQueryPrefix, type PageKey } from '@/lib/page-state/keys';
 import { parseFilterParams, withFiltersQuery, type ColumnFilterDef } from '@/lib/table/filter';
 import { parseSortParams, withSortQuery } from '@/lib/table/sort-param';
@@ -123,11 +124,13 @@ export async function normalizeViewQuery(
       return partsQuery(db, params);
     case 'calculator':
       return calculatorQuery(params);
-    // 조달 조회 화면 (UI-1 셸): 아직 조회 조건이 없다 — UI-2·3·5 가 각 화면의 파서·직렬화로 채운다
+    // 조달 조회 화면 (UI-1 셸): 아직 조회 조건이 없다 — UI-2·5 가 각 화면의 파서·직렬화로 채운다
     case 'procurement':
     case 'procurement-items':
-    case 'procurement-bids':
       return '';
+    // 입찰 공고 (UI-3): 화면과 같은 파서·직렬화(제품·마감 포함·상만·정렬·페이지, 기본값 생략)
+    case 'procurement-bids':
+      return stripQueryPrefix(bidFilterToQuery(parseBidFilter(params)));
     case 'admin-procurement':
       return adminProcurementQuery(params);
   }
