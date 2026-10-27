@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { useRef, useTransition } from 'react';
 
 import { Segmented } from '@/components/ui';
 import { chipClass } from '@/components/ui/chip';
@@ -31,11 +31,20 @@ const countFormat = new Intl.NumberFormat('ko-KR');
 export function BidFilterBar({ filter, productCounts, allCount }: BidFilterBarProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  // 빠른 연속 조작(R1, 빠른 필터 바와 같은 규칙): URL 이 아직 바뀌지 않았으면 다음 조건은 마지막 요청에서 계산한다.
+  // 요청을 보낸 뒤 URL 이 바뀌었으면(요청이 반영됐거나 뒤로 가기·복원 같은 외부 변경) 지금 URL 이 기준.
+  const pending = useRef<{ target: BidFilter; fromHref: string } | null>(null);
 
-  const apply = (next: Partial<BidFilter>) =>
-    navigateView(bidsHref({ ...filter, ...next, page: 1 }), (href) =>
+  const apply = (next: Partial<BidFilter>) => {
+    const currentHref = bidsHref({ ...filter, page: 1 });
+    const last = pending.current;
+    const base = last && last.fromHref === currentHref ? last.target : filter;
+    const target: BidFilter = { ...base, ...next, page: 1 };
+    pending.current = { target, fromHref: currentHref };
+    navigateView(bidsHref(target), (href) =>
       startTransition(() => router.replace(href, { scroll: false })),
     );
+  };
 
   const chips: { product: ProcurementProduct | null; label: string; count: number }[] = [
     { product: null, label: '전체', count: allCount },

@@ -11,7 +11,9 @@ import { countRows, pageSizeOf, pageWindow, type Paged } from './shared';
 
 /**
  * 입찰 공고 (UI-3). 관련 제품(products)이 빈 공고는 숨긴다(원본 화면 규칙).
- * - 진행 중 = 마감 시각이 없거나 기준 시각(now)보다 뒤. "마감 포함"이면 마감된 공고도 보인다.
+ * - 진행 중 = 마감 시각이 기준 시각(now)보다 뒤. 마감 시각이 없으면(외부기관 공고 등) 공고 후 14일(14×24시간) 안일 때만
+ *   진행 중 — 원본 화면 규칙(Plan 결정 msg_8115402efbd1, DB-2 판단 4 개정). 공고 시각도 없으면 마감 취급.
+ *   "마감 포함"이면 마감된 공고도 보인다.
  * - D-day = 마감일(KST 날짜) − 기준일(KST 날짜). 0 = 오늘 마감, 음수 = 지난 마감, 마감 시각 없음 = null.
  * - 정렬 fit = 적합도 등급(상→중→하→없음) → 점수 높은 순 → 공고 최신순. posted = 공고 최신순.
  */
@@ -53,7 +55,7 @@ export type BidNoticeRow = {
   fitGrade: string | null;
   fitScore: number | null;
   fitReasons: string[];
-  /** 마감됨 (deadline_at <= now) */
+  /** 마감됨 (진행 중 조건의 반대 — 마감 시각 지남, 또는 마감 시각 없이 공고 후 14일 지남·공고 시각 없음) */
   closed: boolean;
   /** 마감까지 남은 날 (KST 날짜 기준), 마감 시각 없으면 null */
   daysLeft: number | null;
@@ -68,13 +70,19 @@ export type BidNoticePage = Paged<BidNoticeRow> & {
 
 const b = procurementBidNotices;
 const KST = 'Asia/Seoul';
+/** 마감 시각 없는 공고를 진행 중으로 보는 기간 (공고 후) */
+export const BID_UNDATED_OPEN_DAYS = 14;
+
+/** 진행 중 조건 — 목록 조건·칩 건수·행의 closed 가 모두 이 한 식을 쓴다 */
+function openCondition(now: Date): SQL {
+  const at = sql`${now.toISOString()}::timestamptz`;
+  return sql`(case when ${b.deadlineAt} is not null then ${b.deadlineAt} > ${at}
+    else coalesce(${b.postedAt} > ${at} - make_interval(days => ${BID_UNDATED_OPEN_DAYS}), false) end)`;
+}
 
 function baseConditions(filter: BidNoticeFilter, now: Date): SQL[] {
   const conditions: SQL[] = [sql`cardinality(${b.products}) > 0`];
-  if (!filter.includeClosed)
-    conditions.push(
-      sql`(${b.deadlineAt} is null or ${b.deadlineAt} > ${now.toISOString()}::timestamptz)`,
-    );
+  if (!filter.includeClosed) conditions.push(openCondition(now));
   if (filter.topGradeOnly) conditions.push(sql`${b.fitGrade} = '상'`);
   return conditions;
 }
@@ -146,7 +154,7 @@ export async function getBidNoticeRows(
       fitGrade: b.fitGrade,
       fitScore: b.fitScore,
       fitReasons: b.fitReasons,
-      closed: sql<boolean>`coalesce(${b.deadlineAt} <= ${nowParam}, false)`,
+      closed: sql<boolean>`not ${openCondition(now)}`,
       daysLeft: sql<
         number | null
       >`((${b.deadlineAt} at time zone ${KST})::date - (${nowParam} at time zone ${KST})::date)`.mapWith(

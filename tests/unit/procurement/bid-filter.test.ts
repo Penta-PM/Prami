@@ -93,6 +93,13 @@ describe('마감 D-day 배지', () => {
     });
   });
 
+  it('마감 시각 없이 공고 후 14일이 지나 서버가 마감으로 본 공고 → "마감일 미표기" + 마감 색(D-day 빈칸 유지)', () => {
+    expect(deadlineBadge({ deadlineAt: null, closed: true, daysLeft: null })).toEqual({
+      text: '마감일 미표기',
+      tone: 'closed',
+    });
+  });
+
   it('마감됨 → 마감 (오늘 이미 지난 마감도)', () => {
     expect(deadlineBadge({ deadlineAt, closed: true, daysLeft: -2 })).toEqual({
       text: '마감',

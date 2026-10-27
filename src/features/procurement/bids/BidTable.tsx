@@ -64,7 +64,7 @@ const COLUMNS = [
  * - 근거 ＋/－ = 표 안 펼침 행(버튼 aria-expanded·aria-controls)
  * - 마감 = D-day 배지(임박 --accent-orange), 마감된 공고는 흐린 글자 + "마감" 배지
  * - 예산·추정가 = 억·만(D-3 요약 표기 — 스펙 UI-3)
- * 320px 에서도 페이지는 가로로 넘치지 않고 표만 표 안에서 스크롤한다(Table 래퍼 overflow-x-auto + min-w).
+ * 320px 에서도 페이지는 가로로 넘치지 않고 표만 표 안에서 스크롤한다(Table 래퍼 overflow-x-auto + min-w). sr-only 글자가 든 칸은 relative — 절대 위치 sr-only 가 스크롤 래퍼(위치 지정 없음) 밖 페이지 기준으로 놓여 페이지를 넓히지 않게.
  */
 export function BidTable({ rows }: { rows: readonly BidTableRow[] }) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
@@ -102,7 +102,7 @@ export function BidTable({ rows }: { rows: readonly BidTableRow[] }) {
               <BidRow row={row} isOpen={isOpen} panelId={panelId} onToggle={() => toggle(key)} />
               {isOpen ? (
                 <tr id={panelId} className="border-b border-border-subtle bg-gray-75">
-                  <td colSpan={COLUMNS.length} className="px-3 py-3">
+                  <td colSpan={COLUMNS.length} className="relative px-3 py-3">
                     <ReasonList title={row.title} reasons={row.fitReasons} />
                   </td>
                 </tr>
@@ -134,7 +134,7 @@ function BidRow({
 
   return (
     <TableRow data-closed={row.closed ? 'true' : undefined} className={cn(muted && 'bg-gray-50')}>
-      <TableCell>
+      <TableCell className="relative">
         <Pill tone={fit.tone} className="gap-1 font-semibold" title={fit.label}>
           <span className="sr-only">{fit.label}</span>
           <span aria-hidden="true">{fit.grade}</span>
@@ -146,7 +146,7 @@ function BidRow({
         </Pill>
       </TableCell>
       <TableCell className="text-[12px] text-text-secondary">{row.products.join(', ')}</TableCell>
-      <TableCell className="max-w-[360px] min-w-[220px]">
+      <TableCell className="relative max-w-[360px] min-w-[220px]">
         <div className="flex flex-col gap-0.5">
           {href ? (
             <a
@@ -213,7 +213,7 @@ function BidRow({
       >
         {formatEokMan(row.estPrice)}
       </TableCell>
-      <TableCell className="whitespace-nowrap">
+      <TableCell className="relative whitespace-nowrap">
         {row.fitReasons.length > 0 ? (
           <button
             type="button"

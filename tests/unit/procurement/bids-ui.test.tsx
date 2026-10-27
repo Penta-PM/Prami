@@ -104,6 +104,21 @@ describe('BidFilterBar — URL 이 상태', () => {
     expect(nav.push).toEqual([]);
   });
 
+  it('빠른 연속 조작(URL 반영 전): 두 번째 변경은 첫 변경 결과에서 계산 — 첫 변경이 사라지지 않는다 (R1)', async () => {
+    // URL(props) 은 그대로 product=iSIGN·마감 포함 — router.replace 는 기록만 하고 반영하지 않는다
+    renderBar({ product: 'iSIGN', includeClosed: true });
+    await userEvent.click(screen.getByRole('button', { name: '전체 7건' }));
+    await userEvent.click(
+      within(screen.getByRole('radiogroup', { name: '정렬' })).getByRole('radio', {
+        name: '게시순',
+      }),
+    );
+    expect(nav.replace).toEqual([
+      '/procurement/bids?closed=1',
+      '/procurement/bids?closed=1&sort=posted',
+    ]);
+  });
+
   it('이미 선택된 칩을 다시 눌러도 이동하지 않는다', async () => {
     renderBar();
     await userEvent.click(screen.getByRole('button', { name: '전체 7건' }));

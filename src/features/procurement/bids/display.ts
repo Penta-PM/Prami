@@ -50,7 +50,7 @@ export type DeadlineBadge = { text: string; tone: DeadlineTone };
 
 /**
  * 서버가 계산한 closed·daysLeft(KST 날짜 차) → 배지.
- * - 마감 시각 없음 → "마감일 미표기"
+ * - 마감 시각 없음 → "마감일 미표기"(D-day 빈칸). 공고 후 14일이 지나 서버가 마감으로 본 공고는 마감 색(원본 화면과 같음)
  * - 마감됨 → "마감"
  * - 오늘 마감 → "오늘 마감"(임박), 1~3일 → "D-n 임박", 그 뒤 → "D-n"
  */
@@ -59,8 +59,9 @@ export function deadlineBadge(row: {
   closed: boolean;
   daysLeft: number | null;
 }): DeadlineBadge {
+  if (!row.deadlineAt || row.daysLeft === null)
+    return { text: '마감일 미표기', tone: row.closed ? 'closed' : 'none' };
   if (row.closed) return { text: '마감', tone: 'closed' };
-  if (!row.deadlineAt || row.daysLeft === null) return { text: '마감일 미표기', tone: 'none' };
   const days = Math.max(0, row.daysLeft);
   if (days === 0) return { text: '오늘 마감', tone: 'urgent' };
   if (days <= BID_URGENT_DAYS) return { text: `D-${days} 임박`, tone: 'urgent' };
