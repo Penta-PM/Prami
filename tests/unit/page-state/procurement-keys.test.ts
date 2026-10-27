@@ -18,7 +18,8 @@ import { normalizeViewQuery } from '@/server/page-state/normalize';
 
 /**
  * 조달이 통합 UI-1 — 페이지 상태 기억(B-1) page_key: 조회 화면 3개 = procurement.read, 관리 화면 = procurement.write.
- * 정규화: 조회 화면은 아직 조건 없음('' — 입찰 공고는 UI-3 조건), 관리 화면은 탭만(기본 탭 생략). 권한 없으면 항상 ''.
+ * 정규화: 실적 현황은 아직 조건 없음(''), 등록 품목은 검색·열 필터·정렬·페이지(UI-2), 입찰 공고는 UI-3 조건, 관리 화면은 탭만(기본 탭 생략).
+ * 권한 없으면 항상 ''.
  */
 const KEYS: Record<string, { path: string; permission: string }> = {
   procurement: { path: '/procurement', permission: 'procurement.read' },
@@ -27,7 +28,7 @@ const KEYS: Record<string, { path: string; permission: string }> = {
   'admin-procurement': { path: '/admin/procurement', permission: 'procurement.write' },
 };
 
-// 조달 키 정규화는 DB 를 읽지 않는다
+// 조달 키 정규화는 DB 를 읽지 않는다 (등록 품목도 enum 조건이 없으면)
 const db = {} as Db;
 const ADMIN = { role: 'ADMIN' as const };
 const USER = { role: 'USER' as const };
@@ -56,7 +57,7 @@ describe('조달 page_key 화이트리스트', () => {
 });
 
 describe('조달 조회 상태 정규화', () => {
-  it.each(['procurement', 'procurement-items'] as const)(
+  it.each(['procurement'] as const)(
     '%s: 아직 조회 조건이 없어 모든 파라미터를 버린다',
     async (key) => {
       expect(await normalizeViewQuery(db, USER, key, 'tab=items&x=1')).toBe('');
@@ -71,6 +72,19 @@ describe('조달 조회 상태 정규화', () => {
     expect(await normalizeViewQuery(db, USER, 'procurement-bids', 'product=nope&closed=0')).toBe(
       '',
     );
+  });
+
+  // 등록 품목(UI-2)은 검색·열 필터·정렬·페이지 — 데이터 선택지 확인(enum)은 tests/unit/procurement/items-page.test.tsx
+  it('procurement-items: enum 조건이 없으면 DB 없이 형식 검증만, 모르는 키는 버린다', async () => {
+    expect(await normalizeViewQuery(db, USER, 'procurement-items', 'tab=items&x=1')).toBe('');
+    expect(
+      await normalizeViewQuery(
+        db,
+        USER,
+        'procurement-items',
+        'x=1&sort=itemId&f.registeredOn.gte=2026-01-01&q=a&page=2',
+      ),
+    ).toBe('q=a&f.registeredOn.gte=2026-01-01&page=2&sort=itemId&dir=asc');
   });
 
   it('admin-procurement: 알려진 탭만, 기본 탭(deliveries)은 생략, 다른 키는 버린다', async () => {

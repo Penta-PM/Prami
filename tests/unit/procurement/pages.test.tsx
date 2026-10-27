@@ -58,10 +58,26 @@ type Page = (props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) => Promise<React.ReactElement>;
 
-const PAGES: { path: string; page: Page; title: string }[] = [
-  { path: '/procurement', page: PerformancePage, title: '조달 실적 현황' },
-  { path: '/procurement/items', page: ItemsPage, title: '등록 품목' },
-  { path: '/procurement/bids', page: BidsPage, title: '입찰 공고' },
+/** emptyText: 조달 데이터 0행일 때 본문 상태 — 실적 현황은 자리 표시, 등록 품목(UI-2)·입찰 공고(UI-3)는 빈 안내 */
+const PAGES: { path: string; page: Page; title: string; emptyText: string }[] = [
+  {
+    path: '/procurement',
+    page: PerformancePage,
+    title: '조달 실적 현황',
+    emptyText: '화면 준비 중',
+  },
+  {
+    path: '/procurement/items',
+    page: ItemsPage,
+    title: '등록 품목',
+    emptyText: '등록된 품목이 없습니다',
+  },
+  {
+    path: '/procurement/bids',
+    page: BidsPage,
+    title: '입찰 공고',
+    emptyText: '진행 중인 입찰 공고가 없습니다',
+  },
 ];
 
 const open = (page: Page, params: Record<string, string> = {}) =>
@@ -110,14 +126,11 @@ describe('조달 화면 가드 (직접 URL 접근)', () => {
     });
   });
 
-  it.each(PAGES)('USER 는 $path 를 연다 (procurement.read)', async ({ path, page, title }) => {
+  it.each(PAGES)('USER 는 $path 를 연다 (procurement.read)', async ({ page, title, emptyText }) => {
     state.sessionUserId = userId;
     render(await open(page));
     expect(screen.getByRole('heading', { level: 1, name: title })).toBeInTheDocument();
-    // 입찰 공고는 UI-3 화면(tests/unit/procurement/bids-page.test.tsx) — 데이터 0행이면 빈 상태
-    expect(screen.getByRole('status')).toHaveTextContent(
-      path === '/procurement/bids' ? '진행 중인 입찰 공고가 없습니다' : '화면 준비 중',
-    );
+    expect(screen.getByText(emptyText, { exact: false })).toBeInTheDocument();
   });
 });
 

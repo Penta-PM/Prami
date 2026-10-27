@@ -8,10 +8,11 @@ import { FIXTURE_ADMIN, FIXTURE_USER, loginAs } from './helpers';
  * 조달이 통합 UI-1 (IA·셸): 사이드바 "조달" 섹션(procurement.read)·관리자 "조달 관리"(procurement.write, D-2 탭 3개),
  * 직접 URL 접근 차단, 수집 시각 머리. E2E DB 에는 조달 데이터가 없다 → "아직 수집 기록이 없습니다".
  */
+/** emptyText: 조달 데이터 0행일 때 본문 — 실적 현황은 자리 표시, 등록 품목(UI-2)·입찰 공고(UI-3)는 빈 안내 */
 const PROCUREMENT_LINKS = [
-  { name: '조달 실적 현황', path: '/procurement' },
-  { name: '등록 품목', path: '/procurement/items' },
-  { name: '입찰 공고', path: '/procurement/bids' },
+  { name: '조달 실적 현황', path: '/procurement', emptyText: '화면 준비 중' },
+  { name: '등록 품목', path: '/procurement/items', emptyText: '등록된 품목이 없습니다' },
+  { name: '입찰 공고', path: '/procurement/bids', emptyText: '진행 중인 입찰 공고가 없습니다' },
 ] as const;
 
 const sidebar = (page: Page) => page.getByRole('complementary', { name: '주 메뉴' });
@@ -60,12 +61,7 @@ test.describe('USER', () => {
       await expect(page.getByTestId('procurement-collected-at')).toHaveText(
         '아직 수집 기록이 없습니다',
       );
-      // 입찰 공고는 UI-3 화면(tests/e2e/procurement-bids.spec.ts) — E2E DB 에 공고가 없으면 빈 상태
-      await expect(
-        page.getByText(
-          link.path === '/procurement/bids' ? '진행 중인 입찰 공고가 없습니다' : '화면 준비 중',
-        ),
-      ).toBeVisible();
+      await expect(page.getByText(link.emptyText)).toBeVisible();
     }
   });
 
