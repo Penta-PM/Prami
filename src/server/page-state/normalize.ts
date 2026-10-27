@@ -16,6 +16,7 @@ import {
 } from '@/features/pricing/filter';
 import { USERS_FILTER_DEFS, USERS_SORT_IDS } from '@/features/users/table-state';
 import { hasPermission, type Role } from '@/lib/constants/permissions';
+import { normalizeProcurementAdminTab } from '@/lib/procurement/admin-tabs';
 import { PAGE_PERMISSIONS, stripQueryPrefix, type PageKey } from '@/lib/page-state/keys';
 import { parseFilterParams, withFiltersQuery, type ColumnFilterDef } from '@/lib/table/filter';
 import { parseSortParams, withSortQuery } from '@/lib/table/sort-param';
@@ -90,6 +91,12 @@ function calculatorQuery(params: Params): string {
   return first(params, 'tab') === 'margin' ? 'tab=margin' : '';
 }
 
+/** 조달 관리는 탭만 (`?tab=items|keywords`, 기본 실적 관리 탭은 생략) — 탭 안 조건은 단계 3(UI-6~8)에서 더한다 */
+function adminProcurementQuery(params: Params): string {
+  const tab = normalizeProcurementAdminTab(first(params, 'tab'));
+  return tab ? `tab=${tab}` : '';
+}
+
 export async function normalizeViewQuery(
   db: Db,
   actor: ViewStateActor,
@@ -116,5 +123,12 @@ export async function normalizeViewQuery(
       return partsQuery(db, params);
     case 'calculator':
       return calculatorQuery(params);
+    // 조달 조회 화면 (UI-1 셸): 아직 조회 조건이 없다 — UI-2·3·5 가 각 화면의 파서·직렬화로 채운다
+    case 'procurement':
+    case 'procurement-items':
+    case 'procurement-bids':
+      return '';
+    case 'admin-procurement':
+      return adminProcurementQuery(params);
   }
 }

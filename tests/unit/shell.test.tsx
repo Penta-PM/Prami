@@ -64,6 +64,22 @@ describe('Sidebar', () => {
     expect(screen.queryByRole('button', { name: '일반 사용자' })).not.toBeInTheDocument();
   });
 
+  it('조달 섹션: 등록 품목 화면에서는 등록 품목만 활성이다 (조달 실적 현황은 exact)', () => {
+    usePathnameMock.mockReturnValue('/procurement/items');
+    render(<Sidebar showProcurementNav />);
+    expect(screen.getByRole('link', { name: '등록 품목' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: '조달 실적 현황' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    expect(screen.queryByRole('link', { name: '조달 관리' })).not.toBeInTheDocument();
+  });
+
+  it('권한 없음(기본 props)이면 조달 섹션도 없다', () => {
+    render(<Sidebar />);
+    expect(screen.queryByText('조달', { selector: 'div' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '조달 실적 현황' })).not.toBeInTheDocument();
+  });
+
   it('현재 경로의 메뉴에 aria-current=page 를 준다', () => {
     usePathnameMock.mockReturnValue('/admin/costs');
     render(<Sidebar showAdminNav />);
@@ -166,6 +182,33 @@ describe('AppLayout', () => {
     render(await AppLayout({ children: <p>본문</p> }));
     expect(screen.queryByText('관리자', { selector: 'div' })).not.toBeInTheDocument();
     expect(screen.getByText('사용자')).toBeInTheDocument();
+  });
+
+  it('USER 는 조달 섹션(3개)을 보고 조달 관리는 보지 않는다 (procurement.read·write)', async () => {
+    getSessionUserMock.mockResolvedValue({ ...ADMIN, role: 'USER', department: null });
+    render(await AppLayout({ children: <p>본문</p> }));
+    const nav = screen.getByRole('complementary', { name: '주 메뉴' });
+    expect(within(nav).getByText('조달', { selector: 'div' })).toBeInTheDocument();
+    for (const [name, href] of [
+      ['조달 실적 현황', '/procurement'],
+      ['등록 품목', '/procurement/items'],
+      ['입찰 공고', '/procurement/bids'],
+    ]) {
+      expect(within(nav).getByRole('link', { name })).toHaveAttribute('href', href);
+    }
+    expect(within(nav).queryByRole('link', { name: '조달 관리' })).not.toBeInTheDocument();
+  });
+
+  it('ADMIN 은 조달 섹션과 관리자 섹션의 조달 관리를 모두 본다', async () => {
+    getSessionUserMock.mockResolvedValue(ADMIN);
+    render(await AppLayout({ children: <p>본문</p> }));
+    const nav = screen.getByRole('complementary', { name: '주 메뉴' });
+    expect(within(nav).getByRole('link', { name: '조달 실적 현황' })).toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: '조달 관리' })).toHaveAttribute(
+      'href',
+      '/admin/procurement',
+    );
+    expect(within(nav).getAllByRole('link')).toHaveLength(3 + 3 + 8);
   });
 
   it('사이드바·헤더·본문을 조합하고 세션 사용자를 표시한다', async () => {

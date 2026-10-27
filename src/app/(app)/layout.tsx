@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
-import { hasPermission, ROLE_LABELS } from '@/lib/constants/permissions';
+import { ROLE_LABELS } from '@/lib/constants/permissions';
 import { APP_MAIN_ID } from '@/lib/page-state/keys';
 import { ChatProvider } from '@/features/chat/ChatContext';
 import { ChatDock } from '@/features/chat/ChatDock';
 import { Header } from '@/features/shell/Header';
+import { navVisibility } from '@/features/shell/nav';
 import { Sidebar } from '@/features/shell/Sidebar';
 import { env } from '@/env';
 import { getSessionUser } from '@/server/auth/rbac';
@@ -24,7 +25,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <ChatProvider statusEndpoint="/api/chat/status">
       <div className="flex h-screen overflow-hidden bg-surface-page">
-        <Sidebar showAdminNav={hasPermission(user.role, 'users.manage')} />
+        <Sidebar {...navVisibility(user.role)} />
         <div className="flex min-w-0 flex-1 flex-col">
           <Header user={{ name: user.name, roleLabel }} testMode={isTestModeEnabled(env)} />
           <main id={APP_MAIN_ID} className="flex-1 overflow-y-auto p-8 max-md:p-4">
