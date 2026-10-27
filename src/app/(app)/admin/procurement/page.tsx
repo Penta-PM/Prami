@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 
 import { getDb } from '@/db';
 import { ViewStateTracker } from '@/features/page-state/ViewStateTracker';
+import { KeywordsAdminSection } from '@/features/procurement/admin/keywords/KeywordsAdminSection';
 import { PROCUREMENT_PAGES } from '@/features/procurement/copy';
 import { ProcurementAdminTabs } from '@/features/procurement/ProcurementAdminTabs';
 import { ProcurementHeader } from '@/features/procurement/ProcurementHeader';
+import { ProcurementPlaceholder } from '@/features/procurement/ProcurementPlaceholder';
 import { parseProcurementAdminTab } from '@/lib/procurement/admin-tabs';
 import { restoreViewState } from '@/server/page-state/restore-page';
 import { requireProcurementPage } from '@/server/procurement/access';
@@ -17,8 +20,8 @@ export const metadata: Metadata = { title: PAGE.title };
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 /**
- * 조달 관리 (조달이 통합 D-2, procurement.write = ADMIN): 탭 3개(실적 관리·품목 관리·키워드 관리), `?tab=` 은 URL·조회 상태.
- * UI-1 은 셸만 — 탭 내용·쓰기는 단계 3(UI-6~8).
+ * 조달 관리 (조달이 통합 D-2, procurement.write = ADMIN): 탭 3개(실적 관리·품목 관리·키워드 관리).
+ * 탭 상태는 URL `?tab=`, 탭 내용은 이 RSC 가 searchParams 로 서버에서 읽는다(Plan msg_9f2035d66cd8) — 탭마다 switch 한 줄.
  */
 export default async function AdminProcurementPage({ searchParams }: PageProps) {
   const { user, access } = await requireProcurementPage('/admin/procurement', 'write');
@@ -28,6 +31,29 @@ export default async function AdminProcurementPage({ searchParams }: PageProps) 
   const status = await getCollectionStatus(access, await getDb());
   const tab = parseProcurementAdminTab(params.tab);
 
+  let section: ReactNode;
+  switch (tab) {
+    case 'deliveries':
+      section = (
+        <ProcurementPlaceholder
+          title="실적 관리 — 단계 3에서 제공"
+          description="납품요구 실적 편집·제외·복원은 단계 3에서 제공합니다."
+        />
+      );
+      break;
+    case 'items':
+      section = (
+        <ProcurementPlaceholder
+          title="품목 관리 — 단계 3에서 제공"
+          description="신규 품목 검토·등록 품목 편집·휴지통은 단계 3에서 제공합니다."
+        />
+      );
+      break;
+    case 'keywords':
+      section = <KeywordsAdminSection params={params} access={access} user={user} />;
+      break;
+  }
+
   return (
     <section aria-labelledby="page-title" className="flex flex-col gap-4">
       <ProcurementHeader
@@ -35,7 +61,7 @@ export default async function AdminProcurementPage({ searchParams }: PageProps) 
         collectedAt={status.daily.collectedAt}
         basis={PAGE.basis}
       />
-      <ProcurementAdminTabs initialTab={tab} />
+      <ProcurementAdminTabs tab={tab}>{section}</ProcurementAdminTabs>
       <ViewStateTracker {...viewState} />
     </section>
   );
