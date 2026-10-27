@@ -91,7 +91,12 @@ test.describe('ADMIN', () => {
     const tabs = page.getByRole('radiogroup', { name: '조달 관리 메뉴' });
     await expect(tabs.getByRole('radio')).toHaveText(['실적 관리', '품목 관리', '키워드 관리']);
     await expect(tabs.getByRole('radio', { name: '실적 관리' })).toBeChecked();
-    await expect(page.getByRole('region', { name: '실적 관리' })).toContainText('단계 3에서 제공');
+    // 실적 관리 = 납품요구 표 (UI-6)
+    await expect(
+      page
+        .getByRole('region', { name: '실적 관리' })
+        .getByRole('radiogroup', { name: '실적 관리 보기' }),
+    ).toBeVisible();
 
     await tabs.getByRole('radio', { name: '키워드 관리' }).click();
     await expect(tabs.getByRole('radio', { name: '키워드 관리' })).toBeChecked();

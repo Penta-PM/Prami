@@ -3,12 +3,12 @@ import type { ReactNode } from 'react';
 
 import { getDb } from '@/db';
 import { ViewStateTracker } from '@/features/page-state/ViewStateTracker';
+import { DeliveriesAdminSection } from '@/features/procurement/admin/deliveries/DeliveriesAdminSection';
 import { ItemsAdminSection } from '@/features/procurement/admin/items/ItemsAdminSection';
 import { KeywordsAdminSection } from '@/features/procurement/admin/keywords/KeywordsAdminSection';
 import { PROCUREMENT_PAGES } from '@/features/procurement/copy';
 import { ProcurementAdminTabs } from '@/features/procurement/ProcurementAdminTabs';
 import { ProcurementHeader } from '@/features/procurement/ProcurementHeader';
-import { ProcurementPlaceholder } from '@/features/procurement/ProcurementPlaceholder';
 import { parseProcurementAdminTab } from '@/lib/procurement/admin-tabs';
 import { restoreViewState } from '@/server/page-state/restore-page';
 import { requireProcurementPage } from '@/server/procurement/access';
@@ -35,12 +35,7 @@ export default async function AdminProcurementPage({ searchParams }: PageProps) 
   let section: ReactNode;
   switch (tab) {
     case 'deliveries':
-      section = (
-        <ProcurementPlaceholder
-          title="실적 관리 — 단계 3에서 제공"
-          description="납품요구 실적 편집·제외·복원은 단계 3에서 제공합니다."
-        />
-      );
+      section = <DeliveriesAdminSection params={params} access={access} user={user} />;
       break;
     case 'items':
       section = <ItemsAdminSection params={params} access={access} user={user} />;

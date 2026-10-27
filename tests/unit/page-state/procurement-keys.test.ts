@@ -112,7 +112,21 @@ describe('조달 조회 상태 정규화', () => {
         'tab=keywords&page=3&f.product=WAPPLES',
       ),
     ).toBe('tab=keywords');
-    expect(await normalizeViewQuery(db, ADMIN, 'admin-procurement', 'page=2')).toBe('');
+  });
+
+  it('admin-procurement 실적 관리(UI-6): 탭 안 조건(휴지통·검색·열 필터·페이지·정렬)을 화면 코덱으로, tab 은 생략', async () => {
+    expect(
+      await normalizeViewQuery(
+        db,
+        ADMIN,
+        'admin-procurement',
+        'x=1&sort=amount&dir=desc&page=2&f.vendor.in=가상상사&q=R-1&trash=1&tab=deliveries&f.nope.has=1',
+      ),
+    ).toBe(
+      'trash=1&q=R-1&f.vendor.in=%EA%B0%80%EC%83%81%EC%83%81%EC%82%AC&page=2&sort=amount&dir=desc',
+    );
+    // 탭 파라미터 없음 = 기본 탭(실적 관리)
+    expect(await normalizeViewQuery(db, ADMIN, 'admin-procurement', 'q=R-1')).toBe('q=R-1');
   });
 
   it('권한이 없으면(USER → 관리 화면) 항상 빈 상태', async () => {
