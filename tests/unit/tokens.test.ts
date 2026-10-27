@@ -3,6 +3,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { CHART_GRAPHIC_TOKENS, OURS_TOKEN } from '@/features/procurement/charts/palette';
+
 /**
  * AC-00: globals.css 의 CSS 변수가 디자인 토큰 원본(4파일)과 같은 이름·값으로 정의되는지 검증한다.
  * 원본은 tests/fixtures/design-tokens/ 에 그대로 보존되어 있다.
@@ -34,6 +36,8 @@ const EXTENSION_TOKENS = [
   { name: '--blue-600', value: '#2563eb', block: '@theme static' },
   { name: '--gray-600', value: '#6a6d75', block: '@theme static' },
   { name: '--amber-700', value: '#8f5a00', block: '@theme static' },
+  // 조달이 통합 UI-4 — 자사 강조 (스펙이 허용한 새 토큰 1개)
+  { name: '--accent-ours', value: '#1e3a8a', block: '@theme static' },
 ] as const;
 
 /**
@@ -223,5 +227,31 @@ describe('공용 Checkbox·드롭다운 행·피커 대비 (빠른 필터 바 �
     expect(
       contrast(hex('--purple-600'), over(hex('--purple-600'), white, 0.1)),
     ).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('조달 차트 색 대비 (조달이 통합 UI-4 — 그래픽 객체 3:1, WCAG 1.4.11)', () => {
+  const white = [255, 255, 255];
+
+  it('차트 계열 색(자사·경쟁사·나머지·최근 연도)은 카드(흰색)·hover 띠(gray-75) 위 3:1 이상', () => {
+    const backgrounds = { white, gray75: hex('--gray-75') };
+    for (const token of CHART_GRAPHIC_TOKENS)
+      for (const [label, bg] of Object.entries(backgrounds))
+        expect(contrast(hex(token), bg), `${token} on ${label}`).toBeGreaterThanOrEqual(3);
+  });
+
+  it('--accent-ours 는 글자로도 쓴다(범례·표 머리글) — 흰색·gray-75 위 4.5:1 이상, "자사" 배지 흰 글자 4.5:1 이상', () => {
+    const ours = hex(OURS_TOKEN);
+    expect(contrast(ours, white)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(ours, hex('--gray-75'))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(white, ours)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('경쟁사 색은 새 토큰이 아니다 — 차트 팔레트에서 새로 정의한 토큰은 --accent-ours 하나', () => {
+    const extension = new Set<string>(EXTENSION_TOKENS.map(({ name }) => name));
+    const original = new Set(fixtureTokens.map(({ name }) => name));
+    const added = CHART_GRAPHIC_TOKENS.filter((token) => !original.has(token));
+    expect(added.filter((token) => token === OURS_TOKEN)).toEqual([OURS_TOKEN]);
+    for (const token of added) expect(extension.has(token), token).toBe(true);
   });
 });
