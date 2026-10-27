@@ -22,3 +22,14 @@ export function isOurManufacturer(name: string | null | undefined): boolean {
   const normalized = normalizeCompanyName(name);
   return NORMALIZED_OUR_COMPANY_NAMES.some((entry) => normalized.includes(entry));
 }
+
+/**
+ * 자사 목표 점유율 (0~1) — 제품 탭별·연도별 설정 (조달이 원본 OUR_TARGET_SHARE 와 같은 자리, 월 실적 보고표 "목표 점유율" 열).
+ * 값은 사업 계획에서 정해 이 표에 더한다 — 저장소에는 비워 둔다(없으면 "—").
+ * 예: `{ 'D.AMO': { 2026: 0.4 } }`
+ */
+export const OUR_TARGET_SHARE: Readonly<Record<string, Readonly<Record<number, number>>>> = {};
+
+export function ourTargetShare(product: string, year: number): number | null {
+  return OUR_TARGET_SHARE[product]?.[year] ?? null;
+}

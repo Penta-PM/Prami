@@ -58,13 +58,13 @@ type Page = (props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) => Promise<React.ReactElement>;
 
-/** emptyText: 조달 데이터 0행일 때 본문 상태 — 실적 현황은 자리 표시, 등록 품목(UI-2)·입찰 공고(UI-3)는 빈 안내 */
+/** emptyText: 조달 데이터 0행일 때 본문 상태 — 실적 현황(UI-5)·등록 품목(UI-2)·입찰 공고(UI-3) 모두 빈 안내 */
 const PAGES: { path: string; page: Page; title: string; emptyText: string }[] = [
   {
     path: '/procurement',
     page: PerformancePage,
     title: '조달 실적 현황',
-    emptyText: '화면 준비 중',
+    emptyText: '전체 조달 실적이 없습니다',
   },
   {
     path: '/procurement/items',

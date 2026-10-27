@@ -1,11 +1,12 @@
 import 'server-only';
 
-import { and, asc, desc, eq, isNotNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
 
 import type { Db } from '@/db';
 import { procurementItems, procurementVProductDeliveries } from '@/db/schema/procurement';
 import {
   ISIGN_PRODUCT_GROUPS,
+  OUR_COMPANY_NAMES,
   PROCUREMENT_PRODUCT_TABS,
   PROCUREMENT_PRODUCTS,
   isOurManufacturer,
@@ -187,6 +188,143 @@ export async function getMonthlySeries(
   });
 }
 
+// ── 제조사별 월 시리즈 (콤보 차트 계열) ────────────────────────────────
+
+/** 콤보 차트에 이름으로 그릴 경쟁사 수 기본값 (자사 제외) — 나머지는 "기타" 한 계열. 차트 색 토큰 수(SERIES_TOKENS)와 같다 */
+export const MANUFACTURER_SERIES_TOP = 4;
+/** topN 상한 (조작된 입력 방어) */
+export const MANUFACTURER_SERIES_MAX_TOP = 20;
+
+export type ManufacturerMonthlySeries = {
+  /** null = 제조사 미기재 또는 "기타" 계열 */
+  manufacturer: string | null;
+  isOurs: boolean;
+  /** 상위 N 밖 제조사를 합친 계열 */
+  isOthers: boolean;
+  /** 이 계열에 합친 제조사 수 (기타 = 묶인 수, 그 밖 1 — 실적 없는 자사 자리 표시는 0) */
+  memberCount: number;
+  /** 기간 합계 */
+  amount: number;
+  /** months 와 같은 길이 (월 금액, 원) */
+  values: number[];
+};
+
+export type MonthlySeriesByManufacturer = {
+  months: MonthKey[];
+  /** 자사(실적 없어도 항상) → 경쟁사 상위 N(기간 금액 큰 순) → 기타(있으면) */
+  series: ManufacturerMonthlySeries[];
+  /** 기간에 실적 행이 있는 제조사 수 (미기재 포함) */
+  manufacturerCount: number;
+  /** 기간 합계 */
+  amount: number;
+};
+
+/**
+ * 콤보 차트(월별 막대 + 누적선)의 제조사별 계열 — 자사 + 기간 금액 상위 topN 경쟁사 + "기타"(나머지 합).
+ * 두 번의 SQL 집계: ① 기간의 제조사별 합계(순위) ② (계열, 월) 별 합계 — 상위 밖 제조사는 SQL CASE 로 "기타" 한 묶음.
+ * 금액은 원 단위 정수, 행 = v_product_deliveries(첫 변경차수, D-9). 자사는 실적이 없어도 0 계열로 넣는다(조달이 원본 —
+ * 비교 기준선). 자사 이름이 DB 에 없으면 설정 목록(OUR_COMPANY_NAMES) 첫 이름.
+ */
+export async function getMonthlySeriesByManufacturer(
+  access: ProcurementAccess,
+  db: Db,
+  input: { scope: PerformanceScope; period: MonthPeriod; topN?: number },
+): Promise<MonthlySeriesByManufacturer> {
+  assertProcurementAccess(access, 'read');
+  assertPeriod(input.period);
+  const topN = input.topN ?? MANUFACTURER_SERIES_TOP;
+  if (!Number.isInteger(topN) || topN < 0 || topN > MANUFACTURER_SERIES_MAX_TOP)
+    throw new RangeError(`topN 은 0~${MANUFACTURER_SERIES_MAX_TOP} 정수`);
+  const where = and(...scopeConditions(input.scope), inPeriod(v.dlvrReqDate, input.period));
+  const months = monthsBetween(input.period.from, input.period.to);
+
+  const ranked = await db
+    .select({ manufacturer: i.manufacturer, amount: TOTAL_FIELDS.amount })
+    .from(v)
+    .leftJoin(i, ITEM_JOIN)
+    .where(where)
+    .groupBy(i.manufacturer)
+    .orderBy(sql`2 desc`, sql`${i.manufacturer} asc nulls last`);
+  const ours = ranked.filter((row) => isOurManufacturer(row.manufacturer));
+  const rivals = ranked.filter((row) => !isOurManufacturer(row.manufacturer));
+  const picked = [...ours, ...rivals.slice(0, topN)];
+  const othersCount = ranked.length - picked.length;
+  const named = picked.flatMap((row) => (row.manufacturer === null ? [] : [row.manufacturer]));
+  const pickNull = picked.some((row) => row.manufacturer === null);
+
+  // 계열 묶음: 0 = 이름 있는 상위 제조사, 1 = 미기재(상위일 때), 2 = 기타
+  const isNamed = named.length > 0 ? (inArray(i.manufacturer, named) as SQL) : sql`false`;
+  const isNullPicked = pickNull ? sql`${i.manufacturer} is null` : sql`false`;
+  const bucket =
+    sql<number>`(case when ${isNamed} then 0 when ${isNullPicked} then 1 else 2 end)`.mapWith(
+      Number,
+    );
+  const cells =
+    ranked.length === 0
+      ? []
+      : await db
+          .select({
+            bucket,
+            manufacturer: sql<string | null>`(case when ${isNamed} then ${i.manufacturer} end)`,
+            month: monthOf(v.dlvrReqDate),
+            amount: TOTAL_FIELDS.amount,
+          })
+          .from(v)
+          .leftJoin(i, ITEM_JOIN)
+          .where(where)
+          .groupBy(sql`1`, sql`2`, sql`3`);
+
+  const monthIndex = new Map(months.map((month, index) => [month, index]));
+  const cellKey = (group: number, manufacturer: string | null) =>
+    group === 0 ? `0:${manufacturer}` : String(group);
+  const valuesByKey = new Map<string, number[]>();
+  for (const cell of cells) {
+    const index = monthIndex.get(cell.month);
+    if (index === undefined) continue;
+    const key = cellKey(cell.bucket, cell.manufacturer);
+    const values = valuesByKey.get(key) ?? months.map(() => 0);
+    values[index] = (values[index] ?? 0) + cell.amount;
+    valuesByKey.set(key, values);
+  }
+  const valuesOf = (key: string) => valuesByKey.get(key) ?? months.map(() => 0);
+
+  const series: ManufacturerMonthlySeries[] = picked.map((row) => ({
+    manufacturer: row.manufacturer,
+    isOurs: isOurManufacturer(row.manufacturer),
+    isOthers: false,
+    memberCount: 1,
+    amount: row.amount,
+    values: valuesOf(row.manufacturer === null ? cellKey(1, null) : cellKey(0, row.manufacturer)),
+  }));
+  if (ours.length === 0) {
+    series.unshift({
+      manufacturer: OUR_COMPANY_NAMES[0],
+      isOurs: true,
+      isOthers: false,
+      memberCount: 0,
+      amount: 0,
+      values: months.map(() => 0),
+    });
+  }
+  if (othersCount > 0) {
+    const values = valuesOf(cellKey(2, null));
+    series.push({
+      manufacturer: null,
+      isOurs: false,
+      isOthers: true,
+      memberCount: othersCount,
+      amount: values.reduce((sum, value) => sum + value, 0),
+      values,
+    });
+  }
+  return {
+    months,
+    series,
+    manufacturerCount: ranked.length,
+    amount: ranked.reduce((sum, row) => sum + row.amount, 0),
+  };
+}
+
 export type MonthVolume = { month: MonthKey; amount: number; contractCount: number };
 
 /**
@@ -300,6 +438,8 @@ export type MonthlyReportRow = {
   previousMonthAmount: number;
   /** 1년 전 1월 ~ 같은 달 누적 */
   previousYtdAmount: number;
+  /** 1년 전 한 해 전체 (원본 보고표의 "전년 점유율(년기준)") */
+  previousYearAmount: number;
   ourMonthAmount: number;
   ourYtdAmount: number;
   ytdChangeRate: number | null;
@@ -315,6 +455,7 @@ function reportFields(month: MonthKey) {
   const ytd = inPeriod(v.dlvrReqDate, { from: `${year}-01`, to: month });
   const lastMonth = inPeriod(v.dlvrReqDate, previousYearPeriod({ from: month, to: month }));
   const lastYtd = inPeriod(v.dlvrReqDate, previousYearPeriod({ from: `${year}-01`, to: month }));
+  const lastYear = inPeriod(v.dlvrReqDate, { from: `${year - 1}-01`, to: `${year - 1}-12` });
   return {
     fields: {
       monthAmount: sumAmountWhere(v.amount, thisMonth),
@@ -327,11 +468,12 @@ function reportFields(month: MonthKey) {
         sql<number>`count(distinct ${v.dlvrReqNo}) filter (where ${ytd})::int`.mapWith(Number),
       previousMonthAmount: sumAmountWhere(v.amount, lastMonth),
       previousYtdAmount: sumAmountWhere(v.amount, lastYtd),
+      previousYearAmount: sumAmountWhere(v.amount, lastYear),
       ourMonthAmount: sumAmountWhere(v.amount, sql`(${thisMonth} and ${OURS})`),
       ourYtdAmount: sumAmountWhere(v.amount, sql`(${ytd} and ${OURS})`),
     },
-    /** 행을 읽을 범위 — 올해 누적 또는 작년 누적 */
-    range: sql`(${ytd} or ${lastYtd})`,
+    /** 행을 읽을 범위 — 올해 누적 또는 작년 한 해(작년 누적 포함) */
+    range: sql`(${ytd} or ${lastYear})`,
   };
 }
 
@@ -345,6 +487,7 @@ function reportRow(key: string | null, sums: ReportSums | undefined): MonthlyRep
     ytdContractCount: 0,
     previousMonthAmount: 0,
     previousYtdAmount: 0,
+    previousYearAmount: 0,
     ourMonthAmount: 0,
     ourYtdAmount: 0,
   };
@@ -392,7 +535,7 @@ export async function getMonthlyReport(
   return { month: input.month, rows, total: reportRow(null, totalRow) };
 }
 
-/** 월 실적 보고표의 제조사별 상세 (모달): 기준월·누적·전년 — 올해 누적 금액 큰 순 */
+/** 월 실적 보고표의 제조사별 상세 (모달): 기준월·누적·전년 — 올해 누적 금액 큰 순(같으면 전년 한 해 금액 큰 순) */
 export async function getMonthlyReportByManufacturer(
   access: ProcurementAccess,
   db: Db,
@@ -407,7 +550,7 @@ export async function getMonthlyReportByManufacturer(
     .leftJoin(i, ITEM_JOIN)
     .where(and(...scopeConditions(input.scope), range))
     .groupBy(i.manufacturer)
-    .orderBy(sql`4 desc`, sql`7 desc`, asc(i.manufacturer));
+    .orderBy(sql`4 desc`, sql`8 desc`, asc(i.manufacturer));
   return grouped.map(({ key, ...sums }) => ({
     ...reportRow(key, sums),
     isOurs: isOurManufacturer(key),
@@ -504,7 +647,10 @@ export type YearlyPerformance = {
     ourAmount: number;
     ourShare: number | null;
   }[];
-  /** 전 기간 금액 큰 순. manufacturerLimit 이 있으면 그만큼만(더보기 모달은 null = 전부) */
+  /**
+   * 전 기간 금액 큰 순. manufacturerLimit 이 있으면 그만큼만(더보기 모달은 null = 전부) — 자사가 범위 밖이면
+   * 마지막 자리를 자사로 바꾼다(조달이 원본 summarizeRows: 요약 표에도 자사는 항상 보인다). 순서는 금액 순 유지.
+   */
   manufacturers: {
     manufacturer: string | null;
     isOurs: boolean;
@@ -587,7 +733,21 @@ export async function getYearlyPerformance(
       };
     }),
     manufacturers:
-      typeof limit === 'number' ? manufacturers.slice(0, Math.max(0, limit)) : manufacturers,
+      typeof limit === 'number' ? limitKeepingOurs(manufacturers, limit) : manufacturers,
     manufacturerCount: manufacturers.length,
   };
+}
+
+/** 상위 limit 개 — 자사가 밖에 있으면 마지막 자리를 자사(들)로 (조달이 summarizeRows 규칙) */
+export function limitKeepingOurs<T extends { isOurs: boolean }>(
+  rows: readonly T[],
+  limit: number,
+): T[] {
+  const size = Math.max(0, limit);
+  const head = rows.slice(0, size);
+  if (size === 0 || head.some((row) => row.isOurs)) return head;
+  const ours = rows.filter((row) => row.isOurs).slice(0, size);
+  if (ours.length === 0) return head;
+  const keep = new Set([...head.slice(0, size - ours.length), ...ours]);
+  return rows.filter((row) => keep.has(row));
 }

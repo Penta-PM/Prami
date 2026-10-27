@@ -15,6 +15,7 @@ import {
 import { isOurManufacturer } from '@/lib/procurement/our-company';
 import { queryRows } from '@/server/imports/sql-rows';
 import { procurementAccessForTests } from '@/server/procurement/access-token';
+import { limitKeepingOurs } from '@/server/procurement/performance';
 import { isOursSql } from '@/server/procurement/shared';
 import {
   getBidNoticeRows,
@@ -24,6 +25,7 @@ import {
   getMonthlyReport,
   getMonthlyReportByManufacturer,
   getMonthlySeries,
+  getMonthlySeriesByManufacturer,
   getMonthVolumes,
   getPerformanceKpis,
   getProcurementItemFacets,
@@ -411,6 +413,121 @@ describe('합성 데이터', () => {
       ]);
     });
 
+    it('제조사별 월 시리즈(UI-5 콤보 차트): 자사 + 상위 N + 기타, 첫 차수만, 빈 달 0', async () => {
+      const top1 = await getMonthlySeriesByManufacturer(access, handle.db, {
+        scope: all,
+        period: q1,
+        topN: 1,
+      });
+      expect(top1.months).toEqual(['2025-01', '2025-02', '2025-03']);
+      expect(top1.manufacturerCount).toBe(3);
+      expect(top1.amount).toBe(200 * M);
+      expect(top1.series).toEqual([
+        {
+          manufacturer: '(주)펜타시큐리티',
+          isOurs: true,
+          isOthers: false,
+          memberCount: 1,
+          amount: 120 * M,
+          // 2월의 R-1 01 차수(999백만)·제외 표시 R-9 는 빠진다
+          values: [120 * M, 0, 0],
+        },
+        {
+          manufacturer: '가상인증',
+          isOurs: false,
+          isOthers: false,
+          memberCount: 1,
+          amount: 50 * M,
+          values: [0, 0, 50 * M],
+        },
+        {
+          manufacturer: null,
+          isOurs: false,
+          isOthers: true,
+          memberCount: 1,
+          amount: 30 * M,
+          values: [30 * M, 0, 0],
+        },
+      ]);
+      // 기본 topN(4): 기타 없음, 계열 합 = 기간 합계
+      const all4 = await getMonthlySeriesByManufacturer(access, handle.db, {
+        scope: all,
+        period: q1,
+      });
+      expect(all4.series.map((s) => s.manufacturer)).toEqual([
+        '(주)펜타시큐리티',
+        '가상인증',
+        '가상보안',
+      ]);
+      expect(all4.series.some((s) => s.isOthers)).toBe(false);
+      const sum = all4.series.flatMap((s) => s.values).reduce((a, b) => a + b, 0);
+      expect(sum).toBe(all4.amount);
+      expect(Number.isInteger(sum)).toBe(true);
+    });
+
+    it('제조사별 월 시리즈: 자사 실적이 없으면 0 계열(설정 이름), 데이터 없는 기간·topN 0·입력 검증', async () => {
+      const isign = await getMonthlySeriesByManufacturer(access, handle.db, {
+        scope: { product: 'iSIGN' },
+        period: q1,
+      });
+      expect(isign.series[0]).toEqual({
+        manufacturer: '펜타시큐리티',
+        isOurs: true,
+        isOthers: false,
+        memberCount: 0,
+        amount: 0,
+        values: [0, 0, 0],
+      });
+      expect(isign.series[1]).toMatchObject({ manufacturer: '가상인증', values: [0, 0, 50 * M] });
+      const sso = await getMonthlySeriesByManufacturer(access, handle.db, {
+        scope: { product: 'iSIGN', group: 'SSO' },
+        period: q1,
+      });
+      expect(sso.series[1]).toMatchObject({ manufacturer: '가상인증', values: [0, 0, 40 * M] });
+      const empty = await getMonthlySeriesByManufacturer(access, handle.db, {
+        scope: all,
+        period: { from: '2023-01', to: '2023-02' },
+      });
+      expect(empty).toEqual({
+        months: ['2023-01', '2023-02'],
+        series: [
+          {
+            manufacturer: '펜타시큐리티',
+            isOurs: true,
+            isOthers: false,
+            memberCount: 0,
+            amount: 0,
+            values: [0, 0],
+          },
+        ],
+        manufacturerCount: 0,
+        amount: 0,
+      });
+      const onlyOurs = await getMonthlySeriesByManufacturer(access, handle.db, {
+        scope: all,
+        period: q1,
+        topN: 0,
+      });
+      expect(
+        onlyOurs.series.map((s) => [s.manufacturer, s.isOthers, s.memberCount, s.amount]),
+      ).toEqual([
+        ['(주)펜타시큐리티', false, 1, 120 * M],
+        [null, true, 2, 80 * M],
+      ]);
+      await expect(
+        getMonthlySeriesByManufacturer(access, handle.db, { scope: all, period: q1, topN: -1 }),
+      ).rejects.toThrow(RangeError);
+      await expect(
+        getMonthlySeriesByManufacturer(access, handle.db, {
+          scope: all,
+          period: { from: '2025-03', to: '2025-01' },
+        }),
+      ).rejects.toThrow(RangeError);
+      await expect(
+        getMonthlySeriesByManufacturer(undefined as never, handle.db, { scope: all, period: q1 }),
+      ).rejects.toThrow('조달 접근 토큰');
+    });
+
     it('월 거래량(슬라이더 범위·배경): 첫 달 ~ 마지막 달, 빈 달 0', async () => {
       const volumes = await getMonthVolumes(access, handle.db, { scope: all });
       expect(volumes.first).toBe('2024-01');
@@ -478,6 +595,7 @@ describe('합성 데이터', () => {
         ytdContractCount: 4,
         previousMonthAmount: 5 * M,
         previousYtdAmount: 65 * M,
+        previousYearAmount: 65 * M,
         ourMonthAmount: 0,
         ourYtdAmount: 120 * M,
         ytdChangeRate: (200 - 65) / 65,
@@ -589,8 +707,26 @@ describe('합성 데이터', () => {
           ],
         },
       ]);
+      const monthReport = await getMonthlyReport(access, handle.db, {
+        scope: all,
+        month: '2025-01',
+      });
+      // 전년 누적(1월까지) vs 전년 한 해 전체 (원본 "전년 점유율(년기준)")
+      expect(monthReport.total).toMatchObject({
+        previousYtdAmount: 60 * M,
+        previousYearAmount: 65 * M,
+      });
       const everything = await getYearlyPerformance(access, handle.db, { scope: all });
       expect(everything.manufacturers).toHaveLength(3);
+    });
+
+    it('연도별 제한 목록은 자사를 항상 포함한다 (원본 summarizeRows — 마지막 자리를 자사로)', () => {
+      const rows = ['A', 'B', 'C', 'D'].map((name) => ({ name, isOurs: name === 'D' }));
+      expect(limitKeepingOurs(rows, 2).map((row) => row.name)).toEqual(['A', 'D']);
+      expect(limitKeepingOurs(rows, 4).map((row) => row.name)).toEqual(['A', 'B', 'C', 'D']);
+      expect(limitKeepingOurs(rows, 0)).toEqual([]);
+      const noOurs = rows.map((row) => ({ ...row, isOurs: false }));
+      expect(limitKeepingOurs(noOurs, 2).map((row) => row.name)).toEqual(['A', 'B']);
     });
   });
 

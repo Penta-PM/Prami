@@ -158,6 +158,10 @@ describe('조회 함수의 토큰 검사', () => {
       ['getBidNoticeRows', () => queries.getBidNoticeRows(none, db)],
       ['getPerformanceKpis', () => queries.getPerformanceKpis(none, db, { scope, period })],
       ['getMonthlySeries', () => queries.getMonthlySeries(none, db, { scope, period })],
+      [
+        'getMonthlySeriesByManufacturer',
+        () => queries.getMonthlySeriesByManufacturer(none, db, { scope, period }),
+      ],
       ['getMonthVolumes', () => queries.getMonthVolumes(none, db, { scope })],
       [
         'getManufacturerPerformance',
