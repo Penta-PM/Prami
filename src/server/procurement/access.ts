@@ -1,6 +1,12 @@
 import 'server-only';
 
-import { requirePagePermission, requirePermission } from '@/server/auth/rbac';
+import { hasPermission } from '@/lib/constants/permissions';
+import {
+  getSessionUser,
+  requirePagePermission,
+  requirePermission,
+  runRoute,
+} from '@/server/auth/rbac';
 import type { SessionUser } from '@/server/auth/session-user';
 
 import {
@@ -59,4 +65,31 @@ export async function requireProcurementPage(
     path,
   );
   return { user, access: grantProcurementAccess(user, scope) };
+}
+
+/**
+ * Route Handler 용 (조달이 통합 UI-2 — xlsx 내려받기 등). runRoute 와 같은 봉투·감사 규칙: 비로그인 401, 권한 없음 403 +
+ * 감사 `procurement.read`/`procurement.write` denied. 통과하면 같은 세션 사용자로 토큰을 만들어 넘긴다.
+ */
+export async function runProcurementRoute(
+  scope: ProcurementScope,
+  target: string,
+  fn: (access: ProcurementAccess) => Promise<Response>,
+): Promise<Response> {
+  const guard = {
+    permission: scope === 'read' ? 'procurement.read' : 'procurement.write',
+    auditAction: scope === 'read' ? AUDIT_PROCUREMENT_READ : AUDIT_PROCUREMENT_WRITE,
+    target,
+  } as const;
+  return runRoute(guard, async (user) => fn(grantProcurementAccess(user, scope)));
+}
+
+/**
+ * 조회 상태 정규화용 (page-state-memory §2.7-1, 원가 optionalCostReadAccess 와 같은 규칙): 세션 사용자에게 procurement.read 가
+ * 있으면 read 토큰, 없으면 null(감사 기록 없음 — 거부가 아니라 "복원하지 않음").
+ */
+export async function optionalProcurementReadAccess(): Promise<ProcurementAccess | null> {
+  const user = await getSessionUser();
+  if (!user || !hasPermission(user.role, 'procurement.read')) return null;
+  return grantProcurementAccess(user, 'read');
 }

@@ -14,6 +14,7 @@ import {
   parsePriceFilter,
   priceSortIds,
 } from '@/features/pricing/filter';
+import { normalizeProcurementItemsQuery } from '@/features/procurement/items/view-state';
 import { USERS_FILTER_DEFS, USERS_SORT_IDS } from '@/features/users/table-state';
 import { hasPermission, type Role } from '@/lib/constants/permissions';
 import { normalizeProcurementAdminTab } from '@/lib/procurement/admin-tabs';
@@ -124,9 +125,11 @@ export async function normalizeViewQuery(
       return partsQuery(db, params);
     case 'calculator':
       return calculatorQuery(params);
-    // 조달 조회 화면 (UI-1 셸): 아직 조회 조건이 없다 — UI-2·5 가 각 화면의 파서·직렬화로 채운다
-    case 'procurement':
+    // 등록 품목 (UI-2): 검색·열 필터·정렬·페이지 — 조달 격리 때문에 features/procurement 의 정규화를 쓴다
     case 'procurement-items':
+      return normalizeProcurementItemsQuery(db, params);
+    // 조달 실적 현황 (UI-1 셸): 아직 조회 조건이 없다 — UI-5 가 화면의 파서·직렬화로 채운다
+    case 'procurement':
       return '';
     // 입찰 공고 (UI-3): 화면과 같은 파서·직렬화(제품·마감 포함·상만·정렬·페이지, 기본값 생략)
     case 'procurement-bids':
