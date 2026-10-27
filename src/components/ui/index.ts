@@ -22,8 +22,13 @@ export { CloseButton, Modal, type ModalProps, type ModalSize } from './modal';
 export { Popover, type PopoverAlign, type PopoverProps } from './popover';
 export { Pill, type PillProps, type PillTone } from './pill';
 export {
+  MONTH_SLIDER_PAGE,
+  MonthRangeSlider,
   RangeSlider,
   RANGE_SLIDER_PAGE,
+  type MonthRangeSliderProps,
+  type MonthRangeValue,
+  type MonthVolumeBar,
   type RangeSliderProps,
   type RangeSliderValue,
 } from './range-slider';

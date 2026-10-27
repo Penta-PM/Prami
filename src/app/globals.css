@@ -146,6 +146,10 @@
   --blue-600: #2563eb;
   --gray-600: #6a6d75;
   --amber-700: #8f5a00;
+  /* 자사 강조 (조달이 통합 UI-4 — 스펙이 허용한 새 토큰 1개): 조달 차트·표의 자사(펜타시큐리티) 선·막대 테두리·이름.
+   * 조달이 원본 남색 그대로. 흰색 10.4·--gray-75 9.8:1(그래픽 3:1·글자 4.5:1 모두 충족). 경쟁사 색은 기존 토큰만
+   * (features/procurement/charts/palette.ts — purple-500·green-600·amber-700·red-500, 나머지 gray-600; 흰색·gray-75 위 3:1 이상). */
+  --accent-ours: #1e3a8a;
   --surface-danger: color-mix(in srgb, var(--red-500) 8%, var(--white));
   --border-danger: var(--red-500);
 }
@@ -236,6 +240,7 @@
   --color-blue-600: var(--blue-600);
   --color-gray-600: var(--gray-600);
   --color-amber-700: var(--amber-700);
+  --color-accent-ours: var(--accent-ours);
   --color-slate-700-aa: var(--slate-700-aa);
   --color-slate-600-aa: var(--slate-600-aa);
   --color-surface-danger: var(--surface-danger);
