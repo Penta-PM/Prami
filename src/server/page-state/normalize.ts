@@ -18,6 +18,7 @@ import { normalizeProcurementItemsQuery } from '@/features/procurement/items/vie
 import { USERS_FILTER_DEFS, USERS_SORT_IDS } from '@/features/users/table-state';
 import { hasPermission, type Role } from '@/lib/constants/permissions';
 import { parseProcurementAdminTab } from '@/lib/procurement/admin-tabs';
+import { normalizeAdminItemsQuery } from '@/lib/procurement/admin-items-filter';
 import { bidFilterToQuery, parseBidFilter } from '@/lib/procurement/bid-filter';
 import { normalizePerformanceQuery } from '@/lib/procurement/performance-filter';
 import { PAGE_PERMISSIONS, stripQueryPrefix, type PageKey } from '@/lib/page-state/keys';
@@ -104,7 +105,7 @@ function adminProcurementQuery(params: Params): string {
     case 'deliveries':
       return '';
     case 'items':
-      return 'tab=items';
+      return normalizeAdminItemsQuery(params);
     case 'keywords':
       // 키워드 관리는 탭 안 조건이 없다
       return 'tab=keywords';
