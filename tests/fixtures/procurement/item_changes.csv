@@ -1,0 +1,4 @@
+id,item_pk,action,before,after,changed_by,changed_at
+1,1,add,,"{""status"": ""active""}",tester-a,2023-03-06 10:00:00+09
+3,9,exclude,"{""status"": ""active""}","{""status"": ""excluded""}",tester-b,2024-06-10 11:00:00+09
+4,,edit,,"{""note"": ""삭제된 품목""}",tester-a,2024-07-01 12:00:00+09

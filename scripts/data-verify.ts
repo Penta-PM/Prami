@@ -7,10 +7,15 @@
  * - `--baseline <json>`: 기준값 파일(테스트·리허설용 축소 픽스처) — 로컬 DB 에서만. 없으면 src/server/ops/data-baseline.ts(r3 원본 기준)
  * - 활성 ADMIN 검사: preview·production 이거나 연결 대상이 원격 DB 면 사용자 0명도 FAIL (로컬 클린 설치만 SKIP)
  * 출력은 항목·기대·실측·판정 표(개수만). exit 0 = 통과, 1 = 실패, 2 = 원본 SHA-256 이 기준과 다름(실측만 출력).
+ * - `--stage procurement [--source-csv <디렉터리> | --source-db [--source-schema public]] [--show-amounts]`: 조달이 이관 검증(DB-3) —
+ *   테이블·뷰 건수, (status, product) 분포, 연도별 금액 합계, 최대 id·시퀀스, 정렬 해시를 실행 시 원본에서 계산해 대조한다.
+ *   `--source-db` 는 환경변수 PROCUREMENT_SOURCE_URL. 원본을 주지 않으면 실측만. 금액은 일치 여부만 — 숫자는 `--show-amounts` 일 때만
  */
 import { readFileSync } from 'node:fs';
 
 import { loadEnvConfig } from '@next/env';
+
+import { parseSourceArgs, type SourceArgs } from '../src/server/procurement/transfer/source';
 
 import {
   dbHostOf,
@@ -25,13 +30,19 @@ type Target = (typeof TARGETS)[number];
 export type DataVerifyArgs = {
   target: Target;
   targetHost: string | undefined;
-  stage: 'schema' | 'data';
+  stage: 'schema' | 'data' | 'procurement';
   fresh: boolean;
   allowPartMappings: boolean;
   baselinePath: string | undefined;
+  /** stage procurement 의 대조 원본 */
+  procurementSource: SourceArgs;
+  showAmounts: boolean;
 };
 
-export function parseDataVerifyArgs(args: string[]): DataVerifyArgs {
+export function parseDataVerifyArgs(
+  args: string[],
+  env: Record<string, string | undefined> = {},
+): DataVerifyArgs {
   const option = (name: string) => {
     const index = args.indexOf(name);
     return index >= 0 ? args[index + 1] : undefined;
@@ -41,8 +52,15 @@ export function parseDataVerifyArgs(args: string[]): DataVerifyArgs {
     throw new Error(`--target 는 ${TARGETS.join('|')} 중 하나입니다`);
   }
   const stage = option('--stage') ?? 'data';
-  if (stage !== 'schema' && stage !== 'data')
-    throw new Error('--stage 는 schema|data 중 하나입니다');
+  if (stage !== 'schema' && stage !== 'data' && stage !== 'procurement')
+    throw new Error('--stage 는 schema|data|procurement 중 하나입니다');
+  const procurementSource = parseSourceArgs(args, env, { csv: '--source-csv', db: '--source-db' });
+  if (
+    stage !== 'procurement' &&
+    (procurementSource.kind !== 'none' || args.includes('--show-amounts'))
+  ) {
+    throw new Error('--source-csv·--source-db·--show-amounts 는 --stage procurement 에서만 씁니다');
+  }
   return {
     target: target as Target,
     targetHost: option('--target-host'),
@@ -50,6 +68,8 @@ export function parseDataVerifyArgs(args: string[]): DataVerifyArgs {
     fresh: args.includes('--fresh'),
     allowPartMappings: args.includes('--allow-part-mappings'),
     baselinePath: option('--baseline'),
+    procurementSource,
+    showAmounts: args.includes('--show-amounts'),
   };
 }
 
@@ -80,8 +100,13 @@ export function resolveDataVerifyGuard(
 
 async function main(): Promise<void> {
   loadEnvConfig(process.cwd());
-  const args = parseDataVerifyArgs(process.argv.slice(2));
+  const args = parseDataVerifyArgs(process.argv.slice(2), process.env);
   const { requireAdmin } = resolveDataVerifyGuard(args, process.env);
+  const { stage } = args;
+  if (stage === 'procurement') {
+    await verifyProcurementStage(args);
+    return;
+  }
 
   const [{ createDb }, { withTransaction }, { env }, { verifyData, formatReport }] =
     await Promise.all([
@@ -95,7 +120,7 @@ async function main(): Promise<void> {
     const report = await withTransaction(
       (tx) =>
         verifyData(tx, {
-          stage: args.stage,
+          stage,
           fresh: args.fresh,
           allowPartMappings: args.allowPartMappings,
           requireAdmin,
@@ -117,9 +142,48 @@ async function main(): Promise<void> {
   }
 }
 
+/** 조달이 이관 검증 (DB-3) — 원본은 트랜잭션 밖에서 먼저 읽고(원본 DB 는 자체 READ ONLY 트랜잭션), 대상은 READ ONLY 트랜잭션 */
+async function verifyProcurementStage(args: DataVerifyArgs): Promise<void> {
+  const [
+    { createDb },
+    { withTransaction },
+    { readSource },
+    { verifyProcurement },
+    { formatReport },
+  ] = await Promise.all([
+    import('../src/db'),
+    import('../src/db/tx'),
+    import('../src/server/procurement/transfer/source'),
+    import('../src/server/procurement/transfer/verify'),
+    import('../src/server/ops/data-verify'),
+  ]);
+  const source = await readSource(args.procurementSource);
+  const handle = await createDb();
+  try {
+    const report = await withTransaction(
+      (tx) => verifyProcurement(tx, { source, showAmounts: args.showAmounts }),
+      handle,
+      { accessMode: 'read only' },
+    );
+    console.log(
+      `[data:verify] target=${args.target} driver=${handle.driver} stage=procurement source=${args.procurementSource.kind}${args.showAmounts ? ' show-amounts' : ''}`,
+    );
+    console.log(formatReport(report));
+    process.exitCode = report.exitCode;
+  } finally {
+    await handle.close();
+  }
+}
+
 if (process.argv[1] && process.argv[1].replaceAll('\\', '/').endsWith('scripts/data-verify.ts')) {
-  main().catch((error: unknown) => {
-    console.error('[data:verify] 실패:', error instanceof Error ? error.message : error);
+  main().catch(async (error: unknown) => {
+    // 조달 단계 원본 값이 오류 메시지(Drizzle "Failed query … params")로 새지 않게 값을 가린다
+    const { safeErrorMessage } = await import('../src/server/procurement/transfer/errors');
+    const procurement = process.argv.includes('procurement');
+    console.error(
+      '[data:verify] 실패:',
+      procurement ? safeErrorMessage(error) : error instanceof Error ? error.message : error,
+    );
     process.exitCode = 1;
   });
 }

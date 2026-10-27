@@ -1,0 +1,4 @@
+id,product,keyword,created_by,created_at
+1,WAPPLES,웹방화벽,tester-a,2024-01-01 09:00:00+09
+2,iSIGN,통합인증,,2024-01-01 09:00:00+09
+5,제외,청소,tester-b,2024-02-01 09:00:00+09
