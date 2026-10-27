@@ -188,7 +188,9 @@ test.describe('ADMIN', () => {
 
     // 제품 미정만 추가하려 하면 안내(서버 호출 없음)
     await card.getByRole('button', { name: `${PREFIX}P1 E2E 미분류 품목 추가` }).click();
-    await expect(page.getByRole('alert')).toContainText('제품을 먼저 골라야');
+    await expect(page.getByRole('region', { name: '품목 관리' }).getByRole('alert')).toContainText(
+      '제품을 먼저 골라야',
+    );
 
     await card
       .getByRole('combobox', { name: `${PREFIX}P1 E2E 미분류 품목 제품명` })

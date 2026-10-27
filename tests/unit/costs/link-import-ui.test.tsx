@@ -89,8 +89,14 @@ describe('CostLinkImport', () => {
     );
     expect(mocks.preview).toHaveBeenCalledWith({ pairs: PAIRS });
 
-    await user.click(screen.getByRole('button', { name: '확정(변경 1·추가 1)' }));
-    expect(mocks.apply).toHaveBeenCalledWith({ pairs: PAIRS, expected: { changed: 1, added: 1 } });
+    // 미리보기 묶음과 확정 버튼은 같은 렌더에 나오지 않을 수 있다(부하 때 CI 에서 한 번 실패) — 버튼도 기다린다
+    await user.click(await screen.findByRole('button', { name: '확정(변경 1·추가 1)' }));
+    await waitFor(() =>
+      expect(mocks.apply).toHaveBeenCalledWith({
+        pairs: PAIRS,
+        expected: { changed: 1, added: 1 },
+      }),
+    );
     expect(JSON.stringify(mocks.apply.mock.calls)).not.toContain('synthetic.xlsx');
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('2건 확정'));
     expect(screen.queryByRole('group', { name: '매칭 파일 미리보기' })).toBeNull();
