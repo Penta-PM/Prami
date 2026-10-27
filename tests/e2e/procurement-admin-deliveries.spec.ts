@@ -130,8 +130,11 @@ async function auditCount(client: pg.Client, action: string, label: string) {
 }
 
 test('USER 는 조달 관리에 들어갈 수 없다', async ({ page }) => {
-  await loginAs(page, FIXTURE_USER, '/admin/procurement');
-  await expect(page).not.toHaveURL(/\/admin\/procurement/);
+  // 다른 관리 화면 테스트(parts·procurement-shell)와 같은 방식: 로그인 뒤 직접 접근 → / 로 이동, 관리 화면은 그려지지 않음
+  await loginAs(page, FIXTURE_USER, '/procurement');
+  await page.goto('/admin/procurement?tab=deliveries');
+  await expect(page).toHaveURL((url) => url.pathname === '/');
+  await expect(page.getByRole('heading', { level: 1, name: '조달 관리' })).toHaveCount(0);
 });
 
 test.describe('ADMIN', () => {
@@ -157,6 +160,10 @@ test.describe('ADMIN', () => {
   test('편집: 드로어 → 확인 모달 → 저장, 이력·감사가 남고 이력이 드로어에 보인다', async ({
     page,
   }) => {
+    // 감사 로그는 지우지 않는다(append-only) — 같은 E2E DB 로 다시 돌려도 맞게 증가분으로 센다
+    const auditBefore = await withDb((client) =>
+      auditCount(client, 'procurement.delivery.update', `${PREFIX}001-00`),
+    );
     await page.getByRole('searchbox', { name: /납품요구번호/ }).fill(`${PREFIX}001`);
     await page.getByRole('searchbox', { name: /납품요구번호/ }).press('Enter');
     await page.getByRole('button', { name: `${PREFIX}001-00 편집` }).click();
@@ -176,7 +183,9 @@ test.describe('ADMIN', () => {
       const rows = await syntheticRows(client);
       expect(rows.find((row) => row.dlvr_req_no === `${PREFIX}001`)?.amount).toBe('15000000');
       expect(await changeCount(client, `${PREFIX}001`)).toBe(1);
-      expect(await auditCount(client, 'procurement.delivery.update', `${PREFIX}001-00`)).toBe(1);
+      expect(await auditCount(client, 'procurement.delivery.update', `${PREFIX}001-00`)).toBe(
+        auditBefore + 1,
+      );
     });
 
     await page.getByRole('button', { name: `${PREFIX}001-00 편집` }).click();
@@ -219,6 +228,10 @@ test.describe('ADMIN', () => {
   test('휴지통으로 → 휴지통 하위 화면(삭제한 사람) → 되살리기, 모두 확인 모달', async ({
     page,
   }) => {
+    const [excludeBefore, restoreBefore] = await withDb(async (client) => [
+      await auditCount(client, 'procurement.delivery.exclude', `${PREFIX}001-00`),
+      await auditCount(client, 'procurement.delivery.restore', `${PREFIX}001-00`),
+    ]);
     await page.getByRole('searchbox', { name: /납품요구번호/ }).fill(`${PREFIX}001`);
     await page.getByRole('searchbox', { name: /납품요구번호/ }).press('Enter');
     await page.getByRole('button', { name: `${PREFIX}001-00 휴지통으로` }).click();
@@ -229,10 +242,16 @@ test.describe('ADMIN', () => {
 
     await page.getByRole('radio', { name: /^휴지통/ }).click();
     const trash = trashTable(page);
-    const row = trash.locator('tbody > tr', { hasText: `${PREFIX}001` }).first();
+    // 휴지통 표에는 납품요구번호 열이 없다 — 행은 "{요청번호-차수} 되살리기" 버튼으로 찾는다
+    const restoreName = `${PREFIX}001-00 되살리기`;
+    // has 의 안쪽 locator 는 각 행 안에서 찾는다(표 기준 locator 를 넘기면 행 안에서 맞지 않음)
+    const row = trash
+      .locator('tbody > tr')
+      .filter({ has: page.getByRole('button', { name: restoreName }) });
+    const restore = row.getByRole('button', { name: restoreName });
     await expect(row).toContainText(FIXTURE_ADMIN);
     await expect(trash).toContainText(`${ITEM_PREFIX}1`);
-    await row.getByRole('button', { name: `${PREFIX}001-00 되살리기` }).click();
+    await restore.click();
     await page
       .getByRole('dialog', { name: '되살리기' })
       .getByRole('button', { name: '되살리기' })
@@ -243,8 +262,12 @@ test.describe('ADMIN', () => {
       expect(
         (await syntheticRows(client)).find((r) => r.dlvr_req_no === `${PREFIX}001`)?.excluded,
       ).toBe(false);
-      expect(await auditCount(client, 'procurement.delivery.exclude', `${PREFIX}001-00`)).toBe(1);
-      expect(await auditCount(client, 'procurement.delivery.restore', `${PREFIX}001-00`)).toBe(1);
+      expect(await auditCount(client, 'procurement.delivery.exclude', `${PREFIX}001-00`)).toBe(
+        excludeBefore + 1,
+      );
+      expect(await auditCount(client, 'procurement.delivery.restore', `${PREFIX}001-00`)).toBe(
+        restoreBefore + 1,
+      );
     });
   });
 
@@ -257,7 +280,10 @@ test.describe('ADMIN', () => {
     await expect(deliveriesTable(page).locator('tbody > tr')).toHaveCount(1);
     await page.getByRole('radio', { name: /^휴지통/ }).click();
     await expect(page).toHaveURL(/\?tab=deliveries&trash=1$/);
-    await expect(trashTable(page)).toContainText(`${PREFIX}003`);
+    // 납품요구번호는 칸 글자가 아니라 버튼 이름에만 있다
+    await expect(
+      trashTable(page).getByRole('button', { name: new RegExp(`^${PREFIX}003-\\d+ 되살리기$`) }),
+    ).toHaveCount(1);
     await page.goBack();
     await expect(page).toHaveURL(new RegExp(`q=${PREFIX}002$`));
     await expect(deliveriesTable(page).locator('tbody > tr')).toHaveCount(1);
