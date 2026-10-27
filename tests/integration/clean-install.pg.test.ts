@@ -173,7 +173,7 @@ describe.skipIf(!enabled)(
             items: [sha256(itemBytes)],
           },
           expected: {
-            migrations: 12,
+            migrations: 13,
             // 파일에서 독립적으로 센 값
             items: itemCount,
             salesRows,

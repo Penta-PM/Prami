@@ -85,7 +85,7 @@ describe('스키마 버전 비교 (AC-326)', () => {
   });
 
   it('번들 저널 최신 = 0011, DB 최신이면 ok · 하나 덜 적용하면 behind · 저널이 짧으면(구버전 앱) ahead', async () => {
-    expect(latestJournalEntry(BUNDLED_JOURNAL)?.tag).toBe('0011_user_drafts');
+    expect(latestJournalEntry(BUNDLED_JOURNAL)?.tag).toBe('0012_procurement_schema');
     expect(await readSchemaState(full.db)).toBe('ok');
     expect(await readSchemaState(behind.db)).toBe('behind');
     expect(await readSchemaState(full.db, JOURNAL_MINUS_LAST)).toBe('ahead');
@@ -193,7 +193,7 @@ describe('기동 점검 로그 (AC-326·AC-334)', () => {
     expect(JSON.parse(String(error.mock.calls[0]![0]))).toMatchObject({
       level: 'error',
       event: 'db.schema_behind',
-      expected: '0011_user_drafts',
+      expected: '0012_procurement_schema',
     });
     warn.mockClear();
     expect(await runStartupChecks(full.db, {}, JOURNAL_MINUS_LAST)).toMatchObject({
@@ -212,7 +212,7 @@ describe('기동 점검 로그 (AC-326·AC-334)', () => {
       .map((call) => String(call[0]))
       .find((text) => text.includes('미적용'));
     expect(banner).toContain('미적용 마이그레이션 1건');
-    expect(banner).toContain('drizzle/0011_user_drafts.sql');
+    expect(banner).toContain('drizzle/0012_procurement_schema.sql');
     expect(banner).toContain('pnpm db:migrate');
     expect(banner).not.toMatch(/postgres:\/\//);
     error.mockRestore();
