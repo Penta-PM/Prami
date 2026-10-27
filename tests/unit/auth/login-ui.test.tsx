@@ -148,6 +148,12 @@ describe('PERMISSIONS', () => {
     expect(hasPermission('USER', 'users.manage')).toBe(false);
     expect(hasPermission('ADMIN', 'cost.write')).toBe(true);
     expect(hasPermission(null, 'pricing.read')).toBe(false);
+    // 조달이 통합 D-1: 조회 = USER·ADMIN, 편집 = ADMIN, 비로그인 거부
+    expect(hasPermission('USER', 'procurement.read')).toBe(true);
+    expect(hasPermission('ADMIN', 'procurement.read')).toBe(true);
+    expect(hasPermission('USER', 'procurement.write')).toBe(false);
+    expect(hasPermission('ADMIN', 'procurement.write')).toBe(true);
+    expect(hasPermission(null, 'procurement.read')).toBe(false);
     expect(canAccessAdminArea('ADMIN')).toBe(true);
     expect(canAccessAdminArea('USER')).toBe(false);
     expect(isRole('ADMIN')).toBe(true);

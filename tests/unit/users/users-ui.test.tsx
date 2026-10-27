@@ -169,6 +169,16 @@ describe('PermissionMatrix', () => {
     // #31: notification.self 행 (USER·ADMIN 모두 허용)
     expect(within(row('내 알림')).getAllByLabelText('허용')).toHaveLength(2);
     expect(within(row('사용자 · 권한 관리')).getByLabelText('불가')).toBeInTheDocument();
+    // 조달이 통합 D-1: 조회는 USER·ADMIN, 관리는 ADMIN 만
+    expect(
+      within(row('조달 조회 (실적 현황 · 등록 품목 · 입찰 공고)')).getAllByLabelText('허용'),
+    ).toHaveLength(2);
+    expect(
+      within(row('조달 관리 (실적 · 품목 · 키워드)')).getByLabelText('불가'),
+    ).toBeInTheDocument();
+    expect(
+      within(row('조달 관리 (실적 · 품목 · 키워드)')).getByLabelText('허용'),
+    ).toBeInTheDocument();
     expect(
       within(row('원가 조회 · 등록 · 수정 · 삭제')).getByLabelText('허용'),
     ).toBeInTheDocument();
