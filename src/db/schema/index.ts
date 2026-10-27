@@ -13,6 +13,7 @@ export * from './notices';
 export * from './notifications';
 export * from './oauth-flow-states';
 export * from './parts';
+export * from './procurement';
 export * from './quotes';
 export * from './relations';
 export * from './sales-prices';
