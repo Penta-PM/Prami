@@ -4,6 +4,7 @@ import { isOurManufacturer as isOurFromConstants } from '@/lib/procurement/const
 import {
   OUR_COMPANY_NAMES,
   isOurManufacturer,
+  ourTargetShare,
   normalizeCompanyName,
 } from '@/lib/procurement/our-company';
 import {
@@ -107,5 +108,15 @@ describe('our-company', () => {
     expect(isOurManufacturer(name)).toBe(expected);
     // constants.ts 재노출도 같은 함수
     expect(isOurFromConstants(name)).toBe(expected);
+  });
+});
+
+describe('ourTargetShare (월 실적 보고표 목표 점유율 — 원본 값 그대로)', () => {
+  it('D.AMO 2026 = 43%, 그 밖의 제품·연도는 없음(화면 "—")', () => {
+    expect(ourTargetShare('D.AMO', 2026)).toBe(0.43);
+    expect(ourTargetShare('D.AMO', 2025)).toBeNull();
+    expect(ourTargetShare('WAPPLES', 2026)).toBeNull();
+    expect(ourTargetShare('iSIGN', 2026)).toBeNull();
+    expect(ourTargetShare('ALL', 2026)).toBeNull();
   });
 });
