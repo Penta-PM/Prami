@@ -17,7 +17,7 @@ import {
 import { normalizeProcurementItemsQuery } from '@/features/procurement/items/view-state';
 import { USERS_FILTER_DEFS, USERS_SORT_IDS } from '@/features/users/table-state';
 import { hasPermission, type Role } from '@/lib/constants/permissions';
-import { normalizeProcurementAdminTab } from '@/lib/procurement/admin-tabs';
+import { parseProcurementAdminTab } from '@/lib/procurement/admin-tabs';
 import { bidFilterToQuery, parseBidFilter } from '@/lib/procurement/bid-filter';
 import { normalizePerformanceQuery } from '@/lib/procurement/performance-filter';
 import { PAGE_PERMISSIONS, stripQueryPrefix, type PageKey } from '@/lib/page-state/keys';
@@ -94,10 +94,21 @@ function calculatorQuery(params: Params): string {
   return first(params, 'tab') === 'margin' ? 'tab=margin' : '';
 }
 
-/** 조달 관리는 탭만 (`?tab=items|keywords`, 기본 실적 관리 탭은 생략) — 탭 안 조건은 단계 3(UI-6~8)에서 더한다 */
+/**
+ * 조달 관리 (`/admin/procurement`, Plan msg_9f2035d66cd8): 탭마다 자기 정규화 — 다른 탭의 조건은 저장하지 않는다.
+ * 기본 탭(실적 관리)만이면 생략. UI-6(실적)·UI-7(품목)은 각자 case 에서 탭 조건 정규화를 더한다.
+ */
 function adminProcurementQuery(params: Params): string {
-  const tab = normalizeProcurementAdminTab(first(params, 'tab'));
-  return tab ? `tab=${tab}` : '';
+  const tab = parseProcurementAdminTab(first(params, 'tab'));
+  switch (tab) {
+    case 'deliveries':
+      return '';
+    case 'items':
+      return 'tab=items';
+    case 'keywords':
+      // 키워드 관리는 탭 안 조건이 없다
+      return 'tab=keywords';
+  }
 }
 
 export async function normalizeViewQuery(

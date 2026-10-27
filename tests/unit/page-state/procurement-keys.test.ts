@@ -103,6 +103,18 @@ describe('조달 조회 상태 정규화', () => {
     expect(await normalizeViewQuery(db, ADMIN, 'admin-procurement', 'tab=nope')).toBe('');
   });
 
+  it('admin-procurement: 탭마다 자기 조건만 — 키워드 관리는 tab 만, 다른 탭 조건은 버린다', async () => {
+    expect(
+      await normalizeViewQuery(
+        db,
+        ADMIN,
+        'admin-procurement',
+        'tab=keywords&page=3&f.product=WAPPLES',
+      ),
+    ).toBe('tab=keywords');
+    expect(await normalizeViewQuery(db, ADMIN, 'admin-procurement', 'page=2')).toBe('');
+  });
+
   it('권한이 없으면(USER → 관리 화면) 항상 빈 상태', async () => {
     expect(await normalizeViewQuery(db, USER, 'admin-procurement', 'tab=items')).toBe('');
   });

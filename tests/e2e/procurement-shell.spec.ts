@@ -96,9 +96,12 @@ test.describe('ADMIN', () => {
     await tabs.getByRole('radio', { name: '키워드 관리' }).click();
     await expect(tabs.getByRole('radio', { name: '키워드 관리' })).toBeChecked();
     await expect(page).toHaveURL(/\/admin\/procurement\?tab=keywords$/);
-    await expect(page.getByRole('region', { name: '키워드 관리' })).toContainText(
-      '단계 3에서 제공',
-    );
+    // UI-8: 키워드 관리 탭은 칩 편집기 (procurement-admin-keywords.spec 이 편집 흐름을 검증)
+    await expect(
+      page
+        .getByRole('region', { name: '키워드 관리' })
+        .getByRole('heading', { name: '분류 키워드' }),
+    ).toBeVisible();
 
     // 조회 상태 기억(B-1): 저장된 뒤 파라미터 없이 다시 들어오면 마지막 탭
     await expect

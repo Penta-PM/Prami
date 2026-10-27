@@ -18,6 +18,7 @@ const state = vi.hoisted(() => ({
   handle: undefined as DbHandle | undefined,
   sessionUserId: undefined as string | undefined,
   replace: [] as string[],
+  push: [] as string[],
 }));
 
 vi.mock('@/db', async (importOriginal) => ({
@@ -38,7 +39,7 @@ vi.mock('next/navigation', () => ({
   },
   useRouter: () => ({
     replace: (href: string) => state.replace.push(href),
-    push: vi.fn(),
+    push: (href: string) => state.push.push(href),
     refresh: vi.fn(),
   }),
   usePathname: () => '/admin/procurement',
@@ -46,6 +47,12 @@ vi.mock('next/navigation', () => ({
 }));
 // 저장 트래커(클라이언트·서버 액션)는 tests/unit/page-state 에서 검증한다 — 여기서는 복원 redirect 와 렌더만
 vi.mock('@/features/page-state/ViewStateTracker', () => ({ ViewStateTracker: () => null }));
+// 키워드 탭 RSC(PGlite 조회·편집기)는 keywords-section.test 에서 검증한다 — 여기서는 탭 switch 가 고르는 것만
+vi.mock('@/features/procurement/admin/keywords/KeywordsAdminSection', () => ({
+  KeywordsAdminSection: ({ access }: { access: { scope: string } }) => (
+    <p>키워드 관리 섹션 ({access.scope})</p>
+  ),
+}));
 
 const { default: PerformancePage } = await import('@/app/(app)/procurement/page');
 const { default: ItemsPage } = await import('@/app/(app)/procurement/items/page');
@@ -101,6 +108,7 @@ beforeEach(async () => {
   invalidateSessionUser();
   state.sessionUserId = undefined;
   state.replace.length = 0;
+  state.push.length = 0;
   await state.handle!.db.delete(procurementJobRuns);
 });
 
@@ -179,16 +187,32 @@ describe('/admin/procurement (ADMIN)', () => {
     expect(screen.getByRole('region', { name: '실적 관리' })).toHaveTextContent('단계 3에서 제공');
   });
 
-  it('?tab=items 로 열고, 탭을 바꾸면 내용이 바뀌고 ?tab= 을 replace 한다', async () => {
+  it('?tab=items 는 품목 관리 자리 표시', async () => {
     state.sessionUserId = adminId;
     render(await open(AdminPage, { tab: 'items' }));
     expect(screen.getByRole('radio', { name: '품목 관리' })).toBeChecked();
-    await userEvent.click(screen.getByRole('radio', { name: '키워드 관리' }));
+    expect(screen.getByRole('region', { name: '품목 관리' })).toHaveTextContent('단계 3에서 제공');
+  });
+
+  it('?tab=keywords → 키워드 관리 RSC 섹션', async () => {
+    state.sessionUserId = adminId;
+    render(await open(AdminPage, { tab: 'keywords', f: 'x' }));
     expect(screen.getByRole('radio', { name: '키워드 관리' })).toBeChecked();
     expect(screen.getByRole('region', { name: '키워드 관리' })).toHaveTextContent(
-      '단계 3에서 제공',
+      '키워드 관리 섹션 (write)',
     );
-    expect(state.replace.at(-1)).toBe('/admin/procurement?tab=keywords');
+  });
+
+  it('탭을 바꾸면 router.push(?tab=<next>) — 다른 파라미터는 버린다', async () => {
+    state.sessionUserId = adminId;
+    render(await open(AdminPage, { tab: 'items', page: '3' }));
+    await userEvent.click(screen.getByRole('radio', { name: '키워드 관리' }));
+    expect(state.push).toEqual(['/admin/procurement?tab=keywords']);
+    expect(state.replace).toEqual([]);
+    // 모킹 라우터는 페이지를 다시 그리지 않으므로 선택은 URL 의 탭(품목 관리)으로 돌아오고, 현재 탭을 누르면 이동하지 않는다
+    expect(screen.getByRole('radio', { name: '품목 관리' })).toBeChecked();
+    await userEvent.click(screen.getByRole('radio', { name: '품목 관리' }));
+    expect(state.push).toHaveLength(1);
   });
 
   it('모르는 tab 값은 기본 탭', async () => {
