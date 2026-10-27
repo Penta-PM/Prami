@@ -18,7 +18,7 @@ import { normalizeViewQuery } from '@/server/page-state/normalize';
 
 /**
  * 조달이 통합 UI-1 — 페이지 상태 기억(B-1) page_key: 조회 화면 3개 = procurement.read, 관리 화면 = procurement.write.
- * 정규화: 실적 현황은 아직 조건 없음(''), 등록 품목은 검색·열 필터·정렬·페이지(UI-2), 입찰 공고는 UI-3 조건, 관리 화면은 탭만(기본 탭 생략).
+ * 정규화: 실적 현황(UI-5)·등록 품목(UI-2)·입찰 공고(UI-3)는 각 화면의 파서·직렬화, 관리 화면은 탭만(기본 탭 생략).
  * 권한 없으면 항상 ''.
  */
 const KEYS: Record<string, { path: string; permission: string }> = {
@@ -57,13 +57,18 @@ describe('조달 page_key 화이트리스트', () => {
 });
 
 describe('조달 조회 상태 정규화', () => {
-  it.each(['procurement'] as const)(
-    '%s: 아직 조회 조건이 없어 모든 파라미터를 버린다',
-    async (key) => {
-      expect(await normalizeViewQuery(db, USER, key, 'tab=items&x=1')).toBe('');
-      expect(await normalizeViewQuery(db, ADMIN, key, '')).toBe('');
-    },
-  );
+  it('procurement: 화면 파서·직렬화로 정규화 (UI-5 — tests/unit/procurement/performance-filter.test.ts)', async () => {
+    expect(
+      await normalizeViewQuery(
+        db,
+        USER,
+        'procurement',
+        'x=1&sel=2025-02&tab=iSIGN&group=SSO&to=2025-06&from=2025-01&page=2',
+      ),
+    ).toBe('tab=iSIGN&group=SSO&from=2025-01&to=2025-06&sel=2025-02&page=2');
+    expect(await normalizeViewQuery(db, USER, 'procurement', 'tab=items&page=2')).toBe('');
+    expect(await normalizeViewQuery(db, ADMIN, 'procurement', '')).toBe('');
+  });
 
   it('procurement-bids: 화면 파서·직렬화로 정규화 (UI-3 — tests/unit/procurement/bid-filter.test.ts)', async () => {
     expect(
