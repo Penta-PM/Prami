@@ -59,6 +59,20 @@ vi.mock('@/features/procurement/admin/items/ItemsAdminSection', () => ({
     <p>품목 관리 섹션 ({access.scope})</p>
   ),
 }));
+// 실적 관리 탭 RSC(PGlite 조회·표)는 deliveries-actions.test 에서 검증한다 — 여기서는 탭 switch 가 고르는 것만
+vi.mock('@/features/procurement/admin/deliveries/DeliveriesAdminSection', () => ({
+  DeliveriesAdminSection: ({
+    access,
+    params,
+  }: {
+    access: { scope: string };
+    params: Record<string, string>;
+  }) => (
+    <p>
+      실적 관리 섹션 ({access.scope}) {new URLSearchParams(params).toString()}
+    </p>
+  ),
+}));
 
 const { default: PerformancePage } = await import('@/app/(app)/procurement/page');
 const { default: ItemsPage } = await import('@/app/(app)/procurement/items/page');
@@ -190,7 +204,9 @@ describe('/admin/procurement (ADMIN)', () => {
         .map((tab) => tab.textContent),
     ).toEqual(['실적 관리', '품목 관리', '키워드 관리']);
     expect(screen.getByRole('radio', { name: '실적 관리' })).toBeChecked();
-    expect(screen.getByRole('region', { name: '실적 관리' })).toHaveTextContent('단계 3에서 제공');
+    expect(screen.getByRole('region', { name: '실적 관리' })).toHaveTextContent(
+      '실적 관리 섹션 (write)',
+    );
   });
 
   it('?tab=items → 품목 관리 RSC 섹션', async () => {
@@ -208,6 +224,14 @@ describe('/admin/procurement (ADMIN)', () => {
     expect(screen.getByRole('radio', { name: '키워드 관리' })).toBeChecked();
     expect(screen.getByRole('region', { name: '키워드 관리' })).toHaveTextContent(
       '키워드 관리 섹션 (write)',
+    );
+  });
+
+  it('?tab=deliveries&… → 실적 관리 RSC 섹션에 URL 조건을 그대로 넘긴다', async () => {
+    state.sessionUserId = adminId;
+    render(await open(AdminPage, { tab: 'deliveries', trash: '1', page: '2' }));
+    expect(screen.getByRole('region', { name: '실적 관리' })).toHaveTextContent(
+      '실적 관리 섹션 (write) tab=deliveries&trash=1&page=2',
     );
   });
 

@@ -17,8 +17,9 @@ import {
 import { normalizeProcurementItemsQuery } from '@/features/procurement/items/view-state';
 import { USERS_FILTER_DEFS, USERS_SORT_IDS } from '@/features/users/table-state';
 import { hasPermission, type Role } from '@/lib/constants/permissions';
-import { parseProcurementAdminTab } from '@/lib/procurement/admin-tabs';
+import { normalizeAdminDeliveriesQuery } from '@/lib/procurement/admin-deliveries-filter';
 import { normalizeAdminItemsQuery } from '@/lib/procurement/admin-items-filter';
+import { parseProcurementAdminTab } from '@/lib/procurement/admin-tabs';
 import { bidFilterToQuery, parseBidFilter } from '@/lib/procurement/bid-filter';
 import { normalizePerformanceQuery } from '@/lib/procurement/performance-filter';
 import { PAGE_PERMISSIONS, stripQueryPrefix, type PageKey } from '@/lib/page-state/keys';
@@ -103,7 +104,7 @@ function adminProcurementQuery(params: Params): string {
   const tab = parseProcurementAdminTab(first(params, 'tab'));
   switch (tab) {
     case 'deliveries':
-      return '';
+      return normalizeAdminDeliveriesQuery(params);
     case 'items':
       return normalizeAdminItemsQuery(params);
     case 'keywords':
