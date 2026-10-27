@@ -1,0 +1,3 @@
+id,delivery_id,before,after,changed_by,changed_at
+1,1,"{""amount"": 1}","{""amount"": 2}",tester-a,2024-01-02 09:00:00+09
+2,,,"{""x"": true}",tester-b,2024-01-03 09:00:00+09

@@ -1,0 +1,3 @@
+bid_no,bid_ord,products,title,business_type,order_org,demand_org,posted_at,deadline_at,budget,est_price,notice_status,detail_url,collected_at,raw,keywords,fit_grade,fit_score,fit_reasons
+B-0001,000,"{WAPPLES,""D.AMO""}",가상 보안 장비 도입,물품,가상조달청,가상시청,2024-10-01 09:00:00+09,2024-10-15 18:00:00+09,50000000,45000000,일반,https://example.invalid/bid/1,2024-10-01 10:00:00+09,"{""k"": 1}",{웹방화벽},상,90,"{""+ 키워드 일치"",""- 지역 제한""}"
+B-0002,001,"[""iSIGN""]",가상 인증 시스템,용역,가상조달청,,,,,,,,2024-10-02 10:00:00+09,,{},,,{}
