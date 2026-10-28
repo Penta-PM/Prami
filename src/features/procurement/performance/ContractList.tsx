@@ -1,6 +1,8 @@
 'use client';
 
 import { Icon } from '@/components/icons/Icon';
+import { FOCUS_RING_CLASSES } from '@/components/ui';
+import { controlSizeClasses } from '@/components/ui/density';
 import { ViewStateLink } from '@/features/page-state/ViewStateLink';
 import { cn } from '@/lib/cn';
 import { formatMonthShort, type MonthKey } from '@/lib/month';
@@ -31,7 +33,7 @@ export type ContractListProps = {
 
 const TH =
   'sticky top-0 z-[1] border-b border-border-default bg-surface-muted px-2.5 py-2 text-left text-[12px] font-semibold whitespace-nowrap text-text-secondary';
-const TD = 'border-b border-border-subtle px-2.5 py-2 text-[13px] text-text-primary';
+const TD = 'border-b border-border-subtle px-2.5 py-2 text-[14px] text-text-primary';
 
 /** 날짜(YYYY-MM-DD) → 원본 표기 YYYYMMDD 대신 읽기 쉬운 `YYYY.MM.DD` */
 const dateText = (value: string | null) => (value ? value.replaceAll('-', '.') : '—');
@@ -56,7 +58,7 @@ export function ContractList({
       className="flex min-w-0 flex-col gap-2.5 border-t border-border-subtle pt-5"
     >
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <h3 className="m-0 text-[15px] font-semibold break-keep text-text-primary">
+        <h3 className="m-0 text-[16px] font-semibold break-keep text-text-primary">
           {heading}{' '}
           <span className="font-normal text-text-secondary tabular-nums">
             ({data.total.toLocaleString('ko-KR')}건 · {formatEokMan(data.amount)})
@@ -65,7 +67,7 @@ export function ContractList({
         <button
           type="button"
           onClick={onClose}
-          className="inline-flex items-center gap-0.5 border-0 bg-transparent p-0 text-[12px] text-text-tertiary hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
+          className="inline-flex items-center gap-0.5 border-0 bg-transparent p-0 text-[12px] text-text-tertiary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
           닫기
           <Icon name="close" />
@@ -148,13 +150,16 @@ export function ContractList({
   );
 }
 
-const PAGE_LINK_BASE =
-  'inline-flex h-8 items-center rounded-lg bg-gray-75 px-3 font-semibold no-underline shadow-(--hairline-subtle)';
+/** 표 페이지 이동 — Ghost 버튼 모양, 표 아래 밀집 영역이라 sm(36·14) */
+const PAGE_LINK_BASE = cn(
+  'inline-flex items-center rounded-control border border-solid border-neutral-200 bg-neutral-50 px-4 font-semibold no-underline',
+  controlSizeClasses('sm'),
+);
 
 function PageLink({ href, disabled, label }: { href: string; disabled: boolean; label: string }) {
   if (disabled) {
     return (
-      <span aria-disabled="true" className={cn(PAGE_LINK_BASE, 'text-text-tertiary opacity-50')}>
+      <span aria-disabled="true" className={cn(PAGE_LINK_BASE, 'text-neutral-700 opacity-50')}>
         {label}
       </span>
     );
@@ -166,7 +171,8 @@ function PageLink({ href, disabled, label }: { href: string; disabled: boolean; 
       replace
       className={cn(
         PAGE_LINK_BASE,
-        'text-text-secondary hover:bg-gray-100 hover:text-ink-900 hover:no-underline',
+        'text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900 hover:no-underline',
+        FOCUS_RING_CLASSES,
       )}
     >
       {label}

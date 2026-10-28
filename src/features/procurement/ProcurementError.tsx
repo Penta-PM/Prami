@@ -18,11 +18,13 @@ export function ProcurementError({
       <h1 id="procurement-error-title" className="m-0 [font:var(--text-h2)]">
         조달 화면을 불러오지 못했습니다
       </h1>
-      <p className="m-0 text-[13px] text-text-tertiary">
+      <p className="m-0 text-[14px] text-text-tertiary">
         잠시 후 다시 시도하세요. 문제가 계속되면 관리자에게 아래 오류 코드를 알려 주세요.
       </p>
       {error.digest ? (
-        <code className="w-fit rounded-lg bg-gray-75 px-3 py-2 text-[12px]">{error.digest}</code>
+        <code className="w-fit rounded-lg bg-surface-muted px-3 py-2 text-[12px]">
+          {error.digest}
+        </code>
       ) : null}
       <Button type="button" onClick={reset} className="w-fit">
         다시 시도

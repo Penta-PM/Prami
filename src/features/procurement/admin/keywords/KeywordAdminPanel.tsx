@@ -63,7 +63,7 @@ export function KeywordAdminPanel({ board }: { board: BidKeywordBoard }) {
   return (
     <Card className="flex min-w-0 flex-col gap-3 p-4 sm:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <h2 className="m-0 text-[15px] font-bold text-ink-900">분류 키워드</h2>
+        <h2 className="m-0 text-text-primary [font:var(--text-h2)]">분류 키워드</h2>
         <p className="m-0 text-[12px] text-text-tertiary">
           <span className="font-semibold">마지막 확인</span>{' '}
           <span className="tabular-nums" data-testid="procurement-keywords-last-checked">
@@ -75,7 +75,7 @@ export function KeywordAdminPanel({ board }: { board: BidKeywordBoard }) {
           </span>
         </p>
       </div>
-      <p className="m-0 text-[13px] leading-relaxed break-keep text-text-tertiary">
+      <p className="m-0 text-[14px] leading-relaxed break-keep text-text-tertiary">
         공고명에 이 단어가 들어가면 그 제품 공고로 모읍니다. 제외 단어가 들어간 공고는 버립니다.
         바꾼 키워드는 다음 수집부터 반영됩니다.
       </p>

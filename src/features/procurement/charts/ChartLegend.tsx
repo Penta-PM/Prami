@@ -35,7 +35,7 @@ export type ChartLegendProps = {
 };
 
 const FOCUS =
-  'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-purple-500';
+  'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring';
 
 /**
  * 차트 범례 (조달이 TrendLegend 이식). 항목마다 두 버튼:
@@ -98,7 +98,7 @@ export function ChartLegend({
                 <MarkerSwatch shape={item.marker} color={item.color} />
                 <span>{item.label}</span>
                 {item.isOurs && (
-                  <span className="rounded-sm bg-accent-ours px-1 text-[10px] leading-4 font-semibold text-white">
+                  <span className="rounded-sm bg-accent-ours px-1 text-[10px] leading-4 font-semibold text-text-inverse">
                     자사
                   </span>
                 )}
@@ -110,7 +110,7 @@ export function ChartLegend({
                 title={hidden ? '보이기' : '숨기기'}
                 onClick={() => onToggleHidden(item.key)}
                 className={cn(
-                  'flex size-8 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-text-tertiary hover:text-ink-900',
+                  'flex size-8 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent text-text-tertiary hover:text-text-primary',
                   FOCUS,
                 )}
               >
@@ -126,7 +126,7 @@ export function ChartLegend({
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
           className={cn(
-            'inline-flex min-h-8 cursor-pointer items-center gap-0.5 rounded-full border-0 bg-transparent px-2 text-[12px] font-semibold text-text-tertiary hover:text-ink-900',
+            'inline-flex min-h-8 cursor-pointer items-center gap-0.5 rounded-full border-0 bg-transparent px-2 text-[12px] font-semibold text-text-tertiary hover:text-text-primary',
             FOCUS,
           )}
         >

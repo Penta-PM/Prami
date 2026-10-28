@@ -132,7 +132,7 @@ export function ProcurementHeader({
             <dd
               className={cn(
                 'm-0 inline-flex min-w-0 items-center gap-1 font-semibold break-keep tabular-nums',
-                notice.kind === 'failed' ? 'text-red-600' : 'text-text-secondary',
+                notice.kind === 'failed' ? 'text-text-danger' : 'text-text-secondary',
               )}
               data-testid="procurement-collection-run"
               data-run={notice.kind}

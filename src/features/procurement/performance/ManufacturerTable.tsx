@@ -27,11 +27,11 @@ export type ManufacturerTableProps = {
 };
 
 const TH =
-  'border-b border-border-default px-2 py-1.5 text-[13px] font-bold whitespace-nowrap text-text-secondary';
-const TD = 'px-2 py-1.5 text-right text-[13px] whitespace-nowrap text-text-primary tabular-nums';
+  'border-b border-border-default px-2 py-1.5 text-[14px] font-bold whitespace-nowrap text-text-secondary';
+const TD = 'px-2 py-1.5 text-right text-[14px] whitespace-nowrap text-text-primary tabular-nums';
 const TOTAL = 'border-t-2 border-border-default';
 const NAME_BUTTON =
-  'max-w-full truncate border-0 bg-transparent p-0 text-left text-[13px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500';
+  'max-w-full truncate border-0 bg-transparent p-0 text-left text-[14px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring';
 
 /**
  * 제조사별 실적 (원본 ManufacturerTable — 누적매출/점유율/전년대비 한 표): 평소엔 1~4위(자사 포함) + "기타 N개사"(누르면 펼침),
@@ -86,7 +86,7 @@ export function ManufacturerTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={4} className="px-2 py-2.5 text-center text-[13px] text-text-tertiary">
+              <td colSpan={4} className="px-2 py-2.5 text-center text-[14px] text-text-tertiary">
                 실적 없음
               </td>
             </tr>
@@ -157,7 +157,7 @@ export function ManufacturerTable({
                       if (hiddenHighlight && highlight) onToggleHighlight(highlight);
                     } else setExpanded(true);
                   }}
-                  className="inline-flex items-center gap-0.5 rounded-pill border border-border-default bg-transparent py-1 pr-2.5 pl-3.5 text-[12px] font-semibold text-text-secondary hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
+                  className="inline-flex items-center gap-0.5 rounded-pill border border-border-default bg-transparent py-1 pr-2.5 pl-3.5 text-[12px] font-semibold text-text-secondary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                 >
                   {showAll ? '접기' : `전체 ${rows.length}개사 펼치기`}
                   <DisclosureIcon open={showAll} />
@@ -167,7 +167,7 @@ export function ManufacturerTable({
           )}
           {rows.length > 0 && (
             <tr>
-              <th scope="row" className={cn(TOTAL, 'px-2 py-1.5 text-left text-[13px] font-bold')}>
+              <th scope="row" className={cn(TOTAL, 'px-2 py-1.5 text-left text-[14px] font-bold')}>
                 합계
               </th>
               <td className={cn(TD, TOTAL, 'font-bold')}>{formatMillionWon(total)}</td>

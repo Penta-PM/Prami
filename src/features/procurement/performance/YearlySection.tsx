@@ -19,8 +19,8 @@ const PANELS: { key: PanelKey; title: string }[] = [
 ];
 
 const TH =
-  'border-b border-border-default px-2 py-1.5 text-[13px] font-bold whitespace-nowrap text-text-secondary';
-const TD = 'px-2 py-1.5 text-right text-[13px] whitespace-nowrap text-text-primary tabular-nums';
+  'border-b border-border-default px-2 py-1.5 text-[14px] font-bold whitespace-nowrap text-text-secondary';
+const TD = 'px-2 py-1.5 text-right text-[14px] whitespace-nowrap text-text-primary tabular-nums';
 const TOTAL = 'border-t-2 border-border-default font-bold';
 
 /**
@@ -44,7 +44,7 @@ export function YearlySection({
     <section aria-labelledby="yearly-section-title" className="flex min-w-0 flex-col gap-3">
       <h2
         id="yearly-section-title"
-        className="m-0 mt-1 text-[13px] font-semibold tracking-[0.4px] text-text-tertiary"
+        className="m-0 mt-1 text-[14px] font-semibold tracking-[0.4px] text-text-tertiary"
       >
         상세 분석 · 전체 기간 (조회 기간과 무관)
       </h2>
@@ -56,13 +56,13 @@ export function YearlySection({
             className="flex min-w-0 flex-col gap-3 rounded-2xl bg-surface-card p-4 shadow-(--hairline-default) sm:p-6"
           >
             <div className="flex items-baseline justify-between gap-2.5">
-              <h3 className="m-0 text-[15px] font-semibold text-text-primary">{item.title}</h3>
+              <h3 className="m-0 text-[16px] font-semibold text-text-primary">{item.title}</h3>
               <button
                 type="button"
                 aria-haspopup="dialog"
                 aria-label={`${item.title} 더보기`}
                 onClick={() => setOpened(item.key)}
-                className="border-0 bg-transparent text-[13px] font-semibold whitespace-nowrap text-text-tertiary hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
+                className="border-0 bg-transparent text-[14px] font-semibold whitespace-nowrap text-text-tertiary hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
                 더보기 ›
               </button>
@@ -136,12 +136,12 @@ function YearlyModal({
   return (
     <Modal open={open} onClose={onClose} size="lg" title={panel?.title ?? ''}>
       {!panel ? null : state.status === 'loading' ? (
-        <p role="status" className="m-0 py-8 text-center text-[13px] text-text-tertiary">
+        <p role="status" className="m-0 py-8 text-center text-[14px] text-text-tertiary">
           불러오는 중…
         </p>
       ) : state.status === 'error' ? (
         <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
-          <p className="m-0 text-[13px] text-red-600">{state.message}</p>
+          <p className="m-0 text-[14px] text-text-danger">{state.message}</p>
           <Button
             size="sm"
             variant="secondary"
@@ -222,7 +222,7 @@ export function YearlyTable({
             <tr>
               <td
                 colSpan={years.length + 2}
-                className="px-2 py-2.5 text-center text-[13px] text-text-tertiary"
+                className="px-2 py-2.5 text-center text-[14px] text-text-tertiary"
               >
                 실적 없음
               </td>
@@ -238,7 +238,7 @@ export function YearlyTable({
                   scope="row"
                   title={row.title}
                   className={cn(
-                    'max-w-[140px] truncate px-2 py-1.5 text-left text-[13px]',
+                    'max-w-[140px] truncate px-2 py-1.5 text-left text-[14px]',
                     row.isOurs
                       ? 'font-bold text-accent-ours'
                       : row.isEtc
@@ -265,7 +265,7 @@ export function YearlyTable({
           )}
           {rows.length > 0 && (
             <tr>
-              <th scope="row" className={cn(TOTAL, 'px-2 py-1.5 text-left text-[13px]')}>
+              <th scope="row" className={cn(TOTAL, 'px-2 py-1.5 text-left text-[14px]')}>
                 합계
               </th>
               {years.map((year, index) => (

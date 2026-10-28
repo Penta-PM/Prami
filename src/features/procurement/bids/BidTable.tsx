@@ -3,6 +3,7 @@
 import { Fragment, useId, useState } from 'react';
 
 import {
+  FOCUS_RING_CLASSES,
   InfoHint,
   Pill,
   Table,
@@ -12,6 +13,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from '@/components/ui';
+import { controlSizeClasses } from '@/components/ui/density';
 import { cn } from '@/lib/cn';
 import { formatDate, formatDateTime } from '@/lib/date-format';
 import { BID_FIT_HINT_LINES, BID_FIT_HINT_NAME } from '@/lib/procurement/copy';
@@ -110,7 +112,7 @@ export function BidTable({ rows }: { rows: readonly BidTableRow[] }) {
             <Fragment key={key}>
               <BidRow row={row} isOpen={isOpen} panelId={panelId} onToggle={() => toggle(key)} />
               {isOpen ? (
-                <tr id={panelId} className="border-b border-border-subtle bg-gray-75">
+                <tr id={panelId} className="border-b border-border-subtle bg-surface-muted">
                   <td colSpan={COLUMNS.length} className="relative px-3 py-3">
                     <ReasonList title={row.title} reasons={row.fitReasons} />
                   </td>
@@ -158,7 +160,10 @@ function BidRow({
   const muted = row.closed;
 
   return (
-    <TableRow data-closed={row.closed ? 'true' : undefined} className={cn(muted && 'bg-gray-50')}>
+    <TableRow
+      data-closed={row.closed ? 'true' : undefined}
+      className={cn(muted && 'bg-surface-muted')}
+    >
       <TableCell className="relative">
         <Pill tone={fit.tone} className="gap-1 font-semibold" title={fit.label}>
           <span className="sr-only">{fit.label}</span>
@@ -180,7 +185,7 @@ function BidRow({
               rel="noopener noreferrer"
               className={cn(
                 'inline-flex items-start gap-1 font-medium break-keep hover:underline',
-                muted ? 'text-text-tertiary' : 'text-ink-900',
+                muted ? 'text-text-tertiary' : 'text-text-primary',
               )}
             >
               <span>{row.title}</span>
@@ -191,7 +196,7 @@ function BidRow({
             <span
               className={cn(
                 'font-medium break-keep',
-                muted ? 'text-text-tertiary' : 'text-ink-900',
+                muted ? 'text-text-tertiary' : 'text-text-primary',
               )}
             >
               {row.title}
@@ -245,7 +250,11 @@ function BidRow({
             aria-expanded={isOpen}
             aria-controls={isOpen ? panelId : undefined}
             onClick={onToggle}
-            className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-gray-75 px-2.5 text-[12px] font-semibold text-text-secondary shadow-(--hairline-subtle) hover:bg-gray-100 hover:text-ink-900"
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-control border border-solid border-neutral-200 bg-neutral-50 px-3 font-semibold text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900',
+              controlSizeClasses('sm'),
+              FOCUS_RING_CLASSES,
+            )}
           >
             <span>{isOpen ? '근거 접기' : '근거 보기'}</span>
             <span className="tabular-nums" aria-hidden="true">
@@ -264,8 +273,8 @@ function BidRow({
 }
 
 const SIGN_STYLE: Record<ReasonSign, { mark: string; label: string; className: string }> = {
-  plus: { mark: '＋', label: '가점', className: 'text-green-700' },
-  minus: { mark: '－', label: '감점', className: 'text-red-600' },
+  plus: { mark: '＋', label: '가점', className: 'text-success-700' },
+  minus: { mark: '－', label: '감점', className: 'text-text-danger' },
   none: { mark: '·', label: '참고', className: 'text-text-tertiary' },
 };
 
@@ -276,12 +285,12 @@ function ReasonList({ title, reasons }: { title: string; reasons: readonly strin
         const { sign, text } = parseFitReason(reason);
         const style = SIGN_STYLE[sign];
         return (
-          <li key={`${index}-${reason}`} className="flex items-start gap-2 text-[13px] break-keep">
+          <li key={`${index}-${reason}`} className="flex items-start gap-2 text-[14px] break-keep">
             <span aria-hidden="true" className={cn('w-4 shrink-0 font-bold', style.className)}>
               {style.mark}
             </span>
             <span className="sr-only">{style.label}: </span>
-            <span className="min-w-0 text-ink-900">{text}</span>
+            <span className="min-w-0 text-text-primary">{text}</span>
           </li>
         );
       })}

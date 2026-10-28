@@ -272,7 +272,7 @@ describe('BidTable', () => {
       ['마감', 'closed'],
       ['마감일 미표기', 'none'],
     ]);
-    expect(badges[0]).toHaveClass('bg-accent-orange', 'text-ink-900');
+    expect(badges[0]).toHaveClass('bg-accent-orange', 'text-text-primary');
     const rows = screen.getAllByRole('row').slice(1);
     expect(rows.map((r) => r.dataset.closed ?? null)).toEqual([null, null, null, 'true', null]);
   });

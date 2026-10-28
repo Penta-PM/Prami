@@ -43,7 +43,7 @@ export function ChartFrame({
   const [tableView, setTableView] = useState(false);
   return (
     <figure className={cn('m-0 flex min-w-0 flex-col gap-2', className)} data-chart-frame="">
-      <figcaption className={showTitle ? 'text-[15px] font-semibold text-text-primary' : 'sr-only'}>
+      <figcaption className={showTitle ? 'text-[16px] font-semibold text-text-primary' : 'sr-only'}>
         {title}
       </figcaption>
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -60,7 +60,7 @@ export function ChartFrame({
       {note && !tableView && <p className="m-0 text-[12px] text-text-tertiary">{note}</p>}
       {tableView ? <div data-chart-table="">{table}</div> : children}
       <details className="text-[12px] text-text-secondary">
-        <summary className="cursor-pointer text-text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500">
+        <summary className="cursor-pointer text-text-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring">
           차트 요약
         </summary>
         <p className="m-0 mt-1 leading-5" data-chart-summary="">
@@ -193,7 +193,7 @@ export function ChartPlot({
           onActiveChange(index);
           onActivate?.(index);
         }}
-        className="relative rounded-md outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
+        className="relative rounded-md outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
       >
         {children}
       </div>

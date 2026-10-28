@@ -1,3 +1,7 @@
+import { FOCUS_RING_CLASSES } from '@/components/ui';
+import { controlSizeClasses } from '@/components/ui/density';
+import { cn } from '@/lib/cn';
+
 import { itemsExportHref, type ItemsView } from './filter';
 
 /**
@@ -17,7 +21,7 @@ export function ItemsExportLink({
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {truncated ? (
-        <p id="procurement-items-export-note" className="m-0 text-[12px] text-amber-700">
+        <p id="procurement-items-export-note" className="m-0 text-[12px] text-warning-700">
           결과 {total.toLocaleString('ko-KR')}건 중 앞의 {limit.toLocaleString('ko-KR')}건만
           내려받습니다
         </p>
@@ -26,7 +30,11 @@ export function ItemsExportLink({
         href={itemsExportHref(view)}
         download
         aria-describedby={truncated ? 'procurement-items-export-note' : undefined}
-        className="inline-flex h-8 items-center rounded-lg bg-gray-75 px-3 text-[12px] font-semibold text-text-secondary no-underline shadow-(--hairline-subtle) hover:bg-gray-100 hover:text-ink-900 hover:no-underline"
+        className={cn(
+          'inline-flex items-center rounded-control border border-solid border-neutral-200 bg-neutral-50 px-4 font-semibold text-neutral-700 no-underline hover:bg-neutral-100 hover:text-neutral-900 hover:no-underline',
+          controlSizeClasses('sm'),
+          FOCUS_RING_CLASSES,
+        )}
       >
         xlsx 내려받기
       </a>

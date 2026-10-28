@@ -18,7 +18,7 @@ export type FitBadge = {
   label: string;
 };
 
-/** 상 = 녹색(green-700 on green/12, 4.7:1), 중 = 앰버(amber-700, 5.2:1), 하 = 회색(text-secondary-aa) */
+/** Pill 톤 — 상 = success(S700 on S50), 중 = warning(W700 on W50), 하 = neutral (모두 4.5:1 이상, tokens.test) */
 const FIT_TONE: Record<string, PillTone> = { 상: 'positive', 중: 'amber', 하: 'neutral' };
 
 export function fitBadge(grade: string | null, score: number | null): FitBadge {
@@ -69,14 +69,14 @@ export function deadlineBadge(row: {
 }
 
 /**
- * 배지 색. 임박 = `--accent-orange` 배경 + ink-900 글자(5.3:1 — 흰 글자는 3.0:1 이라 쓰지 않는다).
- * 진행 = 보라 필(purple-600 on purple/12), 마감·미표기 = 회색 필.
+ * 배지 색. 임박 = `--accent-orange`(Warning 500) 채움 + 기본 글자(N900, 8.4:1 — 흰 글자는 2.2:1 이라 쓰지 않는다).
+ * 진행 = Primary 배지(P700 on P50), 마감·미표기 = 회색 배지(N600 on N100). 모두 글자 4.5:1 이상 (Penta PR-4d).
  */
 export const DEADLINE_TONE_CLASS: Record<DeadlineTone, string> = {
-  urgent: 'bg-accent-orange text-ink-900',
-  open: 'bg-purple-500/12 text-purple-600',
-  closed: 'bg-gray-100 text-text-secondary',
-  none: 'bg-gray-100 text-text-secondary',
+  urgent: 'bg-accent-orange text-text-primary',
+  open: 'bg-primary-50 text-primary-700',
+  closed: 'bg-neutral-100 text-text-secondary',
+  none: 'bg-neutral-100 text-text-secondary',
 };
 
 // ── 근거 ─────────────────────────────────────────────────────────────

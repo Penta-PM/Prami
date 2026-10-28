@@ -79,10 +79,7 @@ export function ReviewQueueCard({
     <Card
       aria-labelledby="item-review-title"
       role="region"
-      className={cn(
-        'flex flex-col gap-4 p-0',
-        total > 0 && 'shadow-[inset_0_0_0_1.5px_var(--lime-500)]',
-      )}
+      className={cn('flex flex-col gap-4 p-0', total > 0 && 'border-primary-500')}
     >
       <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5">
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -90,8 +87,8 @@ export function ReviewQueueCard({
             일일 신규 품목
             <span
               className={cn(
-                'rounded-pill px-2.5 py-0.5 text-[13px] font-bold tabular-nums',
-                total > 0 ? 'bg-red-600 text-white' : 'bg-gray-100 text-text-tertiary',
+                'rounded-pill px-2.5 py-0.5 text-[14px] font-bold tabular-nums',
+                total > 0 ? 'bg-danger-bg text-text-inverse' : 'bg-neutral-100 text-text-tertiary',
               )}
             >
               {total.toLocaleString('ko-KR')}건
@@ -129,7 +126,7 @@ export function ReviewQueueCard({
         </div>
       </div>
       {rows.length === 0 ? (
-        <p className="m-0 border-t border-border-subtle px-5 py-7 text-center text-[13px] text-text-tertiary">
+        <p className="m-0 border-t border-border-subtle px-5 py-7 text-center text-[14px] text-text-tertiary">
           새로 들어온 품목이 없습니다. 매일 수집된 신규 물품식별번호가 여기에 올라옵니다.
         </p>
       ) : (
@@ -157,7 +154,7 @@ export function ReviewQueueCard({
                 const undecided = row.product === '기타';
                 const label = `${row.itemId} ${row.itemName ?? ''}`.trim();
                 return (
-                  <TableRow key={row.id} className={cn(checked.has(row.id) && 'bg-purple-500/5')}>
+                  <TableRow key={row.id} className={cn(checked.has(row.id) && 'bg-primary-50')}>
                     <TableCell className="py-2">
                       <Checkbox
                         size="sm"
@@ -180,7 +177,7 @@ export function ReviewQueueCard({
                         value={row.product}
                         disabled={busy}
                         onChange={(event) => onEdit(row, { product: event.target.value })}
-                        className={cn('py-1.5 font-semibold', undecided && 'text-red-600')}
+                        className={cn('py-1.5 font-semibold', undecided && 'text-text-danger')}
                       >
                         {undecided ? (
                           <option value="기타" disabled>
@@ -232,7 +229,7 @@ export function ReviewQueueCard({
                           disabled={busy}
                           aria-label={`${label} 삭제`}
                           onClick={() => exclude([row])}
-                          className="text-red-600"
+                          className="text-text-danger"
                         >
                           삭제
                         </Button>

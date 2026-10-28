@@ -170,11 +170,11 @@ export function DeliveryEditor({ request, onClose, onSaved, onStale }: DeliveryE
     <>
       <Drawer open={request !== null} onClose={close} title={title} width={680}>
         {loadError ? (
-          <p role="alert" className="m-0 text-[13px] text-red-600">
+          <p role="alert" className="m-0 text-[14px] text-text-danger">
             {loadError}
           </p>
         ) : !detail || !form ? (
-          <p role="status" className="m-0 text-[13px] text-text-tertiary">
+          <p role="status" className="m-0 text-[14px] text-text-tertiary">
             불러오는 중…
           </p>
         ) : (
@@ -184,7 +184,7 @@ export function DeliveryEditor({ request, onClose, onSaved, onStale }: DeliveryE
             noValidate
             className="flex flex-col gap-4"
           >
-            <p className="m-0 text-[13px] text-text-tertiary">
+            <p className="m-0 text-[14px] text-text-tertiary">
               고친 내용은 바로 저장돼 조달 통계에 반영되고, 누가 무엇을 바꿨는지 이력이 남아요.
             </p>
             <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
@@ -193,7 +193,7 @@ export function DeliveryEditor({ request, onClose, onSaved, onStale }: DeliveryE
                 const errorId = `delivery-field-error-${field.key}`;
                 return (
                   <label key={field.key} className="flex min-w-0 flex-col gap-1">
-                    <span className="text-[13px] font-semibold text-text-secondary">
+                    <span className="text-[14px] font-semibold text-text-secondary">
                       {field.label}
                     </span>
                     <Input
@@ -211,7 +211,7 @@ export function DeliveryEditor({ request, onClose, onSaved, onStale }: DeliveryE
                       }
                     />
                     {errors ? (
-                      <span id={errorId} className="text-[12px] text-red-600">
+                      <span id={errorId} className="text-[12px] text-text-danger">
                         {errors[0]}
                       </span>
                     ) : null}
@@ -220,7 +220,7 @@ export function DeliveryEditor({ request, onClose, onSaved, onStale }: DeliveryE
               })}
             </div>
             {message ? (
-              <p role="alert" className="m-0 text-[13px] text-red-600">
+              <p role="alert" className="m-0 text-[14px] text-text-danger">
                 {message}
               </p>
             ) : null}
@@ -249,10 +249,10 @@ export function DeliveryEditor({ request, onClose, onSaved, onStale }: DeliveryE
           <p className="m-0">
             {nameOf(detail)} 의 {confirming.length}개 칸을 저장합니다.
           </p>
-          <ul aria-label="바뀐 칸" className="m-0 mt-2 flex flex-col gap-1 pl-5 text-[13px]">
+          <ul aria-label="바뀐 칸" className="m-0 mt-2 flex flex-col gap-1 pl-5 text-[14px]">
             {confirming.map((item) => (
               <li key={item.key}>
-                <span className="font-semibold text-ink-900">{item.label}</span>: {item.from} →{' '}
+                <span className="font-semibold text-text-primary">{item.label}</span>: {item.from} →{' '}
                 {item.to}
               </li>
             ))}
@@ -270,18 +270,18 @@ function DeliveryHistoryList({ history }: { history: DeliveryDetail['history'] }
       aria-label="변경 이력"
       className="flex flex-col gap-2 border-t border-border-subtle pt-3"
     >
-      <h3 className="m-0 text-[14px] font-bold text-ink-900">
+      <h3 className="m-0 text-[14px] font-bold text-text-primary">
         변경 이력{' '}
         <span className="text-[12px] font-normal text-text-tertiary">
           (최근 {DELIVERY_HISTORY_LIMIT}건)
         </span>
       </h3>
       {history.length === 0 ? (
-        <p className="m-0 text-[13px] text-text-tertiary">아직 변경 이력이 없습니다.</p>
+        <p className="m-0 text-[14px] text-text-tertiary">아직 변경 이력이 없습니다.</p>
       ) : (
         <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
           {history.map((entry) => (
-            <li key={entry.id} className="text-[13px] leading-relaxed text-text-secondary">
+            <li key={entry.id} className="text-[14px] leading-relaxed text-text-secondary">
               <span className="tabular-nums">{historyTime(entry.changedAt)}</span> ·{' '}
               {entry.changedBy ?? '—'} · {historyChangeTexts(entry.before, entry.after).join(', ')}
             </li>

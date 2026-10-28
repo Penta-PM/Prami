@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from 'react';
 
-import { Button, Modal } from '@/components/ui';
+import { Button, Modal, Select } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import type { MonthKey } from '@/lib/month';
 import type { IsignProductGroup, ProcurementProductTab } from '@/lib/procurement/constants';
@@ -34,9 +34,9 @@ export type MonthlyReportProps = {
 };
 
 const TH =
-  'border border-border-default bg-surface-muted px-1.5 py-1.5 text-center text-[13px] font-bold whitespace-nowrap text-text-primary';
+  'border border-border-default bg-surface-muted px-1.5 py-1.5 text-center text-[14px] font-bold whitespace-nowrap text-text-primary';
 const TD =
-  'border border-border-default px-2 py-1.5 text-center text-[13px] whitespace-nowrap text-text-primary tabular-nums';
+  'border border-border-default px-2 py-1.5 text-center text-[14px] whitespace-nowrap text-text-primary tabular-nums';
 /** 기준월·누적 열 강조 (원본 RPT_FOCUS_BG — 자사 강조색 옅게) */
 const FOCUS_BG = 'bg-accent-ours/[0.06]';
 const FOCUS_HEAD = 'bg-accent-ours/[0.12]';
@@ -51,7 +51,11 @@ function signedMillion(value: number): string {
 
 function diffClass(value: number): string {
   const rounded = Math.round(value / 100_000);
-  return rounded > 0 ? 'text-green-700' : rounded < 0 ? 'text-red-600' : 'text-text-secondary';
+  return rounded > 0
+    ? 'text-success-700'
+    : rounded < 0
+      ? 'text-text-danger'
+      : 'text-text-secondary';
 }
 
 /**
@@ -93,18 +97,19 @@ export function MonthlyReport({
           <label htmlFor={selectId} className="text-[14px] font-semibold text-text-secondary">
             기준월
           </label>
-          <select
+          <Select
             id={selectId}
+            size="sm"
             value={baseMonth}
             onChange={(event) => onBaseMonthChange(event.target.value)}
-            className="rounded-xl border-0 bg-gray-75 py-1.5 pr-7 pl-3 text-[14px] font-semibold text-ink-900 shadow-(--hairline-default) outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--purple-500)]"
+            className="w-auto font-semibold"
           >
             {[...options].reverse().map((month) => (
               <option key={month} value={month}>
                 {monthOption(month)}
               </option>
             ))}
-          </select>
+          </Select>
           <Button size="sm" variant="secondary" onClick={() => setModalOpen(true)}>
             제조사별 실적표 ⤢
           </Button>
@@ -123,9 +128,9 @@ export function MonthlyReport({
               <span className="text-[24px] font-bold text-text-primary tabular-nums sm:text-[28px]">
                 {card.value}
               </span>
-              <span className="text-[15px] font-bold text-accent-ours">점유율 {card.share}</span>
+              <span className="text-[16px] font-bold text-accent-ours">점유율 {card.share}</span>
             </div>
-            <div className="mt-1.5 text-[13px] break-keep text-text-tertiary tabular-nums">
+            <div className="mt-1.5 text-[14px] break-keep text-text-tertiary tabular-nums">
               {card.prevLabel} {card.prevValue} (점유율 {card.prevShare}) ·{' '}
               <span
                 className={cn('font-bold', card.growth.tone ? TONE_TEXT[card.growth.tone] : '')}
@@ -139,9 +144,9 @@ export function MonthlyReport({
           className={cn(
             'flex min-w-0 flex-col justify-center rounded-2xl px-5 py-4 shadow-(--hairline-subtle)',
             summary.cumulative.tone === 'good'
-              ? 'bg-green-600/10'
+              ? 'bg-success-50'
               : summary.cumulative.tone === 'bad'
-                ? 'bg-red-500/10'
+                ? 'bg-error-50'
                 : 'bg-surface-muted',
           )}
         >
@@ -161,7 +166,7 @@ export function MonthlyReport({
         <h3 className="m-0 text-[16px] font-bold text-text-primary">
           {OUR_COMPANY_LABEL} 조달 월별 매출
         </h3>
-        <span className="text-[13px] text-text-tertiary">(단위: {MILLION_WON_UNIT}/월)</span>
+        <span className="text-[14px] text-text-tertiary">(단위: {MILLION_WON_UNIT}/월)</span>
       </div>
       <div className="w-full min-w-0 overflow-x-auto">
         <table
@@ -341,12 +346,12 @@ function ManufacturerReportModal({
       title={`${label} ${yy(year)}년 ${mon}월 제조사별 실적 (단위: ${MILLION_WON_UNIT})`}
     >
       {state.status === 'loading' ? (
-        <p role="status" className="m-0 py-8 text-center text-[13px] text-text-tertiary">
+        <p role="status" className="m-0 py-8 text-center text-[14px] text-text-tertiary">
           불러오는 중…
         </p>
       ) : state.status === 'error' ? (
         <div role="alert" className="flex flex-col items-center gap-3 py-8 text-center">
-          <p className="m-0 text-[13px] text-red-600">{state.message}</p>
+          <p className="m-0 text-[14px] text-text-danger">{state.message}</p>
           <Button
             size="sm"
             variant="secondary"

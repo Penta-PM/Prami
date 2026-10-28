@@ -184,7 +184,7 @@ export function YearlyLineChart({
     >
       <div ref={boxRef} className="w-full min-w-0">
         {lines.length === 0 ? (
-          <p className="m-0 py-10 text-center text-[13px] text-text-tertiary">
+          <p className="m-0 py-10 text-center text-[14px] text-text-tertiary">
             표시할 데이터가 없습니다
           </p>
         ) : (

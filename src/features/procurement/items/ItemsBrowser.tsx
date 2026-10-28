@@ -78,7 +78,7 @@ const COLUMNS: readonly {
     header: '제품',
     align: 'left',
     type: 'text',
-    cellClass: 'text-[13px] font-semibold text-ink-900',
+    cellClass: 'text-[14px] font-semibold text-text-primary',
   },
   {
     key: 'detailCategory',
@@ -86,7 +86,7 @@ const COLUMNS: readonly {
     header: '세부분류',
     align: 'left',
     type: 'text',
-    cellClass: 'text-[13px] text-text-secondary',
+    cellClass: 'text-[14px] text-text-secondary',
   },
   {
     key: 'manufacturer',
@@ -94,7 +94,7 @@ const COLUMNS: readonly {
     header: '제조사',
     align: 'left',
     type: 'text',
-    cellClass: 'text-[13px] text-ink-900',
+    cellClass: 'text-[14px] text-text-primary',
   },
   {
     key: 'itemId',
@@ -110,7 +110,7 @@ const COLUMNS: readonly {
     header: '품목명',
     align: 'left',
     type: 'text',
-    cellClass: 'text-[13px] text-ink-900',
+    cellClass: 'text-[14px] text-text-primary',
   },
   {
     key: 'unitPrice',
@@ -119,7 +119,7 @@ const COLUMNS: readonly {
     header: millionWonHeader('계약단가'),
     align: 'right',
     type: 'number',
-    cellClass: 'text-[13px] font-semibold text-ink-900 tabular-nums',
+    cellClass: 'text-[14px] font-semibold text-text-primary tabular-nums',
   },
 ];
 
@@ -298,13 +298,13 @@ export function ItemsBrowser({
           filteredTotal={total}
           rowClassName={(row) => (isOurManufacturer(row.manufacturer) ? OURS_ROW_CLASS : undefined)}
           aria-label="등록 품목 표"
-          headClassName="bg-gray-75"
+          headClassName="bg-surface-muted"
         />
         {rows.length === 0 ? (
           filtered ? (
             <DataTableFilterEmpty onReset={resetFilters} />
           ) : (
-            <p role="status" className="m-0 p-12 text-center text-[13px] text-text-tertiary">
+            <p role="status" className="m-0 p-12 text-center text-[14px] text-text-tertiary">
               등록된 품목이 없습니다.
             </p>
           )

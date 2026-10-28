@@ -4,6 +4,9 @@ import { useRef, useState } from 'react';
 
 import { MonthRangeSlider, type MonthRangeValue, type MonthVolumeBar } from '@/components/ui';
 import { chipClass } from '@/components/ui/chip';
+import { controlSizeClasses } from '@/components/ui/density';
+import { FIELD_CLASSES } from '@/components/ui/input';
+import { cn } from '@/lib/cn';
 import { isMonthKey, type MonthKey } from '@/lib/month';
 import type { PeriodPreset } from '@/lib/procurement/performance-filter';
 
@@ -17,8 +20,8 @@ export type PeriodFilterProps = {
   onChange: (next: MonthRangeValue) => void;
 };
 
-const INPUT_CLASS =
-  'rounded-xl border-0 bg-gray-75 px-2.5 py-1.5 text-[13px] text-ink-900 tabular-nums shadow-(--hairline-default) outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--purple-500)]';
+/** 시작·종료 월 입력 — 공용 입력창 모양, 필터라 sm(36·14) */
+const INPUT_CLASS = cn(FIELD_CLASSES, controlSizeClasses('sm'), 'w-auto px-3 tabular-nums');
 
 /**
  * 조회 기간 (원본 PeriodFilter): "조회 기간" + 시작·종료 월 입력 + 프리셋(올해·최근 3개월·최근 1년·전체) + 월 슬라이더(UI-4,
@@ -55,7 +58,7 @@ export function PeriodFilter({ value, months, presets, volumes, onChange }: Peri
       className="flex min-w-0 flex-col gap-3 rounded-2xl bg-surface-card px-4 py-3.5 shadow-(--hairline-default) sm:px-5"
     >
       <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-        <h2 className="m-0 mr-1 text-[15px] font-semibold text-text-primary">조회 기간</h2>
+        <h2 className="m-0 mr-1 text-text-primary [font:var(--text-h2)]">조회 기간</h2>
         <div className="flex flex-wrap items-center gap-1.5">
           <input
             type="month"
