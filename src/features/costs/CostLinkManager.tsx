@@ -224,7 +224,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
       type: 'text',
       sortValue: (row) => row.itemName,
       headerClassName: HEADER_CLASS,
-      cellClassName: cn(CELL_CLASS, 'text-[13px] font-semibold text-ink-900'),
+      cellClassName: cn(CELL_CLASS, 'text-[14px] font-semibold text-text-primary'),
       cell: (row) => row.itemName,
     },
     {
@@ -233,7 +233,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
       type: 'text',
       sortValue: (row) => row.categoryMinor,
       headerClassName: HEADER_CLASS,
-      cellClassName: cn(CELL_CLASS, 'text-[13px] text-text-secondary'),
+      cellClassName: cn(CELL_CLASS, 'text-[14px] text-text-secondary'),
       cell: (row) => row.categoryMinor ?? '—',
     },
     {
@@ -242,7 +242,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
       type: 'text',
       sortValue: (row) => row.itemStatus,
       headerClassName: HEADER_CLASS,
-      cellClassName: cn(CELL_CLASS, 'text-[13px] text-text-secondary'),
+      cellClassName: cn(CELL_CLASS, 'text-[14px] text-text-secondary'),
       cell: (row) => row.itemStatus ?? '—',
     },
     {
@@ -261,10 +261,14 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
       type: 'text',
       sortValue: (row) => (row.link ? (row.link.materialName ?? row.link.materialCode) : null),
       headerClassName: HEADER_CLASS,
-      cellClassName: cn(CELL_CLASS, 'text-[13px]'),
+      cellClassName: cn(CELL_CLASS, 'text-[14px]'),
       cell: (row) =>
         row.link ? (
-          <span className={cn(row.link.materialName === null ? 'text-red-600' : 'text-ink-900')}>
+          <span
+            className={cn(
+              row.link.materialName === null ? 'text-text-danger' : 'text-text-primary',
+            )}
+          >
             {materialLabel(row.link.materialCode, row.link.materialName)}
           </span>
         ) : (
@@ -277,7 +281,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
       type: 'text',
       sortValue: (row) => row.suggestion?.materialName ?? null,
       headerClassName: HEADER_CLASS,
-      cellClassName: cn(CELL_CLASS, 'text-[13px]'),
+      cellClassName: cn(CELL_CLASS, 'text-[14px]'),
       cell: (row) =>
         row.suggestion ? (
           <span className="text-text-secondary">
@@ -305,7 +309,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
                   <button
                     type="button"
                     aria-label={`${row.itemName} 제안대로 확정`}
-                    className={`${ACTION} text-purple-600`}
+                    className={`${ACTION} text-link hover:text-link-hover`}
                     disabled={isPending}
                     onClick={() => confirm(suggestedLinks([row]))}
                   >
@@ -325,7 +329,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
                   <button
                     type="button"
                     aria-label={`${row.itemName} 해제`}
-                    className={`${ACTION} text-red-600`}
+                    className={`${ACTION} text-text-danger`}
                     disabled={isPending}
                     onClick={() =>
                       openModal(() => setUnlinking({ itemCode: row.itemCode, label: row.itemName }))
@@ -350,7 +354,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
           value={family}
           onChange={setFamily}
         />
-        <label className="flex items-center gap-2 text-[13px] font-medium text-text-secondary">
+        <label className="flex items-center gap-2 text-[14px] font-medium text-text-secondary">
           <Checkbox
             checked={unlinkedOnly}
             onChange={(event) => setUnlinkedOnly(event.target.checked)}
@@ -377,7 +381,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
 
       <div role="status" aria-live="polite">
         {flash?.tone === 'ok' ? (
-          <p className="m-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700">
+          <p className="m-0 rounded-lg bg-success-50 px-3.5 py-2.5 text-[14px] text-success-700">
             {flash.text}
           </p>
         ) : null}
@@ -385,7 +389,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
       {flash?.tone === 'error' && !choosing && !unlinking ? (
         <p
           role="alert"
-          className="m-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-600"
+          className="m-0 rounded-lg bg-surface-danger px-3.5 py-2.5 text-[14px] text-text-danger"
         >
           {flash.text}
         </p>
@@ -395,7 +399,6 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
         <div className="flex items-center justify-end gap-2">
           <Button
             variant="primary"
-            size="sm"
             disabled={selectedRows.length === 0 || isPending}
             onClick={() => confirm(suggestedLinks(selectedRows))}
           >
@@ -412,10 +415,10 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
           rows={visible}
           getRowKey={(row) => row.itemCode}
           aria-label="원가 매핑 후보"
-          headClassName="bg-gray-75"
+          headClassName="bg-surface-muted"
         />
         {visible.length === 0 ? (
-          <div className="p-12 text-center text-[13px] text-text-tertiary">
+          <div className="p-12 text-center text-[14px] text-text-tertiary">
             조건에 맞는 품목이 없습니다.
           </div>
         ) : null}
@@ -450,10 +453,10 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
               {list.entries.map((entry) => (
                 <li
                   key={entry.itemCode}
-                  className="flex flex-wrap items-center gap-3 border-b border-border-subtle px-5 py-3 text-[13px] last:border-b-0"
+                  className="flex flex-wrap items-center gap-3 border-b border-border-subtle px-5 py-3 text-[14px] last:border-b-0"
                 >
                   <span className="text-[12px] text-text-tertiary">{entry.label}</span>
-                  <span className="text-ink-900">
+                  <span className="text-text-primary">
                     {materialLabel(entry.materialCode, entry.materialName)}
                   </span>
                   <span className="text-[12px] text-text-tertiary">
@@ -463,7 +466,7 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
                     <button
                       type="button"
                       aria-label={`${entry.itemCode} 해제`}
-                      className={`${ACTION} ml-auto text-red-600`}
+                      className={`${ACTION} ml-auto text-text-danger`}
                       disabled={isPending}
                       onClick={() =>
                         openModal(() =>
@@ -505,11 +508,8 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
             title="매핑 해제"
             footer={
               <>
-                <Button size="sm" onClick={() => setUnlinking(null)}>
-                  취소
-                </Button>
+                <Button onClick={() => setUnlinking(null)}>취소</Button>
                 <Button
-                  size="sm"
                   variant="danger"
                   disabled={isPending}
                   onClick={() => unlink(unlinking.itemCode)}
@@ -520,10 +520,11 @@ export function CostLinkManager({ view, canWrite, userId }: CostLinkManagerProps
             }
           >
             <p className="m-0">
-              <strong className="text-ink-900">{unlinking.label}</strong>의 원가 매핑을 해제합니다.
+              <strong className="text-text-primary">{unlinking.label}</strong>의 원가 매핑을
+              해제합니다.
             </p>
             {flash?.tone === 'error' ? (
-              <p role="alert" className="mt-2 mb-0 text-[12px] text-red-600">
+              <p role="alert" className="mt-2 mb-0 text-[12px] text-text-danger">
                 {flash.text}
               </p>
             ) : null}
@@ -568,11 +569,8 @@ function MaterialPickerModal({
       title="원가 직접 선택"
       footer={
         <>
-          <Button size="sm" onClick={onClose}>
-            취소
-          </Button>
+          <Button onClick={onClose}>취소</Button>
           <Button
-            size="sm"
             variant="primary"
             type="submit"
             form="cost-link-picker-form"
@@ -585,7 +583,7 @@ function MaterialPickerModal({
     >
       <form id="cost-link-picker-form" onSubmit={submit} className="flex flex-col gap-3">
         <p className="m-0">
-          <strong className="text-ink-900">{row.itemName}</strong> ({row.itemCode})
+          <strong className="text-text-primary">{row.itemName}</strong> ({row.itemCode})
         </p>
         <CostLinkPicker
           materials={materials}
@@ -595,7 +593,7 @@ function MaterialPickerModal({
           suggestedCode={row.suggestion?.materialCode ?? null}
         />
         {error ? (
-          <p role="alert" className="m-0 text-[12px] text-red-600">
+          <p role="alert" className="m-0 text-[12px] text-text-danger">
             {error}
           </p>
         ) : null}

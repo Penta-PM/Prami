@@ -102,26 +102,21 @@ export function CostLinkEditModal({ itemCode, onClose, onSaved }: CostLinkEditMo
   const remove = () => run(() => deleteCostLinkAction({ itemCode: data!.item.itemCode }));
 
   const footer = !data ? (
-    <Button size="sm" onClick={onClose}>
-      취소
-    </Button>
+    <Button onClick={onClose}>취소</Button>
   ) : removing ? (
     <>
-      <Button size="sm" onClick={() => setRemoving(false)} disabled={pending}>
+      <Button onClick={() => setRemoving(false)} disabled={pending}>
         취소
       </Button>
-      <Button size="sm" variant="danger" onClick={remove} disabled={pending}>
+      <Button variant="danger" onClick={remove} disabled={pending}>
         해제
       </Button>
     </>
   ) : (
     <>
-      <Button size="sm" onClick={onClose}>
-        취소
-      </Button>
+      <Button onClick={onClose}>취소</Button>
       {data.link ? (
         <Button
-          size="sm"
           variant="danger"
           onClick={() => {
             setError(null);
@@ -133,13 +128,7 @@ export function CostLinkEditModal({ itemCode, onClose, onSaved }: CostLinkEditMo
         </Button>
       ) : null}
       {removeOnly ? null : (
-        <Button
-          size="sm"
-          variant="primary"
-          type="submit"
-          form={FORM_ID}
-          disabled={unchanged || pending}
-        >
+        <Button variant="primary" type="submit" form={FORM_ID} disabled={unchanged || pending}>
           확정
         </Button>
       )}
@@ -149,28 +138,29 @@ export function CostLinkEditModal({ itemCode, onClose, onSaved }: CostLinkEditMo
   return (
     <Modal open onClose={onClose} title="원가 매핑" size="md" footer={footer}>
       {state.kind === 'loading' ? (
-        <p role="status" className="m-0 text-[13px] text-text-tertiary">
+        <p role="status" className="m-0 text-[14px] text-text-tertiary">
           불러오는 중…
         </p>
       ) : state.kind === 'error' ? (
-        <div role="alert" className="flex flex-wrap items-center gap-3 text-[13px] text-red-600">
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 text-[14px] text-text-danger"
+        >
           <span>{state.message}</span>
-          <Button size="sm" onClick={retry}>
-            다시 시도
-          </Button>
+          <Button onClick={retry}>다시 시도</Button>
         </div>
       ) : (
-        <form id={FORM_ID} onSubmit={submit} className="flex min-w-0 flex-col gap-3 text-[13px]">
+        <form id={FORM_ID} onSubmit={submit} className="flex min-w-0 flex-col gap-3 text-[14px]">
           <Summary data={state.data} />
           {removing ? (
             <p className="m-0">
-              <strong className="text-ink-900">
+              <strong className="text-text-primary">
                 {state.data.item.itemName} ({state.data.item.itemCode})
               </strong>
               의 원가 매핑을 해제합니다.
             </p>
           ) : removeOnly ? (
-            <p className="m-0 text-[12px] text-amber-700">{COST_LINK_OUT_OF_SCOPE_NOTICE}</p>
+            <p className="m-0 text-[12px] text-warning-700">{COST_LINK_OUT_OF_SCOPE_NOTICE}</p>
           ) : (
             <>
               <CostLinkPicker
@@ -187,13 +177,13 @@ export function CostLinkEditModal({ itemCode, onClose, onSaved }: CostLinkEditMo
             </>
           )}
           {error ? (
-            <p role="alert" className="m-0 text-[12px] text-red-600">
+            <p role="alert" className="m-0 text-[12px] text-text-danger">
               {error}
             </p>
           ) : null}
           <Link
             href={LINKS_PATH}
-            className="self-start text-[12px] font-semibold text-purple-600 hover:underline"
+            className="self-start text-[12px] font-semibold text-link hover:text-link-hover hover:underline"
           >
             매핑 화면에서 보기
           </Link>
@@ -228,7 +218,7 @@ function Summary({ data }: { data: CostLinkPickerData }) {
       {rows.map(([label, value]) => (
         <div key={label} className="contents">
           <dt className="text-text-tertiary">{label}</dt>
-          <dd className="m-0 min-w-0 break-all text-ink-900">{value}</dd>
+          <dd className="m-0 min-w-0 break-all text-text-primary">{value}</dd>
         </div>
       ))}
     </dl>

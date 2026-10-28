@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { Pill } from '@/components/ui';
+import { FOCUS_RING_CLASSES, Pill } from '@/components/ui';
+import { controlSizeClasses } from '@/components/ui/density';
 import { getDb } from '@/db';
 import { CostBrowser } from '@/features/costs/CostBrowser';
 import { CostFilters } from '@/features/costs/CostFilters';
@@ -10,6 +11,7 @@ import { CostPagination } from '@/features/costs/CostPagination';
 import { costFilterDefs } from '@/features/costs/column-filters';
 import { ViewStateTracker } from '@/features/page-state/ViewStateTracker';
 import { formatAuditTime } from '@/lib/audit-format';
+import { cn } from '@/lib/cn';
 import { getSessionUser } from '@/server/auth/rbac';
 import { requireCostPageAccess } from '@/server/cost/access';
 import { parseCostFilter } from '@/server/cost/filter';
@@ -70,7 +72,12 @@ export default async function AdminCostsPage({ searchParams }: AdminCostsPagePro
         )}
         <Link
           href="/admin/costs/links"
-          className="ml-auto rounded-pill bg-gray-75 px-3 py-1.5 text-[12px] font-semibold text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900"
+          // 페이지 헤더의 보조 이동 — Ghost 버튼 모양(N50·N700·N200), 헤더 버튼들과 같은 sm(36·14)
+          className={cn(
+            'ml-auto inline-flex items-center rounded-control border border-solid border-neutral-200 bg-neutral-50 px-4 font-semibold text-neutral-700 no-underline hover:bg-neutral-100 hover:text-neutral-900 hover:no-underline',
+            controlSizeClasses('sm'),
+            FOCUS_RING_CLASSES,
+          )}
         >
           원가 매핑
         </Link>

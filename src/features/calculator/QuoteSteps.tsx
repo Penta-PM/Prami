@@ -184,8 +184,8 @@ export function StepItems({
                 onClick={() => onSelect(item)}
                 className={
                   active
-                    ? 'flex w-full justify-between rounded-[10px] border-0 bg-lime-500 px-4 py-3 text-left text-[13px] font-semibold text-ink-900'
-                    : 'flex w-full justify-between rounded-[10px] border-0 bg-transparent px-4 py-3 text-left text-[13px] font-medium shadow-(--hairline-subtle) hover:bg-gray-75'
+                    ? 'flex w-full justify-between rounded-[10px] border-0 bg-primary-100 px-4 py-3 text-left text-[14px] font-semibold text-primary-700'
+                    : 'flex w-full justify-between rounded-[10px] border-0 bg-transparent px-4 py-3 text-left text-[14px] font-medium shadow-(--hairline-subtle) hover:bg-surface-muted'
                 }
               >
                 <span>
@@ -239,7 +239,7 @@ export function StepOptions({
         {options.map((option) => (
           <label
             key={option.itemCode}
-            className="flex items-center justify-between rounded-[10px] px-3.5 py-3 text-[13px] font-medium shadow-(--hairline-subtle)"
+            className="flex items-center justify-between rounded-[10px] px-3.5 py-3 text-[14px] font-medium shadow-(--hairline-subtle)"
           >
             <span className="flex items-center gap-2.5">
               <Checkbox
@@ -282,8 +282,8 @@ export function StepDiscount({
 }) {
   return (
     <>
-      <div className="flex items-center justify-between rounded-xl bg-gray-75 px-6 py-[18px]">
-        <span className="text-[13px] font-semibold text-text-secondary">
+      <div className="flex items-center justify-between rounded-xl bg-surface-muted px-6 py-[18px]">
+        <span className="text-[14px] font-semibold text-text-secondary">
           할인 적용 전 금액 (수량 반영)
         </span>
         <span className="text-[17px] font-bold" data-testid="pre-discount">
@@ -326,10 +326,10 @@ export function StepDiscount({
           ) : null}
         </label>
         <div className="mt-4 flex items-center justify-between border-t border-border-subtle pt-4">
-          <span className="text-[13px] font-semibold text-text-secondary">
+          <span className="text-[14px] font-semibold text-text-secondary">
             할인 적용 후 금액 (1,000원 단위 절삭)
           </span>
-          <span className="text-[18px] font-bold text-purple-600" data-testid="line-total">
+          <span className="text-[18px] font-bold text-primary-600" data-testid="line-total">
             {priceLabel(lineTotal, currency)}
           </span>
         </div>

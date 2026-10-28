@@ -167,8 +167,8 @@ function cellContent(
 }
 
 const EMPHASIS: Partial<Record<PriceColumnKey, string>> = {
-  itemName: 'font-semibold text-ink-900 text-[13px]',
-  price: 'font-semibold text-ink-900 text-[13px]',
+  itemName: 'font-semibold text-text-primary text-[14px]',
+  price: 'font-semibold text-text-primary text-[14px]',
   period: 'text-text-tertiary',
   effectiveFrom: 'text-text-tertiary',
   operationYears: 'text-text-tertiary',
@@ -256,7 +256,7 @@ export function PriceTable({
         filters={filters}
         filteredTotal={total}
         aria-label={mode === 'admin' ? '가격정책 관리 표' : '가격정책 표'}
-        headClassName="bg-gray-75"
+        headClassName="bg-surface-muted"
         rowClassName={() => 'cursor-pointer'}
         onRowClick={onRowClick}
       />
@@ -264,7 +264,7 @@ export function PriceTable({
         filtered && onResetFilters ? (
           <DataTableFilterEmpty onReset={onResetFilters} />
         ) : (
-          <div className="p-12 text-center text-[13px] text-text-tertiary">
+          <div className="p-12 text-center text-[14px] text-text-tertiary">
             등록된 가격정책이 없습니다.
           </div>
         )

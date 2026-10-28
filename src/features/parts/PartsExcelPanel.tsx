@@ -60,7 +60,7 @@ export function PartsExcelPanel({ options, onApplied, userId }: PartsExcelPanelP
       aria-label="엑셀 등록"
       className="mb-7 flex flex-col gap-3 rounded-xl bg-surface-card p-6 shadow-(--hairline-default)"
     >
-      <h2 className="m-0 text-[13px] font-semibold text-text-tertiary">
+      <h2 className="m-0 text-[14px] font-semibold text-text-tertiary">
         엑셀 업로드 (모델-파츠 매핑)
       </h2>
       <p className="m-0 text-[12px] text-text-tertiary">
@@ -83,21 +83,21 @@ export function PartsExcelPanel({ options, onApplied, userId }: PartsExcelPanelP
             오류 없는 파츠 파일을 선택하면 적용할 수 있습니다
           </span>
         ) : null}
-        <Button variant="primary" size="sm" disabled={blocked || isPending} onClick={apply}>
+        <Button variant="primary" disabled={blocked || isPending} onClick={apply}>
           {isPending ? '적용 중…' : '매핑 적용'}
         </Button>
       </div>
       <Presence>
         {error ? (
           <Collapse key="error" role="alert">
-            <p className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-600">
+            <p className="m-0 rounded-lg bg-surface-danger px-3.5 py-3 text-[14px] text-text-danger">
               {error}
             </p>
           </Collapse>
         ) : null}
         {stats ? (
           <Collapse key="stats" role="status" aria-label="매핑 적용 완료">
-            <p className="m-0 text-[12px] font-semibold text-green-700">
+            <p className="m-0 text-[12px] font-semibold text-success-700">
               적용 완료 — 모델 {stats.models}개 · 매핑 {stats.mappings}건 · 덮어쓴 모델{' '}
               {stats.replacedModels}개
             </p>

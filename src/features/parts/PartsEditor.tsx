@@ -46,7 +46,7 @@ export function PartsEditor(props: PartsEditorProps) {
       aria-label="수동 등록"
       className="mb-7 flex flex-col gap-4 rounded-xl bg-surface-card p-6 shadow-(--hairline-default)"
     >
-      <h2 className="m-0 text-[13px] font-semibold text-text-tertiary">
+      <h2 className="m-0 text-[14px] font-semibold text-text-tertiary">
         {editing && model ? `매핑 수정 · ${model.itemName}` : '신규 매핑 등록'}
       </h2>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -91,7 +91,7 @@ export function PartsEditor(props: PartsEditorProps) {
           <Presence>
             {duplicate ? (
               <Collapse key="duplicate" role="alert">
-                <p className="m-0 mt-2.5 rounded-lg bg-amber-500/15 px-3 py-2.5 text-[12px] font-medium text-amber-700">
+                <p className="m-0 mt-2.5 rounded-lg bg-warning-50 px-3 py-2.5 text-[12px] font-medium text-warning-700 shadow-(--hairline-default)">
                   이미 등록된 모델입니다. 기존 파츠를 체크 상태로 불러왔으며, 저장하면 현재 선택으로
                   전체 교체됩니다.
                 </p>
@@ -161,10 +161,10 @@ function ModelPicker({
                 aria-label={`${item.itemName} (${item.itemCode})`}
                 onClick={() => onSelect(item.itemCode)}
                 className={cn(
-                  'w-full rounded-[10px] border-0 px-3 py-2.5 text-left text-[13px]',
+                  'w-full rounded-[10px] border-0 px-3 py-2.5 text-left text-[14px]',
                   active
-                    ? 'bg-lime-500 font-semibold text-ink-900'
-                    : 'bg-transparent font-medium shadow-(--hairline-subtle) hover:bg-gray-75',
+                    ? 'bg-primary-100 font-semibold text-primary-700'
+                    : 'bg-transparent font-medium shadow-(--hairline-subtle) hover:bg-surface-muted',
                 )}
               >
                 {item.itemName}
@@ -172,7 +172,9 @@ function ModelPicker({
                   {item.itemCode}
                 </span>
                 {mappedModels.has(item.itemCode) ? (
-                  <span className="ml-1.5 text-[10px] font-semibold text-purple-600">· 등록됨</span>
+                  <span className="ml-1.5 text-[10px] font-semibold text-primary-600">
+                    · 등록됨
+                  </span>
                 ) : null}
               </button>
             </li>
@@ -222,7 +224,7 @@ function PartsChecklist({
         {parts.map((item) => (
           <label
             key={item.itemCode}
-            className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[13px] font-medium shadow-(--hairline-subtle)"
+            className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[14px] font-medium shadow-(--hairline-subtle)"
           >
             <Checkbox
               checked={checked.has(item.itemCode)}
@@ -256,13 +258,13 @@ function SelectedChip({ item, onRemove }: { item: CatalogItemView; onRemove: () 
       animate={VARIANT_KEYS.animate}
       exit={VARIANT_KEYS.exit}
       transition={{ layout: transition.layout }}
-      className="inline-flex items-center gap-1.5 rounded-pill bg-gray-100 py-1 pr-1.5 pl-3 text-[12px] font-medium"
+      className="inline-flex items-center gap-1.5 rounded-pill bg-neutral-100 py-1 pr-1.5 pl-3 text-[12px] font-medium"
     >
       {item.itemName}
       <button
         type="button"
         aria-label={`${item.itemName} 선택 해제`}
-        className="flex border-0 bg-transparent p-0 text-text-tertiary hover:text-ink-900"
+        className="flex border-0 bg-transparent p-0 text-text-tertiary hover:text-text-primary"
         onClick={onRemove}
       >
         <Icon name="close" />

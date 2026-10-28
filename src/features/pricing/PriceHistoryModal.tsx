@@ -83,17 +83,18 @@ export function PriceHistoryModal({ rowId, onClose }: PriceHistoryModalProps) {
   return (
     <Modal open onClose={onClose} title="가격 변동 이력" size="lg">
       {state.kind === 'loading' ? (
-        <p role="status" className="m-0 text-[13px] text-text-tertiary">
+        <p role="status" className="m-0 text-[14px] text-text-tertiary">
           불러오는 중…
         </p>
       ) : state.kind === 'not-found' ? (
-        <p className="m-0 text-[13px] text-text-secondary">{PRICE_HISTORY_NOT_FOUND}</p>
+        <p className="m-0 text-[14px] text-text-secondary">{PRICE_HISTORY_NOT_FOUND}</p>
       ) : state.kind === 'error' ? (
-        <div role="alert" className="flex flex-wrap items-center gap-3 text-[13px] text-red-600">
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 text-[14px] text-text-danger"
+        >
           <span>{state.message}</span>
-          <Button size="sm" onClick={retry}>
-            다시 시도
-          </Button>
+          <Button onClick={retry}>다시 시도</Button>
         </div>
       ) : (
         <HistoryBody history={state.history} currentId={rowId} />
@@ -116,7 +117,7 @@ function HistoryBody({ history, currentId }: { history: History; currentId: numb
   const erpRemark = series.erpRemark?.trim();
   if (erpRemark) summary.push(['ERP 비고(품목)', erpRemark]);
   return (
-    <div className="flex min-w-0 flex-col gap-4 text-[13px]">
+    <div className="flex min-w-0 flex-col gap-4 text-[14px]">
       <dl
         aria-label="계열 요약"
         className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 sm:grid-cols-[auto_1fr_auto_1fr]"
@@ -124,13 +125,13 @@ function HistoryBody({ history, currentId }: { history: History; currentId: numb
         {summary.map(([label, value]) => (
           <div key={label} className="contents">
             <dt className="text-text-tertiary">{label}</dt>
-            <dd className="m-0 min-w-0 break-all text-ink-900">{value}</dd>
+            <dd className="m-0 min-w-0 break-all text-text-primary">{value}</dd>
           </div>
         ))}
       </dl>
       <div className="rounded-[10px] shadow-(--hairline-default)">
         <Table aria-label="가격 변동 이력 표">
-          <TableHead className="bg-gray-75">
+          <TableHead className="bg-surface-muted">
             <TableRow>
               <TableHeaderCell>적용기간</TableHeaderCell>
               <TableHeaderCell className="text-right">판매가</TableHeaderCell>
@@ -147,7 +148,7 @@ function HistoryBody({ history, currentId }: { history: History; currentId: numb
                 key={row.id}
                 data-row-id={row.id}
                 aria-current={row.id === currentId ? 'true' : undefined}
-                className="text-[12px] aria-[current]:bg-lime-500/25"
+                className="text-[12px] aria-[current]:bg-primary-50"
               >
                 <TableCell className="whitespace-nowrap text-text-secondary">
                   {periodLabel(row.effectiveFrom, row.effectiveTo)}

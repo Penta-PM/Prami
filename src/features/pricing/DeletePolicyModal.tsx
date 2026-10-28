@@ -42,16 +42,8 @@ export function DeletePolicyModal({ row, onClose, onDeleted }: DeletePolicyModal
       title="가격정책 삭제"
       footer={
         <>
-          <Button size="sm" onClick={onClose}>
-            취소
-          </Button>
-          <Button
-            size="sm"
-            variant="danger"
-            type="submit"
-            form="policy-delete-form"
-            disabled={isPending}
-          >
+          <Button onClick={onClose}>취소</Button>
+          <Button variant="danger" type="submit" form="policy-delete-form" disabled={isPending}>
             삭제
           </Button>
         </>
@@ -59,7 +51,7 @@ export function DeletePolicyModal({ row, onClose, onDeleted }: DeletePolicyModal
     >
       <form id="policy-delete-form" onSubmit={submit} className="flex flex-col gap-3">
         <p className="m-0">
-          <strong className="text-ink-900">{row.itemName}</strong> ({row.itemCode}) ·{' '}
+          <strong className="text-text-primary">{row.itemName}</strong> ({row.itemCode}) ·{' '}
           {priceLabel(row.unitPrice, row.currency)} ·{' '}
           {periodLabel(row.effectiveFrom, row.effectiveTo)}
         </p>
@@ -72,7 +64,7 @@ export function DeletePolicyModal({ row, onClose, onDeleted }: DeletePolicyModal
         <Presence>
           {error ? (
             <Collapse key="error" role="alert">
-              <p className="m-0 text-[12px] text-red-600">{error}</p>
+              <p className="m-0 text-[12px] text-text-danger">{error}</p>
             </Collapse>
           ) : null}
         </Presence>

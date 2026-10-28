@@ -159,12 +159,7 @@ export function CostLinkImport() {
             if (file) void onFile(file);
           }}
         />
-        <Button
-          size="sm"
-          disabled={busy}
-          aria-describedby={noteId}
-          onClick={() => inputRef.current?.click()}
-        >
+        <Button disabled={busy} aria-describedby={noteId} onClick={() => inputRef.current?.click()}>
           {reading ? '읽는 중…' : isPending && !preview ? '확인 중…' : '매칭 파일 선택'}
         </Button>
         <span className="text-[12px] text-text-tertiary">
@@ -174,7 +169,7 @@ export function CostLinkImport() {
 
       <div role="status" aria-live="polite">
         {result ? (
-          <p className="m-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700">
+          <p className="m-0 rounded-lg bg-success-50 px-3.5 py-2.5 text-[14px] text-success-700">
             {`${count(result.saved)}건 확정 (변경 없음 ${count(result.unchanged)}건`}
             {COST_LINK_IMPORT_REASONS.some((reason) => result.failedByReason[reason] > 0)
               ? ` · 미적용 ${count(
@@ -191,11 +186,11 @@ export function CostLinkImport() {
       {problem ? (
         <div
           role="alert"
-          className="flex flex-wrap items-center gap-2 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-600"
+          className="flex flex-wrap items-center gap-2 rounded-lg bg-surface-danger px-3.5 py-2.5 text-[14px] text-text-danger"
         >
           <span>{problem.text}</span>
           {problem.stale && loaded ? (
-            <Button size="sm" disabled={busy} onClick={() => runPreview(loaded)}>
+            <Button disabled={busy} onClick={() => runPreview(loaded)}>
               다시 미리보기
             </Button>
           ) : null}
@@ -252,10 +247,10 @@ export function CostLinkImport() {
             ))}
           </List>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button size="sm" variant="ghost" disabled={busy} onClick={reset}>
+            <Button variant="ghost" disabled={busy} onClick={reset}>
               취소
             </Button>
-            <Button size="sm" variant="primary" disabled={busy || changes === 0} onClick={apply}>
+            <Button variant="primary" disabled={busy || changes === 0} onClick={apply}>
               {isPending
                 ? '확정 중…'
                 : `확정(변경 ${count(preview.changed.length)}·추가 ${count(preview.added.length)})`}

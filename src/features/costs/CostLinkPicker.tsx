@@ -204,7 +204,7 @@ export function CostLinkPicker({
         className="max-h-[min(320px,45vh)] divide-y divide-border-subtle overflow-x-hidden overflow-y-auto rounded-xl bg-surface-card shadow-(--hairline-default)"
       >
         {matchCount === 0 ? (
-          <p className="m-0 px-3 py-4 text-center text-[13px] text-text-tertiary">
+          <p className="m-0 px-3 py-4 text-center text-[14px] text-text-tertiary">
             검색 결과가 없습니다
           </p>
         ) : null}
@@ -231,13 +231,13 @@ export function CostLinkPicker({
                   }}
                   className={cn(
                     'flex min-h-11 cursor-pointer items-center gap-2 px-3 py-2',
-                    selected ? 'bg-purple-600/8' : 'hover:bg-gray-75',
+                    selected ? 'bg-primary-600/8' : 'hover:bg-surface-muted',
                     isActive && 'shadow-[inset_0_0_0_2px_var(--purple-500)]',
                     disabled && 'cursor-not-allowed opacity-50',
                   )}
                 >
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="line-clamp-2 text-[13px] font-medium break-words text-ink-900">
+                    <span className="line-clamp-2 text-[14px] font-medium break-words text-text-primary">
                       {material.materialName}
                     </span>
                     <span className="flex flex-wrap items-center gap-1.5">
@@ -245,16 +245,18 @@ export function CostLinkPicker({
                         {material.materialCode}
                       </span>
                       {material.materialCode === currentCode ? (
-                        <span className={cn(BADGE_CLASS, 'bg-ink-900/8 text-ink-900')}>현재</span>
+                        <span className={cn(BADGE_CLASS, 'bg-neutral-100 text-text-primary')}>
+                          현재
+                        </span>
                       ) : null}
                       {material.materialCode === suggestedCode ? (
-                        <span className={cn(BADGE_CLASS, 'bg-purple-600/10 text-purple-600')}>
+                        <span className={cn(BADGE_CLASS, 'bg-primary-50 text-primary-700')}>
                           제안
                         </span>
                       ) : null}
                     </span>
                   </span>
-                  {selected ? <CheckMark className="size-4 shrink-0 text-purple-600" /> : null}
+                  {selected ? <CheckMark className="size-4 shrink-0 text-primary-600" /> : null}
                 </div>
               );
             })}

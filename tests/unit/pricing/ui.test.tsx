@@ -150,7 +150,7 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
     expect(screen.getByText('미사용')).toBeInTheDocument();
   });
 
-  it('상태 표시 대비 4.5:1 이상 (BL-1, QA #59 백로그 — 모달·드로어·표 공용 셀): 운영중 blue-600·미사용 gray-600·폐기 red-600·임시 amber-700', async () => {
+  it('상태 표시 대비 4.5:1 이상 (BL-1, QA #59 백로그 — 모달·드로어·표 공용 셀): 운영중 primary-600·미사용 neutral-600·폐기 error-700·임시 warning-800', async () => {
     const { ItemStatusPill, OperationStatus } = await import('@/features/pricing/cells');
     render(
       <>
@@ -160,10 +160,11 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
         <ItemStatusPill status="임시" />
       </>,
     );
-    expect(screen.getByText('운영중')).toHaveClass('text-blue-600');
-    expect(screen.getByText('미사용')).toHaveClass('text-gray-600');
-    expect(screen.getByText('폐기')).toHaveClass('text-red-600');
-    expect(screen.getByText('임시')).toHaveClass('text-amber-700');
+    // Penta PR-4b: 의미·Penta 단계 이름 (운영중 P600 · 미사용 N600 · 폐기 E700 on E50 · 임시 W800)
+    expect(screen.getByText('운영중')).toHaveClass('text-primary-600');
+    expect(screen.getByText('미사용')).toHaveClass('text-neutral-600');
+    expect(screen.getByText('폐기')).toHaveClass('bg-error-50', 'text-error-700');
+    expect(screen.getByText('임시')).toHaveClass('text-warning-800');
     for (const text of ['운영중', '미사용', '폐기', '임시'])
       expect(screen.getByText(text).className).not.toMatch(/#3075FF|#797C85|#a86a00|text-red-500/i);
   });
@@ -213,7 +214,7 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
     for (const arrow of ['▲', '▼'])
       expect(screen.getByText(arrow)).toHaveAttribute('aria-hidden', 'true');
     expect(cells[0]).toHaveClass('text-text-danger');
-    expect(cells[1]).toHaveClass('text-purple-600');
+    expect(cells[1]).toHaveClass('text-primary-600');
     expect(screen.getAllByText('26.05.01 가격정책')).toHaveLength(5);
   });
 
@@ -253,11 +254,11 @@ describe('PricingFilters (AC-10·11, R-01·R-13)', () => {
     searchPlaceholder: '모델명으로 검색',
   };
 
-  it('제품군 배지 글자는 amber-700 — 15% 앰버 배경 5.16:1 (amber-500 은 1.9:1, BL-2)', () => {
+  it('제품군 배지는 warning-50 바탕 + warning-700 글자 4.84:1 (warning-500 글자는 AA 미달, BL-2)', () => {
     render(<PricingFilters {...baseProps} filter={{ ...baseProps.filter, family: 'WAPPLES' }} />);
     const badge = screen.getByText(/^제품군: /);
-    expect(badge).toHaveClass('text-amber-700');
-    expect(badge).not.toHaveClass('text-amber-500');
+    expect(badge).toHaveClass('bg-warning-50', 'text-warning-700');
+    expect(badge).not.toHaveClass('text-warning-500');
   });
 
   it('대분류 변경 → 중·소분류 초기화 + 1페이지, URL 로 반영', async () => {
@@ -368,8 +369,11 @@ describe('PricingBrowser — 드로어·관리 동작 (AC-15·16)', () => {
     const dialog = await screen.findByRole('dialog', { name: '가격정책 수정' });
     expect(within(dialog).getByRole('note')).toHaveTextContent('폐기 품목입니다');
     expect(within(dialog).getByText(/ERP 임포트 행을 수정하면/)).toBeInTheDocument();
-    // BL-2: 15% 앰버 상자 위 amber-700 5.16:1 (amber-500 은 1.9:1)
-    expect(within(dialog).getByText(/ERP 임포트 행을 수정하면/)).toHaveClass('text-amber-700');
+    // BL-2: warning-50 상자 위 warning-700 4.84:1 (warning-500 글자는 AA 미달)
+    expect(within(dialog).getByText(/ERP 임포트 행을 수정하면/)).toHaveClass(
+      'bg-warning-50',
+      'text-warning-700',
+    );
     await userEvent.type(
       within(dialog).getByLabelText('변경 사유 * (감사 로그에 기록됩니다)'),
       '가격 인상',

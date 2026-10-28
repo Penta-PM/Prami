@@ -94,14 +94,14 @@ export function CostImportPanel({ userId, options, currentBatchId }: CostImportP
             오류 없는 원가 파일을 선택하면 적용할 수 있습니다
           </span>
         ) : null}
-        <Button variant="primary" size="sm" disabled={blocked || isPending} onClick={apply}>
+        <Button variant="primary" disabled={blocked || isPending} onClick={apply}>
           {isPending ? '적용 중…' : '원가 적용'}
         </Button>
       </div>
       <Presence>
         {outcome?.ok === false ? (
           <Collapse key="error" role="alert">
-            <p className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-600">
+            <p className="m-0 rounded-lg bg-surface-danger px-3.5 py-3 text-[14px] text-text-danger">
               {outcome.message}
             </p>
           </Collapse>
@@ -128,7 +128,7 @@ function CostApplyStats({ stats }: { stats: Stats }) {
       aria-label="원가 적용 완료"
       className="rounded-lg bg-surface-card p-3.5 shadow-(--hairline-default)"
     >
-      <p className="m-0 mb-2 text-[12px] font-semibold text-green-700">원가 적용 완료</p>
+      <p className="m-0 mb-2 text-[12px] font-semibold text-success-700">원가 적용 완료</p>
       <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-1 text-[12px] sm:grid-cols-4">
         {STAT_LABELS.map(([key, label]) => (
           <div key={String(key)} className="flex justify-between gap-3">

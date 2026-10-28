@@ -1,3 +1,5 @@
+import { FOCUS_RING_CLASSES } from '@/components/ui';
+import { controlSizeClasses } from '@/components/ui/density';
 import { ViewStateLink } from '@/features/page-state/ViewStateLink';
 import { cn } from '@/lib/cn';
 
@@ -11,8 +13,11 @@ type CostPaginationProps = {
   total: number;
 };
 
-const BASE =
-  'inline-flex h-8 items-center rounded-lg bg-gray-75 px-3 font-semibold no-underline shadow-(--hairline-subtle)';
+/** 표 페이지 이동 — Ghost 버튼 모양(N50·N700·N200), 표 아래 밀집 영역이라 sm(36·14) */
+const BASE = cn(
+  'inline-flex items-center rounded-control border border-solid border-neutral-200 bg-neutral-50 px-4 font-semibold no-underline',
+  controlSizeClasses('sm'),
+);
 
 export function CostPagination({ filter, page, pageCount, total }: CostPaginationProps) {
   const href = (target: number) => `/admin/costs${costFilterToQuery({ ...filter, page: target })}`;
@@ -34,7 +39,7 @@ export function CostPagination({ filter, page, pageCount, total }: CostPaginatio
             <span
               key={label}
               aria-disabled="true"
-              className={cn(BASE, 'text-text-tertiary opacity-50')}
+              className={cn(BASE, 'text-neutral-700 opacity-50')}
             >
               {label}
             </span>
@@ -44,7 +49,8 @@ export function CostPagination({ filter, page, pageCount, total }: CostPaginatio
               href={href(target)}
               className={cn(
                 BASE,
-                'text-text-secondary hover:bg-gray-100 hover:text-ink-900 hover:no-underline',
+                'text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900 hover:no-underline',
+                FOCUS_RING_CLASSES,
               )}
             >
               {label}

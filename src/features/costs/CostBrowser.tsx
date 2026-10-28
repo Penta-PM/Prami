@@ -67,9 +67,9 @@ const CELL_CLASS = 'px-3 py-3.5 whitespace-nowrap first:pl-5 last:pr-5';
 
 const CELL_CLASSES: Record<CostColumnKey, string> = {
   code: 'text-[12px] text-text-tertiary',
-  name: 'text-[13px] font-semibold text-ink-900',
-  unit: 'text-[13px] text-text-secondary',
-  cost: 'text-[13px] font-semibold text-ink-900',
+  name: 'text-[14px] font-semibold text-text-primary',
+  unit: 'text-[14px] text-text-secondary',
+  cost: 'text-[14px] font-semibold text-text-primary',
   effectiveFrom: 'text-[12px] text-text-tertiary',
   period: 'text-[12px] text-text-tertiary',
   status: '',
@@ -178,10 +178,10 @@ export function CostBrowser({
           <Collapse key="flash" role={flash.tone === 'error' ? 'alert' : 'status'}>
             <p
               className={cn(
-                'm-0 rounded-lg px-3.5 py-2.5 text-[13px]',
+                'm-0 rounded-lg px-3.5 py-2.5 text-[14px]',
                 flash.tone === 'error'
-                  ? 'bg-red-500/10 text-red-600'
-                  : 'bg-green-600/12 text-green-700',
+                  ? 'bg-surface-danger text-text-danger'
+                  : 'bg-success-50 text-success-700',
               )}
             >
               {flash.text}
@@ -202,13 +202,13 @@ export function CostBrowser({
           filters={columnFilters}
           filteredTotal={total}
           aria-label="원가 표"
-          headClassName="bg-gray-75"
+          headClassName="bg-surface-muted"
         />
         {rows.length === 0 ? (
           filtered ? (
             <DataTableFilterEmpty onReset={resetFilters} />
           ) : (
-            <div className="p-12 text-center text-[13px] text-text-tertiary">
+            <div className="p-12 text-center text-[14px] text-text-tertiary">
               등록된 원가가 없습니다.
             </div>
           )
@@ -265,7 +265,7 @@ function cellContent(key: CostColumnKey, row: CostRowView, handlers: RowHandlers
           <button
             type="button"
             aria-label={`${row.materialName} 수정`}
-            className={`${ACTION} text-purple-600`}
+            className={`${ACTION} text-link hover:text-link-hover`}
             onClick={() => handlers.onEdit(row)}
           >
             수정
@@ -273,7 +273,7 @@ function cellContent(key: CostColumnKey, row: CostRowView, handlers: RowHandlers
           <button
             type="button"
             aria-label={`${row.materialName} 삭제`}
-            className={`${ACTION} text-red-600`}
+            className={`${ACTION} text-text-danger`}
             onClick={() => handlers.onDelete(row)}
           >
             삭제

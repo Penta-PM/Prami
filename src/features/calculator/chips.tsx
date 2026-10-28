@@ -28,8 +28,8 @@ export function Chip({
       className={cn(
         'rounded-[10px] border-0 px-3 py-2.5 text-center text-[12px] font-semibold',
         active
-          ? 'bg-ink-900 text-white'
-          : 'bg-gray-75 text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900',
+          ? 'bg-surface-inverse text-text-inverse'
+          : 'bg-surface-muted text-text-secondary shadow-(--hairline-subtle) hover:text-text-primary',
         className,
       )}
       {...rest}
@@ -55,7 +55,7 @@ export function StepCard({
       aria-label={ariaLabel ?? title}
       className="rounded-xl bg-surface-card p-6 shadow-(--hairline-default)"
     >
-      <h2 className="m-0 mb-3.5 text-[13px] font-semibold text-text-tertiary">{title}</h2>
+      <h2 className="m-0 mb-3.5 text-[14px] font-semibold text-text-tertiary">{title}</h2>
       {children}
     </section>
   );
@@ -74,7 +74,7 @@ export function QtyControl({
   size?: 'sm' | 'md';
 }) {
   const btn = cn(
-    'rounded-circle border-0 bg-gray-75 font-semibold shadow-(--hairline-default) hover:bg-gray-100',
+    'rounded-circle border-0 bg-surface-muted font-semibold shadow-(--hairline-default) hover:bg-neutral-100',
     size === 'sm' ? 'size-[22px] text-[12px]' : 'size-8 text-[14px]',
   );
   return (

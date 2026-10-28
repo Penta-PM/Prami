@@ -162,7 +162,7 @@ export function GroupSolution({
             })}
           </div>
           <div className="flex items-center justify-between border-t border-border-subtle pt-2">
-            <span className="text-[13px] font-semibold">그룹 소계</span>
+            <span className="text-[14px] font-semibold">그룹 소계</span>
             <span className="text-[15px] font-bold" data-testid="group-subtotal">
               {priceLabel(subtotal, currency)}
             </span>
