@@ -25,7 +25,7 @@ import { ChatState, type ChatGraphState } from './state';
 /**
  * 챗봇 그래프 빌더 (PRAMI-002 §4.3.3). 기능 레지스트리를 인자로 받는다 — 테스트는 sample-feature 를 넣어
  * **그래프·노드 코드 수정 없이** 새 도구가 라우팅되는지 확인한다(AC-233).
- * 체크포인터 없음(I-6 — compile() 인자 없음, 코드 검사 테스트). 요청별 값은 입력 상태와 config.configurable.runtime.
+ * 체크포인터 없음(I-6 개정 후에도 — 대화 저장은 그래프 밖 conversations.ts 가 최종 답만. compile() 인자 없음, 코드 검사 테스트). 요청별 값은 입력 상태와 config.configurable.runtime.
  */
 export function buildChatGraph(features: readonly ChatFeature[] = CHAT_FEATURES) {
   const settingsOf = (config: LangGraphRunnableConfig) => runtimeOf(config).settings;

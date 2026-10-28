@@ -4,6 +4,10 @@ PRAMI-002 §4.3.4·§4.3.6 (PR-C, AC-245). 챗봇은 LangGraph 그래프(`src/se
 (`src/server/chat/features/registry.ts`)로 이뤄진다. 새 기능은 `ChatFeature` 하나를 만들어 레지스트리 배열에 한 줄 추가하면
 그래프·노드 코드를 고치지 않고 LLM 이 호출할 수 있게 된다(AC-233). 벤더 추가는 아래 "벤더 추가" 절(AC-242).
 
+**대화 저장(I-6 개정, UX 4건 PR-C1):** 저장 대화(`chat_conversations`·`chat_messages`)에는 사용자 질문과 출력 가드를 통과해 화면에 보인
+최종 답 텍스트(`ChatReply.reply`)·서버가 만든 액션(링크)만 들어간다. 도구 원본 결과·사고 블록·프롬프트는 저장하지 않으므로 새 도구의
+출력은 그 턴 안에서만 쓰인다. 저장 대화의 history 는 서버가 DB 에서 읽는다(`src/server/chat/conversations.ts`).
+
 ## 절차 (7단계)
 
 1. **범위 확인** — 새 기능이 읽는 데이터가 요청자 권한(I-1) 안인지 확인한다. 원가·타인 데이터·자격 증명은 대상이 될 수 없다.

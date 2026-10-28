@@ -8,7 +8,8 @@ import { RECURSION_REPLY } from './messages';
 import type { ChatReplyOut, ChatRuntime } from './types';
 
 /**
- * 그래프 1회 실행 (PRAMI-002 §4.3). 대화는 저장하지 않는다(I-6). 구조화 로그에는 메타데이터만 — 벤더·모델·경로·LLM 호출 수·지연.
+ * 그래프 1회 실행 (PRAMI-002 §4.3). 그래프는 대화를 저장하지 않는다 — 저장 대화는 라우트가 가드 통과 최종 답·액션만 저장한다
+ * (I-6 개정, server/chat/conversations.ts). 구조화 로그에는 메타데이터만 — 벤더·모델·경로·LLM 호출 수·지연.
  * recursionLimit = 2 × 도구 상한 + 6 (§4.3.3). GraphRecursionError 는 "더 구체적으로" 안내로 마무리한다.
  */
 export type ChatRunInput = {

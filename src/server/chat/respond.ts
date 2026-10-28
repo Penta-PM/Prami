@@ -15,7 +15,7 @@ import {
  * 챗봇 응답 (§4.5.9, AC-80~82): 의도별로 sales_prices 를 읽어 템플릿 문장을 만든다. 디자인(chatReply)의 문장 톤을 따르되 값은 DB.
  * - 원가(AC-81): 역할과 무관하게 DB 를 전혀 읽지 않고 거부 문구만 돌려준다 (ADMIN 도 챗봇에서는 원가 미노출 — 챗봇 응답은 원가 키가
  *   없어야 한다는 AC-43 을 단순하게 지키기 위함. 원가는 원가 관리 화면에서).
- * - 대화는 저장하지 않는다.
+ * - 이 모듈은 대화를 저장하지 않는다(저장 대화는 I-6 개정 — server/chat/conversations.ts 가 최종 답 텍스트·액션만).
  */
 export type ChatCandidate = ChatItemHit;
 

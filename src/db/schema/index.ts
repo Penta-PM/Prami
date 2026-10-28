@@ -3,6 +3,7 @@
  * 테이블은 파일별로 나누고, 여기서는 재노출만 한다.
  */
 export * from './audit';
+export * from './chat';
 export * from './cost-item-links';
 export * from './enums';
 export * from './imports';

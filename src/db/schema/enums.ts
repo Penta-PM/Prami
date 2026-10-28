@@ -66,3 +66,9 @@ export const llmCredentialStatusEnum = pgEnum('llm_credential_status', [
   'rate_limited',
   'error',
 ]);
+
+/** 챗봇 대화 도메인 (UX 4건 §4.2 — 대화 저장 0014). 가격 정책 챗봇·조달 챗봇 */
+export const chatDomainEnum = pgEnum('chat_domain', ['pricing', 'procurement']);
+
+/** 저장된 챗봇 메시지의 화자 (0014) — system·tool 은 저장하지 않는다(I-6 개정) */
+export const chatMessageRoleEnum = pgEnum('chat_message_role', ['user', 'assistant']);

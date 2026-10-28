@@ -136,12 +136,19 @@ async function streamParts(
   return state.reply;
 }
 
+/**
+ * 최종 응답 훅 (대화 저장 PR-C1): 가드·금지 키 검사를 통과한 reply 로 `final` 을 보내기 **전에** 부른다 — 화면이 받는 정본과
+ * 저장본이 같다. 훅이 실패하면 final 대신 error 이벤트. 스트림이 실패·중단되면 부르지 않는다.
+ */
+export type StreamHooks = { onFinal?: (reply: ChatReplyOut) => Promise<void> };
+
 /** SSE 본문 스트림. 예외는 코드만 담은 error 이벤트로 끝낸다 */
 export function streamChat(
   graph: ChatGraph,
   input: ChatRunInput,
   runtime: ChatRuntime,
   signal?: AbortSignal,
+  hooks: StreamHooks = {},
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   const started = Date.now();
@@ -152,6 +159,7 @@ export function streamChat(
         const reply = await streamParts(graph, input, runtime, signal, emit);
         if (!reply) throw new Error('compose 결과 없음');
         assertNoCostKeys(reply);
+        await hooks.onFinal?.(reply);
         emit({ event: 'final', data: reply });
         emit({ event: 'done', data: {} });
         await finishRun(reply, runtime, started, true);
