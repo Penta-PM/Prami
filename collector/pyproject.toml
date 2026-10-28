@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jodal"
+version = "0.1.0"
+description = "조달이 수집기 — 나라장터 등록물품·납품요구·입찰공고를 Prami DB(procurement)에 기록"
+requires-python = ">=3.12"
+dependencies = [
+  "openpyxl>=3.1",
+  "playwright>=1.48",
+  "psycopg[binary]>=3.1",
+  "tzdata>=2024.1; sys_platform == 'win32'",
+]
+
+[project.scripts]
+jodal = "jodal.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
