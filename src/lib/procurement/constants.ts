@@ -29,9 +29,15 @@ export { OUR_COMPANY_NAMES, isOurManufacturer } from './our-company';
 export const PROCUREMENT_JOBS = ['daily', 'bids'] as const;
 export type ProcurementJob = (typeof PROCUREMENT_JOBS)[number];
 
+/** app_state 는 원본 수집기 형식 — key = 작업 이름, value = 필드 객체 (`daily` → {last_run, last_end_date}, `bids` → {last_checked}) */
 export const PROCUREMENT_STATE_KEYS = {
-  /** 마지막으로 메일 보고한 기준일 */
-  dailyLastEndDate: 'daily.last_end_date',
-  /** 마지막 입찰공고 확인 시각 */
-  bidsLastChecked: 'bids.last_checked',
+  daily: 'daily',
+  bids: 'bids',
+} as const;
+
+export const PROCUREMENT_STATE_FIELDS = {
+  /** daily 값 안: 마지막으로 메일 보고한 기준일 */
+  dailyLastEndDate: 'last_end_date',
+  /** bids 값 안: 마지막 입찰공고 확인 시각 */
+  bidsLastChecked: 'last_checked',
 } as const;

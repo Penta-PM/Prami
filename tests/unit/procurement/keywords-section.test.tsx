@@ -41,7 +41,7 @@ beforeAll(async () => {
   ]);
   await state.handle.db
     .insert(procurementAppState)
-    .values({ key: 'bids.last_checked', value: '2026-10-20T01:30:00.000Z' });
+    .values({ key: 'bids', value: { last_checked: '2026-10-20T01:30:00.000Z' } });
 });
 
 afterAll(async () => {

@@ -43,7 +43,7 @@ export type BidKeywordView = {
 
 export type BidKeywordBoard = {
   keywords: BidKeywordView[];
-  /** 입찰 공고 마지막 확인 시각 (app_state bids.last_checked) — 없으면 null */
+  /** 입찰 공고 마지막 확인 시각 (app_state `bids` 값의 last_checked) — 없으면 null */
   lastCheckedAt: string | null;
 };
 

@@ -124,10 +124,10 @@ describe('권한 매트릭스', () => {
     await seed('제외', '가상 제외어', 'someone@example.invalid');
     await db()
       .insert(procurementAppState)
-      .values({ key: 'bids.last_checked', value: '2026-10-20T01:30:00.000Z' })
+      .values({ key: 'bids', value: { last_checked: '2026-10-20T01:30:00.000Z' } })
       .onConflictDoUpdate({
         target: procurementAppState.key,
-        set: { value: '2026-10-20T01:30:00.000Z' },
+        set: { value: { last_checked: '2026-10-20T01:30:00.000Z' } },
       });
     const writeAccess = procurementAccessForTests({ id: adminId, email: ADMIN_EMAIL }, 'write');
     const board = await getBidKeywordBoard(writeAccess, db());
@@ -138,7 +138,7 @@ describe('권한 매트릭스', () => {
       { product: 'WAPPLES', keyword: '가상 방화벽', addedBy: null },
       { product: '제외', keyword: '가상 제외어', addedBy: 'someone' },
     ]);
-    await db().delete(procurementAppState).where(eq(procurementAppState.key, 'bids.last_checked'));
+    await db().delete(procurementAppState).where(eq(procurementAppState.key, 'bids'));
     expect((await getBidKeywordBoard(writeAccess, db())).lastCheckedAt).toBeNull();
     // read 토큰(USER)으로는 관리 목록을 읽을 수 없다
     await expect(getBidKeywordBoard(procurementAccessForTests(), db())).rejects.toThrow(
