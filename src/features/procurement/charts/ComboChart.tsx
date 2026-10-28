@@ -52,9 +52,29 @@ export type ComboChartProps = {
 /** 툴팁에 이름으로 보일 경쟁사 수 (나머지는 "외 N개사") — 조달이 원본 */
 const TOOLTIP_RIVALS = 3;
 
-/** 너비(px) → 그리기 치수. 좁으면 축 여백을 줄인다 */
+/** 1px 선 좌표 — 정수 + 0.5 (화소 한 줄에 정확히 걸친다) */
+const crisp = (value: number) => Math.round(value) + 0.5;
+
+/**
+ * 막대 경계(왼·오른·위·아래)를 정수 화소로 스냅한 rect 속성 — x·y·width·height 가 정수.
+ * 테두리 굵기가 홀수(1px)면 x·y 만 +0.5 옮겨 테두리가 화소 한 줄에 걸치게 한다(가장자리 번짐 방지).
+ * 0 이 아닌 조각은 반올림으로 사라지지 않게 높이 최소 1px.
+ */
+function snapBar(left: number, right: number, top: number, bottom: number, strokeWidth: number) {
+  const l = Math.round(left);
+  const r = Math.round(right);
+  const b = Math.round(bottom);
+  const t = bottom > top ? Math.min(Math.round(top), b - 1) : b;
+  const shift = strokeWidth % 2 === 1 ? 0.5 : 0;
+  return { x: l + shift, y: t + shift, width: Math.max(0, r - l), height: b - t };
+}
+
+/**
+ * 너비(px) → 그리기 치수. 좁으면 축 여백을 줄인다.
+ * W 는 잰 실수 너비 그대로(반올림하면 viewBox 와 실제 너비가 어긋나 전체가 화소 격자에서 밀린다), 높이는 정수.
+ */
 export function comboDims(width: number) {
-  const W = Math.max(280, Math.round(width));
+  const W = Math.max(280, width);
   const H = Math.round(Math.min(400, Math.max(240, W * 0.42)));
   const pad = W < 480 ? { l: 54, r: 54, t: 30, b: 28 } : { l: 78, r: 78, t: 34, b: 28 };
   const IW = W - pad.l - pad.r;
@@ -266,13 +286,16 @@ export function ComboChart({
               {/* 가로 격자 + 좌축(월별) */}
               {leftTicks.map((tick) => (
                 <g key={`l-${tick}`}>
+                  {/* 1px 격자 = 정수 + 0.5 에 그려 화소 한 줄에 맞춘다 */}
                   <line
+                    data-grid=""
                     x1={d.pad.l}
-                    x2={d.W - d.pad.r}
-                    y1={yLeft(tick)}
-                    y2={yLeft(tick)}
+                    x2={Math.round(d.W - d.pad.r)}
+                    y1={crisp(yLeft(tick))}
+                    y2={crisp(yLeft(tick))}
                     stroke="var(--border-default)"
                     strokeWidth={1}
+                    shapeRendering="crispEdges"
                   />
                   <text
                     x={d.pad.l - 8}
@@ -341,21 +364,25 @@ export function ComboChart({
               {stacks.map((segments, index) =>
                 segments.map((segment) => {
                   const item = byKey.get(segment.key)!;
-                  const top = yLeft(segment.to);
                   const selected =
                     index === selectedIndex && (!highlightKey || highlightKey === segment.key);
+                  const strokeWidth = selected ? 2 : 1;
+                  const box = snapBar(
+                    band.center(index) - barW / 2,
+                    band.center(index) + barW / 2,
+                    yLeft(segment.to),
+                    yLeft(segment.from),
+                    strokeWidth,
+                  );
                   return (
                     <rect
                       key={`${segment.key}-${index}`}
                       data-bar={`${segment.key}:${months[index]}`}
-                      x={band.center(index) - barW / 2}
-                      y={top}
-                      width={barW}
-                      height={Math.max(0, yLeft(segment.from) - top)}
+                      {...box}
                       fill={item.color}
                       fillOpacity={0.35}
                       stroke={selected ? 'var(--ink-900)' : item.color}
-                      strokeWidth={selected ? 2 : 1}
+                      strokeWidth={strokeWidth}
                       opacity={dimmed(segment.key) ? 0.2 : 1}
                       className="transition-opacity duration-150 motion-reduce:transition-none"
                     />
