@@ -84,7 +84,7 @@ describe('ComboChart — 범례', () => {
     const ours = within(legend).getByRole('button', { name: /^합성자사\s?자사$/ });
     expect(ours).toHaveTextContent('자사');
     expect(ours).toHaveClass('text-accent-ours');
-    await user.click(screen.getByRole('button', { name: '+2개사 ▾' }));
+    await user.click(screen.getByRole('button', { name: '+2개사' }));
     expect(within(legend).getAllByRole('listitem')).toHaveLength(6);
   });
 

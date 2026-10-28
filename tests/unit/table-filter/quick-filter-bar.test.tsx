@@ -191,7 +191,7 @@ describe('DataTableQuickFilterBar — 형태 (§2.1)', () => {
     expect(screen.queryByRole('button', { name: /^통화 필터/ })).toBeNull();
     expect(screen.getByRole('button', { name: '＋ 1개 더' })).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: '적용된 필터' })).toBeNull();
-    expect(fieldButton('역할')).toHaveTextContent('역할▾');
+    expect(fieldButton('역할')).toHaveTextContent(/^역할$/);
     expect(fieldButton('역할')).toHaveAttribute('aria-haspopup', 'dialog');
     expect(screen.getByText('4건')).toBeInTheDocument();
     // 필터 초기화는 조건·정렬이 없으면 숨김

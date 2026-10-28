@@ -1,12 +1,12 @@
 import { hasPermission, type PermissionKey, type Role } from '@/lib/constants/permissions';
 
-import type { IconName } from './icons';
+import type { NavIconName } from './icons';
 
 export type NavItem = {
   key: string;
   label: string;
   href: string;
-  icon: IconName;
+  icon: NavIconName;
   /** 이 권한이 있어야 메뉴를 보인다(표시용 — 실제 차단은 각 화면 가드). 없으면 섹션 노출 규칙만 따른다 */
   permission?: PermissionKey;
   /** 하위 경로에서는 활성으로 보지 않는다 — `/procurement` 는 `/procurement/items` 에서 활성이 아니다 */
@@ -17,7 +17,7 @@ export type NavItem = {
 export const NAV_MAIN: readonly NavItem[] = [
   { key: 'home', label: 'HOME', href: '/', icon: 'home' },
   { key: 'pricing', label: '가격 정책 조회', href: '/pricing', icon: 'tag' },
-  { key: 'calculator', label: '계산기', href: '/calculator', icon: 'calc' },
+  { key: 'calculator', label: '계산기', href: '/calculator', icon: 'calculator' },
 ];
 
 /** 조달 메뉴 (조달이 통합 UI-1, procurement.read = USER·ADMIN — D-1). 사이드바 "조달" 섹션 */
@@ -26,7 +26,7 @@ export const NAV_PROCUREMENT: readonly NavItem[] = [
     key: 'procurement',
     label: '조달 실적 현황',
     href: '/procurement',
-    icon: 'chart',
+    icon: 'chart-line',
     permission: 'procurement.read',
     exact: true,
   },
@@ -41,7 +41,7 @@ export const NAV_PROCUREMENT: readonly NavItem[] = [
     key: 'procurement-bids',
     label: '입찰 공고',
     href: '/procurement/bids',
-    icon: 'doc',
+    icon: 'file-text',
     permission: 'procurement.read',
   },
 ];
@@ -52,9 +52,9 @@ export const NAV_PROCUREMENT: readonly NavItem[] = [
  */
 export const NAV_ADMIN: readonly NavItem[] = [
   { key: 'admin-policies', label: '가격정책 관리', href: '/admin/policies', icon: 'shield' },
-  { key: 'admin-costs', label: '원가 관리', href: '/admin/costs', icon: 'box' },
-  { key: 'admin-parts', label: '파츠 관리', href: '/admin/parts', icon: 'box' },
-  { key: 'admin-groups', label: '솔루션 그룹 관리', href: '/admin/groups', icon: 'group' },
+  { key: 'admin-costs', label: '원가 관리', href: '/admin/costs', icon: 'won-note' },
+  { key: 'admin-parts', label: '파츠 관리', href: '/admin/parts', icon: 'blocks-2' },
+  { key: 'admin-groups', label: '솔루션 그룹 관리', href: '/admin/groups', icon: 'grid' },
   {
     key: 'admin-procurement',
     label: '조달 관리',
@@ -64,7 +64,7 @@ export const NAV_ADMIN: readonly NavItem[] = [
   },
   { key: 'admin-users', label: '사용자 · 권한', href: '/admin/users', icon: 'users' },
   { key: 'admin-notices', label: '공지사항 관리', href: '/admin/notices', icon: 'tag' },
-  { key: 'admin-audit', label: '감사 로그', href: '/admin/audit', icon: 'log' },
+  { key: 'admin-audit', label: '감사 로그', href: '/admin/audit', icon: 'file-log' },
 ];
 
 /** 사이드바에 넘길 메뉴 노출 — 세션 역할로 결정한다(메뉴 숨김은 표시용, 직접 접근은 화면 가드가 막는다) */

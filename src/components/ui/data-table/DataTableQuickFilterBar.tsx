@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
+import { DisclosureIcon, Icon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
 import { registerViewFlush } from '@/lib/page-state/view-navigation';
 import { OP_ORDER, withoutColumn, type FilterCondition } from '@/lib/table/filter';
@@ -88,7 +89,7 @@ type Track = {
 /**
  * 표 위 빠른 필터 바 (표 열 필터 빠른 필터 바 §2). 클라이언트·서버 표 공용 — 조건은 호출자가 소유한다.
  *
- * - 필드 버튼 = 칩: 고정 필드(quick)는 항상 `[상태 ▾]`, 조건이 걸리면 `[상태: 비활성,중지 ▾]` + 형제 `[×]`.
+ * - 필드 버튼 = 칩: 고정 필드(quick)는 항상 `[상태 ⌄]`, 조건이 걸리면 `[상태: 비활성,중지 ⌄]`(⌄ = 펼치기 아이콘) + 형제 `[×]`.
  *   누르면 그 필드 편집 팝오버가 바로 열린다(열 선택 단계 없음). 고정 아닌 필드는 "＋ N개 더"(없으면 숨김) → 같은 편집기,
  *   조건이 걸리면 바에 활성 버튼으로 나타난다. 별도 '적용된 필터' 칩 줄은 없다.
  * - 즉시 적용·디바운스·R1: 다음 조건은 '보낸(대기 중) 조건'(pending-filters) → 없으면 URL 조건에서 계산한다.
@@ -312,9 +313,7 @@ export function DataTableQuickFilterBar<T>({
                 {field.label}
                 {summary ? `: ${summary.text}` : null}
               </span>
-              <span aria-hidden="true" className="shrink-0 text-[10px]">
-                ▾
-              </span>
+              <DisclosureIcon open={false} />
             </button>
             {summary ? (
               <button
@@ -325,9 +324,9 @@ export function DataTableQuickFilterBar<T>({
                   if (opened?.id === field.id) close();
                   focusRequestRef.current = field.id;
                 }}
-                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-[14px] leading-none text-text-tertiary hover:bg-gray-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-focus-ring"
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border-0 bg-transparent p-0 text-text-tertiary hover:bg-gray-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-focus-ring"
               >
-                <span aria-hidden="true">×</span>
+                <Icon name="close" />
               </button>
             ) : null}
           </span>

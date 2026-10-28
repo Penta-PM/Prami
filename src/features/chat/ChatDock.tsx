@@ -1,6 +1,6 @@
 'use client';
 
-import { Icon } from '@/features/shell/icons';
+import { Icon } from '@/components/icons/Icon';
 
 import { useChatPanel } from './ChatContext';
 import { ChatPanel } from './ChatPanel';
@@ -23,7 +23,7 @@ export function ChatLauncher() {
       onClick={toggle}
       className="flex size-9 items-center justify-center rounded-pill border-0 bg-gray-75 text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900 aria-pressed:text-ink-900"
     >
-      <Icon name="chat" className="size-4" />
+      <Icon name="message" />
     </button>
   );
 }

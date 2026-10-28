@@ -184,7 +184,7 @@ test('콤보 차트 ↔ 제조사 표 강조 연동 → 월 클릭 → 계약 �
   await expect(list.getByRole('heading', { level: 3 })).toContainText(
     '전체 · 25.01 계약 목록 (56건',
   );
-  await list.getByRole('button', { name: '닫기 ✕' }).click();
+  await list.getByRole('button', { name: '닫기', exact: true }).click();
   await expect(page).not.toHaveURL(/sel=/);
 });
 

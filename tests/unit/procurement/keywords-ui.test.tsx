@@ -81,7 +81,7 @@ describe('KeywordAdminPanel', () => {
     const wapples = screen.getByRole('group', { name: 'WAPPLES' });
     expect(within(wapples).getByText('2개')).toBeInTheDocument();
     const chips = within(wapples).getAllByRole('listitem');
-    expect(chips.map((chip) => chip.textContent)).toEqual(['가상 방화벽×', '가상 WAF×']);
+    expect(chips.map((chip) => chip.textContent)).toEqual(['가상 방화벽', '가상 WAF']);
     expect(chips[0]).toHaveAttribute('title', '기본 키워드');
     expect(chips[1]).toHaveAttribute('title', '추가: tester');
     expect(chips[1]).toHaveAttribute('data-manual');

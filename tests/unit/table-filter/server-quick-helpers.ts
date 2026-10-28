@@ -27,7 +27,7 @@ export const barFields = (): string[] =>
 export const activeFields = (): string[] =>
   [...quickBar().querySelectorAll<HTMLElement>('[data-quick-field]')]
     .filter((button) => (button.getAttribute('aria-label') ?? '').endsWith('적용 중'))
-    .map((button) => (button.textContent ?? '').replace('▾', '').trim());
+    .map((button) => (button.textContent ?? '').trim());
 
 /** "＋ N개 더" 안의 열 이름 (없으면 []) */
 export async function moreFields(user: UserEvent): Promise<string[]> {

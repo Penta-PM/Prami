@@ -96,4 +96,4 @@ export const activeFields = (scope: HTMLElement = document.body) =>
   within(scope)
     .queryAllByRole('button', { name: / 적용 중$/ })
     .filter((button) => button.hasAttribute('data-quick-field'))
-    .map((button) => button.textContent?.replace(/▾$/, ''));
+    .map((button) => button.textContent);

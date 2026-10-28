@@ -544,7 +544,7 @@ describe('월 클릭 → 그 달 계약 목록 (서버 페이지네이션)', () 
     expect(within(pages).getByRole('link', { name: '다음' }).getAttribute('href')).toContain(
       'page=3',
     );
-    await user.click(within(list).getByRole('button', { name: '닫기 ✕' }));
+    await user.click(within(list).getByRole('button', { name: '닫기' }));
     expect(query().get('sel')).toBeNull();
     expect(query().get('page')).toBeNull();
   });

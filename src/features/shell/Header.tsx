@@ -1,12 +1,11 @@
 import Link from 'next/link';
 
+import { Icon } from '@/components/icons/Icon';
 import { Input } from '@/components/ui/input';
 import { signOutAction } from '@/features/auth/actions';
 import { TestModeBanner } from '@/features/auth/TestModeBanner';
 import { ChatLauncher } from '@/features/chat/ChatDock';
 import { NotificationBell } from '@/features/notifications/NotificationBell';
-
-import { Icon } from './icons';
 
 export type HeaderUser = {
   name: string;
@@ -33,7 +32,7 @@ export function Header({ user, testMode = false }: HeaderProps) {
           name="q"
           aria-label="통합 검색"
           placeholder="제품, 모델, 가격정책, 공지사항 검색"
-          leading={<Icon name="search" className="size-4" />}
+          leading={<Icon name="search" />}
         />
       </form>
       <div className="flex-1 max-md:hidden" />

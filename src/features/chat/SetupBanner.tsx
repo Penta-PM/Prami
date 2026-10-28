@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 
+import { Icon } from '@/components/icons/Icon';
+
 import type { ChatSetupView } from './types';
 
 /**
@@ -44,9 +46,9 @@ export function BillingNotice({ onClose }: { onClose: () => void }) {
         type="button"
         aria-label="과금 안내 닫기"
         onClick={onClose}
-        className="border-0 bg-transparent text-[12px] font-semibold text-text-tertiary hover:text-ink-900"
+        className="flex shrink-0 border-0 bg-transparent p-0 text-text-tertiary hover:text-ink-900"
       >
-        ×
+        <Icon name="close" />
       </button>
     </div>
   );

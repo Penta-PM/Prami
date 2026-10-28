@@ -170,8 +170,9 @@ describe('색 토큰만 사용 (AC-359 grep)', () => {
   it('주의 안내·폼 힌트에 hex 색·text-red-500·임의 색 없음, 토큰 클래스만', () => {
     const section = warningBlock(read('src/features/settings/LlmSection.tsx'));
     const form = read('src/features/settings/LlmCredentialForm.tsx');
-    const icon = read('src/features/shell/icons.tsx');
-    for (const source of [section, form, icon.slice(icon.indexOf('export function WarningIcon'))]) {
+    // 경고 아이콘 = Penta warning (디자인 PR-3) — 렌더러·생성 파일 모두 currentColor 만
+    const icon = read('src/components/icons/Icon.tsx') + read('src/components/icons/penta.tsx');
+    for (const source of [section, form, icon]) {
       expect(source).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
       expect(source).not.toMatch(/red-500/);
       expect(source).not.toMatch(/\[(?:color:)?(?:#|rgb|hsl)/);

@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
-import { WarningIcon } from '@/features/shell/icons';
+import { Icon } from '@/components/icons/Icon';
 import type { ChatDefaultsView, VendorView } from '@/server/llm/credentials/settings';
 import type { CredentialView } from '@/server/llm/credentials/view';
 
@@ -215,7 +215,7 @@ function CompanyKeyWarning() {
       aria-labelledby="llm-company-key-title"
       className="flex gap-2.5 rounded-lg border-l-[3px] border-border-danger bg-surface-danger px-3.5 py-2.5 text-[13px] text-text-danger"
     >
-      <WarningIcon className="mt-0.5 shrink-0" />
+      <Icon name="warning" />
       <div className="flex min-w-0 flex-col gap-1">
         <p id="llm-company-key-title" className="m-0">
           <strong>{COMPANY_KEY_WARNING_TITLE}</strong>

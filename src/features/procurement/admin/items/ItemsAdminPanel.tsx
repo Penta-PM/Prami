@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { Icon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
 import { navigateView } from '@/lib/page-state/view-navigation';
 import {
@@ -239,9 +240,9 @@ export function ItemsAdminPanel({ filter, data }: ItemsAdminPanelProps) {
             type="button"
             aria-label="안내 닫기"
             onClick={() => setNotice(null)}
-            className="border-0 bg-transparent p-0 text-[16px] leading-none text-current"
+            className="flex shrink-0 border-0 bg-transparent p-0 text-current"
           >
-            ×
+            <Icon name="close" />
           </button>
         </div>
       ) : null}

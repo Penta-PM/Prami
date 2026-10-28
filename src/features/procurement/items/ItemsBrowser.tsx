@@ -16,7 +16,7 @@ import {
   type DataTableFilterField,
   type DataTableSort,
 } from '@/components/ui/data-table';
-import { Icon } from '@/features/shell/icons';
+import { Icon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
 import { navigateView } from '@/lib/page-state/view-navigation';
 import {
@@ -341,7 +341,7 @@ function ItemsSearch({
         value={query}
         placeholder="물품식별번호, 품목명으로 검색"
         onChange={(event) => setQuery(event.target.value)}
-        leading={<Icon name="search" className="size-4" />}
+        leading={<Icon name="search" />}
         className="bg-surface-card"
       />
     </form>

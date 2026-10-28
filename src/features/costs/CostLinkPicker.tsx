@@ -10,7 +10,7 @@ import {
 } from 'react';
 
 import { CheckMark, Input } from '@/components/ui';
-import { Icon } from '@/features/shell/icons';
+import { Icon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
 import type { CostLinkMaterial, CostLinkNoSuggestion } from '@/server/cost/item-link-types';
 
@@ -178,7 +178,7 @@ export function CostLinkPicker({
         autoComplete="off"
         value={search}
         disabled={disabled}
-        leading={<Icon name="search" className="size-4" />}
+        leading={<Icon name="search" />}
         onKeyDown={onKeyDown}
         onChange={(event) => {
           setSearch(event.target.value);

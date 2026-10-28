@@ -1,0 +1,10 @@
+{
+  "_note": "합성 픽스처 — 실제 Penta 라이브러리가 아님 (gen-penta-icons 테스트용)",
+  "icons": {
+    "square": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><g><path d=\"M4 4H20V20H4Z\" stroke=\"currentColor\" stroke-miterlimit=\"10\"/><path d=\"M4 4H20V20H4Z\" stroke=\"currentColor\" stroke-miterlimit=\"10\"/></g></svg>",
+    "shifted-dot": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><g transform=\"translate(-100,0)\"><g><path d=\"M110 12H114\" stroke=\"currentColor\" stroke-linecap=\"round\"/><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M112 6.5A1 1 0 1 0 112 8.5Z\" fill=\"currentColor\"/></g></g></svg>",
+    "colored": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M2 2H22\" stroke=\"#FF0000\"/></svg>",
+    "scripted": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><script>alert(1)</script></svg>",
+    "handler": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\"><path d=\"M2 2H22\" stroke=\"currentColor\" onclick=\"alert(1)\"/></svg>"
+  }
+}

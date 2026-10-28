@@ -1,5 +1,6 @@
 'use client';
 
+import { Icon } from '@/components/icons/Icon';
 import { ViewStateLink } from '@/features/page-state/ViewStateLink';
 import { cn } from '@/lib/cn';
 import { formatMonthShort, type MonthKey } from '@/lib/month';
@@ -64,9 +65,10 @@ export function ContractList({
         <button
           type="button"
           onClick={onClose}
-          className="border-0 bg-transparent text-[12px] text-text-tertiary hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
+          className="inline-flex items-center gap-0.5 border-0 bg-transparent p-0 text-[12px] text-text-tertiary hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
         >
-          닫기 ✕
+          닫기
+          <Icon name="close" />
         </button>
       </div>
       <div className="max-h-[360px] w-full min-w-0 overflow-auto rounded-xl shadow-(--hairline-default)">
