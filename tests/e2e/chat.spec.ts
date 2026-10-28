@@ -86,9 +86,16 @@ test('비로그인 POST /api/chat → 401, 로그인 후 200 봉투에 원가 �
   const anonymous = await request.post('/api/chat', { data: { message: '가격' } });
   expect(anonymous.status()).toBe(401);
   await loginAs(page, FIXTURE_USER, '/');
-  const response = await page.request.post('/api/chat', {
-    data: { message: 'Wapples-500 (H500 T2) 가격' },
-  });
+  // 같은 사용자의 분당 chat 버킷을 앞선 스펙(chat-pages)이 썼을 수 있다 — 429 면 Retry-After 만큼 기다렸다 한 번 더
+  test.setTimeout(150_000);
+  const ask = () =>
+    page.request.post('/api/chat', { data: { message: 'Wapples-500 (H500 T2) 가격' } });
+  let response = await ask();
+  if (response.status() === 429) {
+    const wait = Math.min(Number(response.headers()['retry-after'] ?? 60), 65);
+    await page.waitForTimeout((wait + 1) * 1000);
+    response = await ask();
+  }
   expect(response.status()).toBe(200);
   const body = await response.json();
   expect(body).toMatchObject({ ok: true, data: { intent: 'price' } });
