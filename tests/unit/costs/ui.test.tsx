@@ -295,9 +295,9 @@ describe('CostImportPanel', () => {
       'W1001020034 · 2025-01-01 — 엑셀 382, 389행 (단가 573,000 / 504,000)',
     );
     // BL-2: 흰 상자 5.78:1·15% 앰버 상자 4.89:1(gray-75 위) — amber-500 은 2.13·1.8:1
-    expect(screen.getByRole('note', { name: '같은 날짜 중복' })).toHaveClass('text-amber-700');
+    expect(screen.getByRole('note', { name: '같은 날짜 중복' })).toHaveClass('text-warning-700');
     expect(screen.getByRole('note', { name: '값이 다른 같은 날짜 중복' })).toHaveClass(
-      'text-amber-700',
+      'text-warning-700',
     );
     expect(mocks.refresh).toHaveBeenCalled();
   });

@@ -71,7 +71,7 @@ export function UploadSummary({
   const ok = data.status === 'parsed' && data.errorCount === 0;
   return (
     <div
-      className="flex flex-col gap-3 rounded-lg bg-gray-75 p-3.5"
+      className="flex flex-col gap-3 rounded-lg bg-surface-muted p-3.5"
       aria-label={`${data.fileName} 검증 결과`}
     >
       <div className="flex flex-wrap items-center gap-2 text-[12px]">
@@ -125,7 +125,7 @@ function WarningLists({ data }: { data: UploadSummaryData }) {
         headerRowIndex={data.headerRowIndex}
       />
       {others.length > 0 ? (
-        <ul className="m-0 list-none p-0 text-[12px] text-amber-700">
+        <ul className="m-0 list-none p-0 text-[12px] text-warning-700">
           {others.slice(0, 10).map((warning, index) => (
             <li key={index}>
               경고: {warning.file ? `${warning.file} · ` : ''}
@@ -141,7 +141,7 @@ function WarningLists({ data }: { data: UploadSummaryData }) {
 
 function ErrorList({ errors, total }: { errors: UploadSummaryData['errors']; total: number }) {
   return (
-    <div role="alert" className="rounded-lg bg-red-500/10 p-3 text-[12px] text-red-600">
+    <div role="alert" className="rounded-lg bg-surface-danger p-3 text-[12px] text-text-danger">
       <p className="m-0 mb-1.5 font-semibold">
         오류 {total.toLocaleString('ko-KR')}건 — 오류가 없어야 적용할 수 있습니다
       </p>
@@ -248,7 +248,7 @@ function PreviewTable({
           getRowKey={({ rowIndex }) => String(rowIndex)}
           aria-label="미리보기 (상위 20행)"
           className="text-[12px]"
-          headClassName="bg-gray-75"
+          headClassName="bg-surface-muted"
           // 기존 미리보기 모습 유지 — 행 위 테두리, hover 배경 없음
           rowClassName={() => 'border-t border-b-0 hover:bg-transparent'}
         />

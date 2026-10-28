@@ -53,7 +53,7 @@ export function GroupsManager({ family, groups, candidates }: GroupsManagerProps
       <Presence>
         {flash ? (
           <Collapse key="flash" role="status">
-            <p className="m-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700">
+            <p className="m-0 rounded-lg bg-success-50 px-3.5 py-2.5 text-[14px] text-success-700">
               {flash}
             </p>
           </Collapse>
@@ -76,12 +76,12 @@ export function GroupsManager({ family, groups, candidates }: GroupsManagerProps
               className="rounded-xl bg-surface-card px-6 py-5 shadow-(--hairline-default)"
             >
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="m-0 text-[15px] font-semibold">{group.name}</h2>
+                <h2 className="m-0 [font:var(--text-h2)]">{group.name}</h2>
                 <div className="flex gap-1.5">
                   <button
                     type="button"
                     aria-label={`${group.name} 수정`}
-                    className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-purple-600 hover:underline"
+                    className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-link hover:text-link-hover hover:underline"
                     onClick={() => setForm({ kind: 'edit', group })}
                   >
                     수정
@@ -89,7 +89,7 @@ export function GroupsManager({ family, groups, candidates }: GroupsManagerProps
                   <button
                     type="button"
                     aria-label={`${group.name} 삭제`}
-                    className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-red-600 hover:underline"
+                    className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-text-danger hover:underline"
                     onClick={() => setDeleting(group)}
                   >
                     삭제
@@ -100,7 +100,7 @@ export function GroupsManager({ family, groups, candidates }: GroupsManagerProps
                 {group.items.map((item) => (
                   <span
                     key={item.itemCode}
-                    className="rounded-pill bg-gray-100 px-2.5 py-[5px] text-[11px] font-medium text-text-secondary"
+                    className="rounded-pill bg-neutral-100 px-2.5 py-[5px] text-[11px] font-medium text-text-secondary"
                   >
                     {item.itemName}
                     {item.defaultQty > 1 ? ` ×${item.defaultQty}` : ''}
@@ -116,7 +116,7 @@ export function GroupsManager({ family, groups, candidates }: GroupsManagerProps
           ))}
         </Presence>
         {groups.length === 0 ? (
-          <li className="rounded-xl bg-surface-card p-12 text-center text-[13px] text-text-tertiary shadow-(--hairline-default)">
+          <li className="rounded-xl bg-surface-card p-12 text-center text-[14px] text-text-tertiary shadow-(--hairline-default)">
             등록된 솔루션 그룹이 없습니다.
           </li>
         ) : null}
@@ -140,17 +140,15 @@ export function GroupsManager({ family, groups, candidates }: GroupsManagerProps
             title="그룹 삭제"
             footer={
               <>
-                <Button size="sm" onClick={() => setDeleting(null)}>
-                  취소
-                </Button>
-                <Button size="sm" variant="danger" disabled={isPending} onClick={remove}>
+                <Button onClick={() => setDeleting(null)}>취소</Button>
+                <Button variant="danger" disabled={isPending} onClick={remove}>
                   삭제
                 </Button>
               </>
             }
           >
             <p className="m-0">
-              <strong className="text-ink-900">{deleting.name}</strong> 그룹을 삭제합니다. 견적
+              <strong className="text-text-primary">{deleting.name}</strong> 그룹을 삭제합니다. 견적
               계산기의 그룹 칩에서 사라지며 감사 로그에 남습니다.
             </p>
           </Modal>

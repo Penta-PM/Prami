@@ -11,7 +11,7 @@ export function PermissionMatrix() {
       </p>
       <div className="overflow-hidden rounded-[10px] bg-surface-card shadow-(--hairline-default)">
         <Table aria-label="역할별 권한">
-          <TableHead className="bg-gray-75">
+          <TableHead className="bg-surface-muted">
             <tr>
               <TableHeaderCell className="px-5 py-3.5">권한 항목</TableHeaderCell>
               {ROLES.map((role) => (

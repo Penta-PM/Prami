@@ -22,7 +22,7 @@ export function ErpDataGuide() {
               {index > 0 ? <span aria-hidden="true">→</span> : null}
               <span>
                 {step.strong ? (
-                  <strong className="font-semibold text-ink-900">{step.strong}</strong>
+                  <strong className="font-semibold text-text-primary">{step.strong}</strong>
                 ) : null}
                 {step.text}
               </span>

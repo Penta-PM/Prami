@@ -166,7 +166,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
               type="button"
               onClick={() => setForm({ kind: 'edit', user })}
               aria-label={`${user.email} 수정`}
-              className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-purple-600 hover:underline"
+              className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-link hover:text-link-hover hover:underline"
             >
               수정
             </button>
@@ -175,7 +175,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
               disabled={user.status === 'inactive' || user.id === currentUserId}
               onClick={() => setConfirming(user)}
               aria-label={`${user.email} 비활성화`}
-              className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-text-tertiary hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-text-tertiary"
+              className="border-0 bg-transparent px-1.5 py-1 text-[12px] font-semibold text-text-tertiary hover:text-text-danger disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:text-text-tertiary"
             >
               비활성화
             </button>
@@ -218,7 +218,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
       <Presence>
         {error && !form ? (
           <Collapse key="error" role="alert">
-            <p className="m-0 mb-4 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-600">
+            <p className="m-0 mb-4 rounded-lg bg-surface-danger px-3.5 py-3 text-[14px] text-text-danger">
               {error}
             </p>
           </Collapse>
@@ -243,7 +243,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
           rows={users}
           getRowKey={(user) => user.id}
           aria-label="사용자 목록"
-          headClassName="bg-gray-75"
+          headClassName="bg-surface-muted"
           sort={sort}
           onSortChange={setSort}
           filters={filters}
@@ -251,7 +251,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
           empty={users.length > 0 ? <DataTableFilterEmpty onReset={resetFilters} /> : undefined}
         />
         {users.length === 0 ? (
-          <p className="m-0 p-12 text-center text-[13px] text-text-tertiary">
+          <p className="m-0 p-12 text-center text-[14px] text-text-tertiary">
             등록된 사용자가 없습니다.
           </p>
         ) : null}
@@ -277,11 +277,8 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
         title="사용자 비활성화"
         footer={
           <>
-            <Button size="sm" onClick={() => setConfirming(null)}>
-              취소
-            </Button>
+            <Button onClick={() => setConfirming(null)}>취소</Button>
             <Button
-              size="sm"
               variant="danger"
               disabled={isPending}
               onClick={() => confirming && deactivate(confirming)}
@@ -292,7 +289,7 @@ export function UsersTable({ users, currentUserId }: UsersTableProps) {
         }
       >
         <p className="m-0">
-          <strong className="text-ink-900">{confirming?.email}</strong> 계정을 비활성화합니다.
+          <strong className="text-text-primary">{confirming?.email}</strong> 계정을 비활성화합니다.
           로그인이 거부되고 사용 중인 세션도 최대 60초 안에 종료됩니다. 수정 화면에서 다시 활성화할
           수 있습니다.
         </p>

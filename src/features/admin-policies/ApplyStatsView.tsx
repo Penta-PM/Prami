@@ -22,7 +22,7 @@ export function ApplyStatsView({ title, stats }: { title: string; stats: PolicyA
       aria-label={title}
       className="rounded-lg bg-surface-card p-3.5 shadow-(--hairline-default)"
     >
-      <p className="m-0 mb-2 text-[12px] font-semibold text-green-700">{title}</p>
+      <p className="m-0 mb-2 text-[12px] font-semibold text-success-700">{title}</p>
       <dl className="m-0 grid grid-cols-2 gap-x-6 gap-y-1 text-[12px] sm:grid-cols-4">
         {STAT_LABELS.map(([key, label]) => (
           <div key={key} className="flex justify-between gap-3">

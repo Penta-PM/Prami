@@ -173,14 +173,14 @@ export function ImportPanel({
             {blockedReason(previewPending, needsMerge && itemMerge === null)}
           </span>
         ) : null}
-        <Button variant="primary" size="sm" disabled={blocked || isPending} onClick={apply}>
+        <Button variant="primary" disabled={blocked || isPending} onClick={apply}>
           {isPending ? '적용 중…' : '가격정책 적용'}
         </Button>
       </div>
       <Presence>
         {outcome?.ok === false ? (
           <Collapse key="error" role="alert">
-            <p className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-600">
+            <p className="m-0 rounded-lg bg-surface-danger px-3.5 py-3 text-[14px] text-text-danger">
               {outcome.message}
             </p>
           </Collapse>
