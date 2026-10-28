@@ -13,11 +13,11 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: 'bg-lime-400 text-ink-900 hover:bg-lime-500',
+  primary: 'bg-action-bg text-action-fg hover:bg-action-bg-hover',
   secondary:
     'bg-gray-75 text-text-secondary shadow-(--hairline-subtle) hover:bg-gray-100 hover:text-ink-900',
   ghost: 'bg-transparent text-text-secondary hover:bg-gray-100 hover:text-ink-900',
-  danger: 'bg-red-500 text-white hover:opacity-90',
+  danger: 'bg-danger-bg text-white hover:opacity-90',
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
@@ -32,7 +32,7 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
 export const PRESS_CLASSES =
   'transition-[color,background-color,border-color,opacity,scale] duration-120 active:scale-[0.98] motion-reduce:active:scale-100';
 
-/** 디자인 시스템 버튼. 기본은 secondary(회색 hairline), 주요 행동은 primary(lime) */
+/** 디자인 시스템 버튼. 기본은 secondary(회색 hairline), 주요 행동은 primary(Penta --action-bg + 흰 글자 6.35:1) */
 export function Button({
   variant = 'secondary',
   size = 'md',

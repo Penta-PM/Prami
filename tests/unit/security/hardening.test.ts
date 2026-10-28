@@ -26,7 +26,10 @@ describe('buildCsp / STATIC_SECURITY_HEADERS (AC-91)', () => {
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("base-uri 'self'");
     expect(csp).toContain("form-action 'self' https://accounts.google.com");
-    expect(csp).toContain('https://cdn.jsdelivr.net');
+    // Pretendard 셀프 호스트(Penta 토큰 PR-1) — 외부 폰트·스타일 출처 없음
+    expect(csp).not.toContain('jsdelivr');
+    expect(csp).toContain("style-src 'self' 'unsafe-inline';");
+    expect(csp).toContain("font-src 'self' data:;");
     expect(csp).not.toContain('upgrade-insecure-requests');
   });
 

@@ -531,7 +531,7 @@ export function QuoteCalculator({
             type="button"
             disabled={!selected}
             onClick={addItem}
-            className="rounded-lg border-0 bg-lime-400 px-4 py-3.5 text-[13px] font-semibold text-ink-900 disabled:opacity-50"
+            className="rounded-lg border-0 bg-action-bg px-4 py-3.5 text-[13px] font-semibold text-action-fg disabled:opacity-50"
           >
             + 장바구니에 담기 ({selected ? `${selected.itemName} × ${qty}` : '품목을 선택하세요'})
           </button>

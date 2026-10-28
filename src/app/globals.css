@@ -8,92 +8,201 @@
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
- * 디자인 토큰 이식 (PRAMI-001 PR-0)
+ * Penta 디자인 토큰 (디자인 시스템 PR-1) — 요약·별칭표: docs/design/penta-tokens.md
  *
- * 원본: Claude Design 프로젝트 e7d5a845-… /_ds/maglo-design-system-…/tokens/
- *       {colors,typography,spacing,effects}.css  (원문은 tests/fixtures/design-tokens/ 에 보존)
+ *   L1 원시값  `--penta-*`            아래 첫 :root. 디자인 시스템 웹 §1~§5 값 + 문서에 없는 단계는 Tailwind 표준 보충값.
+ *   L2 의미    `--surface-*`·`--border-*`·`--text-*`·`--accent-*`·`--action-*`·`--focus-ring`·`--danger-bg`·`--link`
+ *              (기존 이름 유지, Penta L1 로 재연결). 다크 테마가 생기면 L2 만 재정의한다.
+ *   L3 유틸리티 `@theme inline` 의 `--color-*` (bg-primary-600, text-neutral-600, bg-action-bg …).
  *
- * 규칙: 변수명과 값을 원본과 동일하게 유지한다. tests/unit/tokens.test.ts 가
- *       이 파일과 원본 픽스처를 대조해 85개 변수 전부의 이름·값 일치를 검증한다.
+ * 접근성 규칙: 500 단계(Primary 4.40·Error 3.76·Success 2.28·Warning 2.15·Info 3.68:1 on 흰색)는 채움 장식·포커스 고리·
+ *   아이콘·그래픽에만 쓴다. 글자·글자 배경은 600/700(성공·경고 글자는 보충값 800) — tests/unit/tokens.test.ts 가 대비를 검사한다.
  *
- * 배치 결정 (Main 승인, A안):
- *   - 대부분의 토큰은 `@theme static` 에 둔다. Tailwind 4 는 이를 :root CSS 변수로
- *     항상 방출하고, --font-* / --radius-* / --shadow-* 네임스페이스는 유틸리티
- *     (font-body, rounded-lg, shadow-elevated …)로도 노출된다.
- *   - `--text-*` 17개(색상 별칭 5 + 타이포 shorthand 12)는 Tailwind 의 font-size
- *     네임스페이스(--text-*)와 충돌해 잘못된 유틸리티(text-primary 가 색상을
- *     font-size 로 적용)를 만들기 때문에 `@theme` 밖의 `:root` 에 같은 이름·값으로 둔다.
- *   - `--shadow-soft`(색상값) 는 Tailwind --shadow-* 네임스페이스에 걸려 `shadow-soft` 유틸리티가
- *     생성되지만 box-shadow 로는 무효한 값이므로 사용하지 않는다. 변수명 유지 원칙에 따라 이름은
- *     바꾸지 않으며, 그림자에는 `shadow-elevated` / `shadow-(--hairline-*)` 를 쓴다.
- *   - 색상 팔레트/의미 색상에는 `@theme inline` 으로 --color-* 별칭을 추가해
- *     bg-lime-500, text-ink-900, bg-surface-sidebar 같은 유틸리티를 제공한다.
- *     별칭은 var() 참조이므로 값의 단일 출처는 여전히 원본 이름의 변수다.
+ * Maglo 원시 이름(lime·purple·ink·gray-75 …)은 **Penta 값으로 재지정한 별칭**으로 남는다(화면 전체가 한 번에 Penta 색).
+ *   별칭 제거·의미 토큰으로의 치환은 후속 PR(화면 sweep·정리)에서 한다. 새 코드는 L2/L3 의미 토큰이나 primary-*·neutral-* 를 쓴다.
+ *
+ * 배치 규칙(기존 A안 유지):
+ *   - `--text-*` 색·타이포 토큰은 Tailwind font-size 네임스페이스(--text-*)와 충돌하므로 `@theme` 밖 `:root` 에 둔다.
+ *   - `--shadow-soft`(색상값)는 shadow-* 네임스페이스에 걸리지만 box-shadow 로는 무효 — 유틸리티로 쓰지 않는다.
+ *   - 기존 반경(--radius-lg 등)·간격(--space-*)·타이포 shorthand 값은 바꾸지 않는다(조용한 전역 변경 방지). Penta 반경·높이·그림자는
+ *     새 이름(--radius-card·--height-control-md·--shadow-card …)으로만 추가하고 실제 적용은 공용 컴포넌트 PR 에서 한다.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+/* ── L1 원시값 (Penta). 「보충값」= 문서에 없는 단계, Tailwind 표준 팔레트 대응값 — 디자인팀 회신 시 교체 ── */
+:root {
+  /* Primary — Penta Blue. 200·300·400·800 보충값(Tailwind blue 300·400·500·900: 같은 번호는 Penta 100 보다 밝거나
+   * Penta 700 보다 밝아 명도 순서가 뒤집히므로 한 단계 진한 값) */
+  --penta-primary-50: #ebf2ff;
+  --penta-primary-100: #c2d9ff;
+  --penta-primary-200: #93c5fd;
+  --penta-primary-300: #60a5fa;
+  --penta-primary-400: #3b82f6;
+  --penta-primary-500: #1e6fff;
+  --penta-primary-600: #1858cc;
+  --penta-primary-700: #124199;
+  --penta-primary-800: #1e3a8a;
+  --penta-primary-900: #061433;
+
+  /* Neutral — 300·500·700·800 보충값(Tailwind gray 같은 번호) */
+  --penta-neutral-0: #ffffff;
+  --penta-neutral-50: #f7f8fa;
+  --penta-neutral-100: #eceef2;
+  --penta-neutral-200: #d9dce3;
+  --penta-neutral-300: #d1d5db;
+  --penta-neutral-400: #9aa1b0;
+  --penta-neutral-500: #6b7280;
+  --penta-neutral-600: #545d70;
+  --penta-neutral-700: #374151;
+  --penta-neutral-800: #1f2937;
+  --penta-neutral-900: #111620;
+
+  /* Semantic — 500·700 문서값(Tailwind green·amber·red·blue 와 동일). 50 보충값(같은 계열 50).
+   * success-800·warning-800 보충값(Tailwind green-800·amber-800): 700 이 기존 글자 자리에서 AA 미달
+   * (success-700 은 N100 위 4.32·N50 위 12% 녹색 틴트 4.28, warning-700 은 15% 앰버 틴트 위 4.47:1) → 성공·경고 글자 별칭용 */
+  --penta-success-50: #f0fdf4;
+  --penta-success-500: #22c55e;
+  --penta-success-700: #15803d;
+  --penta-success-800: #166534;
+  --penta-warning-50: #fffbeb;
+  --penta-warning-500: #f59e0b;
+  --penta-warning-700: #b45309;
+  --penta-warning-800: #92400e;
+  --penta-error-50: #fef2f2;
+  --penta-error-500: #ef4444;
+  --penta-error-700: #b91c1c;
+  --penta-info-50: #eff6ff;
+  --penta-info-500: #3b82f6;
+  --penta-info-700: #1d4ed8;
+
+  /* Typography — 웹 스케일 (font shorthand: weight size/line-height family) */
+  --penta-type-display: 700 56px/64px var(--font-body);
+  --penta-type-h1: 700 40px/48px var(--font-body);
+  --penta-type-h2: 700 32px/40px var(--font-body);
+  --penta-type-h3: 600 24px/32px var(--font-body);
+  --penta-type-body-lg: 400 18px/28px var(--font-body);
+  --penta-type-body: 400 16px/24px var(--font-body);
+  --penta-type-body-sm: 400 14px/20px var(--font-body);
+  --penta-type-label: 500 12px/16px var(--font-body);
+  --penta-type-caption: 400 11px/16px var(--font-body);
+
+  /* Spacing — 8pt 그리드 (이름 = px) */
+  --penta-space-2: 2px;
+  --penta-space-4: 4px;
+  --penta-space-6: 6px;
+  --penta-space-8: 8px;
+  --penta-space-12: 12px;
+  --penta-space-16: 16px;
+  --penta-space-20: 20px;
+  --penta-space-24: 24px;
+  --penta-space-32: 32px;
+  --penta-space-40: 40px;
+  --penta-space-48: 48px;
+  --penta-space-64: 64px;
+
+  /* Radius */
+  --penta-radius-sm: 4px;
+  --penta-radius-md: 8px;
+  --penta-radius-lg: 12px;
+  --penta-radius-xl: 16px;
+  --penta-radius-full: 9999px;
+
+  /* Elevation */
+  --penta-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --penta-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --penta-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --penta-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.14);
+}
+
 @theme static {
-  /* ── colors.css: base palette ─────────────────────────────────────────── */
-  --white: #ffffff;
-  --gray-50: #fafafa;
-  --gray-75: #f8f8f8;
-  --gray-100: #f5f5f5;
-  --gray-150: #f2f2f2;
-  --gray-200: #f1f1f3;
-  --slate-600: #78778b;
-  --slate-700: #929eae;
-  --ink-900: #1b212d;
-  --ink-950: #292d32;
-  --purple-ink-900: #1c1a2e;
-  --purple-ink-800: #201e34;
-  --purple-ink-700: #282541;
-  --lime-400: #c8ee44;
-  --lime-500: #97f675;
-  --green-600: #29a073;
-  --purple-500: #7b61ff;
-  --orange-500: #ff5f00;
-  --amber-500: #f79e1b;
-  --red-500: #eb001b;
+  /* ── Maglo 원시 이름 → Penta 별칭 (값 표: docs/design/penta-tokens.md). 글자로 쓰이는 이름은 글자용 단계(600/700/800)로 ── */
+  --white: var(--penta-neutral-0);
+  --gray-50: var(--penta-neutral-50);
+  --gray-75: var(--penta-neutral-50);
+  --gray-100: var(--penta-neutral-100);
+  --gray-150: var(--penta-neutral-200);
+  --gray-200: var(--penta-neutral-100);
+  --slate-600: var(--penta-neutral-600);
+  --slate-700: var(--penta-neutral-400);
+  --ink-900: var(--penta-neutral-900);
+  --ink-950: var(--penta-neutral-800);
+  --purple-ink-900: var(--penta-primary-900);
+  --purple-ink-800: var(--penta-primary-900);
+  --purple-ink-700: var(--penta-primary-800);
+  /* lime 은 선택·강조 배경(어두운 글자 ink-900 과 짝, 12.6:1)과 어두운 패널 위 강조 글자로 쓰인다 → 옅은 Primary 100 */
+  --lime-400: var(--penta-primary-100);
+  --lime-500: var(--penta-primary-100);
+  --green-600: var(--penta-success-500);
+  /* purple-500 은 포커스 고리·틴트·선택 테두리(채움 장식) → Primary 500. 흰 글자 배경으로 쓰지 않는다(4.40:1) */
+  --purple-500: var(--penta-primary-500);
+  /* 임박 배지 배경(어두운 글자와 짝, 8.4:1) — Penta 에 주황이 없어 Warning 500 */
+  --orange-500: var(--penta-warning-500);
+  --amber-500: var(--penta-warning-500);
+  --red-500: var(--penta-error-500);
 
-  /* ── colors.css: semantic aliases (--text-* 는 아래 :root 참고) ────────── */
-  --surface-page: var(--white);
-  --surface-sidebar: var(--gray-50);
-  --surface-card: var(--white);
-  --surface-muted: var(--gray-75);
-  --surface-inverse: var(--ink-900);
-  --surface-accent-panel: var(--purple-ink-800);
-  --surface-accent-panel-strong: var(--purple-ink-900);
+  /* 앱 확장 원시 이름 (PRAMI-003 §4.8.3 등 — 글자용 AA 값) → Penta 글자 단계 */
+  --red-600: var(--penta-error-700);
+  --slate-700-aa: var(--penta-neutral-600);
+  --slate-600-aa: var(--penta-neutral-600);
+  --purple-600: var(--penta-primary-600);
+  --green-700: var(--penta-success-800);
+  --blue-600: var(--penta-primary-600);
+  --gray-600: var(--penta-neutral-600);
+  --amber-700: var(--penta-warning-800);
+  /* 자사 강조 (조달이 통합 UI-4) — 차트 팔레트 PR 전까지 기존 남색 유지(= Primary 800 보충값과 같은 값) */
+  --accent-ours: #1e3a8a;
 
-  --border-subtle: var(--gray-100);
-  --border-default: var(--gray-150);
-  --border-button: var(--gray-200);
-  --border-accent-panel: var(--purple-ink-700);
+  /* ── L2 의미 토큰 (기존 이름 유지, Penta 로 재연결. --text-* 는 아래 :root) ── */
+  --surface-page: var(--penta-neutral-0);
+  --surface-sidebar: var(--penta-neutral-50);
+  --surface-card: var(--penta-neutral-0);
+  --surface-muted: var(--penta-neutral-50);
+  --surface-inverse: var(--penta-neutral-900);
+  --surface-accent-panel: var(--penta-primary-900);
+  --surface-accent-panel-strong: var(--penta-primary-900);
+  --surface-danger: color-mix(in srgb, var(--penta-error-500) 8%, var(--penta-neutral-0));
 
-  --accent-primary: var(--lime-400);
-  --accent-primary-strong: var(--lime-500);
-  --accent-positive: var(--green-600);
-  --accent-purple: var(--purple-500);
+  --border-subtle: var(--penta-neutral-100);
+  --border-default: var(--penta-neutral-200);
+  --border-button: var(--penta-neutral-200);
+  --border-accent-panel: var(--penta-primary-800);
+  --border-danger: var(--penta-error-500);
+
+  --accent-primary: var(--penta-primary-600);
+  --accent-primary-strong: var(--penta-primary-700);
+  --accent-positive: var(--penta-success-500);
+  --accent-purple: var(--penta-primary-600);
   --accent-orange: var(--orange-500);
-  --accent-amber: var(--amber-500);
-  --accent-red: var(--red-500);
+  --accent-amber: var(--penta-warning-500);
+  --accent-red: var(--penta-error-500);
+
+  /* 신규 L2: 주 동작(버튼 채움 + 흰 글자 6.35:1)·포커스 고리·위험 동작(흰 글자 6.47:1)·링크 */
+  --action-bg: var(--penta-primary-600);
+  --action-bg-hover: var(--penta-primary-700);
+  --action-fg: var(--penta-neutral-0);
+  --focus-ring: var(--penta-primary-500);
+  --danger-bg: var(--penta-error-700);
+  --link: var(--penta-primary-600);
+  --link-hover: var(--penta-primary-700);
 
   --shadow-soft: rgba(0, 0, 0, 0.1);
 
-  /* ── typography.css: families ─────────────────────────────────────────── */
+  /* ── 글꼴: Pretendard 셀프 호스트(next/font/local, src/app/layout.tsx 가 <html> 에 --font-pretendard 를 단다).
+   * var() 기본값·뒤의 'Pretendard' 는 변수가 없을 때(단독 렌더 등)와 로컬 설치 글꼴 대비 ── */
   --font-display:
-    'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
+    var(--font-pretendard, 'Pretendard'), 'Pretendard', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-body:
-    'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
+    var(--font-pretendard, 'Pretendard'), 'Pretendard', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-marketing:
-    'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
+    var(--font-pretendard, 'Pretendard'), 'Pretendard', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-marketing-alt:
-    'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
+    var(--font-pretendard, 'Pretendard'), 'Pretendard', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 
-  /* ── spacing.css ──────────────────────────────────────────────────────── */
+  /* ── 간격·반경 (기존 값 유지) ── */
   --space-1: 2px;
   --space-2: 5px;
   --space-3: 7px;
@@ -115,57 +224,41 @@
   --radius-pill: 100px;
   --radius-circle: 50%;
 
+  /* Penta 반경·컨트롤 높이·그림자 — 새 이름만 추가 (rounded-card, shadow-card, h-(--height-control-md) …) */
+  --radius-chip: var(--penta-radius-sm);
+  --radius-control: var(--penta-radius-md);
+  --radius-card: var(--penta-radius-lg);
+  --radius-modal: var(--penta-radius-xl);
+  --height-control-sm: 36px;
+  --height-control-md: 44px;
+  --height-control-lg: 52px;
+  --shadow-dropdown: var(--penta-shadow-sm);
+  --shadow-card: var(--penta-shadow-md);
+  --shadow-modal: var(--penta-shadow-lg);
+  --shadow-panel: var(--penta-shadow-xl);
+
   --sidebar-width: 250px;
   --content-gutter: 40px;
 
-  /* ── effects.css ──────────────────────────────────────────────────────── */
+  /* ── effects ── */
   --hairline-subtle: inset 0 0 0 1px var(--border-subtle);
   --hairline-default: inset 0 0 0 1px var(--border-default);
   --hairline-accent-panel: inset 0 0 0 1px var(--border-accent-panel);
   --shadow-elevated: 0 12px 24px var(--shadow-soft);
-
-  /* ── 앱 확장 토큰 (원본 디자인 토큰 밖 — PRAMI-003 §4.8.3, tokens.test.ts 확장 목록) ──
-   * --red-500 은 흰 배경 4.62:1·옅은 빨강 배경 약 3.9:1 로 13px 본문 AA 미달 → 위험 텍스트는 --red-600.
-   *   BL-3: text-red-500 글자 전부 red-600 으로(흰색 6.25·gray-75 5.88·10% 빨강 5.26·gray-75 위 10% 빨강 4.94:1).
-   *   어두운 패널(--ink-900) 위 빨간 글자는 없다 — 생기면 red-600(2.58:1)이 아닌 밝은 값을 따로 고른다.
-   * 다크 테마 도입 시: --text-danger: #ff8a8a, --surface-danger: #3a1a1f (대비 6.9:1 계산값). 현재 앱에는 다크 테마가 없다. */
-  --red-600: #c40018;
-  /* AA 보조 텍스트 (PRAMI-003 AC-375 ①, PR #22 I-14): 원본 --slate-700(#929eae)·--slate-600(#78778b)·--purple-500(#7b61ff)은
-   * 흰색~--gray-200 배경에서 2.5~4.4:1 로 AA 미달. 원본 토큰은 그대로 두고, 같은 색조를 어둡게 한 확장 값을 텍스트 유틸리티
-   * 별칭(--color-text-secondary·--color-text-tertiary·text-purple-600)에만 연결한다 — 최소 대비 4.6:1(#fff·#fafafa·#f8f8f8·#f5f5f5·#f2f2f2·#f1f1f3). */
-  --slate-700-aa: #656d78;
-  --slate-600-aa: #6c6b7d;
-  --purple-600: #6c55e0;
-  /* 성공 안내·positive 필 텍스트 — 원본 --green-600(#29a073)은 12% 녹색 배경에서 2.7:1. 같은 색조 어둡게 4.7:1 */
-  --green-700: #1e7353;
-  /* 상태 표시 텍스트 (BL-1, QA #59 백로그 — 모달 안 운영상태 대비): 운영중 #3075ff·미사용 #797c85 는 흰 배경 4.1:1 로 AA 미달.
-   * 같은 색조를 어둡게 — 흰색~--gray-200·라임 25% 강조 행 배경에서 최소 4.58:1(blue)·4.59:1(gray).
-   * --amber-700: amber 필·임시 품목상태 글자 — 원본 --amber-500 은 15% 앰버 배경에서 1.9:1, #a86a00 은 4.0:1 → 5.2:1.
-   *   BL-2: 밝은 배경 위 경고 문구·원가 매핑 칸 경고색도 이 값(흰색 5.78·gray-200 5.13·15% 앰버 5.16·gray-75 위 15% 앰버 4.89:1).
-   *   어두운 패널(--ink-900) 위 경고는 원본 --amber-500 그대로(7.57:1 — amber-700 이면 2.79:1). */
-  --blue-600: #2563eb;
-  --gray-600: #6a6d75;
-  --amber-700: #8f5a00;
-  /* 자사 강조 (조달이 통합 UI-4 — 스펙이 허용한 새 토큰 1개): 조달 차트·표의 자사(펜타시큐리티) 선·막대 테두리·이름.
-   * 조달이 원본 남색 그대로. 흰색 10.4·--gray-75 9.8:1(그래픽 3:1·글자 4.5:1 모두 충족). 경쟁사 색은 기존 토큰만
-   * (features/procurement/charts/palette.ts — purple-500·green-600·amber-700·red-500, 나머지 gray-600; 흰색·gray-75 위 3:1 이상). */
-  --accent-ours: #1e3a8a;
-  --surface-danger: color-mix(in srgb, var(--red-500) 8%, var(--white));
-  --border-danger: var(--red-500);
 }
 
-/* --text-* 토큰: Tailwind font-size 네임스페이스 충돌 회피를 위해 @theme 밖에 둔다 (값·이름은 원본 동일) */
+/* --text-* 토큰: Tailwind font-size 네임스페이스 충돌 회피를 위해 @theme 밖에 둔다 */
 :root {
-  /* colors.css */
-  --text-primary: var(--ink-900);
-  --text-secondary: var(--slate-700);
-  --text-tertiary: var(--slate-600);
-  --text-inverse: var(--white);
-  --text-on-accent: var(--ink-900);
-  /* 앱 확장 토큰 (PRAMI-003 §4.8.3): 주의 문구 제목·본문·아이콘 — --surface-danger 위 AA */
-  --text-danger: var(--red-600);
+  /* L2 글자색 — 보조·3차·자리표시 글자는 모두 Neutral 600(흰색 6.61·N50 6.22·N100 5.69:1). Neutral 400 은 비활성 장식 전용 */
+  --text-primary: var(--penta-neutral-900);
+  --text-secondary: var(--penta-neutral-600);
+  --text-tertiary: var(--penta-neutral-600);
+  --text-placeholder: var(--penta-neutral-600);
+  --text-inverse: var(--penta-neutral-0);
+  --text-on-accent: var(--penta-neutral-0);
+  --text-danger: var(--penta-error-700);
 
-  /* typography.css */
+  /* 타이포 shorthand (기존 값 유지 — Penta 스케일 적용은 화면 sweep PR, L1 --penta-type-*) */
   --text-page-title: 600 25px/1 var(--font-body);
   --text-h1: 600 30px/1 var(--font-body);
   --text-h2: 600 18px/1 var(--font-body);
@@ -180,9 +273,48 @@
   --text-wordmark: 700 18px/1 var(--font-display);
 }
 
-/* Tailwind 유틸리티용 별칭 (bg-lime-500, text-ink-900, bg-surface-sidebar …). 값은 원본 변수를 참조 */
+/* ── L3 Tailwind 유틸리티 별칭 (bg-primary-600, text-neutral-600, bg-action-bg, bg-surface-card …) ── */
 @theme inline {
   --color-*: initial;
+
+  /* Penta 원시 팔레트 */
+  --color-primary-50: var(--penta-primary-50);
+  --color-primary-100: var(--penta-primary-100);
+  --color-primary-200: var(--penta-primary-200);
+  --color-primary-300: var(--penta-primary-300);
+  --color-primary-400: var(--penta-primary-400);
+  --color-primary-500: var(--penta-primary-500);
+  --color-primary-600: var(--penta-primary-600);
+  --color-primary-700: var(--penta-primary-700);
+  --color-primary-800: var(--penta-primary-800);
+  --color-primary-900: var(--penta-primary-900);
+  --color-neutral-0: var(--penta-neutral-0);
+  --color-neutral-50: var(--penta-neutral-50);
+  --color-neutral-100: var(--penta-neutral-100);
+  --color-neutral-200: var(--penta-neutral-200);
+  --color-neutral-300: var(--penta-neutral-300);
+  --color-neutral-400: var(--penta-neutral-400);
+  --color-neutral-500: var(--penta-neutral-500);
+  --color-neutral-600: var(--penta-neutral-600);
+  --color-neutral-700: var(--penta-neutral-700);
+  --color-neutral-800: var(--penta-neutral-800);
+  --color-neutral-900: var(--penta-neutral-900);
+  --color-success-50: var(--penta-success-50);
+  --color-success-500: var(--penta-success-500);
+  --color-success-700: var(--penta-success-700);
+  --color-success-800: var(--penta-success-800);
+  --color-warning-50: var(--penta-warning-50);
+  --color-warning-500: var(--penta-warning-500);
+  --color-warning-700: var(--penta-warning-700);
+  --color-warning-800: var(--penta-warning-800);
+  --color-error-50: var(--penta-error-50);
+  --color-error-500: var(--penta-error-500);
+  --color-error-700: var(--penta-error-700);
+  --color-info-50: var(--penta-info-50);
+  --color-info-500: var(--penta-info-500);
+  --color-info-700: var(--penta-info-700);
+
+  /* Maglo 별칭 (후속 PR 에서 제거) */
   --color-white: var(--white);
   --color-gray-50: var(--gray-50);
   --color-gray-75: var(--gray-75);
@@ -204,7 +336,16 @@
   --color-amber-500: var(--amber-500);
   --color-red-500: var(--red-500);
   --color-red-600: var(--red-600);
+  --color-purple-600: var(--purple-600);
+  --color-green-700: var(--green-700);
+  --color-blue-600: var(--blue-600);
+  --color-gray-600: var(--gray-600);
+  --color-amber-700: var(--amber-700);
+  --color-slate-700-aa: var(--slate-700-aa);
+  --color-slate-600-aa: var(--slate-600-aa);
+  --color-accent-ours: var(--accent-ours);
 
+  /* L2 의미 토큰 */
   --color-surface-page: var(--surface-page);
   --color-surface-sidebar: var(--surface-sidebar);
   --color-surface-card: var(--surface-card);
@@ -212,11 +353,13 @@
   --color-surface-inverse: var(--surface-inverse);
   --color-surface-accent-panel: var(--surface-accent-panel);
   --color-surface-accent-panel-strong: var(--surface-accent-panel-strong);
+  --color-surface-danger: var(--surface-danger);
 
   --color-border-subtle: var(--border-subtle);
   --color-border-default: var(--border-default);
   --color-border-button: var(--border-button);
   --color-border-accent-panel: var(--border-accent-panel);
+  --color-border-danger: var(--border-danger);
 
   --color-accent-primary: var(--accent-primary);
   --color-accent-primary-strong: var(--accent-primary-strong);
@@ -226,25 +369,21 @@
   --color-accent-amber: var(--accent-amber);
   --color-accent-red: var(--accent-red);
 
+  --color-action-bg: var(--action-bg);
+  --color-action-bg-hover: var(--action-bg-hover);
+  --color-action-fg: var(--action-fg);
+  --color-focus-ring: var(--focus-ring);
+  --color-danger-bg: var(--danger-bg);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
+
   --color-text-primary: var(--text-primary);
-  /* 텍스트 유틸리티는 AA 확장 값 (AC-375 ①) — 원본 --text-secondary·--text-tertiary 변수 자체는 원본 값 유지 */
-  --color-text-secondary: var(--slate-700-aa);
-  --color-text-tertiary: var(--slate-600-aa);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-placeholder: var(--text-placeholder);
   --color-text-inverse: var(--text-inverse);
   --color-text-on-accent: var(--text-on-accent);
-
-  /* 앱 확장 토큰 별칭 (PRAMI-003 §4.8.3) */
   --color-text-danger: var(--text-danger);
-  --color-purple-600: var(--purple-600);
-  --color-green-700: var(--green-700);
-  --color-blue-600: var(--blue-600);
-  --color-gray-600: var(--gray-600);
-  --color-amber-700: var(--amber-700);
-  --color-accent-ours: var(--accent-ours);
-  --color-slate-700-aa: var(--slate-700-aa);
-  --color-slate-600-aa: var(--slate-600-aa);
-  --color-surface-danger: var(--surface-danger);
-  --color-border-danger: var(--border-danger);
 
   --font-sans: var(--font-body);
 }
@@ -258,11 +397,11 @@
     color: var(--text-primary);
   }
   a {
-    color: var(--accent-purple);
+    color: var(--link);
     text-decoration: none;
   }
   a:hover {
-    color: var(--ink-900);
+    color: var(--link-hover);
     text-decoration: underline;
   }
   input,
@@ -282,8 +421,8 @@
 
 /*
  * 범위 슬라이더 (components/ui/range-slider.tsx, 빠른 필터 바 §7.5): 겹친 네이티브 range 2개 — input 자체는 클릭을 받지 않고(트랙은
- * 감싸는 div 가 받는다) thumb 만 받는다. thumb 히트 영역 44px(터치), 보이는 핸들 20px(보라 원 + 흰 테두리),
- * focus-visible 은 2px purple-500 고리(Button 과 같은 색). 색 경계마다 1px 섞임 구간(하드 스톱이면 원 가장자리가 계단처럼 보인다).
+ * 감싸는 div 가 받는다) thumb 만 받는다. thumb 히트 영역 44px(터치), 보이는 핸들 20px(--action-bg 원 + 흰 테두리),
+ * focus-visible 은 2px --focus-ring 고리. 색 경계마다 1px 섞임 구간(하드 스톱이면 원 가장자리가 계단처럼 보인다).
  */
 @layer components {
   .range-slider-input {
@@ -312,7 +451,7 @@
     border-radius: 50%;
     background: radial-gradient(
       circle closest-side,
-      var(--purple-600) 0 7.5px,
+      var(--action-bg) 0 7.5px,
       #fff 8.5px 9.5px,
       transparent 10.5px
     );
@@ -326,7 +465,7 @@
     border-radius: 50%;
     background: radial-gradient(
       circle closest-side,
-      var(--purple-600) 0 7.5px,
+      var(--action-bg) 0 7.5px,
       #fff 8.5px 9.5px,
       transparent 10.5px
     );
@@ -334,20 +473,20 @@
   .range-slider-input:focus-visible::-webkit-slider-thumb {
     background: radial-gradient(
       circle closest-side,
-      var(--purple-600) 0 7.5px,
+      var(--action-bg) 0 7.5px,
       #fff 8.5px 9.5px,
       transparent 10.5px 11.5px,
-      var(--purple-500) 12.5px 13.5px,
+      var(--focus-ring) 12.5px 13.5px,
       transparent 14.5px
     );
   }
   .range-slider-input:focus-visible::-moz-range-thumb {
     background: radial-gradient(
       circle closest-side,
-      var(--purple-600) 0 7.5px,
+      var(--action-bg) 0 7.5px,
       #fff 8.5px 9.5px,
       transparent 10.5px 11.5px,
-      var(--purple-500) 12.5px 13.5px,
+      var(--focus-ring) 12.5px 13.5px,
       transparent 14.5px
     );
   }

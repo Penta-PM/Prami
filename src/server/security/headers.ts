@@ -2,11 +2,10 @@
  * 보안 헤더 (§4.8, AC-91). 순수 모듈 — proxy.ts(요청별 CSP nonce)와 next.config.ts(정적 헤더)가 함께 쓴다.
  * - CSP: script 는 요청별 nonce + 'strict-dynamic' (Next 가 자기 인라인 스크립트에 nonce 를 붙인다). 인라인 이벤트·eval 금지
  *   (개발 모드만 React 디버깅용 'unsafe-eval'). style 은 React style 속성 때문에 'unsafe-inline' 이 필요하다 — nonce 를 넣으면
- *   'unsafe-inline' 이 무시되므로 style-src 에는 nonce 를 쓰지 않는다. Pretendard 웹폰트 CSS·폰트는 cdn.jsdelivr.net.
+ *   'unsafe-inline' 이 무시되므로 style-src 에는 nonce 를 쓰지 않는다. Pretendard 는 셀프 호스트(next/font/local)라 외부 폰트 출처가 없다.
  * - form-action: Google 로그인은 Server Action → accounts.google.com 리다이렉트라 허용 목록에 둔다(Chrome 은 리다이렉트에도 적용).
  * - frame-ancestors 'none' + X-Frame-Options DENY: 공유 페이지·PDF 포함 전체 iframe 삽입 금지 (PR-8 QA INFO-4).
  */
-export const PRETENDARD_ORIGIN = 'https://cdn.jsdelivr.net';
 export const GOOGLE_ACCOUNTS_ORIGIN = 'https://accounts.google.com';
 
 export type CspOptions = {
@@ -20,9 +19,9 @@ export function buildCsp({ nonce, isDev, isHttps }: CspOptions): string {
   const directives = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
-    `style-src 'self' 'unsafe-inline' ${PRETENDARD_ORIGIN}`,
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data:",
-    `font-src 'self' data: ${PRETENDARD_ORIGIN}`,
+    "font-src 'self' data:",
     // 개발 모드 HMR 은 웹소켓을 쓴다
     `connect-src 'self'${isDev ? ' ws: wss:' : ''}`,
     "object-src 'none'",

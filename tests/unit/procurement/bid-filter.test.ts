@@ -195,9 +195,14 @@ describe('예산·추정가 억·만 (formatEokMan)', () => {
 
 describe('배지 글자 대비 (WCAG AA 4.5:1)', () => {
   const css = readFileSync(path.join(process.cwd(), 'src/app/globals.css'), 'utf8');
+  /** 토큰 값 — Penta 토큰 PR-1 부터 별칭은 var(--penta-*) 를 가리키므로 #rrggbb 가 나올 때까지 따라간다 */
   const hex = (name: string): number[] => {
-    const match = new RegExp(`${name}:\\s*(#[0-9a-f]{6})`, 'i').exec(css);
+    const match = new RegExp(
+      `(?<![\\w-])${name}:\\s*(#[0-9a-f]{6}|var\\((--[\\w-]+)\\))`,
+      'i',
+    ).exec(css);
     expect(match, `${name} 토큰`).not.toBeNull();
+    if (match![2]) return hex(match![2]);
     const value = match![1]!;
     return [1, 3, 5].map((i) => parseInt(value.slice(i, i + 2), 16));
   };

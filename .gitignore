@@ -80,3 +80,6 @@ venv/
 .pytest_cache/
 .ruff_cache/
 /collector/data/
+
+# Penta 디자인 시스템 원본 자료(문서·아이콘 JSON) — 저장소에 넣지 않음. 요약: docs/design/penta-tokens.md
+/design/

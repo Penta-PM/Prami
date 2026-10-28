@@ -112,7 +112,7 @@ export function LlmCredentialCard({
             <a
               href={keyringReady ? vendor.connectHref : undefined}
               aria-disabled={!keyringReady}
-              className="inline-flex items-center rounded-lg bg-purple-500 px-3 py-1.5 text-[12px] font-semibold text-white aria-disabled:opacity-50"
+              className="inline-flex items-center rounded-lg bg-action-bg px-3 py-1.5 text-[12px] font-semibold text-action-fg aria-disabled:opacity-50"
             >
               {credential ? `${vendor.label} 다시 연결` : `${vendor.label}로 연결`}
             </a>

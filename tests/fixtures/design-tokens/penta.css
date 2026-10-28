@@ -1,0 +1,71 @@
+/*
+ * Penta 디자인 시스템 L1 원시값 기준표 (tests/unit/tokens.test.ts 가 src/app/globals.css 의 L1 :root 와 대조한다).
+ * 웹 §1~§5 값. 「보충값」= 문서에 없는 단계 — Tailwind 표준 팔레트 대응값 (docs/design/penta-tokens.md).
+ */
+:root {
+  --penta-primary-50: #ebf2ff;
+  --penta-primary-100: #c2d9ff;
+  --penta-primary-200: #93c5fd;  /* 보충값 */
+  --penta-primary-300: #60a5fa;  /* 보충값 */
+  --penta-primary-400: #3b82f6;  /* 보충값 */
+  --penta-primary-500: #1e6fff;
+  --penta-primary-600: #1858cc;
+  --penta-primary-700: #124199;
+  --penta-primary-800: #1e3a8a;  /* 보충값 */
+  --penta-primary-900: #061433;
+  --penta-neutral-0: #ffffff;
+  --penta-neutral-50: #f7f8fa;
+  --penta-neutral-100: #eceef2;
+  --penta-neutral-200: #d9dce3;
+  --penta-neutral-300: #d1d5db;  /* 보충값 */
+  --penta-neutral-400: #9aa1b0;
+  --penta-neutral-500: #6b7280;  /* 보충값 */
+  --penta-neutral-600: #545d70;
+  --penta-neutral-700: #374151;  /* 보충값 */
+  --penta-neutral-800: #1f2937;  /* 보충값 */
+  --penta-neutral-900: #111620;
+  --penta-success-50: #f0fdf4;  /* 보충값 */
+  --penta-success-500: #22c55e;
+  --penta-success-700: #15803d;
+  --penta-success-800: #166534;  /* 보충값 */
+  --penta-warning-50: #fffbeb;  /* 보충값 */
+  --penta-warning-500: #f59e0b;
+  --penta-warning-700: #b45309;
+  --penta-warning-800: #92400e;  /* 보충값 */
+  --penta-error-50: #fef2f2;  /* 보충값 */
+  --penta-error-500: #ef4444;
+  --penta-error-700: #b91c1c;
+  --penta-info-50: #eff6ff;  /* 보충값 */
+  --penta-info-500: #3b82f6;
+  --penta-info-700: #1d4ed8;
+  --penta-type-display: 700 56px/64px var(--font-body);
+  --penta-type-h1: 700 40px/48px var(--font-body);
+  --penta-type-h2: 700 32px/40px var(--font-body);
+  --penta-type-h3: 600 24px/32px var(--font-body);
+  --penta-type-body-lg: 400 18px/28px var(--font-body);
+  --penta-type-body: 400 16px/24px var(--font-body);
+  --penta-type-body-sm: 400 14px/20px var(--font-body);
+  --penta-type-label: 500 12px/16px var(--font-body);
+  --penta-type-caption: 400 11px/16px var(--font-body);
+  --penta-space-2: 2px;
+  --penta-space-4: 4px;
+  --penta-space-6: 6px;
+  --penta-space-8: 8px;
+  --penta-space-12: 12px;
+  --penta-space-16: 16px;
+  --penta-space-20: 20px;
+  --penta-space-24: 24px;
+  --penta-space-32: 32px;
+  --penta-space-40: 40px;
+  --penta-space-48: 48px;
+  --penta-space-64: 64px;
+  --penta-radius-sm: 4px;
+  --penta-radius-md: 8px;
+  --penta-radius-lg: 12px;
+  --penta-radius-xl: 16px;
+  --penta-radius-full: 9999px;
+  --penta-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --penta-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --penta-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --penta-shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.14);
+}

@@ -7,8 +7,12 @@
 /** 자사 강조 토큰 이름 */
 export const OURS_TOKEN = '--accent-ours';
 
-/** 경쟁사(또는 과거 연도) 계열 색 토큰 — 순위 순서. 이 수를 넘는 계열은 OTHER_TOKEN */
-export const SERIES_TOKENS = ['--purple-500', '--green-600', '--amber-700', '--red-500'] as const;
+/**
+ * 경쟁사(또는 과거 연도) 계열 색 토큰 — 순위 순서. 이 수를 넘는 계열은 OTHER_TOKEN.
+ * 녹색은 --green-700(Penta Success 800 보충값): Penta 토큰 PR-1 에서 --green-600 이 Success 500(흰색 2.28:1)이 되어 그래픽 3:1 미달.
+ * 차트 전용 팔레트(--chart-series-*)는 차트 PR 에서 정한다.
+ */
+export const SERIES_TOKENS = ['--purple-500', '--green-700', '--amber-700', '--red-500'] as const;
 
 /** 하위 계열(나머지) 회색 */
 export const OTHER_TOKEN = '--gray-600';
