@@ -98,3 +98,4 @@
 - **Q-C1 발신 SMTP 계정**: 원본이 쓰던 계정(개인 Gmail 앱 비밀번호)을 LAN env 에 그대로 쓸지, 공용 메일함 계정을 새로 쓸지. 코드·수집은 진행, 메일 실발송만 이 답과 env 설정 후.
 
 ## 9. 진행 기록
+- 2026-10-28 Dev 질문(msg_14fc43200b66) 결정: `plan/filter.md`·`plan/products.md` 도 기밀 설정 자료로 취급 → env `JODAL_CONFIG_DIR`(필수, 없으면 시작 오류, LAN 값 = 원본 …/collector/plan) 제자리 읽기·복사 금지, `--filter-file`·`--products-file` 인자 유지, `JODAL_REF_DIR` 별도 유지. 재스캔: 실제 주소는 cli.py:66 한 곳뿐, 비밀값 리터럴 없음.
