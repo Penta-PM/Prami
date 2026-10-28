@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 
-import { Button, Modal, Pill } from '@/components/ui';
+import { Button, FOCUS_RING_CLASSES, Modal, Pill } from '@/components/ui';
+import { controlSizeClasses } from '@/components/ui/density';
+import { cn } from '@/lib/cn';
 import { formatNullableDateTime } from '@/lib/date-format';
 import type { CredentialView } from '@/server/llm/credentials/view';
 import type { VendorView } from '@/server/llm/credentials/settings';
@@ -62,12 +64,18 @@ export function LlmCredentialCard({
         </Pill>
       </header>
       {credential?.status === 'unreadable' ? (
-        <p role="alert" className="m-0 rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-600">
+        <p
+          role="alert"
+          className="m-0 rounded-lg bg-surface-danger px-3 py-2 text-[12px] text-text-danger"
+        >
           {UNREADABLE_NOTICE}
         </p>
       ) : null}
       {credential?.status === 'expired' ? (
-        <p role="alert" className="m-0 rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-600">
+        <p
+          role="alert"
+          className="m-0 rounded-lg bg-surface-danger px-3 py-2 text-[12px] text-text-danger"
+        >
           {expiredNotice(vendor.label)}
         </p>
       ) : null}
@@ -78,14 +86,17 @@ export function LlmCredentialCard({
             href={vendor.consoleUrl}
             target="_blank"
             rel="noreferrer"
-            className="font-semibold text-purple-600"
+            className="font-semibold text-link hover:text-link-hover"
           >
             {vendor.label} 키 관리 열기
           </a>
         </p>
       ) : null}
       {vendor.disabled ? (
-        <p role="note" className="m-0 rounded-lg bg-amber-500/15 px-3 py-2 text-[12px]">
+        <p
+          role="note"
+          className="m-0 rounded-lg bg-warning-50 px-3 py-2 text-[12px] shadow-(--hairline-default)"
+        >
           {VENDOR_DISABLED_NOTICE}
         </p>
       ) : null}
@@ -112,7 +123,11 @@ export function LlmCredentialCard({
             <a
               href={keyringReady ? vendor.connectHref : undefined}
               aria-disabled={!keyringReady}
-              className="inline-flex items-center rounded-lg bg-action-bg px-3 py-1.5 text-[12px] font-semibold text-action-fg aria-disabled:opacity-50"
+              className={cn(
+                'inline-flex items-center rounded-control bg-action-bg px-4 font-semibold text-action-fg no-underline hover:bg-action-bg-hover hover:text-action-fg hover:no-underline aria-disabled:pointer-events-none aria-disabled:opacity-50',
+                controlSizeClasses('sm'),
+                FOCUS_RING_CLASSES,
+              )}
             >
               {credential ? `${vendor.label} 다시 연결` : `${vendor.label}로 연결`}
             </a>
@@ -140,7 +155,7 @@ export function LlmCredentialCard({
             href={vendor.consoleUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center px-2 text-[12px] font-semibold text-purple-600"
+            className="inline-flex items-center px-2 text-[12px] font-semibold text-link hover:text-link-hover"
           >
             벤더 콘솔
           </a>
@@ -152,7 +167,7 @@ export function LlmCredentialCard({
         title={`${vendor.label} 키 삭제`}
       >
         <div className="flex flex-col gap-4">
-          <p className="m-0 text-[13px]">
+          <p className="m-0 text-[14px]">
             저장된 키를 즉시 파기합니다. 되돌릴 수 없습니다. 벤더 콘솔에서도 키를 폐기하는 것을
             권장합니다.
           </p>
@@ -197,7 +212,7 @@ function CredentialFacts({ credential }: { credential: CredentialView }) {
         <dd className="m-0">{formatNullableDateTime(credential.lastUsedAt)}</dd>
       </div>
       {credential.lastErrorCode ? (
-        <p className="text-amber-600 col-span-2 m-0">
+        <p className="col-span-2 m-0 text-warning-700">
           {ERROR_CODE_LABELS[credential.lastErrorCode] ?? '확인하지 못했습니다'}
         </p>
       ) : null}

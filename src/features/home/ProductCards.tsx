@@ -18,7 +18,7 @@ export function ProductCards() {
             <Link
               href={productCardHref(card)}
               aria-label={`${card.name} 가격 정책 보기`}
-              className="flex flex-col gap-3.5 rounded-2xl bg-surface-card p-6 text-ink-900 no-underline shadow-(--hairline-default) transition-[translate,box-shadow] hover:-translate-y-0.5 hover:no-underline hover:shadow-(--shadow-elevated) motion-reduce:hover:translate-y-0"
+              className="flex flex-col gap-3.5 rounded-2xl bg-surface-card p-6 text-text-primary no-underline shadow-(--hairline-default) transition-[translate,box-shadow] hover:-translate-y-0.5 hover:text-text-primary hover:no-underline hover:shadow-(--shadow-elevated) motion-reduce:hover:translate-y-0"
             >
               <span
                 aria-hidden="true"
@@ -28,7 +28,7 @@ export function ProductCards() {
                 <span className="size-5 rounded-[5px]" style={{ background: card.accent }} />
               </span>
               <span className="text-[18px] font-bold tracking-[-0.01em]">{card.name}</span>
-              <span className="mt-1 text-[13px] font-semibold" style={{ color: card.accent }}>
+              <span className="mt-1 text-[14px] font-semibold" style={{ color: card.accent }}>
                 가격 정책 보기 →
               </span>
             </Link>

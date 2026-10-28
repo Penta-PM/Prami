@@ -14,7 +14,7 @@ const ITEM_STATUS_LABEL: Record<string, string> = {
 export function SearchResults({ result }: { result: SearchResult }) {
   if (!result.query) {
     return (
-      <p className="m-0 text-[13px] text-text-tertiary">
+      <p className="m-0 text-[14px] text-text-tertiary">
         상단 검색창에 제품, 모델, 품번, 공지사항 제목을 입력하세요.
       </p>
     );
@@ -23,11 +23,11 @@ export function SearchResults({ result }: { result: SearchResult }) {
   const anyTruncated = result.truncated.items || result.truncated.notices;
   return (
     <div className="flex flex-col gap-5">
-      <p className="m-0 text-[13px] text-text-tertiary">
-        <strong className="text-ink-900">“{result.query}”</strong> 검색 결과 {total}건 (품목{' '}
+      <p className="m-0 text-[14px] text-text-tertiary">
+        <strong className="text-text-primary">“{result.query}”</strong> 검색 결과 {total}건 (품목{' '}
         {result.items.length} · 공지 {result.notices.length})
         {anyTruncated ? (
-          <span role="note" className="ml-2 text-amber-700">
+          <span role="note" className="ml-2 text-warning-700">
             그룹당 상위 {SEARCH_LIMIT}건만 표시합니다 — 검색어를 더 구체적으로 입력하세요
           </span>
         ) : null}
@@ -41,12 +41,12 @@ export function SearchResults({ result }: { result: SearchResult }) {
           className="m-0 border-b border-border-subtle px-5 py-4 [font:var(--text-h2)]"
         >
           품목{' '}
-          <span className="text-[13px] font-medium text-text-tertiary">
+          <span className="text-[14px] font-medium text-text-tertiary">
             {result.truncated.items ? `상위 ${SEARCH_LIMIT}건` : result.items.length}
           </span>
         </h2>
         {result.items.length === 0 ? (
-          <p className="m-0 py-10 text-center text-[13px] text-text-tertiary">
+          <p className="m-0 py-10 text-center text-[14px] text-text-tertiary">
             일치하는 품목이 없습니다.
           </p>
         ) : (
@@ -55,7 +55,7 @@ export function SearchResults({ result }: { result: SearchResult }) {
               <li key={item.itemCode} className="border-b border-border-subtle last:border-b-0">
                 <Link
                   href={`/pricing?q=${encodeURIComponent(item.itemCode)}`}
-                  className="flex items-center gap-3 px-5 py-4 text-ink-900 no-underline hover:bg-gray-75 hover:no-underline"
+                  className="flex items-center gap-3 px-5 py-4 text-text-primary no-underline hover:bg-surface-muted hover:text-text-primary hover:no-underline"
                 >
                   <span className="min-w-0 flex-1 truncate text-[14px] font-medium">
                     {item.itemName}
@@ -82,7 +82,7 @@ export function SearchResults({ result }: { result: SearchResult }) {
           className="m-0 border-b border-border-subtle px-5 py-4 [font:var(--text-h2)]"
         >
           공지사항{' '}
-          <span className="text-[13px] font-medium text-text-tertiary">
+          <span className="text-[14px] font-medium text-text-tertiary">
             {result.truncated.notices ? `상위 ${SEARCH_LIMIT}건` : result.notices.length}
           </span>
         </h2>

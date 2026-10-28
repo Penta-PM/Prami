@@ -5,6 +5,8 @@ import { useState, useTransition, type FormEvent } from 'react';
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Button, Checkbox, Input, Modal } from '@/components/ui';
+import { FIELD_CLASSES } from '@/components/ui/input';
+import { cn } from '@/lib/cn';
 import type { ActionResult } from '@/lib/result';
 
 import { upsertNoticeAction } from './actions';
@@ -22,8 +24,11 @@ type NoticeFormModalProps = {
 
 const FIELD_CLASS = 'flex flex-col gap-1.5';
 const LABEL_CLASS = 'text-[12px] font-medium text-text-secondary';
-const TEXTAREA_CLASS =
-  'w-full resize-y rounded-xl border-0 bg-gray-75 px-3.5 py-3 text-[13px] leading-[1.7] text-ink-900 shadow-(--hairline-default) outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--purple-500)]';
+/** 여러 줄 입력 — Input 과 같은 필드 표면(FIELD_CLASSES: 흰 바탕·N200 테두리·포커스 고리) + 폼 밀도 md(Body 16) */
+const TEXTAREA_CLASS = cn(
+  FIELD_CLASSES,
+  'resize-y px-3 py-3 text-[16px] leading-[1.7] placeholder:text-text-placeholder',
+);
 
 /** 공지 등록/수정 (디자인 "공지사항 등록/수정": 제목·작성자·내용·중요 공지로 표시) → 감사 notice.create|update */
 export function NoticeFormModal({ mode, defaultAuthor, onClose, onDone }: NoticeFormModalProps) {
@@ -61,10 +66,8 @@ export function NoticeFormModal({ mode, defaultAuthor, onClose, onDone }: Notice
       className="w-[min(640px,calc(100vw-32px))]"
       footer={
         <>
-          <Button size="sm" onClick={onClose}>
-            취소
-          </Button>
-          <Button size="sm" variant="primary" type="submit" form="notice-form" disabled={isPending}>
+          <Button onClick={onClose}>취소</Button>
+          <Button variant="primary" type="submit" form="notice-form" disabled={isPending}>
             저장
           </Button>
         </>
@@ -74,7 +77,7 @@ export function NoticeFormModal({ mode, defaultAuthor, onClose, onDone }: Notice
         <Presence>
           {error ? (
             <Collapse key="error" role="alert">
-              <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-600">
+              <p className="m-0 rounded-lg bg-surface-danger px-3 py-2.5 text-[14px] text-text-danger">
                 {error}
               </p>
             </Collapse>
@@ -99,7 +102,7 @@ export function NoticeFormModal({ mode, defaultAuthor, onClose, onDone }: Notice
             className={TEXTAREA_CLASS}
           />
         </Field>
-        <label className="flex items-center gap-2 text-[13px] font-medium">
+        <label className="flex items-center gap-2 text-[14px] font-medium">
           <Checkbox name="isImportant" defaultChecked={editing?.isImportant ?? false} />
           중요 공지로 표시
         </label>
@@ -121,7 +124,9 @@ function Field({
     <label className={FIELD_CLASS}>
       <span className={LABEL_CLASS}>{label}</span>
       {children}
-      {error?.length ? <span className="text-[12px] text-red-600">{error.join(' ')}</span> : null}
+      {error?.length ? (
+        <span className="text-[12px] text-text-danger">{error.join(' ')}</span>
+      ) : null}
     </label>
   );
 }

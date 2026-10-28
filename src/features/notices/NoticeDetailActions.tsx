@@ -39,10 +39,8 @@ export function NoticeDetailActions({
 
   return (
     <div className="mt-7 flex items-center gap-2 border-t border-border-subtle pt-5">
-      <Button size="sm" onClick={() => setEditing(true)}>
-        수정
-      </Button>
-      <Button size="sm" variant="danger" onClick={() => setDeleting(true)}>
+      <Button onClick={() => setEditing(true)}>수정</Button>
+      <Button variant="danger" onClick={() => setDeleting(true)}>
         삭제
       </Button>
       <Presence>
@@ -54,7 +52,7 @@ export function NoticeDetailActions({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="text-[12px] text-green-700"
+            className="text-[12px] text-success-700"
           >
             {flash}
           </m.span>

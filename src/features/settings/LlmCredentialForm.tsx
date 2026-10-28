@@ -3,6 +3,9 @@
 import { useRef, useState } from 'react';
 
 import { Button } from '@/components/ui';
+import { controlSizeClasses } from '@/components/ui/density';
+import { FIELD_CLASSES } from '@/components/ui/input';
+import { cn } from '@/lib/cn';
 
 import { COMPANY_KEY_FORM_HINT } from './labels';
 
@@ -32,7 +35,7 @@ export function LlmCredentialForm({
 
   return (
     <form
-      className="flex flex-col gap-2 rounded-lg bg-gray-75 p-3"
+      className="flex flex-col gap-2 rounded-lg bg-surface-muted p-3"
       onSubmit={async (event) => {
         event.preventDefault();
         const input = inputRef.current;
@@ -67,7 +70,11 @@ export function LlmCredentialForm({
         minLength={16}
         maxLength={256}
         placeholder="키를 붙여넣으세요 — 저장 후 다시 볼 수 없습니다"
-        className="rounded-lg border border-border-subtle bg-surface-card px-3 py-2 text-[13px] outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--purple-500)]"
+        className={cn(
+          FIELD_CLASSES,
+          controlSizeClasses('sm'),
+          'px-3 placeholder:text-text-placeholder',
+        )}
       />
       <div className="flex gap-2">
         <Button type="submit" variant="primary" size="sm" disabled={disabled || pending}>

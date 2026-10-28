@@ -4,16 +4,15 @@ import { cn } from '@/lib/cn';
 
 import type { NoticeView } from './types';
 
-/** 디자인의 `중요` 배지 (accent-red 위 #fdeaec) */
 /**
- * '중요' 배지. 글자는 red-600 — red-500 은 옅은 빨강 배경(bg-red-500/12)에서 axe 대비 3.7:1(알림 드롭다운 미읽음 틴트 위 3.4:1)로
- * AA 미달이었다(#31 PR-3, QA #52). red-600 은 흰 배경 5.05:1·미읽음 틴트 위 4.6:1.
+ * '중요' 배지 — Status Badge 오류 톤(Pill error 와 같은 짝): Error 50 바탕 + Error 700 글자 5.91:1 (Penta PR-4a).
+ * 바탕이 불투명이라 알림 드롭다운 미읽음 행(primary-50) 위에서도 대비가 그대로다. 500 단계 글자는 AA 미달이라 쓰지 않는다(#31 PR-3, QA #52).
  */
 export function ImportantBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center rounded-pill bg-red-500/12 px-2 py-[3px] text-[11px] font-semibold text-red-600',
+        'inline-flex shrink-0 items-center rounded-pill bg-error-50 px-2 py-[3px] text-[11px] font-semibold text-error-700',
         className,
       )}
     >
@@ -24,7 +23,7 @@ export function ImportantBadge({ className }: { className?: string }) {
 
 type NoticeRowsProps = {
   notices: readonly NoticeView[];
-  /** 홈(compact)은 카드 안 13px 행, 목록은 16px/20px 행 */
+  /** 홈(compact)은 카드 안 좁은 행, 목록은 16px/20px 행 */
   variant?: 'home' | 'list';
   emptyText?: string;
 };
@@ -33,7 +32,7 @@ type NoticeRowsProps = {
 export function NoticeRows({ notices, variant = 'list', emptyText }: NoticeRowsProps) {
   if (notices.length === 0) {
     return (
-      <p className="m-0 py-10 text-center text-[13px] text-text-tertiary">
+      <p className="m-0 py-10 text-center text-[14px] text-text-tertiary">
         {emptyText ?? '등록된 공지가 없습니다.'}
       </p>
     );
@@ -45,7 +44,7 @@ export function NoticeRows({ notices, variant = 'list', emptyText }: NoticeRowsP
           <Link
             href={`/notices/${notice.id}`}
             className={cn(
-              'flex items-center gap-3 text-ink-900 no-underline hover:bg-gray-75 hover:no-underline',
+              'flex items-center gap-3 text-text-primary no-underline hover:bg-surface-muted hover:text-text-primary hover:no-underline',
               variant === 'home' ? 'px-1 py-[13px]' : 'px-5 py-4',
             )}
           >

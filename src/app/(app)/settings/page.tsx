@@ -39,14 +39,14 @@ export default async function SettingsPage(props: { searchParams?: SearchParams 
         <h1 id="page-title" className="m-0 [font:var(--text-page-title)]">
           사용자 설정
         </h1>
-        <p className="m-0 mt-1 text-[13px] text-text-tertiary">
+        <p className="m-0 mt-1 text-[14px] text-text-tertiary">
           로그인 계정과 챗봇에 쓸 본인 LLM API 키를 관리합니다.
         </p>
       </div>
       {oauthFailed ? (
         <p
           role="alert"
-          className="m-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-600"
+          className="m-0 rounded-lg bg-surface-danger px-3.5 py-2.5 text-[14px] text-text-danger"
         >
           {OAUTH_ERROR_NOTICE}
         </p>

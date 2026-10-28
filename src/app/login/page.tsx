@@ -44,12 +44,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="flex items-center gap-2.5">
             <Image src="/logo-prami-mark.png" alt="" width={34} height={31} priority />
-            <span className="text-ink-900 [font:var(--text-wordmark)]">Prami</span>
+            <span className="text-text-primary [font:var(--text-wordmark)]">Prami</span>
           </div>
           <h1 id="login-title" className="m-0 [font:var(--text-h2)]">
             가격정책 통합 관리
           </h1>
-          <p className="m-0 text-[13px] text-text-tertiary">
+          <p className="m-0 text-[14px] text-text-tertiary">
             회사 Google 계정({env.ALLOWED_EMAIL_DOMAINS.map((d) => `@${d}`).join(', ')})으로
             로그인하세요.
           </p>
@@ -58,7 +58,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         {error ? (
           <p
             role="alert"
-            className="m-0 rounded-lg bg-red-500/10 px-3.5 py-3 text-[13px] text-red-600"
+            className="m-0 rounded-lg bg-surface-danger px-3.5 py-3 text-[14px] text-text-danger"
           >
             {error}
           </p>

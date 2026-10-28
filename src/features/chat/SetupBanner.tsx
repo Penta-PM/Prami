@@ -29,7 +29,7 @@ export function SetupBanner({ setup }: { setup: ChatSetupView }) {
     <div
       role="status"
       aria-label="LLM 연결 안내"
-      className="border-b border-border-subtle bg-amber-500/10 px-5 py-3 text-[12px] leading-[1.5] text-text-primary"
+      className="border-b border-border-subtle bg-warning-50 px-5 py-3 text-[12px] leading-[1.5] text-text-primary"
     >
       {setup.message}
       <SetupLink href={setup.href} />
@@ -42,14 +42,14 @@ export function BillingNotice({ onClose }: { onClose: () => void }) {
     <div
       role="note"
       aria-label="과금 안내"
-      className="flex items-start justify-between gap-3 border-b border-border-subtle bg-gray-75 px-5 py-2.5 text-[11px] text-text-secondary"
+      className="flex items-start justify-between gap-3 border-b border-border-subtle bg-surface-muted px-5 py-2.5 text-[11px] text-text-secondary"
     >
       <span>{BILLING_NOTICE}</span>
       <button
         type="button"
         aria-label="과금 안내 닫기"
         onClick={onClose}
-        className="flex shrink-0 border-0 bg-transparent p-0 text-text-tertiary hover:text-ink-900"
+        className="flex shrink-0 border-0 bg-transparent p-0 text-text-tertiary hover:text-text-primary"
       >
         <Icon name="close" />
       </button>

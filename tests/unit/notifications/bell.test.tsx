@@ -234,9 +234,9 @@ describe('NotificationBell 항목', () => {
       '중요',
     );
     expect(badge).toBeInTheDocument();
-    // 미읽음 보라 틴트 위 axe 대비(#52 QA → #31 PR-3 공용 배지 red-600)
-    expect(badge).toHaveClass('text-red-600');
-    expect(badge).not.toHaveClass('text-red-500');
+    // 미읽음 행(primary-50) 위 axe 대비(#52 QA → #31 PR-3) — Penta PR-4a: 불투명 error-50 바탕 + error-700 글자 5.91:1
+    expect(badge).toHaveClass('bg-error-50', 'text-error-700');
+    expect(badge).not.toHaveClass('text-error-500');
     expect(
       within(within(dialog).getByRole('link', { name: /일반/ })).queryByText('중요'),
     ).not.toBeInTheDocument();

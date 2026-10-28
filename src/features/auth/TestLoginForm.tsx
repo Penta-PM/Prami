@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { Button, FOCUS_RING_CLASSES } from '@/components/ui/button';
+import { cn } from '@/lib/cn';
 import { Input } from '@/components/ui/input';
 
 export type TestLoginPreset = { email: string; label: string };
@@ -32,7 +33,10 @@ export function TestLoginForm({ action, callbackUrl, presets }: TestLoginFormPro
             type="button"
             onClick={() => setEmail(preset.email)}
             aria-pressed={email === preset.email}
-            className="rounded-pill border-0 bg-gray-75 px-3 py-1.5 text-[12px] font-medium text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900 aria-pressed:bg-ink-900 aria-pressed:text-white"
+            className={cn(
+              'rounded-pill border-0 bg-surface-muted px-3 py-1.5 text-[12px] font-medium text-text-secondary shadow-(--hairline-subtle) hover:text-text-primary aria-pressed:bg-surface-inverse aria-pressed:text-text-inverse',
+              FOCUS_RING_CLASSES,
+            )}
           >
             {preset.label}
           </button>
