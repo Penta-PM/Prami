@@ -48,15 +48,67 @@ afterEach(() => {
 });
 
 describe('Sidebar', () => {
-  it('기본(USER)은 일반 메뉴만 렌더한다', () => {
+  it('기본(권한 없음)은 HOME 만 렌더한다 — 가격 정책·조달·관리자 섹션 없음', () => {
     render(<Sidebar />);
     const nav = screen.getByRole('complementary', { name: '주 메뉴' });
-    expect(within(nav).getAllByRole('link')).toHaveLength(3);
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(['HOME']);
+    expect(within(nav).queryByText('가격 정책', { selector: 'div' })).not.toBeInTheDocument();
     expect(within(nav).queryByText('관리자')).not.toBeInTheDocument();
   });
 
+  it('UX PR-U1: "가격 정책" 섹션 아래 가격 정책 조회·계산기 — 섹션 순서 가격 정책 → 조달 → 관리자, URL 그대로', () => {
+    render(<Sidebar showPricingNav showCalculatorNav showProcurementNav showAdminNav />);
+    const nav = screen.getByRole('complementary', { name: '주 메뉴' });
+    const headers = Array.from(nav.querySelectorAll('nav > div')).map((el) => el.textContent);
+    expect(headers).toEqual(['가격 정책', '조달', '관리자']);
+    const links = within(nav).getAllByRole('link');
+    expect(links.slice(0, 3).map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
+      ['HOME', '/'],
+      ['가격 정책 조회', '/pricing'],
+      ['계산기', '/calculator'],
+    ]);
+    // 가격 정책 섹션 머리는 HOME 뒤, 가격 정책 조회 앞
+    const pricingHeader = within(nav).getByText('가격 정책', { selector: 'div' });
+    expect(
+      links[0]!.compareDocumentPosition(pricingHeader) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      pricingHeader.compareDocumentPosition(links[1]!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('UX PR-U1: 가격 정책 섹션은 항목별 권한으로 보이고, 둘 다 없으면 섹션 머리도 없다', () => {
+    const { unmount } = render(<Sidebar showCalculatorNav />);
+    expect(screen.getByText('가격 정책', { selector: 'div' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '계산기' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '가격 정책 조회' })).not.toBeInTheDocument();
+    unmount();
+    render(<Sidebar showProcurementNav />);
+    expect(screen.queryByText('가격 정책', { selector: 'div' })).not.toBeInTheDocument();
+  });
+
+  it('UX PR-U1: 가격 정책 조회는 exact — /pricing 에서만 활성, /pricing/chat 에서는 활성 아님', () => {
+    usePathnameMock.mockReturnValue('/pricing');
+    const { unmount } = render(<Sidebar showPricingNav showCalculatorNav />);
+    expect(screen.getByRole('link', { name: '가격 정책 조회' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    unmount();
+    usePathnameMock.mockReturnValue('/pricing/chat');
+    render(<Sidebar showPricingNav showCalculatorNav />);
+    expect(screen.getByRole('link', { name: '가격 정책 조회' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    expect(screen.getByRole('link', { name: '계산기' })).not.toHaveAttribute('aria-current');
+  });
+
   it('관리자는 일반·관리자 메뉴를 모두 렌더하고 역할 토글은 없다', () => {
-    render(<Sidebar showAdminNav />);
+    render(<Sidebar showPricingNav showCalculatorNav showAdminNav />);
     const nav = screen.getByRole('complementary', { name: '주 메뉴' });
     expect(within(nav).getAllByRole('link')).toHaveLength(10);
     expect(within(nav).getByText('관리자')).toBeInTheDocument();
@@ -109,7 +161,7 @@ describe('Sidebar', () => {
   });
 
   it('접기 버튼으로 라벨을 숨기고 다시 펼친다', async () => {
-    render(<Sidebar showAdminNav />);
+    render(<Sidebar showPricingNav showCalculatorNav showAdminNav />);
     const toggle = screen.getByRole('button', { name: '사이드바 접기/펼치기' });
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('가격 정책 조회')).toBeInTheDocument();
@@ -210,7 +262,11 @@ describe('AppLayout', () => {
     render(await AppLayout({ children: <p>본문</p> }));
     const nav = screen.getByRole('complementary', { name: '주 메뉴' });
     expect(within(nav).getByText('조달', { selector: 'div' })).toBeInTheDocument();
+    // UX PR-U1: USER 도 가격 정책 섹션(pricing.read·calculator.use)을 본다
+    expect(within(nav).getByText('가격 정책', { selector: 'div' })).toBeInTheDocument();
     for (const [name, href] of [
+      ['가격 정책 조회', '/pricing'],
+      ['계산기', '/calculator'],
       ['조달 실적 현황', '/procurement'],
       ['등록 품목', '/procurement/items'],
       ['입찰 공고', '/procurement/bids'],
@@ -229,7 +285,8 @@ describe('AppLayout', () => {
       'href',
       '/admin/procurement',
     );
-    expect(within(nav).getAllByRole('link')).toHaveLength(3 + 3 + 8);
+    // HOME 1 + 가격 정책 2 + 조달 3 + 관리자 8
+    expect(within(nav).getAllByRole('link')).toHaveLength(1 + 2 + 3 + 8);
   });
 
   it('사이드바·헤더·본문을 조합하고 세션 사용자를 표시한다', async () => {

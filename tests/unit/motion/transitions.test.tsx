@@ -178,7 +178,7 @@ describe('인라인 배너 Presence + Collapse(listItem) (§3.3 인라인 피드
 
 describe('Sidebar 라벨 fade (§3.3 사이드바 — 폭·translate 는 CSS 유지)', () => {
   it('접으면 라벨과 "관리자" 헤더가 제거되고 펼치면 돌아온다', async () => {
-    render(<Sidebar showAdminNav />);
+    render(<Sidebar showPricingNav showCalculatorNav showAdminNav />);
     const toggle = screen.getByRole('button', { name: '사이드바 접기/펼치기' });
     const aside = screen.getByRole('complementary', { name: '주 메뉴' });
     expect(screen.getByText('가격 정책 조회')).toBeInTheDocument();

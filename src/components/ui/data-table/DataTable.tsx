@@ -707,6 +707,8 @@ export function DataTable<T>({
               <TableRow
                 key={getRowKey(row)}
                 className={rowClassName?.(row)}
+                // 행 클릭(상세 드로어 등)이 있으면 전역 손가락 커서 대상 (UX PR-U1 §2)
+                data-clickable={onRowClick ? '' : undefined}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
               >
                 {ordered.map((column) => (

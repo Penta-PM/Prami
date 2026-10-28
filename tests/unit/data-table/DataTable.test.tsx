@@ -303,6 +303,14 @@ describe('DataTable 행 클릭', () => {
     await userEvent.click(cells[0] as HTMLElement);
     expect(onRowClick).toHaveBeenCalledTimes(1);
   });
+
+  it('UX PR-U1 §2: 행 클릭이 있으면 본문 행에 data-clickable(손가락 커서), 없으면 없다', () => {
+    const { unmount } = renderTable();
+    for (const row of bodyRows()) expect(row).not.toHaveAttribute('data-clickable');
+    unmount();
+    renderTable({ onRowClick: vi.fn() });
+    for (const row of bodyRows()) expect(row).toHaveAttribute('data-clickable', '');
+  });
 });
 
 describe('DataTable 접근성 이름', () => {
