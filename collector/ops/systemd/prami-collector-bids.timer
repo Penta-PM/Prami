@@ -1,0 +1,12 @@
+# 평일 08:30 ~ 18:30 KST 매시 30분 (하루 11회)
+[Unit]
+Description=Prami 조달 수집기 — 입찰공고 타이머 (평일 08:30~18:30 매시 30분 KST)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 08..18:30:00 Asia/Seoul
+Persistent=true
+AccuracySec=1s
+Unit=prami-collector-bids.service
+
+[Install]
+WantedBy=timers.target

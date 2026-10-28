@@ -8,7 +8,8 @@
 - 입찰공고: 나라장터 입찰공고 목록 조회 → `bid_notices`
 - 실행 기록: `job_runs`(running → ok/failed, `summary`), 상태: `app_state`(`daily`·`bids`)
 
-운영 설치(systemd 사용자 타이머·flock·env 파일)와 첫 실행 절차는 런북 `docs/ops/collector.md` 에 있습니다 (PR-3).
+운영 설치(systemd 사용자 타이머·flock·env 파일)와 가동·일상 운영·장애 대응·롤백 절차는 런북 [`docs/ops/collector.md`](../docs/ops/collector.md) 에 있습니다.
+운영 파일은 `ops/` (유닛 `ops/systemd/`, 잡 실행기 `ops/run-job.sh`, 설치 `ops/install.sh`, env 예시 `ops/collector.env.example`).
 
 ## 환경변수
 
@@ -55,6 +56,7 @@ jodal bids                   # 최근 14일 입찰공고 (--days N, --since YYYY
 ```
 
 작업 파일(내려받은 엑셀)은 실행 디렉터리의 `data/` 아래에 쌓입니다 (`--output-dir` 로 변경).
+운영 타이머는 `--output-dir ~/.local/share/prami-collector/exports` 로 실행하며, 30일 지난 파일은 정리 타이머가 지웁니다.
 
 ## 테스트
 

@@ -1,0 +1,19 @@
+# Prami 조달 수집기 — 일일 수집(등록물품·납품요구) + 보고 메일. 타이머: prami-collector-daily.timer
+# 설치: collector/ops/install.sh (런북 docs/ops/collector.md). 실행 체크아웃은 %h/prami-collector (main 고정 별도 clone).
+[Unit]
+Description=Prami 조달 수집기 — 일일 수집 (jodal daily --skip-if-done)
+After=network-online.target
+Wants=network-online.target
+OnFailure=prami-collector-failure@%n.service
+
+[Service]
+Type=oneshot
+# 비밀값은 저장소 밖 env 파일(권한 600)에서만 읽는다. 파일 값이 아래 Environment= 보다 우선한다.
+Environment=TZ=Asia/Seoul
+EnvironmentFile=%h/.config/prami-collector/collector.env
+WorkingDirectory=%h/.local/share/prami-collector
+# run-job.sh: 잡별 flock(비차단 — 이미 실행 중이면 로그 한 줄 남기고 0 종료) + 최대 3회·60초 간격 재시도 + 로그 파일
+ExecStart=/usr/bin/bash %h/prami-collector/collector/ops/run-job.sh daily
+# 90일 따라잡기 + 재시도 3회까지 넉넉히. 시간 초과로 죽으면 job_runs 행이 running 으로 남는다(런북 '장애 대응').
+TimeoutStartSec=4h
+SyslogIdentifier=prami-collector-daily

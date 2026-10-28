@@ -1,0 +1,18 @@
+# Prami 조달 수집기 — 입찰공고 수집. 타이머: prami-collector-bids.timer
+# 설치: collector/ops/install.sh (런북 docs/ops/collector.md). 실행 체크아웃은 %h/prami-collector (main 고정 별도 clone).
+[Unit]
+Description=Prami 조달 수집기 — 입찰공고 (jodal bids)
+After=network-online.target
+Wants=network-online.target
+OnFailure=prami-collector-failure@%n.service
+
+[Service]
+Type=oneshot
+Environment=TZ=Asia/Seoul
+EnvironmentFile=%h/.config/prami-collector/collector.env
+WorkingDirectory=%h/.local/share/prami-collector
+# run-job.sh: 잡별 flock(daily 와 다른 잠금 파일) + 최대 3회·60초 간격 재시도 + 로그 파일
+ExecStart=/usr/bin/bash %h/prami-collector/collector/ops/run-job.sh bids
+# 새 키워드가 있으면 올해 1월 1일부터 다시 찾는다(페이지당 1초) — 넉넉히
+TimeoutStartSec=2h
+SyslogIdentifier=prami-collector-bids

@@ -1,0 +1,9 @@
+# 수집 서비스 OnFailure= 대상 — journald 에 실패 한 줄만 남긴다(메일 없음). %i = 실패한 유닛 이름.
+# 실패 가시화는 Prami 화면 헤더('최근 수집 실패')가 맡는다.
+[Unit]
+Description=Prami 조달 수집기 — 실패 기록 (%i)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/echo "prami-collector 실패: %i — journalctl --user -u %i 로 원인을 확인하세요"
+SyslogIdentifier=prami-collector-failure
