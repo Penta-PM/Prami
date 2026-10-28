@@ -90,3 +90,105 @@ test('메뉴로 자리표시자 페이지에 이동한다', async ({ page }) => 
   await expect(page).toHaveURL(/\/admin\/audit$/);
   await expect(page.getByRole('heading', { level: 1, name: '감사 로그' })).toBeVisible();
 });
+
+test('UX PR-U1: 사이드바 "가격 정책" 섹션 — 가격 정책 조회·계산기, 섹션 순서 가격 정책 → 조달 → 관리자', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const sidebar = page.getByRole('complementary', { name: '주 메뉴' });
+  const sections = sidebar.locator('nav > div');
+  await expect(sections).toHaveText(['가격 정책', '조달', '관리자']);
+  await expect(sidebar.getByRole('link', { name: '가격 정책 조회' })).toHaveAttribute(
+    'href',
+    '/pricing',
+  );
+  await expect(sidebar.getByRole('link', { name: '계산기' })).toHaveAttribute(
+    'href',
+    '/calculator',
+  );
+  await sidebar.getByRole('link', { name: '계산기' }).click();
+  await expect(page).toHaveURL(/\/calculator$/);
+  await expect(sidebar.getByRole('link', { name: '계산기' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(sidebar.getByRole('link', { name: '가격 정책 조회' })).not.toHaveAttribute(
+    'aria-current',
+  );
+});
+
+test('UX PR-U1: 클릭 가능한 요소는 손가락 커서, 비활성은 not-allowed, 텍스트 입력은 손가락 아님 (계산된 스타일)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  // 실제 셸 요소
+  const cursorOf = (locator: ReturnType<typeof page.locator>) =>
+    locator.evaluate((element) => getComputedStyle(element).cursor);
+  expect(await cursorOf(page.getByRole('button', { name: '사이드바 접기/펼치기' }))).toBe(
+    'pointer',
+  );
+  expect(await cursorOf(page.getByRole('link', { name: '가격 정책 조회' }))).toBe('pointer');
+  // 텍스트 입력은 전역 규칙 대상이 아니다 — 브라우저 기본(text/auto), 손가락 아님
+  expect(await cursorOf(page.getByRole('searchbox', { name: '통합 검색' }))).not.toBe('pointer');
+
+  // 선택자 목록 전체 — 전역 CSS 가 적용된 문서에 표본 요소를 붙여 계산값을 읽는다
+  const cursors = await page.evaluate(() => {
+    const host = document.createElement('div');
+    host.innerHTML = `
+      <button data-k="button">b</button>
+      <button data-k="button-disabled" disabled>b</button>
+      <button data-k="button-aria-disabled" aria-disabled="true">b</button>
+      <div data-k="role-button" role="button">r</div>
+      <div data-k="role-tab" role="tab">r</div>
+      <div data-k="role-menuitem" role="menuitem">r</div>
+      <div data-k="role-option" role="option">r</div>
+      <div data-k="role-switch" role="switch">r</div>
+      <details><summary data-k="summary">s</summary></details>
+      <a data-k="a-href" href="#x">a</a>
+      <label data-k="label-for" for="x">l</label>
+      <select data-k="select"><option>o</option></select>
+      <input data-k="checkbox" type="checkbox" />
+      <input data-k="radio" type="radio" />
+      <input data-k="range" type="range" />
+      <input data-k="submit" type="submit" />
+      <input data-k="text" type="text" />
+      <textarea data-k="textarea"></textarea>
+      <table><tbody><tr data-k="clickable-row" data-clickable=""><td>c</td></tr></tbody></table>
+      <div data-k="plain-div">d</div>
+      <div data-k="middle" class="cursor-grab">m</div>`;
+    document.body.append(host);
+    const result = Object.fromEntries(
+      Array.from(host.querySelectorAll<HTMLElement>('[data-k]')).map((element) => [
+        element.dataset.k,
+        getComputedStyle(element).cursor,
+      ]),
+    );
+    host.remove();
+    return result;
+  });
+  for (const key of [
+    'button',
+    'role-button',
+    'role-tab',
+    'role-menuitem',
+    'role-option',
+    'role-switch',
+    'summary',
+    'a-href',
+    'label-for',
+    'select',
+    'checkbox',
+    'radio',
+    'range',
+    'submit',
+    'clickable-row',
+  ])
+    expect(cursors[key], key).toBe('pointer');
+  expect(cursors['button-disabled']).toBe('not-allowed');
+  expect(cursors['button-aria-disabled']).toBe('not-allowed');
+  expect(cursors.text).not.toBe('pointer');
+  expect(cursors.textarea).not.toBe('pointer');
+  expect(cursors['plain-div']).not.toBe('pointer');
+  // 유틸리티(cursor-grab — 범위 슬라이더 가운데 드래그 #89)가 base 층 규칙보다 우선
+  expect(cursors.middle).toBe('grab');
+});

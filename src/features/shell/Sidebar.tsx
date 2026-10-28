@@ -16,6 +16,7 @@ import {
   NAV_MAIN,
   NAV_PROCUREMENT,
   adminNavItems,
+  pricingNavItems,
   isNavActive,
   type NavItem,
   type NavVisibility,
@@ -35,10 +36,13 @@ import {
  * 서버 렌더 요소라 첫 렌더에는 숨김 initial 을 주지 않는다 — 사용자가 토글한 뒤(`labelsFadeIn`)부터만 fade-in. Motion `layout` 은 쓰지 않는다.
  * 제거는 Presence 를 거치지 않는 조건부 렌더라 접는 커밋에서 바로 빠진다(Presence 는 exit 가 없어도 한 프레임 늦게 제거).
  *
- * 섹션: 일반 → "조달"(procurement.read, 조달이 통합 UI-1) → "관리자"(관리자 영역, "조달 관리"는 procurement.write 일 때만 — D-2).
+ * 섹션: 일반(HOME) → "가격 정책"(가격 정책 조회 pricing.read·계산기 calculator.use, UX PR-U1)
+ *   → "조달"(procurement.read, 조달이 통합 UI-1) → "관리자"(관리자 영역, "조달 관리"는 procurement.write 일 때만 — D-2).
  * 노출 값은 레이아웃이 세션 역할로 계산한다(navVisibility).
  */
 export function Sidebar({
+  showPricingNav = false,
+  showCalculatorNav = false,
   showAdminNav = false,
   showProcurementNav = false,
   showProcurementAdminNav = false,
@@ -48,6 +52,7 @@ export function Sidebar({
   const [labelsFadeIn, setLabelsFadeIn] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const pathname = usePathname();
+  const pricingItems = pricingNavItems({ showPricingNav, showCalculatorNav });
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const asideRef = useRef<HTMLElement>(null);
   const closeMobile = () => setIsMobileOpen(false);
@@ -127,6 +132,23 @@ export function Sidebar({
             />
           ))}
 
+          {pricingItems.length > 0 ? (
+            <>
+              <SectionHeader isExpanded={isExpanded} fadeIn={labelsFadeIn}>
+                가격 정책
+              </SectionHeader>
+              {pricingItems.map((item) => (
+                <SidebarLink
+                  key={item.key}
+                  item={item}
+                  isActive={isNavActive(pathname, item.href, item.exact)}
+                  isExpanded={isExpanded}
+                  fadeIn={labelsFadeIn}
+                />
+              ))}
+            </>
+          ) : null}
+
           {showProcurementNav ? (
             <>
               <SectionHeader isExpanded={isExpanded} fadeIn={labelsFadeIn}>
@@ -194,7 +216,7 @@ function labelFade(fadeIn: boolean) {
   } as const;
 }
 
-/** 섹션 머리("조달"·"관리자"). 접힌 사이드바에서는 구분선 */
+/** 섹션 머리("가격 정책"·"조달"·"관리자"). 접힌 사이드바에서는 구분선 */
 function SectionHeader({
   isExpanded,
   fadeIn,

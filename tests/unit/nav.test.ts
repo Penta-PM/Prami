@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   NAV_ADMIN,
   NAV_MAIN,
+  NAV_PRICING,
   NAV_PROCUREMENT,
   adminNavItems,
   isNavActive,
   navVisibility,
+  pricingNavItems,
 } from '@/features/shell/nav';
 
 describe('isNavActive', () => {
@@ -30,13 +32,27 @@ describe('isNavActive', () => {
     expect(isNavActive('/procurement/items', '/procurement', true)).toBe(false);
     expect(isNavActive('/procurement/items', '/procurement/items')).toBe(true);
   });
+
+  it('UX PR-U1: 가격 정책 조회(/pricing)는 exact — 챗봇 경로 /pricing/chat 에서 활성이 아니다', () => {
+    const pricing = NAV_PRICING.find((item) => item.key === 'pricing')!;
+    expect(pricing.exact).toBe(true);
+    expect(isNavActive('/pricing', pricing.href, pricing.exact)).toBe(true);
+    expect(isNavActive('/pricing/chat', pricing.href, pricing.exact)).toBe(false);
+    const calculator = NAV_PRICING.find((item) => item.key === 'calculator')!;
+    expect(isNavActive('/calculator', calculator.href, calculator.exact)).toBe(true);
+    expect(isNavActive('/pricing/chat', calculator.href, calculator.exact)).toBe(false);
+  });
 });
 
 describe('메뉴 정의', () => {
-  const all = [...NAV_MAIN, ...NAV_PROCUREMENT, ...NAV_ADMIN];
+  const all = [...NAV_MAIN, ...NAV_PRICING, ...NAV_PROCUREMENT, ...NAV_ADMIN];
 
-  it('디자인 순서의 일반 3개, 조달 3개, 관리자 8개 메뉴를 가진다', () => {
-    expect(NAV_MAIN.map((item) => item.label)).toEqual(['HOME', '가격 정책 조회', '계산기']);
+  it('일반 1개(HOME), 가격 정책 2개, 조달 3개, 관리자 8개 메뉴를 가진다 (UX PR-U1 — URL 그대로)', () => {
+    expect(NAV_MAIN.map((item) => [item.label, item.href])).toEqual([['HOME', '/']]);
+    expect(NAV_PRICING.map((item) => [item.label, item.href, item.icon])).toEqual([
+      ['가격 정책 조회', '/pricing', 'tag'],
+      ['계산기', '/calculator', 'calculator'],
+    ]);
     expect(NAV_PROCUREMENT.map((item) => [item.label, item.href])).toEqual([
       ['조달 실적 현황', '/procurement'],
       ['등록 품목', '/procurement/items'],
@@ -65,8 +81,10 @@ describe('메뉴 정의', () => {
 });
 
 describe('메뉴 노출 (조달이 통합 UI-1 — D-1·D-2)', () => {
-  it('USER: 조달 섹션만, 관리자·조달 관리 없음', () => {
+  it('USER: 가격 정책·조달 섹션, 관리자·조달 관리 없음', () => {
     expect(navVisibility('USER')).toEqual({
+      showPricingNav: true,
+      showCalculatorNav: true,
       showAdminNav: false,
       showProcurementNav: true,
       showProcurementAdminNav: false,
@@ -76,6 +94,8 @@ describe('메뉴 노출 (조달이 통합 UI-1 — D-1·D-2)', () => {
   it('ADMIN: 조달 섹션 + 관리자 섹션의 조달 관리', () => {
     const visibility = navVisibility('ADMIN');
     expect(visibility).toEqual({
+      showPricingNav: true,
+      showCalculatorNav: true,
       showAdminNav: true,
       showProcurementNav: true,
       showProcurementAdminNav: true,
@@ -83,8 +103,10 @@ describe('메뉴 노출 (조달이 통합 UI-1 — D-1·D-2)', () => {
     expect(adminNavItems(visibility).map((item) => item.href)).toContain('/admin/procurement');
   });
 
-  it('역할 없음(권한 없음): 조달·관리자 모두 숨김', () => {
+  it('역할 없음(권한 없음): 가격 정책·조달·관리자 모두 숨김', () => {
     expect(navVisibility(null)).toEqual({
+      showPricingNav: false,
+      showCalculatorNav: false,
       showAdminNav: false,
       showProcurementNav: false,
       showProcurementAdminNav: false,
@@ -95,6 +117,16 @@ describe('메뉴 노출 (조달이 통합 UI-1 — D-1·D-2)', () => {
     const items = adminNavItems({ showProcurementAdminNav: false });
     expect(items.map((item) => item.label)).not.toContain('조달 관리');
     expect(items).toHaveLength(NAV_ADMIN.length - 1);
+  });
+
+  it('가격 정책 섹션은 항목별 권한으로 거른다 (pricing.read·calculator.use)', () => {
+    expect(NAV_PRICING.map((item) => item.permission)).toEqual(['pricing.read', 'calculator.use']);
+    const keys = (showPricingNav: boolean, showCalculatorNav: boolean) =>
+      pricingNavItems({ showPricingNav, showCalculatorNav }).map((item) => item.key);
+    expect(keys(true, true)).toEqual(['pricing', 'calculator']);
+    expect(keys(true, false)).toEqual(['pricing']);
+    expect(keys(false, true)).toEqual(['calculator']);
+    expect(keys(false, false)).toEqual([]);
   });
 
   it('조달 메뉴는 procurement.read, 조달 관리는 procurement.write 로 표시한다', () => {

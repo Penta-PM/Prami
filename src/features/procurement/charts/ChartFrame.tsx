@@ -169,6 +169,8 @@ export function ChartPlot({
         aria-label={title}
         aria-describedby={hintId}
         data-chart-plot=""
+        // 클릭으로 그 달을 선택(onActivate)하는 차트만 손가락 커서 (UX PR-U1 §2) — 마우스 이동 툴팁만 있는 차트는 기본 커서
+        data-clickable={onActivate && count > 0 ? '' : undefined}
         onKeyDown={onKeyDown}
         onFocus={() => {
           setFocused(true);

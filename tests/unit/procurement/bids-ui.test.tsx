@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BidFilterBar } from '@/features/procurement/bids/BidFilterBar';
 import { BidTable, type BidTableRow } from '@/features/procurement/bids/BidTable';
+import { MotionProvider } from '@/components/motion/MotionProvider';
 import { DEFAULT_BID_FILTER, type BidFilter } from '@/lib/procurement/bid-filter';
+import { BID_FIT_HINT_LINES, BID_FIT_HINT_NAME } from '@/lib/procurement/copy';
 
 /**
  * 조달이 통합 UI-3 — 입찰 공고 필터 바·표 (합성 데이터, 링크는 example.invalid).
@@ -293,5 +295,56 @@ describe('BidTable', () => {
     const table = screen.getByRole('table', { name: '입찰 공고 목록' });
     expect(table.parentElement).toHaveClass('overflow-x-auto');
     expect(container.firstElementChild).toBe(table.parentElement);
+  });
+});
+
+describe('BidTable 적합도 기준 툴팁 (UX PR-U1 §3)', () => {
+  const withMotion = { wrapper: MotionProvider };
+  const hint = () => screen.getByRole('button', { name: '적합도 기준' });
+
+  it('문구 상수: 요인·등급 구간 4줄, 근거 칸 이름은 표의 실제 칸 이름', () => {
+    expect(BID_FIT_HINT_NAME).toBe('적합도 기준');
+    expect(BID_FIT_HINT_LINES).toEqual([
+      '공고명·업무구분·예산·마감·수요기관 납품 이력으로 0~100점을 매깁니다. 70점 이상 상, 45점 이상 중, 그 아래 하.',
+      '가점: 제품 구매·구축 사업, 물품 공고, 자사·경쟁사 제품 납품 이력이 있는 기관, 큰 예산, 재공고.',
+      '감점: 연구·평가·점검·컨설팅 용역, 개발 사업, 소액, 마감 3일 이내.',
+      "공고별 근거는 '근거' 칸에서 확인하세요.",
+    ]);
+    render(<BidTable rows={[row()]} />, withMotion);
+    expect(screen.getByRole('columnheader', { name: /^근거$/ })).toBeInTheDocument();
+  });
+
+  it("'적합도' 머리 안에 트리거 하나 — 클릭으로 열면 4줄 문구, 바깥 클릭으로 닫힘", async () => {
+    render(
+      <>
+        <BidTable rows={[row()]} />
+        <p>빈 곳</p>
+      </>,
+      withMotion,
+    );
+    const header = screen.getAllByRole('columnheader')[0]!;
+    expect(header).toHaveTextContent('적합도');
+    expect(within(header).getByRole('button', { name: '적합도 기준' })).toBe(hint());
+    expect(hint()).toHaveAttribute('aria-expanded', 'false');
+
+    await userEvent.click(hint());
+    const dialog = screen.getByRole('dialog', { name: '적합도 기준' });
+    expect(hint()).toHaveAttribute('aria-expanded', 'true');
+    for (const line of BID_FIT_HINT_LINES)
+      expect(within(dialog).getByText(line)).toBeInTheDocument();
+    expect(dialog).toHaveAccessibleDescription(BID_FIT_HINT_LINES.join(''));
+
+    await userEvent.click(screen.getByText('빈 곳'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('키보드: Enter 로 열고 Esc 로 닫으면 트리거로 포커스 복귀', async () => {
+    render(<BidTable rows={[row()]} />, withMotion);
+    hint().focus();
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(screen.getByRole('dialog', { name: '적합도 기준' })).toHaveFocus());
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(hint()).toHaveFocus();
   });
 });

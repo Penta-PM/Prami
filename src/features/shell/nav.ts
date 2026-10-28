@@ -13,11 +13,31 @@ export type NavItem = {
   exact?: boolean;
 };
 
-/** 일반 메뉴 (디자인 navMain 순서 유지) */
+/** 일반 메뉴 */
 export const NAV_MAIN: readonly NavItem[] = [
   { key: 'home', label: 'HOME', href: '/', icon: 'home' },
-  { key: 'pricing', label: '가격 정책 조회', href: '/pricing', icon: 'tag' },
-  { key: 'calculator', label: '계산기', href: '/calculator', icon: 'calculator' },
+];
+
+/**
+ * 가격 정책 메뉴 (UX PR-U1 §1 — "조달" 섹션과 같은 방식). 사이드바 "가격 정책" 섹션. URL·page-state 키는 그대로다.
+ * `/pricing` 은 exact — 같은 섹션에 들어올 챗봇 경로 `/pricing/chat`(PR-C2)에서 함께 활성되지 않게 한다.
+ */
+export const NAV_PRICING: readonly NavItem[] = [
+  {
+    key: 'pricing',
+    label: '가격 정책 조회',
+    href: '/pricing',
+    icon: 'tag',
+    permission: 'pricing.read',
+    exact: true,
+  },
+  {
+    key: 'calculator',
+    label: '계산기',
+    href: '/calculator',
+    icon: 'calculator',
+    permission: 'calculator.use',
+  },
 ];
 
 /** 조달 메뉴 (조달이 통합 UI-1, procurement.read = USER·ADMIN — D-1). 사이드바 "조달" 섹션 */
@@ -69,6 +89,10 @@ export const NAV_ADMIN: readonly NavItem[] = [
 
 /** 사이드바에 넘길 메뉴 노출 — 세션 역할로 결정한다(메뉴 숨김은 표시용, 직접 접근은 화면 가드가 막는다) */
 export type NavVisibility = {
+  /** 가격 정책 섹션의 "가격 정책 조회" (pricing.read) */
+  showPricingNav: boolean;
+  /** 가격 정책 섹션의 "계산기" (calculator.use) */
+  showCalculatorNav: boolean;
   /** 관리자 섹션 (관리자 영역 = users.manage) */
   showAdminNav: boolean;
   /** 조달 섹션 (procurement.read) */
@@ -79,10 +103,21 @@ export type NavVisibility = {
 
 export function navVisibility(role: Role | null | undefined): NavVisibility {
   return {
+    showPricingNav: hasPermission(role, 'pricing.read'),
+    showCalculatorNav: hasPermission(role, 'calculator.use'),
     showAdminNav: hasPermission(role, 'users.manage'),
     showProcurementNav: hasPermission(role, 'procurement.read'),
     showProcurementAdminNav: hasPermission(role, 'procurement.write'),
   };
+}
+
+/** 가격 정책 섹션 항목 — 항목마다 그 권한 노출 값으로 거른다(빈 배열이면 섹션 머리도 그리지 않는다) */
+export function pricingNavItems(
+  visibility: Pick<NavVisibility, 'showPricingNav' | 'showCalculatorNav'>,
+): readonly NavItem[] {
+  return NAV_PRICING.filter((item) =>
+    item.permission === 'calculator.use' ? visibility.showCalculatorNav : visibility.showPricingNav,
+  );
 }
 
 /** 관리자 섹션 항목 — 권한이 걸린 항목(조달 관리)은 그 권한 노출 값으로 거른다 */

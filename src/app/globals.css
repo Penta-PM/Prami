@@ -441,6 +441,43 @@
 }
 
 /*
+ * 클릭 커서 (UX PR-U1 §2): Tailwind 4 preflight 는 button 커서를 브라우저 기본(default)으로 둔다 → 클릭 가능한 요소 전체에
+ * 손가락 커서를 base 층에서 한 번에 준다. :where 라 선택자 목록 자체는 명시도 0(:not 인자만 0,1,0)이고 base 층이라
+ * 컴포넌트·유틸리티(cursor-grab·cursor-grabbing — 범위 슬라이더 가운데 드래그 #89, thumb 의 grab)가 항상 이긴다.
+ * 텍스트 입력은 목록에 없다(브라우저 기본 text 커서). onClick 을 단 행·div 는 data-clickable 을 붙인다.
+ * 비활성(:disabled·aria-disabled=true)은 not-allowed — 개별 disabled:cursor-not-allowed 클래스와 같은 값.
+ */
+@layer base {
+  :where(
+    button,
+    [role='button'],
+    [role='tab'],
+    [role='menuitem'],
+    [role='option'],
+    [role='switch'],
+    summary,
+    a[href],
+    label[for],
+    select,
+    input:is(
+      [type='checkbox'],
+      [type='radio'],
+      [type='range'],
+      [type='file'],
+      [type='color'],
+      [type='submit'],
+      [type='button']
+    ),
+    [data-clickable]
+  ):not(:disabled, [aria-disabled='true']) {
+    cursor: pointer;
+  }
+  :where(:disabled, [aria-disabled='true']) {
+    cursor: not-allowed;
+  }
+}
+
+/*
  * 범위 슬라이더 (components/ui/range-slider.tsx, 빠른 필터 바 §7.5): 겹친 네이티브 range 2개 — input 자체는 클릭을 받지 않고(트랙은
  * 감싸는 div 가 받는다) thumb 만 받는다. thumb 히트 영역 44px(터치), 보이는 핸들 20px(--action-bg 원 + 흰 테두리),
  * focus-visible 은 2px --focus-ring 고리. 색 경계마다 1px 섞임 구간(하드 스톱이면 원 가장자리가 계단처럼 보인다).

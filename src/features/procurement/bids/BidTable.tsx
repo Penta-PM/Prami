@@ -3,6 +3,7 @@
 import { Fragment, useId, useState } from 'react';
 
 import {
+  InfoHint,
   Pill,
   Table,
   TableBody,
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { formatDate, formatDateTime } from '@/lib/date-format';
+import { BID_FIT_HINT_LINES, BID_FIT_HINT_NAME } from '@/lib/procurement/copy';
 import { formatEokMan } from '@/lib/procurement/format';
 
 import {
@@ -87,7 +89,14 @@ export function BidTable({ rows }: { rows: readonly BidTableRow[] }) {
               key={column}
               className={column === '배정예산' || column === '추정가격' ? 'text-right' : undefined}
             >
-              {column}
+              {column === '적합도' ? (
+                <span className="inline-flex items-center gap-1">
+                  {column}
+                  <FitHint />
+                </span>
+              ) : (
+                column
+              )}
             </TableHeaderCell>
           ))}
         </TableRow>
@@ -112,6 +121,22 @@ export function BidTable({ rows }: { rows: readonly BidTableRow[] }) {
         })}
       </TableBody>
     </Table>
+  );
+}
+
+/**
+ * '적합도' 머리 옆 안내 (UX PR-U1 §3) — 기존 InfoHint(클릭·Enter·Space 로 열고 Esc·바깥 클릭·마우스 이탈로 닫힘).
+ * 머리에는 정렬 클릭이 없어 충돌하지 않는다. 팝오버는 포털 없이 th 안에 그려지므로 th 의 nowrap·굵기를 되돌린다.
+ */
+function FitHint() {
+  return (
+    <InfoHint name={BID_FIT_HINT_NAME} align="start">
+      <span className="flex flex-col gap-1 text-left font-normal whitespace-normal">
+        {BID_FIT_HINT_LINES.map((line) => (
+          <span key={line}>{line}</span>
+        ))}
+      </span>
+    </InfoHint>
   );
 }
 

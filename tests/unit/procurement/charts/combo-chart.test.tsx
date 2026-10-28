@@ -202,6 +202,14 @@ describe('ComboChart — 키보드·툴팁', () => {
     expect(onSelect).toHaveBeenLastCalledWith('2025-04');
   });
 
+  it('UX PR-U1 §2: 달 선택(onSelectMonth)이 있는 차트만 data-clickable(손가락 커서)', () => {
+    const { unmount } = render(<ComboChart title="t" months={MONTHS} series={SERIES} />);
+    expect(plot()).not.toHaveAttribute('data-clickable');
+    unmount();
+    render(<ComboChart title="t" months={MONTHS} series={SERIES} onSelectMonth={vi.fn()} />);
+    expect(plot()).toHaveAttribute('data-clickable', '');
+  });
+
   it('포인터 이동 → 그 칸 툴팁, 벗어나면 닫힘', () => {
     render(<ComboChart title="t" months={MONTHS} series={SERIES} />);
     fireEvent.pointerMove(plot(), { clientX: 80, pointerType: 'mouse' });
