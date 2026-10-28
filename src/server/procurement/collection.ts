@@ -6,6 +6,7 @@ import type { Db } from '@/db';
 import { procurementAppState, procurementJobRuns } from '@/db/schema/procurement';
 import {
   PROCUREMENT_JOBS,
+  PROCUREMENT_STATE_FIELDS,
   PROCUREMENT_STATE_KEYS,
   type ProcurementJob,
 } from '@/lib/procurement/constants';
@@ -32,15 +33,15 @@ export type JobCollection = {
 export type ProcurementCollectionStatus = {
   daily: JobCollection;
   bids: JobCollection;
-  /** 입찰 공고 "마지막 확인 시각" (app_state bids.last_checked 값, 시각으로 읽히지 않으면 null) */
+  /** 입찰 공고 "마지막 확인 시각" (app_state `bids` 값의 last_checked, 시각으로 읽히지 않으면 null) */
   bidsLastCheckedAt: Date | null;
-  /** 마지막 메일 보고 기준일 (app_state daily.last_end_date 값, 'YYYY-MM-DD' 가 아니면 null) */
+  /** 마지막 메일 보고 기준일 (app_state `daily` 값의 last_end_date, 'YYYY-MM-DD' 가 아니면 null) */
   dailyLastEndDate: string | null;
 };
 
 const STATE_KEY_OF_JOB: Record<ProcurementJob, string> = {
-  daily: PROCUREMENT_STATE_KEYS.dailyLastEndDate,
-  bids: PROCUREMENT_STATE_KEYS.bidsLastChecked,
+  daily: PROCUREMENT_STATE_KEYS.daily,
+  bids: PROCUREMENT_STATE_KEYS.bids,
 };
 
 function later(a: Date | null, b: Date | null): Date | null {
@@ -49,24 +50,21 @@ function later(a: Date | null, b: Date | null): Date | null {
   return a > b ? a : b;
 }
 
-/** jsonb 값(문자열 또는 {value|at|date: 문자열}) → 시각 */
-function stateDate(value: unknown): Date | null {
-  const raw =
-    typeof value === 'string'
-      ? value
-      : value && typeof value === 'object'
-        ? ((value as Record<string, unknown>).value ??
-          (value as Record<string, unknown>).at ??
-          (value as Record<string, unknown>).date)
-        : undefined;
+/** jsonb 값(필드 객체)의 한 필드 — 객체가 아니거나 필드가 없으면 undefined (형식이 어긋나도 예외 없이 '기록 없음') */
+function stateField(value: unknown, field: string): unknown {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)[field]
+    : undefined;
+}
+
+function stateDate(raw: unknown): Date | null {
   if (typeof raw !== 'string') return null;
   const date = new Date(raw);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function stateDay(value: unknown): string | null {
-  const date = typeof value === 'string' ? value : null;
-  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+function stateDay(raw: unknown): string | null {
+  return typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
 }
 
 export async function getCollectionStatus(
@@ -117,7 +115,17 @@ export async function getCollectionStatus(
   return {
     daily: build('daily'),
     bids: build('bids'),
-    bidsLastCheckedAt: stateDate(stateOf(PROCUREMENT_STATE_KEYS.bidsLastChecked)?.value),
-    dailyLastEndDate: stateDay(stateOf(PROCUREMENT_STATE_KEYS.dailyLastEndDate)?.value),
+    bidsLastCheckedAt: stateDate(
+      stateField(
+        stateOf(PROCUREMENT_STATE_KEYS.bids)?.value,
+        PROCUREMENT_STATE_FIELDS.bidsLastChecked,
+      ),
+    ),
+    dailyLastEndDate: stateDay(
+      stateField(
+        stateOf(PROCUREMENT_STATE_KEYS.daily)?.value,
+        PROCUREMENT_STATE_FIELDS.dailyLastEndDate,
+      ),
+    ),
   };
 }

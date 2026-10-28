@@ -149,10 +149,10 @@ describe('/procurement/bids', () => {
     expect(empty).toHaveTextContent('마감 포함');
   });
 
-  it('마지막 확인 시각(app_state bids.last_checked)을 KST 로', async () => {
+  it('마지막 확인 시각(app_state `bids` 값의 last_checked)을 KST 로', async () => {
     await state.handle!.db.insert(procurementAppState).values({
-      key: 'bids.last_checked',
-      value: '2026-10-27T01:15:00Z',
+      key: 'bids',
+      value: { last_checked: '2026-10-27T01:15:00+00:00' },
     });
     render(await open());
     expect(screen.getByTestId('procurement-bids-last-checked')).toHaveTextContent(

@@ -310,14 +310,15 @@ describe('합성 데이터', () => {
       },
     ]);
     await db.insert(procurementAppState).values([
+      // 원본 수집기 형식(합성 값): key = 작업 이름, value = 필드 객체
       {
-        key: 'bids.last_checked',
-        value: '2025-06-09T02:00:00Z',
+        key: 'bids',
+        value: { last_checked: '2025-06-09T02:00:00+00:00' },
         updatedAt: new Date('2025-06-09T02:00:00Z'),
       },
       {
-        key: 'daily.last_end_date',
-        value: '2025-05-31',
+        key: 'daily',
+        value: { last_run: '2025-05-31T23:00:00', last_end_date: '2025-05-31' },
         updatedAt: new Date('2025-05-31T23:00:00Z'),
       },
     ]);
@@ -950,5 +951,37 @@ describe('합성 데이터', () => {
     expect(status.bids.collectedAt).toEqual(new Date('2025-06-09T02:00:00Z'));
     expect(status.bidsLastCheckedAt).toEqual(new Date('2025-06-09T02:00:00Z'));
     expect(status.dailyLastEndDate).toBe('2025-05-31');
+  });
+
+  it('app_state 값 형식이 어긋나면 예외 없이 null(기록 없음) — 평탄 키·문자열 값·배열·필드 없음·날짜 아님', async () => {
+    const original = await handle.db.select().from(procurementAppState);
+    const put = (key: string, value: unknown) =>
+      handle.db
+        .insert(procurementAppState)
+        .values({ key, value })
+        .onConflictDoUpdate({ target: procurementAppState.key, set: { value } });
+    const read = () => getCollectionStatus(access, handle.db);
+    try {
+      // 예전 평탄 키는 읽지 않는다
+      await handle.db.delete(procurementAppState);
+      await put('bids.last_checked', '2025-06-09T02:00:00Z');
+      await put('daily.last_end_date', '2025-05-31');
+      expect(await read()).toMatchObject({ bidsLastCheckedAt: null, dailyLastEndDate: null });
+
+      for (const [bids, daily] of [
+        ['2025-06-09T02:00:00Z', '2025-05-31'],
+        [['2025-06-09T02:00:00Z'], ['2025-05-31']],
+        [{ checked: '2025-06-09T02:00:00Z' }, { last_run: '2025-05-31T23:00:00' }],
+        [{ last_checked: '어제' }, { last_end_date: '2025-05-31T00:00:00' }],
+        [{ last_checked: 1749434400 }, { last_end_date: null }],
+      ] as const) {
+        await put('bids', bids);
+        await put('daily', daily);
+        expect(await read()).toMatchObject({ bidsLastCheckedAt: null, dailyLastEndDate: null });
+      }
+    } finally {
+      await handle.db.delete(procurementAppState);
+      await handle.db.insert(procurementAppState).values(original);
+    }
   });
 });
