@@ -1,0 +1,11 @@
+# 매일 03:15 KST
+[Unit]
+Description=Prami 조달 수집기 — 작업 파일 정리 타이머 (매일 03:15 KST)
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 Asia/Seoul
+Persistent=true
+Unit=prami-collector-cleanup.service
+
+[Install]
+WantedBy=timers.target

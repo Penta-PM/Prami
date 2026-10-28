@@ -2,7 +2,8 @@
 
 운영(Vercel Production · Neon `main` · Upstash)과 preview 의 정기 배포·롤백·복구·사고 대응 절차다. 배포 전 점검은
 [`../deploy/checklist.md`](../deploy/checklist.md), 구성·환경변수는 [`../deploy/vercel.md`](../deploy/vercel.md), 로그인·OAuth 는
-[`../deploy/oauth.md`](../deploy/oauth.md), 로컬 :3000 은 [`../deploy/local.md`](../deploy/local.md) 를 본다.
+[`../deploy/oauth.md`](../deploy/oauth.md), 로컬 :3000 은 [`../deploy/local.md`](../deploy/local.md), LAN 조달 수집기(systemd 타이머)는
+[`collector.md`](collector.md) 를 본다.
 
 > 명령의 `<…>` 는 자리표시자다. 실제 값(연결 문자열·토큰·키)은 셸 환경변수로만 주고 이 문서·PR·채팅에 쓰지 않는다.
 > 모든 절차의 결과(수행 일시·수행자·판정)는 배포 PR 본문 또는 사고 기록에 남긴다.

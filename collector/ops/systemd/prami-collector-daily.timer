@@ -1,0 +1,17 @@
+# 평일 09:00 KST + 원본 재시도 시각 09:30·10:00·10:30. 각 실행은 --skip-if-done 이라 그날 보고를 마쳤으면 바로 끝난다.
+# 실행 중에 다음 시각이 오면 systemd 가 새로 시작하지 않는다(oneshot 단일 인스턴스) + flock 으로 이중 방지.
+[Unit]
+Description=Prami 조달 수집기 — 일일 수집 타이머 (평일 09:00·09:30·10:00·10:30 KST)
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 09:00:00 Asia/Seoul
+OnCalendar=Mon..Fri *-*-* 09:30:00 Asia/Seoul
+OnCalendar=Mon..Fri *-*-* 10:00:00 Asia/Seoul
+OnCalendar=Mon..Fri *-*-* 10:30:00 Asia/Seoul
+# 꺼져 있던 동안 놓친 실행은 켜질 때 한 번 한다
+Persistent=true
+AccuracySec=1s
+Unit=prami-collector-daily.service
+
+[Install]
+WantedBy=timers.target
