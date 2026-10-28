@@ -1,6 +1,6 @@
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { YearlyLineChart, type YearlyPoint } from '@/features/procurement/charts';
 
@@ -27,22 +27,44 @@ describe('YearlyLineChart', () => {
     const lines = [...document.querySelectorAll('[data-line]')];
     expect(lines.map((line) => line.getAttribute('data-line'))).toEqual(['2023', '2024', '2025']);
     const latest = lines.at(-1)!;
-    expect(latest.querySelector('line')!.getAttribute('stroke')).toBe('var(--ink-900)');
-    expect(latest.querySelector('line')!.getAttribute('stroke-width')).toBe('3');
+    const latestPath = latest.querySelector('path[data-segment]')!;
+    expect(latestPath.getAttribute('stroke')).toBe('var(--ink-900)');
+    expect(latestPath.getAttribute('stroke-width')).toBe('3');
     expect(latest).toHaveTextContent('25년');
-    // 2025 는 4월까지 → 선분 3개, 표식 4개
-    expect(latest.querySelectorAll('line')).toHaveLength(3);
+    // 2025 는 4월까지 → 실선 path 1개(점 4개를 한 번에 — 꺾임점 틈 없음), 표식 4개
+    expect(latest.querySelectorAll('path[data-segment]')).toHaveLength(1);
+    expect(latestPath.getAttribute('d')!.match(/[ML]/g)).toHaveLength(4);
     expect(latest.querySelectorAll('[data-marker]')).toHaveLength(4);
-    // 2024 3월(실적 0) 구간만 점선
-    const dashed = [...lines[1]!.querySelectorAll('line')].filter((line) =>
-      line.hasAttribute('stroke-dasharray'),
-    );
-    expect(dashed).toHaveLength(1);
+    // 2024 3월(실적 0) 구간만 점선 path — 실선 1~2월, 점선 2~3월, 실선 3~12월
+    const segments = [...lines[1]!.querySelectorAll('path[data-segment]')];
+    expect(segments.map((path) => path.getAttribute('data-segment'))).toEqual([
+      'solid',
+      'dashed',
+      'solid',
+    ]);
+    expect(segments.filter((path) => path.hasAttribute('stroke-dasharray'))).toHaveLength(1);
     // 연도마다 표식 모양이 다르다 (색 외 구분)
     const shapes = lines.map((line) =>
       line.querySelector('[data-marker]')!.getAttribute('data-marker'),
     );
     expect(new Set(shapes).size).toBe(3);
+  });
+
+  it('선 = 구간마다 path(둥근 이음·끝), [data-line] 안 line 요소 없음', () => {
+    render(<YearlyLineChart title="연도별 누적 매출" points={POINTS} />);
+    for (const group of document.querySelectorAll('[data-line]')) {
+      expect(group.querySelectorAll('line')).toHaveLength(0);
+      const paths = [...group.querySelectorAll('path[data-segment]')];
+      expect(paths.length).toBeGreaterThanOrEqual(1);
+      for (const path of paths) {
+        expect(path).toHaveAttribute('stroke-linejoin', 'round');
+        expect(path).toHaveAttribute('fill', 'none');
+        // 곡선 보간 없음 — 직선(M·L)만
+        expect(path.getAttribute('d')).toMatch(/^M[\d.,-]+( L[\d.,-]+)+$/);
+        if (path.getAttribute('data-segment') === 'solid')
+          expect(path).toHaveAttribute('stroke-linecap', 'round');
+      }
+    }
   });
 
   it('role="img" 요약 — 연도별 연간 누적(억·만)', () => {
@@ -119,5 +141,57 @@ describe('YearlyLineChart', () => {
   it('데이터가 없으면 안내 문구', () => {
     render(<YearlyLineChart title="연도별" points={[]} />);
     expect(screen.getByText('표시할 데이터가 없습니다')).toBeInTheDocument();
+  });
+});
+
+describe('YearlyLineChart — 선명한 렌더링', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  /** 잰 너비 흉내 — ResizeObserver 가 있고 상자 너비가 소수(640.4px) */
+  function mockWidth(width: number) {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: width,
+      bottom: 0,
+      width,
+      height: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+  }
+
+  it('viewBox 너비 = 잰 실수 너비(반올림 없음), 높이는 정수', () => {
+    mockWidth(640.4);
+    render(<YearlyLineChart title="연도별 누적 매출" points={POINTS} />);
+    const [, , w, h] = screen.getByRole('img').getAttribute('viewBox')!.split(' ').map(Number);
+    expect(w).toBe(640.4);
+    expect(Number.isInteger(h)).toBe(true);
+    expect(screen.getByRole('img')).toHaveAttribute('width', '100%');
+  });
+
+  it('가로 격자 y 는 .5 로 끝나고 crispEdges 는 격자에만', () => {
+    mockWidth(640.4);
+    render(<YearlyLineChart title="연도별 누적 매출" points={POINTS} />);
+    const grid = [...document.querySelectorAll('[data-grid]')];
+    expect(grid.length).toBeGreaterThan(1);
+    for (const line of grid) {
+      expect(Number(line.getAttribute('y1')) % 1).toBe(0.5);
+      expect(line.getAttribute('y2')).toBe(line.getAttribute('y1'));
+      expect(line).toHaveAttribute('shape-rendering', 'crispEdges');
+    }
+    const crisp = [...document.querySelectorAll('[shape-rendering="crispEdges"]')];
+    expect(crisp.every((element) => element.hasAttribute('data-grid'))).toBe(true);
   });
 });

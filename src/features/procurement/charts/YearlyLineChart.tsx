@@ -32,11 +32,41 @@ export type YearlyLineChartProps = {
 
 const MONTH_TICKS = [1, 3, 5, 7, 9, 11];
 
+/** 너비(px) → 그리기 치수. W 는 잰 실수 너비 그대로(viewBox 배율 1 — 화소 격자 유지), 높이는 정수 */
 export function yearlyDims(width: number) {
-  const W = Math.max(280, Math.round(width));
+  const W = Math.max(280, width);
   const H = Math.round(Math.min(340, Math.max(220, W * 0.45)));
   const pad = W < 480 ? { l: 54, r: 40, t: 16, b: 28 } : { l: 72, r: 48, t: 20, b: 30 };
   return { W, H, pad, IW: W - pad.l - pad.r, IH: H - pad.t - pad.b, BASE: H - pad.b };
+}
+
+type Segment = { dashed: boolean; points: { x: number; y: number }[] };
+
+/**
+ * 이어지는 점들을 같은 모양(실선/점선)끼리 묶은 구간 — 구간마다 path 하나(꺾임점 틈·점선 재시작 방지).
+ * 그달 금액이 0 이면 그 달로 들어오는 선분은 점선. 빈 달(null)에서 선이 끊긴다.
+ */
+function segmentsOf<P extends { amount: number }>(
+  points: readonly (P | null)[],
+  at: (point: P) => { x: number; y: number },
+): Segment[] {
+  const segments: Segment[] = [];
+  let current: Segment | null = null;
+  for (let index = 1; index < points.length; index++) {
+    const previous = points[index - 1];
+    const point = points[index];
+    if (!point || !previous) {
+      current = null;
+      continue;
+    }
+    const dashed = !(point.amount > 0);
+    if (!current || current.dashed !== dashed) {
+      current = { dashed, points: [at(previous)] };
+      segments.push(current);
+    }
+    current.points.push(at(point));
+  }
+  return segments;
 }
 
 /**
@@ -177,12 +207,15 @@ export function YearlyLineChart({
             >
               {ticks.map((tick) => (
                 <g key={tick}>
+                  {/* 1px 격자 = 정수 + 0.5 에 그려 화소 한 줄에 맞춘다 */}
                   <line
+                    data-grid=""
                     x1={d.pad.l}
-                    x2={d.W - d.pad.r}
-                    y1={y(tick)}
-                    y2={y(tick)}
+                    x2={Math.round(d.W - d.pad.r)}
+                    y1={Math.round(y(tick)) + 0.5}
+                    y2={Math.round(y(tick)) + 0.5}
                     stroke="var(--border-default)"
+                    shapeRendering="crispEdges"
                   />
                   <text
                     x={d.pad.l - 8}
@@ -228,22 +261,25 @@ export function YearlyLineChart({
                     opacity={dimmed(line.year) ? 0.15 : 1}
                     className="transition-opacity duration-150 motion-reduce:transition-none"
                   >
-                    {line.points.map((point, index) => {
-                      const previous = index > 0 ? line.points[index - 1] : null;
-                      if (!point || !previous) return null;
-                      return (
-                        <line
-                          key={index}
-                          x1={xOf(previous.month)}
-                          y1={y(valueOf(previous))}
-                          x2={xOf(point.month)}
-                          y2={y(valueOf(point))}
-                          stroke={line.color}
-                          strokeWidth={emphasized || line.latest ? 3 : 2}
-                          strokeDasharray={point.amount > 0 ? undefined : '4 3'}
-                        />
-                      );
-                    })}
+                    {segmentsOf(line.points, (point) => ({
+                      x: xOf(point.month),
+                      y: y(valueOf(point)),
+                    })).map((segment, index) => (
+                      <path
+                        key={index}
+                        data-segment={segment.dashed ? 'dashed' : 'solid'}
+                        d={segment.points
+                          .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`)
+                          .join(' ')}
+                        fill="none"
+                        stroke={line.color}
+                        strokeWidth={emphasized || line.latest ? 3 : 2}
+                        strokeDasharray={segment.dashed ? '4 3' : undefined}
+                        // 점선은 둥근 끝이 대시마다 붙어 틈(3)을 메우므로 기본(butt) 끝 — 실선 끝의 둥근 마개가 이음매를 덮는다
+                        strokeLinecap={segment.dashed ? undefined : 'round'}
+                        strokeLinejoin="round"
+                      />
+                    ))}
                     {line.points.map((point, index) =>
                       point ? (
                         <Marker

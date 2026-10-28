@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ComboChart, type ComboSeries } from '@/features/procurement/charts';
 
@@ -309,5 +309,92 @@ describe('ComboChart — 제어형 선택 달', () => {
       'data-selected',
       'true',
     );
+  });
+});
+
+describe('ComboChart — 선명한 렌더링', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  /** 잰 너비 흉내 — ResizeObserver 가 있고 상자 너비가 소수(640.4px) */
+  function mockWidth(width: number) {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      right: width,
+      bottom: 0,
+      width,
+      height: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+  }
+  const num = (element: Element, name: string) => Number(element.getAttribute(name));
+
+  it('viewBox 너비 = 잰 실수 너비(반올림 없음), 높이는 정수', () => {
+    mockWidth(640.4);
+    render(<ComboChart title="t" months={MONTHS} series={SERIES} />);
+    const [, , w, h] = svg().getAttribute('viewBox')!.split(' ').map(Number);
+    expect(w).toBe(640.4);
+    expect(Number.isInteger(h)).toBe(true);
+    expect(svg()).toHaveAttribute('width', '100%');
+  });
+
+  it('가로 격자 y 는 .5 로 끝나고 crispEdges 는 격자에만 (막대·선·표식에는 없음)', () => {
+    mockWidth(640.4);
+    render(<ComboChart title="t" months={MONTHS} series={SERIES} />);
+    const grid = [...document.querySelectorAll('[data-grid]')];
+    expect(grid.length).toBeGreaterThan(1);
+    for (const line of grid) {
+      expect(num(line, 'y1') % 1).toBe(0.5);
+      expect(line.getAttribute('y2')).toBe(line.getAttribute('y1'));
+      expect(line).toHaveAttribute('shape-rendering', 'crispEdges');
+    }
+    const crisp = [...document.querySelectorAll('[shape-rendering="crispEdges"]')];
+    expect(crisp.every((element) => element.hasAttribute('data-grid'))).toBe(true);
+  });
+
+  it('막대 경계는 정수 화소 — 1px 테두리면 x·y 가 .5, 2px(선택)면 정수, 너비·높이는 정수', () => {
+    mockWidth(640.4);
+    render(<ComboChart title="t" months={MONTHS} series={SERIES} selectedMonth="2025-03" />);
+    const bars = [...document.querySelectorAll('[data-bar]')];
+    expect(bars.length).toBeGreaterThan(0);
+    for (const bar of bars) {
+      const offset = bar.getAttribute('stroke-width') === '1' ? 0.5 : 0;
+      expect(num(bar, 'x') - offset).toSatisfy(Number.isInteger);
+      expect(num(bar, 'y') - offset).toSatisfy(Number.isInteger);
+      expect(num(bar, 'width')).toSatisfy(Number.isInteger);
+      expect(num(bar, 'height')).toSatisfy(Number.isInteger);
+      expect(num(bar, 'height')).toBeGreaterThan(0);
+      expect(bar).not.toHaveAttribute('shape-rendering');
+    }
+    // 선택한 달(2px 테두리) 막대도 있다
+    expect(
+      bars.some(
+        (bar) =>
+          bar.getAttribute('data-bar')!.endsWith(':2025-03') &&
+          bar.getAttribute('stroke-width') === '2',
+      ),
+    ).toBe(true);
+  });
+
+  it('잰 너비에서도 포인터 x → 칸 계산은 그대로 (툴팁 위치 회귀 없음)', () => {
+    mockWidth(640.4);
+    render(<ComboChart title="t" months={MONTHS} series={SERIES} />);
+    // 좌측 여백 78, 칸 너비 (640.4-156)/4 ≈ 121.1 → 오른쪽 끝 바로 앞은 마지막 달
+    fireEvent.pointerMove(plot(), { clientX: 640.4 - 78 - 1, pointerType: 'mouse' });
+    expect(tooltip()).toHaveTextContent('2025년 4월');
+    fireEvent.pointerMove(plot(), { clientX: 78 + 1, pointerType: 'mouse' });
+    expect(tooltip()).toHaveTextContent('2025년 1월');
   });
 });
