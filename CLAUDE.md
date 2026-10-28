@@ -7,12 +7,12 @@
 
 | 역할 | 브랜치 | 경로 | Orca 워크트리 ID |
 |------|--------|------|------------------|
-| Main | `main` | `/home/plan1/Desktop/Prami` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/Desktop/Prami` |
-| **Plan** (현재) | `Plan` | `/home/plan1/orca/workspaces/Prami/Plan` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Plan` |
-| Dev | `Dev` | `/home/plan1/orca/workspaces/Prami/Dev` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Dev` |
-| QA | `QA` | `/home/plan1/orca/workspaces/Prami/QA` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/QA` |
+| Main | `main` | `/home/plan1/Desktop/Prami` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/Desktop/Prami` |
+| **Plan** (현재) | `Plan` | `/home/plan1/orca/workspaces/Prami/Plan` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/Plan` |
+| Dev | `Dev` | `/home/plan1/orca/workspaces/Prami/Dev` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/Dev` |
+| QA | `QA` | `/home/plan1/orca/workspaces/Prami/QA` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/QA` |
 
-`$REPO` = `b6875288-76f6-460f-a109-cec5f84eb966` · Main Run: **`run_8fb8ec4090f0`** (Main 전용 — 역할 세션은 바인딩하지 않음)
+`$REPO` = `3bdf9622-33af-4941-a0d8-e1d168e5a480` · Main Run: **`run_b0f2def7eecf`** (Main 전용 — 역할 세션은 바인딩하지 않음)
 
 원격 저장소: `https://github.com/Penta-PM/Prami` (private, 기본 브랜치 `main`) — 4개 브랜치 모두 푸시됨
 
@@ -97,9 +97,9 @@ Agent({ subagent_type: "general-purpose", description: "기능/기술 검토", p
 ## Orca 통신
 
 ```bash
-REPO=b6875288-76f6-460f-a109-cec5f84eb966
-MAIN="@worktree:b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/Desktop/Prami"
-DEV="@worktree:b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Dev"
+REPO=3bdf9622-33af-4941-a0d8-e1d168e5a480
+MAIN="@worktree:3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/Desktop/Prami"
+DEV="@worktree:3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/Dev"
 ```
 
 ### 세션 시작 — 내 수신함 Run 만들기
@@ -111,7 +111,7 @@ DEV="@worktree:b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces
 orca orchestration run-create --objective "Prami Plan inbox" --json
 ```
 
-- ❌ `orca orchestration run-use --id run_8fb8ec4090f0` 는 **실행하지 않습니다.** 실행한 터미널이 그 Run의 코디네이터를 가져가서 Main이 메일을 못 받게 됩니다.
+- ❌ `orca orchestration run-use --id run_b0f2def7eecf` 는 **실행하지 않습니다.** 실행한 터미널이 그 Run의 코디네이터를 가져가서 Main이 메일을 못 받게 됩니다.
 - 메일이 오면 Orca가 `You have N orchestration message...` 알림을 넣어 주기도 합니다. 발신자의 `[메일 도착]` 깨우기와 겹칠 수 있으니, 이미 처리한 배치면 메일함이 비어 있는 게 정상입니다.
 
 ### 수신 — 폴링하지 않습니다
@@ -133,7 +133,7 @@ orca orchestration check --ack <deliveryId> --json
 메시지만 보내면 상대는 모릅니다 (상대는 폴링하지 않습니다). **반드시 2단계**로 보내세요:
 
 ```bash
-REPO=b6875288-76f6-460f-a109-cec5f84eb966
+REPO=3bdf9622-33af-4941-a0d8-e1d168e5a480
 TARGET="/home/plan1/orca/workspaces/Prami/<역할>"   # Plan | Dev | QA
 # Main 워크트리 경로는:
 # "/home/plan1/Desktop/Prami"
