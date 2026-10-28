@@ -99,6 +99,13 @@
       "when": 1793163037513,
       "tag": "0013_procurement_mail_recipients",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793171049844,
+      "tag": "0014_chat_storage",
+      "breakpoints": true
     }
   ]
 }

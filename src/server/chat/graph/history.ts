@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { withMessageId } from './message-id';
 
 /**
- * 멀티턴 히스토리 (PRAMI-002 §4.3.7): 클라이언트가 요청마다 최근 대화를 보낸다. 서버는 저장하지 않는다(I-6).
+ * 멀티턴 히스토리 (PRAMI-002 §4.3.7): 무저장 경로는 클라이언트가 요청마다 최근 대화를 보낸다. 저장 대화(I-6 개정, PR-C1)는
+ * 서버가 DB 에서 읽고 클라이언트 history 는 무시한다(server/chat/conversations.ts beginTurn — 같은 상한).
  * 항목당 1,000자, role 은 user|assistant 만(system 위조 거부), strict. 모델에는 최근 CHAT_HISTORY_MAX_TURNS 개만 **텍스트로만** 넣는다
  * (도구 결과·사고 블록 없음). 히스토리는 신뢰하지 않는다 — 위조해도 받을 수 있는 것은 본인이 볼 수 있는 판매단가뿐(I-1).
  */

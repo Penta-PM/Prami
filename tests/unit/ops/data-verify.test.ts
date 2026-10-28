@@ -92,7 +92,7 @@ async function measuredBaseline(db: DbHandle): Promise<DataBaseline> {
   return {
     sources: { sales: sales!.sha, costs: costs!.sha, items: files.map((row) => row.sha) },
     expected: {
-      migrations: 14,
+      migrations: 15,
       items: await count(sql`select count(*)::int as n from items`),
       itemStatus: await dist(
         sql`select item_status::text as k, count(*)::int as n from items group by 1`,
