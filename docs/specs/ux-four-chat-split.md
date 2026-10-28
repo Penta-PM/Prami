@@ -72,3 +72,4 @@
 보낸 메시지 편집·재생성(Q-U1 답에 따라), 대화 검색, 대화 공유·내보내기, 관리자 대화 열람, 챗봇 rate limit 분리, 원가 데이터 챗봇.
 
 ## 9. 진행 기록
+- 2026-10-28 Q-U1=A·Q-U2=A·Q-U3=A(사용자 확인, Main msg_e0bda9fe7541): 대화방 이름 바꾸기만(메시지 편집·재생성은 후속), 각 묶음 안 메뉴(/pricing/chat·/procurement/chat), 무기한 보관 + 즉시 완전 삭제(audit_logs 에 chat.conversation.delete — 대화 ID·domain 만, 제목·내용 미기록). 나머지 Plan 결정 수용 → PR-C2 대기 해제(Penta PR-2 머지 후).
