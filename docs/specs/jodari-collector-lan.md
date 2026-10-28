@@ -99,3 +99,4 @@
 
 ## 9. 진행 기록
 - 2026-10-28 Dev 질문(msg_14fc43200b66) 결정: `plan/filter.md`·`plan/products.md` 도 기밀 설정 자료로 취급 → env `JODAL_CONFIG_DIR`(필수, 없으면 시작 오류, LAN 값 = 원본 …/collector/plan) 제자리 읽기·복사 금지, `--filter-file`·`--products-file` 인자 유지, `JODAL_REF_DIR` 별도 유지. 재스캔: 실제 주소는 cli.py:66 한 곳뿐, 비밀값 리터럴 없음.
+- 2026-10-28 Q-C1 = B(사용자 확인, Main msg_5c328bb39004): 회사 공용 메일함 계정. 준비 전까지 메일 없이 수집만 가동(SMTP env 미설정 → summary.mail=skipped_no_smtp). SMTP 값은 사용자가 env 파일에 직접 입력(메일로 주고받지 않음). Bcc·[Prami] 등 나머지 Plan 판단 수용.
