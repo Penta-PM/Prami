@@ -60,7 +60,7 @@ function delivery(values: Partial<NewProcurementDelivery> & { dlvrReqNo: string;
 }
 
 describe('스키마 구성', () => {
-  it('procurement 스키마에 테이블 8개·뷰 3개가 생기고 public 에는 새 테이블이 없다', async () => {
+  it('procurement 스키마에 테이블 9개(원본 8 + mail_recipients 0013)·뷰 3개가 생기고 public 에는 새 테이블이 없다', async () => {
     const tables = await queryRows<{ table_name: string; table_type: string }>(
       handle.db,
       sql`select table_name, table_type from information_schema.tables
@@ -75,6 +75,7 @@ describe('스키마 구성', () => {
       'item_changes',
       'items',
       'job_runs',
+      'mail_recipients',
     ]);
     expect(tables.filter((t) => t.table_type === 'VIEW').map((t) => t.table_name)).toEqual([
       'v_deliveries',

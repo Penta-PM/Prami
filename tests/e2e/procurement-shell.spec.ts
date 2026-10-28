@@ -5,7 +5,7 @@ import { E2E_ENV } from '../../playwright.config';
 import { FIXTURE_ADMIN, FIXTURE_USER, loginAs } from './helpers';
 
 /**
- * 조달이 통합 UI-1 (IA·셸): 사이드바 "조달" 섹션(procurement.read)·관리자 "조달 관리"(procurement.write, D-2 탭 3개),
+ * 조달이 통합 UI-1 (IA·셸): 사이드바 "조달" 섹션(procurement.read)·관리자 "조달 관리"(procurement.write, D-2 탭 3개 + 메일 보고),
  * 직접 URL 접근 차단, 수집 시각 머리. E2E DB 에는 조달 데이터가 없다 → "아직 수집 기록이 없습니다".
  */
 /** emptyText: 조달 데이터 0행일 때 본문 — 실적 현황(UI-5)·등록 품목(UI-2)·입찰 공고(UI-3) 모두 빈 안내 */
@@ -76,7 +76,7 @@ test.describe('ADMIN', () => {
     await loginAs(page, FIXTURE_ADMIN, '/');
   });
 
-  test('조달 섹션과 관리자 조달 관리가 보이고, 조달 관리 탭 3개를 전환한다', async ({ page }) => {
+  test('조달 섹션과 관리자 조달 관리가 보이고, 조달 관리 탭 4개를 전환한다', async ({ page }) => {
     const nav = sidebar(page);
     for (const link of PROCUREMENT_LINKS) {
       await expect(nav.getByRole('link', { name: link.name })).toBeVisible();
@@ -89,7 +89,12 @@ test.describe('ADMIN', () => {
     );
 
     const tabs = page.getByRole('radiogroup', { name: '조달 관리 메뉴' });
-    await expect(tabs.getByRole('radio')).toHaveText(['실적 관리', '품목 관리', '키워드 관리']);
+    await expect(tabs.getByRole('radio')).toHaveText([
+      '실적 관리',
+      '품목 관리',
+      '키워드 관리',
+      '메일 보고',
+    ]);
     await expect(tabs.getByRole('radio', { name: '실적 관리' })).toBeChecked();
     // 실적 관리 = 납품요구 표 (UI-6)
     await expect(

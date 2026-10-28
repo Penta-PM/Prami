@@ -93,6 +93,7 @@ export default async function ProcurementPerformancePage({ searchParams }: PageP
       <ProcurementHeader
         title={PAGE.title}
         collectedAt={status.daily.collectedAt}
+        runs={[status.daily, status.bids]}
         basis={PAGE.basis}
       />
       <PerformanceDashboard

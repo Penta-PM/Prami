@@ -92,6 +92,13 @@
       "when": 1793064566929,
       "tag": "0012_procurement_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793163037513,
+      "tag": "0013_procurement_mail_recipients",
+      "breakpoints": true
     }
   ]
 }

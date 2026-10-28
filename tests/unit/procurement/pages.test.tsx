@@ -11,6 +11,7 @@ import { auditByAction, createTestDb, insertUser } from '../../helpers/pglite';
  * 조달이 통합 UI-1 화면 셸 — PGlite + 실제 세션 가드 경로(requirePagePermission). 세션·요청 메타·라우터만 모킹.
  * - 가드: 비로그인 → /login(callbackUrl), 권한 없음 → / (+ 감사 denied). 직접 URL 접근 차단.
  * - 머리: 수집 기록이 없으면 "아직 수집 기록이 없습니다", 있으면 KST 시각(작업별 — 입찰 공고는 bids).
+ *   수집 상태(§3.2): 어느 작업이든 진행 중이면 "수집 중 (HH:mm 시작)", 최근 실행 실패면 "최근 수집 실패 · 마지막 성공 …".
  * - 조회 상태(B-1): 관리 화면은 파라미터 없는 진입에 저장된 탭으로 redirect.
  * - 관리 탭 전환: 자리 표시 교체 + ?tab= router.replace.
  */
@@ -51,6 +52,12 @@ vi.mock('@/features/page-state/ViewStateTracker', () => ({ ViewStateTracker: () 
 vi.mock('@/features/procurement/admin/keywords/KeywordsAdminSection', () => ({
   KeywordsAdminSection: ({ access }: { access: { scope: string } }) => (
     <p>키워드 관리 섹션 ({access.scope})</p>
+  ),
+}));
+// 메일 보고 탭 RSC(PGlite 조회·편집기)는 mail-server.test 에서 검증한다 — 여기서는 탭 switch 가 고르는 것만
+vi.mock('@/features/procurement/admin/mail/MailAdminSection', () => ({
+  MailAdminSection: ({ access }: { access: { scope: string } }) => (
+    <p>메일 보고 섹션 ({access.scope})</p>
   ),
 }));
 // 품목 탭 RSC(PGlite 조회·패널)는 admin-items.test 에서 검증한다 — 여기서는 탭 switch 가 고르는 것만
@@ -154,6 +161,11 @@ describe('조달 화면 가드 (직접 URL 접근)', () => {
     });
   });
 
+  it('USER 는 메일 보고 탭(?tab=mail)도 / 로 이동 — 탭 내용을 렌더하지 않는다', async () => {
+    state.sessionUserId = userId;
+    await expect(open(AdminPage, { tab: 'mail' })).rejects.toThrow(/^NEXT_REDIRECT:\/$/);
+  });
+
   it.each(PAGES)('USER 는 $path 를 연다 (procurement.read)', async ({ page, title, emptyText }) => {
     state.sessionUserId = userId;
     render(await open(page));
@@ -190,10 +202,54 @@ describe('ProcurementHeader 수집 시각', () => {
       '아직 수집 기록이 없습니다',
     );
   });
+
+  it('job_runs 의 running·failed 를 수집 상태 문구로 보여 준다 (daily·bids 함께)', async () => {
+    state.sessionUserId = userId;
+    const db = state.handle!.db;
+    await db.insert(procurementJobRuns).values([
+      {
+        job: 'daily',
+        status: 'ok',
+        startedAt: new Date('2026-10-26T23:50:00Z'),
+        finishedAt: new Date('2026-10-27T00:30:00Z'),
+      },
+      {
+        job: 'daily',
+        status: 'failed',
+        startedAt: new Date('2026-10-27T23:50:00Z'),
+        finishedAt: new Date('2026-10-28T00:10:00Z'),
+      },
+    ]);
+    const { unmount } = render(await open(PerformancePage));
+    expect(screen.getByTestId('procurement-collection-run')).toHaveTextContent(
+      '최근 수집 실패 · 마지막 성공 2026-10-27 09:30 (KST)',
+    );
+    unmount();
+    // 입찰 공고 작업이 진행 중이면 실패보다 우선 — 입찰 공고 화면에도 같은 문구
+    await db
+      .insert(procurementJobRuns)
+      .values({ job: 'bids', status: 'running', startedAt: new Date('2026-10-28T01:30:00Z') });
+    render(await open(BidsPage));
+    expect(screen.getByTestId('procurement-collection-run')).toHaveTextContent(
+      '수집 중 (10:30 시작)',
+    );
+  });
+
+  it('최근 실행이 모두 성공이면 수집 상태 문구가 없다', async () => {
+    state.sessionUserId = userId;
+    await state.handle!.db.insert(procurementJobRuns).values({
+      job: 'daily',
+      status: 'ok',
+      startedAt: new Date('2026-10-26T23:50:00Z'),
+      finishedAt: new Date('2026-10-27T00:30:00Z'),
+    });
+    render(await open(PerformancePage));
+    expect(screen.queryByTestId('procurement-collection-run')).toBeNull();
+  });
 });
 
 describe('/admin/procurement (ADMIN)', () => {
-  it('탭 3개, 기본 실적 관리 — 단계 3 자리 표시', async () => {
+  it('탭 4개, 기본 실적 관리 — 단계 3 자리 표시', async () => {
     state.sessionUserId = adminId;
     render(await open(AdminPage));
     expect(screen.getByRole('heading', { level: 1, name: '조달 관리' })).toBeInTheDocument();
@@ -202,7 +258,7 @@ describe('/admin/procurement (ADMIN)', () => {
       within(tabs)
         .getAllByRole('radio')
         .map((tab) => tab.textContent),
-    ).toEqual(['실적 관리', '품목 관리', '키워드 관리']);
+    ).toEqual(['실적 관리', '품목 관리', '키워드 관리', '메일 보고']);
     expect(screen.getByRole('radio', { name: '실적 관리' })).toBeChecked();
     expect(screen.getByRole('region', { name: '실적 관리' })).toHaveTextContent(
       '실적 관리 섹션 (write)',
@@ -224,6 +280,15 @@ describe('/admin/procurement (ADMIN)', () => {
     expect(screen.getByRole('radio', { name: '키워드 관리' })).toBeChecked();
     expect(screen.getByRole('region', { name: '키워드 관리' })).toHaveTextContent(
       '키워드 관리 섹션 (write)',
+    );
+  });
+
+  it('?tab=mail → 메일 보고 RSC 섹션 (write 토큰)', async () => {
+    state.sessionUserId = adminId;
+    render(await open(AdminPage, { tab: 'mail', q: 'x' }));
+    expect(screen.getByRole('radio', { name: '메일 보고' })).toBeChecked();
+    expect(screen.getByRole('region', { name: '메일 보고' })).toHaveTextContent(
+      '메일 보고 섹션 (write)',
     );
   });
 

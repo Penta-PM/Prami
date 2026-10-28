@@ -110,6 +110,9 @@ function adminProcurementQuery(params: Params): string {
     case 'keywords':
       // 키워드 관리는 탭 안 조건이 없다
       return 'tab=keywords';
+    case 'mail':
+      // 메일 보고도 탭 안 조건이 없다
+      return 'tab=mail';
   }
 }
 

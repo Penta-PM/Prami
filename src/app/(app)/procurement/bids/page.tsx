@@ -49,6 +49,7 @@ export default async function ProcurementBidsPage({ searchParams }: PageProps) {
         <ProcurementHeader
           title={PAGE.title}
           collectedAt={status.bids.collectedAt}
+          runs={[status.daily, status.bids]}
           basis={PAGE.basis}
         />
         <dl className="m-0 flex gap-1.5 text-[12px] text-text-tertiary">

@@ -99,6 +99,7 @@ describe('조달 조회 상태 정규화', () => {
     expect(await normalizeViewQuery(db, ADMIN, 'admin-procurement', '?tab=keywords')).toBe(
       'tab=keywords',
     );
+    expect(await normalizeViewQuery(db, ADMIN, 'admin-procurement', 'tab=mail')).toBe('tab=mail');
     expect(await normalizeViewQuery(db, ADMIN, 'admin-procurement', 'tab=deliveries')).toBe('');
     expect(await normalizeViewQuery(db, ADMIN, 'admin-procurement', 'tab=nope')).toBe('');
   });
@@ -112,6 +113,10 @@ describe('조달 조회 상태 정규화', () => {
         'tab=keywords&page=3&f.product=WAPPLES',
       ),
     ).toBe('tab=keywords');
+    // 메일 보고도 탭 안 조건이 없다
+    expect(
+      await normalizeViewQuery(db, ADMIN, 'admin-procurement', 'tab=mail&page=2&q=x&trash=1'),
+    ).toBe('tab=mail');
   });
 
   it('admin-procurement 실적 관리(UI-6): 탭 안 조건(휴지통·검색·열 필터·페이지·정렬)을 화면 코덱으로, tab 은 생략', async () => {
@@ -139,6 +144,8 @@ describe('조달 관리 탭 파서', () => {
     expect(parseProcurementAdminTab(undefined)).toBe('deliveries');
     expect(parseProcurementAdminTab('nope')).toBe('deliveries');
     expect(parseProcurementAdminTab('keywords')).toBe('keywords');
+    expect(parseProcurementAdminTab('mail')).toBe('mail');
+    expect(normalizeProcurementAdminTab('mail')).toBe('mail');
     expect(normalizeProcurementAdminTab('deliveries')).toBeNull();
     expect(normalizeProcurementAdminTab(['items'])).toBeNull();
     expect(normalizeProcurementAdminTab('items')).toBe('items');
