@@ -57,7 +57,7 @@
 
 ## 5. 화면 sweep (PR-4a~c) — 원시 클래스 566곳(128파일)
 - 변환표 기반 codemod + **의미 판단 수작업**(예: `ink-900` 이 글자면 `text-primary`, 어두운 패널이면 `surface-inverse`). 기계적 1:1 치환 금지.
-- 순서: 4a shell·auth·notices → 4b pricing·costs·parts·calculator → 4c admin·users·imports → 4d procurement(수집기 PR-1 머지 후, 맨 끝).
+- 순서: 4a shell·auth·notices·settings → 4b pricing·costs·parts·calculator → 4c admin·users·imports → 4d procurement(수집기 PR-1 머지 후, 맨 끝).
 - 타이포 스케일(H1~Caption) 적용도 이 단계.
 - 색 클래스 단언 테스트(25파일·77줄) 함께 갱신.
 
@@ -96,3 +96,4 @@
 - 2026-10-28 Q-D1 = B(사용자 확인, Main msg_b73906ce7c91): 밀집 화면(표·필터·드로어·관리 목록) = BodySmall 14px·SM 36px, 폼·모달·주요 버튼 = Body 16px·MD 44px. 구분은 컴포넌트 `size`/밀도 prop 으로(밀집 화면 컨테이너가 기본 sm 을 지정), 화면별 임의 클래스 덮어쓰기 금지. 나머지 Plan 판단 전부 수용 → PR-2 대기 해제.
 - 2026-10-28 Main msg_2b955b6ab258: 사용자 '다 작업해줘' → 수집기 PR-1~3+LAN 가동과 함께 PR-1~6 중간 승인 없이 연속 진행 배정. 교차 순서는 §8, PR-4d 는 수집기 PR 모두 머지 후.
 - 2026-10-28 PR-1 #93(bb02584) 머지(CI 40643824639, E2E 195/195, QA 생략). Dev 해석 수용: lime 채움(어두운 글자) → P100(12.65:1), 주요 버튼 action-bg P600+흰 글자, 보충값 Success 800 #166534·Warning 800 #92400E 추가, orange → Warning 500, text-secondary·tertiary 모두 N600(위계는 크기·굵기로 — PR-4 에서 필요 시), 차트 초록 Success 800·경쟁사/자사 대비는 PR-5, Primary 보충 200/300/400/800 = Tailwind blue 300/400/500/900. 사이드바 활성 최종 모양(P50+P700+왼쪽 막대)은 PR-2 에서.
+- 2026-10-28 sweep 범위 보완(Dev msg_18d0795c5ba3, 비블로킹): features/settings(LLM 키 카드 등 개인 설정)는 §5 에 없었음 → 4a 에 포함(사용자 공통 화면). notices 공용 부품(NoticeRows·NoticeFormModal 등)은 4a, 4c 는 NoticesAdminTable 만. 4c 커밋 완료(범위 안 원시 색 0), 4b 착수.
