@@ -146,6 +146,7 @@ const PROCUREMENT_SCHEMA_EXPORTS = [
   'procurementBidKeywords',
   'procurementJobRuns',
   'procurementAppState',
+  'procurementMailRecipients',
   'procurementVDeliveries',
   'procurementVProductDeliveries',
   'procurementVItemPrices',
@@ -159,6 +160,7 @@ const PROCUREMENT_SCHEMA_EXPORTS = [
   'ProcurementBidKeyword',
   'ProcurementJobRun',
   'ProcurementAppState',
+  'ProcurementMailRecipient',
   'ProcurementVDelivery',
   'ProcurementVProductDelivery',
   'ProcurementVItemPrice',
@@ -186,7 +188,7 @@ const PROCUREMENT_PATTERNS = [
 
 /** procurement 스키마의 표·뷰 이름 (raw SQL `procurement.<이름>` / `"procurement"."<이름>"` 탐지) */
 const PROCUREMENT_RELATIONS =
-  'items|item_changes|deliveries|delivery_changes|bid_notices|bid_keywords|job_runs|app_state|v_deliveries|v_product_deliveries|v_item_prices';
+  'items|item_changes|deliveries|delivery_changes|bid_notices|bid_keywords|job_runs|app_state|mail_recipients|v_deliveries|v_product_deliveries|v_item_prices';
 const PROCUREMENT_RAW_SQL = `/procurement"?\\s*\\.\\s*"?(${PROCUREMENT_RELATIONS})\\b/`;
 const PROCUREMENT_MODULE_PATH = '/(^|[\\/])(server|schema)[\\/]procurement([\\/]|$)/';
 

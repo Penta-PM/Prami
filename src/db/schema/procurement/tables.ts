@@ -13,12 +13,13 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
 import { procurementSchema } from './schema';
 
 /**
- * procurement 스키마 테이블 8개 — 조달이 원본 DDL 의 컬럼·타입·제약·인덱스를 그대로 옮긴다 (DB-1).
+ * procurement 스키마 테이블 8개(+ Prami 전용 mail_recipients, 0013) — 조달이 원본 DDL 의 컬럼·타입·제약·인덱스를 그대로 옮긴다 (DB-1).
  * 제약 이름은 원본이 이름 없이 만든 제약에 PostgreSQL 이 붙이는 기본 이름(`<표>_<열>_check`·`_key`·`_fkey`)과 같게 둔다.
  * 열 순서도 원본과 같다(나중에 ALTER 로 더해진 열은 끝 — deliveries.excluded, bid_notices.keywords·fit_*).
  * `items.updated_at`·`items.product_group` 은 DB 트리거 `procurement.items_before_write` 가 채운다(0012 마이그레이션 SQL).
@@ -231,6 +232,22 @@ export const procurementAppState = procurementSchema.table('app_state', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * 일일 보고 메일 수신처 (Prami 전용 — 원본 DDL 에 없음, 0013). 수집기가 발송 시점에 읽고 0건이면 보내지 않는다.
+ * 같은 주소는 대소문자 무시로 한 번만(unique index on lower(email)). 조달이 CSV 이관 대상이 아니다.
+ */
+export const procurementMailRecipients = procurementSchema.table(
+  'mail_recipients',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    email: text('email').notNull(),
+    /** 추가한 관리자 메일 */
+    createdBy: text('created_by'),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('mail_recipients_email_lower_key').on(sql`lower(${t.email})`)],
+);
+
 export type ProcurementItem = typeof procurementItems.$inferSelect;
 export type NewProcurementItem = typeof procurementItems.$inferInsert;
 export type ProcurementItemChange = typeof procurementItemChanges.$inferSelect;
@@ -241,3 +258,4 @@ export type ProcurementBidNotice = typeof procurementBidNotices.$inferSelect;
 export type ProcurementBidKeyword = typeof procurementBidKeywords.$inferSelect;
 export type ProcurementJobRun = typeof procurementJobRuns.$inferSelect;
 export type ProcurementAppState = typeof procurementAppState.$inferSelect;
+export type ProcurementMailRecipient = typeof procurementMailRecipients.$inferSelect;

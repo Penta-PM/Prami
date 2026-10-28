@@ -1,11 +1,12 @@
 /**
- * 조달 관리(`/admin/procurement`) 탭 (조달이 통합 D-2 — 관리자 메뉴 1개 + 탭 3). 순수 모듈 — 화면·조회 상태 정규화 공용.
+ * 조달 관리(`/admin/procurement`) 탭 (조달이 통합 D-2 — 관리자 메뉴 1개 + 탭 3, 수집기 Prami 이전 §3.1 메일 보고 탭 추가). 순수 모듈 — 화면·조회 상태 정규화 공용.
  * URL `?tab=` 값. 기본 탭(실적 관리)은 URL 에서 생략한다.
  */
 export const PROCUREMENT_ADMIN_TABS = [
   { value: 'deliveries', label: '실적 관리' },
   { value: 'items', label: '품목 관리' },
   { value: 'keywords', label: '키워드 관리' },
+  { value: 'mail', label: '메일 보고' },
 ] as const;
 
 export type ProcurementAdminTab = (typeof PROCUREMENT_ADMIN_TABS)[number]['value'];

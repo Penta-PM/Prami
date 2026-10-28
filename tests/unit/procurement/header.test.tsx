@@ -5,7 +5,10 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   NO_COLLECTION_TEXT,
   ProcurementHeader,
+  collectionRunNotice,
+  collectionRunNoticeText,
   formatCollectedAt,
+  type HeaderJobRun,
 } from '@/features/procurement/ProcurementHeader';
 
 /** 조달이 통합 UI-1 공용 머리: 제목 + 마지막 수집 시각(KST) + 데이터 기준 안내 */
@@ -49,6 +52,103 @@ describe('ProcurementHeader', () => {
       '아직 수집 기록이 없습니다',
     );
     expect(container.querySelector('time')).toBeNull();
+  });
+});
+
+/** 수집 상태 문구 (수집기 Prami 이전 §3.2) — daily·bids 를 함께 본다. 진행 중이 실패보다 우선 */
+const run = (
+  status: string | null,
+  startedAt = '2026-10-28T00:05:00Z',
+  lastSuccessAt: string | null = null,
+): HeaderJobRun => ({
+  lastRun: status ? { status, startedAt: new Date(startedAt) } : null,
+  lastSuccessAt: lastSuccessAt ? new Date(lastSuccessAt) : null,
+});
+
+describe('collectionRunNotice', () => {
+  it('기록 없음·성공뿐이면 문구 없음', () => {
+    expect(collectionRunNotice([])).toBeNull();
+    expect(collectionRunNotice([run(null), run('ok')])).toBeNull();
+  });
+
+  it('어느 작업이든 running 이면 "수집 중 (HH:mm 시작)" — 실패보다 우선, 가장 이른 시작 시각(KST)', () => {
+    const notice = collectionRunNotice([
+      run('failed', '2026-10-27T23:00:00Z', '2026-10-27T00:30:00Z'),
+      run('running', '2026-10-28T01:30:00Z'),
+    ]);
+    expect(notice).toEqual({ kind: 'running', startedAt: new Date('2026-10-28T01:30:00Z') });
+    expect(collectionRunNoticeText(notice!)).toBe('수집 중 (10:30 시작)');
+    const both = collectionRunNotice([
+      run('running', '2026-10-28T01:30:00Z'),
+      run('running', '2026-10-27T15:05:00Z'),
+    ]);
+    // 자정 넘김: 15:05Z = 다음 날 00:05 KST
+    expect(collectionRunNoticeText(both!)).toBe('수집 중 (00:05 시작)');
+  });
+
+  it('최근 실행 failed → "최근 수집 실패 · 마지막 성공 …"(실패한 작업들의 마지막 성공 중 이른 것)', () => {
+    const notice = collectionRunNotice([
+      run('failed', '2026-10-28T00:00:00Z', '2026-10-27T00:30:00Z'),
+      run('ok', '2026-10-28T01:30:00Z', '2026-10-28T01:31:00Z'),
+    ]);
+    expect(collectionRunNoticeText(notice!)).toBe(
+      '최근 수집 실패 · 마지막 성공 2026-10-27 09:30 (KST)',
+    );
+    const twoFailed = collectionRunNotice([
+      run('failed', '2026-10-28T00:00:00Z', '2026-10-27T00:30:00Z'),
+      run('failed', '2026-10-28T01:30:00Z', '2026-10-26T01:30:00Z'),
+    ]);
+    expect(collectionRunNoticeText(twoFailed!)).toBe(
+      '최근 수집 실패 · 마지막 성공 2026-10-26 10:30 (KST)',
+    );
+  });
+
+  it('실패한 작업에 성공 기록이 없으면 "마지막 성공 기록 없음"', () => {
+    const notice = collectionRunNotice([
+      run('failed'),
+      run('ok', undefined, '2026-10-27T00:30:00Z'),
+    ]);
+    expect(collectionRunNoticeText(notice!)).toBe('최근 수집 실패 · 마지막 성공 기록 없음');
+  });
+});
+
+describe('ProcurementHeader 수집 상태', () => {
+  it('진행 중: 아이콘(aria-hidden) + 문구, 수집 시각 옆에 렌더', () => {
+    render(
+      <ProcurementHeader
+        title="조달 관리"
+        collectedAt={new Date('2026-10-27T00:30:00Z')}
+        runs={[run('running', '2026-10-28T01:30:00Z'), run('failed')]}
+        basis="기준"
+      />,
+    );
+    const status = screen.getByTestId('procurement-collection-run');
+    expect(status).toHaveTextContent('수집 중 (10:30 시작)');
+    expect(status).toHaveAttribute('data-run', 'running');
+    expect(status.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.getByText('수집 상태')).toHaveClass('sr-only');
+  });
+
+  it('실패: "최근 수집 실패 · 마지막 성공 …" 문구(색만으로 구분하지 않음)', () => {
+    render(
+      <ProcurementHeader
+        title="입찰 공고"
+        collectedAt={null}
+        runs={[run('ok'), run('failed', undefined, '2026-10-27T00:30:00Z')]}
+        basis="기준"
+      />,
+    );
+    const status = screen.getByTestId('procurement-collection-run');
+    expect(status).toHaveTextContent('최근 수집 실패 · 마지막 성공 2026-10-27 09:30 (KST)');
+    expect(status).toHaveAttribute('data-run', 'failed');
+    expect(status.querySelector('svg')).not.toBeNull();
+  });
+
+  it('runs 를 넘기지 않거나 모두 성공이면 상태 문구 없음', () => {
+    const { rerender } = render(<ProcurementHeader title="t" collectedAt={null} basis="기준" />);
+    expect(screen.queryByTestId('procurement-collection-run')).toBeNull();
+    rerender(<ProcurementHeader title="t" collectedAt={null} runs={[run('ok')]} basis="기준" />);
+    expect(screen.queryByTestId('procurement-collection-run')).toBeNull();
   });
 });
 

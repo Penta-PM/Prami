@@ -56,6 +56,7 @@ export default async function ProcurementItemsPage({ searchParams }: PageProps) 
       <ProcurementHeader
         title={PAGE.title}
         collectedAt={status.daily.collectedAt}
+        runs={[status.daily, status.bids]}
         basis={PAGE.basis}
         actions={
           <ItemsExportLink

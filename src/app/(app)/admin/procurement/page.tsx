@@ -6,6 +6,7 @@ import { ViewStateTracker } from '@/features/page-state/ViewStateTracker';
 import { DeliveriesAdminSection } from '@/features/procurement/admin/deliveries/DeliveriesAdminSection';
 import { ItemsAdminSection } from '@/features/procurement/admin/items/ItemsAdminSection';
 import { KeywordsAdminSection } from '@/features/procurement/admin/keywords/KeywordsAdminSection';
+import { MailAdminSection } from '@/features/procurement/admin/mail/MailAdminSection';
 import { PROCUREMENT_PAGES } from '@/features/procurement/copy';
 import { ProcurementAdminTabs } from '@/features/procurement/ProcurementAdminTabs';
 import { ProcurementHeader } from '@/features/procurement/ProcurementHeader';
@@ -21,7 +22,7 @@ export const metadata: Metadata = { title: PAGE.title };
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 /**
- * 조달 관리 (조달이 통합 D-2, procurement.write = ADMIN): 탭 3개(실적 관리·품목 관리·키워드 관리).
+ * 조달 관리 (조달이 통합 D-2, procurement.write = ADMIN): 탭 4개(실적 관리·품목 관리·키워드 관리·메일 보고).
  * 탭 상태는 URL `?tab=`, 탭 내용은 이 RSC 가 searchParams 로 서버에서 읽는다(Plan msg_9f2035d66cd8) — 탭마다 switch 한 줄.
  */
 export default async function AdminProcurementPage({ searchParams }: PageProps) {
@@ -43,6 +44,9 @@ export default async function AdminProcurementPage({ searchParams }: PageProps) 
     case 'keywords':
       section = <KeywordsAdminSection params={params} access={access} user={user} />;
       break;
+    case 'mail':
+      section = <MailAdminSection params={params} access={access} user={user} />;
+      break;
   }
 
   return (
@@ -50,6 +54,7 @@ export default async function AdminProcurementPage({ searchParams }: PageProps) 
       <ProcurementHeader
         title={PAGE.title}
         collectedAt={status.daily.collectedAt}
+        runs={[status.daily, status.bids]}
         basis={PAGE.basis}
       />
       <ProcurementAdminTabs tab={tab}>{section}</ProcurementAdminTabs>
