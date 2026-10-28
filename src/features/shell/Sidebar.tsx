@@ -6,11 +6,12 @@ import { usePathname } from 'next/navigation';
 import { m } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { Icon } from '@/components/icons/Icon';
 import { FOCUS_RING_CLASSES } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
 import { transition } from '@/lib/motion/tokens';
 
-import { Icon } from './icons';
+import { NavIcon } from './icons';
 import {
   NAV_MAIN,
   NAV_PROCUREMENT,
@@ -85,7 +86,8 @@ export function Sidebar({
         aria-label={isMobileOpen ? '메뉴 닫기' : '메뉴 열기'}
         className="fixed top-[18px] left-3 z-50 flex size-9 items-center justify-center rounded-lg border-0 bg-gray-75 text-[18px] text-ink-900 shadow-(--hairline-subtle) md:hidden"
       >
-        <span aria-hidden="true">{isMobileOpen ? '×' : '☰'}</span>
+        {/* ☰ 는 Penta 에 없어 기존 글리프 유지(보류), 닫기는 Penta close */}
+        {isMobileOpen ? <Icon name="close" /> : <span aria-hidden="true">☰</span>}
       </button>
       {isMobileOpen ? (
         <button
@@ -250,10 +252,7 @@ function SidebarLink({ item, isActive, isExpanded, fadeIn }: SidebarLinkProps) {
           : 'font-medium text-text-secondary hover:bg-gray-100 hover:text-ink-900',
       )}
     >
-      <Icon
-        name={item.icon}
-        className={cn('size-[18px] shrink-0', isActive ? 'text-primary-700' : 'text-text-tertiary')}
-      />
+      <NavIcon name={item.icon} className={isActive ? 'text-primary-700' : 'text-text-tertiary'} />
       {isExpanded ? (
         <m.span {...labelFade(fadeIn)} className="whitespace-nowrap">
           {item.label}

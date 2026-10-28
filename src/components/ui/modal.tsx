@@ -11,6 +11,7 @@ import {
   type SyntheticEvent,
 } from 'react';
 
+import { Icon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
 import { scaleIn, VARIANT_KEYS } from '@/lib/motion/tokens';
 
@@ -264,12 +265,12 @@ export function CloseButton({ onClick }: { onClick: () => void }) {
       aria-label="닫기"
       onClick={onClick}
       className={cn(
-        'flex size-8 shrink-0 items-center justify-center rounded-pill border border-solid border-neutral-200 bg-neutral-50 text-[16px] leading-none text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900',
+        'flex size-8 shrink-0 items-center justify-center rounded-pill border border-solid border-neutral-200 bg-neutral-50 leading-none text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900',
         PRESS_CLASSES,
         FOCUS_RING_CLASSES,
       )}
     >
-      ×
+      <Icon name="close" />
     </button>
   );
 }

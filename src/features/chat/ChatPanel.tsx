@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { m, type Variants } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { Icon } from '@/components/icons/Icon';
 import { Presence } from '@/components/motion/Presence';
 import { Button } from '@/components/ui';
 import { PRESS_CLASSES } from '@/components/ui/button';
@@ -120,9 +121,9 @@ export function ChatPanel() {
               type="button"
               aria-label="챗봇 닫기"
               onClick={closeAndRestoreFocus}
-              className="border-0 bg-transparent text-[16px] font-semibold text-text-tertiary hover:text-ink-900"
+              className="flex border-0 bg-transparent p-0 text-text-tertiary hover:text-ink-900"
             >
-              ×
+              <Icon name="close" />
             </button>
           </header>
           {status?.setup ? <SetupBanner setup={status.setup} /> : null}

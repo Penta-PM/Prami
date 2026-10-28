@@ -18,6 +18,7 @@ import {
   type DataTableFilterField,
   type DataTableSort,
 } from '@/components/ui/data-table';
+import { Icon } from '@/components/icons/Icon';
 import { Presence } from '@/components/motion/Presence';
 import { formatDate } from '@/lib/date-format';
 import { VARIANT_KEYS, listItem, transition } from '@/lib/motion/tokens';
@@ -96,10 +97,10 @@ export function CartPanel(props: CartPanelProps) {
                     <button
                       type="button"
                       aria-label={`${line.name} 삭제`}
-                      className="border-0 bg-transparent text-[14px] font-semibold text-red-600"
+                      className="flex border-0 bg-transparent p-0 text-red-600"
                       onClick={() => props.onRemove(line.id)}
                     >
-                      ×
+                      <Icon name="close" />
                     </button>
                   </div>
                 </div>

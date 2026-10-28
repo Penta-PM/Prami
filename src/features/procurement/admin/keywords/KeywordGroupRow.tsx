@@ -2,6 +2,7 @@
 
 import { useId, useState, useTransition, type KeyboardEvent } from 'react';
 
+import { Icon } from '@/components/icons/Icon';
 import { Button, Input } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { checkBidKeyword, type BID_KEYWORD_GROUPS } from '@/lib/procurement/keywords';
@@ -90,9 +91,9 @@ export function KeywordGroupRow({ group, keywords, onAdd, onRequestDelete }: Key
                   aria-label={`${row.keyword} 삭제`}
                   title="삭제"
                   onClick={() => onRequestDelete(row)}
-                  className="hover:bg-black/5 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-pill border-0 bg-transparent p-0 text-[13px] font-bold text-text-tertiary hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-purple-500"
+                  className="hover:bg-black/5 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-pill border-0 bg-transparent p-0 text-text-tertiary hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-purple-500"
                 >
-                  <span aria-hidden="true">×</span>
+                  <Icon name="close" />
                 </button>
               </li>
             ))}

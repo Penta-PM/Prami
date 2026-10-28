@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { Icon } from '@/features/shell/icons';
+import { LegacyIcon } from '@/features/shell/icons';
 import { cn } from '@/lib/cn';
 
 import { Popover, type PopoverAlign } from './popover';
@@ -109,7 +109,7 @@ export function InfoHint({ name, text, children, align = 'start', className }: I
           className,
         )}
       >
-        <Icon name="info" width={16} height={16} className="shrink-0" />
+        <LegacyIcon name="info" width={16} height={16} className="shrink-0" />
         {text}
       </button>
       <Popover

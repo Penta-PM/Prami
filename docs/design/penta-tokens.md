@@ -162,3 +162,85 @@ L2 재연결: `--surface-page/card` N0 · `--surface-sidebar/muted` N50 · `--su
 | X-700 on X-50 (Status Badge) | Success 4.79 · Warning 4.84 · Error 5.91 · Info 6.16 |
 | 포커스 고리 P500 on 흰색 / N50 / P100 (그래픽 3:1) | 4.40 / 4.14 / 3.07 |
 | 차트 계열 색 on 흰색·N50 (그래픽 3:1) | 전부 3:1 이상 |
+
+## 7. 아이콘 (디자인 PR-3)
+
+Penta 아이콘 라이브러리(383개, 24×24, 1px 선, currentColor) 중 **화면에서 쓰는 것만** 생성 파일로 커밋한다.
+원본 JSON 은 저장소에 넣지 않는다(`/design/` gitignore). CI·앱은 생성 결과만 쓴다.
+
+### 생성
+
+```bash
+pnpm exec tsx scripts/gen-penta-icons.ts /절대/경로/pentaicon-library.json   # 기본: design/pentaicon-library.json
+```
+
+- `scripts/gen-penta-icons.ts` 의 `PENTA_ICON_ALLOWLIST` = 사용 아이콘 목록. 아이콘을 늘리면 여기에 이름을 더하고 다시 생성한다.
+- 출력 `src/components/icons/penta.tsx` — SVG 를 **JSX 요소**로 옮긴 typed 맵(`PENTA_ICONS`, `PentaIconName`). `dangerouslySetInnerHTML`·문자열 HTML 없음.
+- 원본 좌표·`viewBox`·선 두께 그대로. 속성 없는 `<g>` 를 풀고, 같은 부모 안에 겹쳐 그린 똑같은 path 는 하나만 남긴다.
+- allowlist 이름이 라이브러리에 없거나, 허용하지 않은 요소(script 등)·속성(on* 등)·색(currentColor·none 외)이 있으면 **실패**한다.
+
+### API
+
+```tsx
+import { DisclosureIcon, Icon } from '@/components/icons/Icon';
+
+<Icon name="search" />                     // 장식: aria-hidden="true" focusable="false", 20px
+<Icon name="warning" size={24} title="경고" /> // 의미 전달: role="img" + <title> + aria-label
+<DisclosureIcon open={expanded} />         // 펼치기(▾)·접기(▴) = chevron-right 90°·-90° 회전
+```
+
+### 규칙
+
+- **선 두께 원본(1px) 유지** — stroke 덮어쓰기 prop 없음.
+- **렌더링 최소 20px** — `size` 는 타입에서 `20 | 24` 만. 16px 이하는 1px 선이 0.67px 로 흐려진다(#88 회귀). `shrink-0` 기본.
+- **색은 currentColor** — 부모 글자색(`text-*`)으로 준다.
+- **aria** — 기본 장식(`aria-hidden`). 아이콘만 있는 버튼은 버튼에 `aria-label` 을 주고 아이콘은 장식으로 둔다. 아이콘 자체가 의미를 전달할 때만 `title`.
+- 라이브러리에 없는 아이콘을 직접 그리지 않는다 — 아래 "라이브러리 추가 요청 후보"로 올린다. 회전(chevron)은 그리기가 아니므로 허용.
+
+### 매핑 (구현)
+
+| 자리 | 기존 | Penta | 비고 |
+|---|---|---|---|
+| 사이드바 HOME | home | `home` | 일치 |
+| 사이드바 계산기 | calc | `calculator` | 일치 |
+| 사이드바 가격정책 관리 | shield | `shield` | 일치 |
+| 사이드바 사용자 · 권한 | users | `users` | 일치 |
+| 사이드바 등록 품목 | list | `list` | 일치 |
+| 사이드바 감사 로그 | log | `file-log` | 일치 |
+| 사이드바 입찰 공고 | doc | `file-text` | 일치 |
+| 사이드바 조달 실적 현황 | chart(막대) | `chart-line` | 대체 |
+| 사이드바 원가 관리 | box | `won-note` | 대체(파츠와 구분) |
+| 사이드바 파츠 관리 | box | `blocks-2` | 대체(원가와 구분) |
+| 사이드바 솔루션 그룹 관리 | group | `grid` | 대체 |
+| 헤더·필터 검색 입력 7곳 | search 16px | `search` 20px | 일치 |
+| 헤더 알림 버튼 | bell 16px | `bell` 20px | 일치 |
+| 헤더 챗봇 버튼 | chat 16px | `message` 20px | 대체 |
+| 회사 API 키 주의 안내 | 경고 삼각형 16px | `warning` 20px | 대체(원 + 느낌표 + 양옆 호 — 경고 의미 확인) |
+| 조달 범례 표시/숨김 | 인라인 눈 svg 14px | `eye` / `eye-off` 20px | 일치 |
+| 닫기 ×·✕ — 모달 CloseButton, 챗봇 패널, 과금 안내, 파츠 선택 칩, 조달 품목 안내, 장바구니 줄 삭제, 키워드 칩, 빠른 필터 해제, 계약 목록 "닫기", 모바일 메뉴(열림) | 글리프 | `close` 20px | 일치 |
+| 펼치기 ▾▴ — 빠른 필터 필드 버튼, 범례 "+N", 제조사 표 "전체 펼치기/접기" | 글리프 | `chevron-right` 90°/-90° | 대체(회전) |
+
+### 라이브러리 추가 요청 후보 (보류 — 기존 아이콘 유지)
+
+Penta 라이브러리에 대응 아이콘이 없어 `src/features/shell/icons.tsx`(`LegacyIcon`)·기존 표시를 그대로 둔다. Main 경유 디자인팀 요청.
+
+| 필요 아이콘 | 쓰는 자리 | 비고 |
+|---|---|---|
+| tag(가격표) | 사이드바 가격 정책 조회·공지사항 관리, 알림 "정책 적용" 유형 | |
+| cart(장바구니) | 사이드바 조달 관리 | |
+| info(원 안 i) | InfoHint 트리거(16px), Pill info 톤(14px), ERP 안내 | `help-circle`·`alert-circle` 은 의미가 달라 쓰지 않음 |
+| menu(☰) | 모바일 메뉴 열기 버튼 | 닫힘 상태 글리프만 유지(열림 = `close`) |
+| external-link | 입찰 공고 원문 링크(14px) | |
+| refresh / 진행 중 | 조달 헤더 "수집 중" 표시(12px) | 라이브러리 `refresh` 는 있으나 매핑 미결정 + 12px 자리 |
+
+### 작은 크기 유지 자리 (20px 가 들어가지 않음 — 기존 표시 유지)
+
+| 자리 | 크기 | 이유 |
+|---|---|---|
+| 알림 목록 유형 배지(bell·users·tag) | 28px 원 안 14px | 배지 여백이 4px 로 줄어 배지 디자인이 깨지고, 보류 tag 와 한 목록에 섞인다 |
+| 조달 헤더 수집 상태(진행 중·실패) | 12px | 12px 문구 줄 안 인라인 표시 |
+| Pill info 톤 아이콘 | 14px | info 보류 + 알약 높이 |
+| InfoHint 트리거 | 16px | info 보류 |
+| 입찰 공고 원문 링크 | 14px | external-link 보류 |
+
+아이콘 범위 밖(컨트롤 표시·데이터 표현, 교체하지 않음): 정렬 삼각형, 체크박스 ✓/−, 차트 마커·범례 견본, 상태 점, Google 로고, 가격 변동 ▲▼, 본문 화살표(→), 수량 표기 "× N".

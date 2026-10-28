@@ -5,7 +5,7 @@ import { useState, useTransition, type FormEvent } from 'react';
 
 import { productFamilyMajors } from '@/lib/constants/product-cards';
 import { Input } from '@/components/ui';
-import { Icon } from '@/features/shell/icons';
+import { Icon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
 import { navigateView } from '@/lib/page-state/view-navigation';
 
@@ -65,7 +65,7 @@ export function PricingFilters(props: PricingFiltersProps) {
             value={query}
             placeholder={searchPlaceholder}
             onChange={(event) => setQuery(event.target.value)}
-            leading={<Icon name="search" className="size-4" />}
+            leading={<Icon name="search" />}
             className="bg-surface-card"
           />
         </form>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+import { DisclosureIcon, Icon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
 
 import { MarkerSwatch } from './Marker';
@@ -26,7 +27,7 @@ export type ChartLegendProps = {
   /** 숨긴 계열 */
   hiddenKeys: ReadonlySet<string>;
   onToggleHidden: (key: string) => void;
-  /** 이 수만큼만 보이고 나머지는 "+N개 ▾" 로 접는다 (강조 중인 항목은 접혀도 보인다). 없으면 전부 */
+  /** 이 수만큼만 보이고 나머지는 "+N개"(펼치기 아이콘) 로 접는다 (강조 중인 항목은 접혀도 보인다). 없으면 전부 */
   visibleCount?: number;
   /** 접힌 항목 단위 — `개사`(회사) / `개`(연도 등) */
   unit?: string;
@@ -113,7 +114,7 @@ export function ChartLegend({
                   FOCUS,
                 )}
               >
-                <EyeIcon off={hidden} />
+                <Icon name={hidden ? 'eye-off' : 'eye'} />
               </button>
             </li>
           );
@@ -125,31 +126,14 @@ export function ChartLegend({
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
           className={cn(
-            'min-h-8 cursor-pointer rounded-full border-0 bg-transparent px-2 text-[12px] font-semibold text-text-tertiary hover:text-ink-900',
+            'inline-flex min-h-8 cursor-pointer items-center gap-0.5 rounded-full border-0 bg-transparent px-2 text-[12px] font-semibold text-text-tertiary hover:text-ink-900',
             FOCUS,
           )}
         >
-          {expanded ? '접기 ▴' : `+${hiddenCount}${unit} ▾`}
+          {expanded ? '접기' : `+${hiddenCount}${unit}`}
+          <DisclosureIcon open={expanded} />
         </button>
       )}
     </div>
-  );
-}
-
-function EyeIcon({ off }: { off: boolean }) {
-  return (
-    <svg
-      aria-hidden="true"
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-    >
-      <path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8Z" />
-      <circle cx="8" cy="8" r="2" />
-      {off && <path d="M2.5 13.5l11-11" />}
-    </svg>
   );
 }

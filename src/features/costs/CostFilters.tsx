@@ -7,7 +7,7 @@ import { Input } from '@/components/ui';
 import { DateControls, type DateFilterValue } from '@/features/pricing/DateFilter';
 import type { FilterErrors } from '@/features/pricing/filter';
 import { ViewStateLink } from '@/features/page-state/ViewStateLink';
-import { Icon } from '@/features/shell/icons';
+import { Icon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
 import { navigateView } from '@/lib/page-state/view-navigation';
 
@@ -60,7 +60,7 @@ export function CostFilters({ filter, errors, families, years }: CostFiltersProp
             value={query}
             placeholder="원자재명, 코드로 검색"
             onChange={(event) => setQuery(event.target.value)}
-            leading={<Icon name="search" className="size-4" />}
+            leading={<Icon name="search" />}
             className="bg-surface-card"
           />
         </form>

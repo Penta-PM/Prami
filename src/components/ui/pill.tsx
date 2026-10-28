@@ -1,6 +1,6 @@
 import type { HTMLAttributes } from 'react';
 
-import { Icon } from '@/features/shell/icons';
+import { LegacyIcon } from '@/features/shell/icons';
 import { cn } from '@/lib/cn';
 
 /**
@@ -47,7 +47,9 @@ export function Pill({ tone = 'neutral', className, children, ...props }: PillPr
       )}
       {...props}
     >
-      {tone === 'info' ? <Icon name="info" width={14} height={14} className="shrink-0" /> : null}
+      {tone === 'info' ? (
+        <LegacyIcon name="info" width={14} height={14} className="shrink-0" />
+      ) : null}
       {children}
     </span>
   );

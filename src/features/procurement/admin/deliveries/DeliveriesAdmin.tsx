@@ -14,7 +14,7 @@ import {
   type DataTableFilterField,
   type DataTableSort,
 } from '@/components/ui/data-table';
-import { Icon } from '@/features/shell/icons';
+import { Icon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
 import { navigateView } from '@/lib/page-state/view-navigation';
 import {
@@ -520,7 +520,7 @@ function DeliveriesSearch({
         value={value}
         placeholder="납품요구번호, 물품, 수요기관으로 검색"
         onChange={(event) => setValue(event.target.value)}
-        leading={<Icon name="search" className="size-4" />}
+        leading={<Icon name="search" />}
         className="bg-surface-card"
       />
     </form>

@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Button, Checkbox, Input } from '@/components/ui';
-import { Icon } from '@/features/shell/icons';
+import { Icon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
 import { VARIANT_KEYS, scaleIn, transition } from '@/lib/motion/tokens';
 
@@ -143,7 +143,7 @@ function ModelPicker({
           value={query}
           placeholder="모델명으로 검색"
           aria-label="모델 검색"
-          leading={<Icon name="search" className="size-4" />}
+          leading={<Icon name="search" />}
           onChange={(event) => onQuery(event.target.value)}
         />
       </label>
@@ -210,7 +210,7 @@ function PartsChecklist({
           value={query}
           placeholder="파츠명, 품번으로 검색"
           aria-label="파츠 검색"
-          leading={<Icon name="search" className="size-4" />}
+          leading={<Icon name="search" />}
           onChange={(event) => onQuery(event.target.value)}
         />
       </label>
@@ -262,10 +262,10 @@ function SelectedChip({ item, onRemove }: { item: CatalogItemView; onRemove: () 
       <button
         type="button"
         aria-label={`${item.itemName} 선택 해제`}
-        className="border-0 bg-transparent px-1 text-text-tertiary hover:text-ink-900"
+        className="flex border-0 bg-transparent p-0 text-text-tertiary hover:text-ink-900"
         onClick={onRemove}
       >
-        ×
+        <Icon name="close" />
       </button>
     </m.span>
   );

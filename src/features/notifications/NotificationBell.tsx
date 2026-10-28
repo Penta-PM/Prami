@@ -7,7 +7,8 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react
 import { Presence } from '@/components/motion/Presence';
 import { useChatPanel } from '@/features/chat/ChatContext';
 import { ImportantBadge } from '@/features/notices/NoticeRows';
-import { Icon, type IconName } from '@/features/shell/icons';
+import { Icon } from '@/components/icons/Icon';
+import { LegacyIcon, type LegacyIconName } from '@/features/shell/icons';
 import { cn } from '@/lib/cn';
 import { formatDateTime } from '@/lib/date-format';
 import { fadeUp, VARIANT_KEYS } from '@/lib/motion/tokens';
@@ -15,7 +16,8 @@ import { fadeUp, VARIANT_KEYS } from '@/lib/motion/tokens';
 import type { NotificationItemView, NotificationType } from './types';
 import { useNotifications } from './useNotifications';
 
-const TYPE_ICON: Record<NotificationType, IconName> = {
+/** 유형 배지(28px 원 안 14px) — 20px 가 들어가지 않아 기존 아이콘 유지 (디자인 PR-3 작은 크기 유지 자리) */
+const TYPE_ICON: Record<NotificationType, LegacyIconName> = {
   'notice.created': 'bell',
   'policy.applied': 'tag',
   'user.role_changed': 'users',
@@ -156,7 +158,7 @@ export function NotificationBell() {
         onClick={toggle}
         className="relative flex size-9 items-center justify-center rounded-pill border-0 bg-gray-75 text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900 aria-expanded:text-ink-900"
       >
-        <Icon name="bell" className="size-4" />
+        <Icon name="bell" />
         {unreadCount > 0 ? (
           <span
             aria-hidden="true"
@@ -262,7 +264,7 @@ function NotificationBody({
               aria-hidden="true"
               className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-circle bg-gray-75 text-text-secondary"
             >
-              <Icon name={TYPE_ICON[item.type] ?? 'bell'} className="size-3.5" />
+              <LegacyIcon name={TYPE_ICON[item.type] ?? 'bell'} className="size-3.5" />
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="flex min-w-0 items-center gap-1.5">

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+import { DisclosureIcon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
 import { formatMillionWon, formatShare, millionWonHeader } from '@/lib/procurement/format';
 
@@ -156,9 +157,10 @@ export function ManufacturerTable({
                       if (hiddenHighlight && highlight) onToggleHighlight(highlight);
                     } else setExpanded(true);
                   }}
-                  className="rounded-pill border border-border-default bg-transparent px-3.5 py-1 text-[12px] font-semibold text-text-secondary hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
+                  className="inline-flex items-center gap-0.5 rounded-pill border border-border-default bg-transparent py-1 pr-2.5 pl-3.5 text-[12px] font-semibold text-text-secondary hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500"
                 >
-                  {showAll ? '접기 ▴' : `전체 ${rows.length}개사 펼치기 ▾`}
+                  {showAll ? '접기' : `전체 ${rows.length}개사 펼치기`}
+                  <DisclosureIcon open={showAll} />
                 </button>
               </td>
             </tr>
