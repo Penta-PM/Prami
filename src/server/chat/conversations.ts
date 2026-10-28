@@ -43,13 +43,6 @@ export const AUDIT_CHAT_CONVERSATION_READ = 'chat.conversation.read';
 
 const AUDIT_TARGET_TYPE = 'chat.conversation';
 
-/**
- * 메시지를 보낼 수 있는 domain. 조달 대화의 프롬프트·도구는 PR-C3 이 붙인다 — 그전에는 조달 대화에 가격 챗봇 그래프가
- * 돌지 않도록 전송을 거부한다(목록·생성·이름 변경·삭제는 가능).
- */
-export const CHAT_SENDABLE_DOMAINS: readonly ChatDomain[] = ['pricing'];
-export const CHAT_DOMAIN_NOT_READY_MESSAGE = '조달 챗봇은 아직 준비 중입니다';
-
 /** 세션 사용자 기준 소유자. can = 역할 권한 검사, denied = 거부 감사(라우트가 recordAccessDenied 로 채운다) */
 export type ChatOwner = {
   userId: string;
@@ -87,11 +80,44 @@ function notFound(): AppError {
   return new AppError('NOT_FOUND', CHAT_CONVERSATION_NOT_FOUND);
 }
 
+function domainAllowed(owner: ChatOwner, domain: ChatDomain): boolean {
+  return domain !== 'procurement' || owner.can('procurement.read');
+}
+
+function forbidden(): AppError {
+  return new AppError('FORBIDDEN', '이 작업을 수행할 권한이 없습니다');
+}
+
 /** domain 권한: procurement 는 procurement.read 추가 필요 */
 export async function assertDomainAccess(owner: ChatOwner, domain: ChatDomain): Promise<void> {
-  if (domain !== 'procurement' || owner.can('procurement.read')) return;
+  if (domainAllowed(owner, domain)) return;
   await owner.denied?.('procurement.read');
-  throw new AppError('FORBIDDEN', '이 작업을 수행할 권한이 없습니다');
+  throw forbidden();
+}
+
+/** 트랜잭션 안의 domain 거부 표식 — 거부 감사는 롤백 **뒤에** 남긴다(아래 inDomainTransaction) */
+class DomainDenied extends Error {}
+
+function assertDomainInTx(owner: ChatOwner, domain: ChatDomain): void {
+  if (!domainAllowed(owner, domain)) throw new DomainDenied();
+}
+
+/**
+ * 대화 행을 잠그는 트랜잭션 + domain 권한 (PR-C3): 거부 감사(owner.denied — 별도 연결로 audit_logs 기록)를 트랜잭션 안에서
+ * 기다리면 단일 연결 드라이버(PGlite)에서 교착되고, 롤백될 트랜잭션 안의 대기이기도 하다 — 트랜잭션이 끝난 뒤 기록하고 FORBIDDEN.
+ */
+async function inDomainTransaction<T>(
+  owner: ChatOwner,
+  handle: DbHandle,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  try {
+    return await withTransaction(fn, handle);
+  } catch (error) {
+    if (!(error instanceof DomainDenied)) throw error;
+    await owner.denied?.('procurement.read');
+    throw forbidden();
+  }
 }
 
 function toView(row: ChatConversationRow): ConversationView {
@@ -230,9 +256,9 @@ export async function renameConversation(
 ): Promise<ConversationView> {
   const checked = normalizeTitle(input?.title);
   if (!checked.ok) throw new AppError('VALIDATION', checked.message, { title: [checked.message] });
-  return withTransaction(async (tx) => {
+  return inDomainTransaction(ctx.owner, ctx.handle, async (tx) => {
     const current = await findOwned(tx, ctx.owner, id, true);
-    await assertDomainAccess(ctx.owner, current.domain);
+    assertDomainInTx(ctx.owner, current.domain);
     const [row] = await tx
       .update(chatConversations)
       .set({ title: checked.title })
@@ -249,7 +275,7 @@ export async function renameConversation(
       meta: ctx.meta,
     });
     return toView(row);
-  }, ctx.handle);
+  });
 }
 
 /** 삭제: 즉시 완전 삭제(메시지 CASCADE). 감사에는 대화 id·domain 만 */
@@ -257,9 +283,9 @@ export async function deleteConversation(
   ctx: ChatWriteContext,
   id: unknown,
 ): Promise<{ id: string; domain: ChatDomain }> {
-  return withTransaction(async (tx) => {
+  return inDomainTransaction(ctx.owner, ctx.handle, async (tx) => {
     const current = await findOwned(tx, ctx.owner, id, true);
-    await assertDomainAccess(ctx.owner, current.domain);
+    assertDomainInTx(ctx.owner, current.domain);
     const [row] = await tx
       .delete(chatConversations)
       .where(
@@ -275,7 +301,7 @@ export async function deleteConversation(
       meta: ctx.meta,
     });
     return row;
-  }, ctx.handle);
+  });
 }
 
 export type BeginTurnInput = {
@@ -296,13 +322,11 @@ export type BegunTurn = { conversationId: string; history: HistoryItem[]; reused
  * (다시 시도로 같은 질문이 쌓이지 않게).
  */
 export async function beginTurn(handle: DbHandle, owner: ChatOwner, input: BeginTurnInput) {
-  return withTransaction(async (tx): Promise<BegunTurn> => {
+  return inDomainTransaction(owner, handle, async (tx): Promise<BegunTurn> => {
     const conversation = await findOwned(tx, owner, input.conversationId, true);
     if (conversation.domain !== input.domain) throw notFound();
-    await assertDomainAccess(owner, conversation.domain);
-    if (!CHAT_SENDABLE_DOMAINS.includes(conversation.domain)) {
-      throw new AppError('VALIDATION', CHAT_DOMAIN_NOT_READY_MESSAGE);
-    }
+    // 조달 대화 = procurement.read 추가 필요(PR-C3 부터 조달 도구 그래프로 답한다 — 라우트가 이 domain 으로 그래프를 고른다)
+    assertDomainInTx(owner, conversation.domain);
     const recent = await tx
       .select({ role: chatMessages.role, content: chatMessages.content })
       .from(chatMessages)
@@ -343,7 +367,7 @@ export async function beginTurn(handle: DbHandle, owner: ChatOwner, input: Begin
       })
       .where(eq(chatConversations.id, conversation.id));
     return { conversationId: conversation.id, history, reused };
-  }, handle);
+  });
 }
 
 /**

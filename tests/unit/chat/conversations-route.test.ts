@@ -234,7 +234,7 @@ describe('저장 전송 POST /api/chat { conversationId, domain }', () => {
     expect(body.data.messages).toHaveLength(4);
   });
 
-  it('domain 불일치 404 · domain 누락 400 · procurement 대화 전송은 준비 중 400 — 저장 없음', async () => {
+  it('domain 불일치 404 · domain 누락 400 — 저장 없음, procurement 대화 전송은 조달 그래프로(PR-C3)', async () => {
     const id = await create();
     const mismatch = await chatRoute.POST(
       json('POST', '/api/chat', { message: 'q', conversationId: id, domain: 'procurement' }),
@@ -244,13 +244,17 @@ describe('저장 전송 POST /api/chat { conversationId, domain }', () => {
       json('POST', '/api/chat', { message: 'q', conversationId: id }),
     );
     expect(missing.status).toBe(400);
+    expect((await detail(id)).body.data.messages).toEqual([]);
     const proc = await create('procurement');
-    const notReady = await chatRoute.POST(
+    const sent = await chatRoute.POST(
       json('POST', '/api/chat', { message: 'q', conversationId: proc, domain: 'procurement' }),
     );
-    expect(notReady.status).toBe(400);
-    expect((await detail(id)).body.data.messages).toEqual([]);
-    expect((await detail(proc)).body.data.messages).toEqual([]);
+    expect(sent.status).toBe(200);
+    expect(model.calls[0]!.tools.every((name) => name.startsWith('procurement_'))).toBe(true);
+    expect((await detail(proc)).body.data.messages.map((m) => m.role)).toEqual([
+      'user',
+      'assistant',
+    ]);
   });
 
   it('LLM 오류로 끝나도 final 이 나가면 그 최종 답(규칙/안내)만 저장된다', async () => {

@@ -204,7 +204,7 @@ describe('domain·권한', () => {
     expect((await getConversation(handle.db, full, conv.id)).id).toBe(conv.id);
   });
 
-  it('procurement 대화 전송은 PR-C3 전까지 VALIDATION(준비 중), 저장 없음', async () => {
+  it('procurement 대화 전송(PR-C3): procurement.read 가 있으면 질문이 저장된다', async () => {
     const a = owner(userA);
     const conv = await createConversation(ctx(a), { domain: 'procurement' });
     expect(
@@ -216,8 +216,9 @@ describe('domain·권한', () => {
           historyMaxTurns: 10,
         }),
       ),
-    ).toBe('VALIDATION');
-    expect((await getConversation(handle.db, a, conv.id)).messages).toEqual([]);
+    ).toBe('OK');
+    const { messages } = await getConversation(handle.db, a, conv.id);
+    expect(messages.map((m) => [m.role, m.content])).toEqual([['user', '입찰 공고']]);
   });
 });
 

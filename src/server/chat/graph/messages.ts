@@ -64,3 +64,6 @@ export const LLM_ERROR_NOTICE = 'LLM 응답을 받지 못해 기본 응답으로
 export const TRUNCATED_OUTPUT_NOTICE = '답변이 길어 일부만 표시합니다.';
 export const EMPTY_LLM_REPLY =
   '요청하신 내용을 모두 확인하지 못했습니다. 질문을 더 구체적으로 해주세요.';
+/** 조달 대화의 기본 응답 (LLM 미연결·일시 오류 폴백, PR-C3) — 조달 조회는 LLM 도구 경로로만 답한다 */
+export const PROCUREMENT_RULE_REPLY =
+  '조달 챗봇은 LLM 연결이 있어야 답할 수 있습니다. 조달 화면(실적 현황·등록 품목·입찰 공고)에서 직접 확인하거나, LLM 연결 후 다시 질문해 주세요.';

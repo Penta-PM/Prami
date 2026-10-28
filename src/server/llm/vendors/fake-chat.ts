@@ -14,7 +14,8 @@ import { ChatGenerationChunk, type ChatResult } from '@langchain/core/outputs';
  * 키 문자열은 **보관하지 않는다** — 생성 시 접두로 동작(behavior)만 정하고 버린다(키 격리 AC-228).
  *
  * | 접두 | 동작 |
- * | `fake-valid-` 등 정상 키 | Human 다음 → `price_lookup({query: 질문})` 도구 호출, 도구 결과 다음 → 결과 요약 문장 |
+ * | `fake-valid-` 등 정상 키 | Human 다음 → `price_lookup({query: 질문})` 도구 호출(조달 대화면 `procurement_bid_search` — 질문의
+ *   영숫자·하이픈 토큰을 검색어로, 마감 포함), 도구 결과 다음 → 결과 요약 문장 |
  * | `fake-401-` / `fake-gemini400-` | 401 / Gemini 식 400 API_KEY_INVALID |
  * | `fake-403-` `fake-404-` `fake-429-` `fake-500-` | 해당 HTTP 상태 오류 |
  * | `fake-timeout-` | 호출 신호가 끊길 때까지 응답하지 않음(타임아웃 경로) |
@@ -83,12 +84,27 @@ function waitForAbort(signal: AbortSignal | undefined): Promise<never> {
   });
 }
 
-/** 도구 결과(JSON) → 한 줄 요약 — 품명·가격만 인용한다 */
+/** 조달 대화(E2E, PR-C3)에서 부르는 도구 — 입찰 공고 검색 */
+const FAKE_PROCUREMENT_TOOL = 'procurement_bid_search';
+
+/** 질문에서 검색어 하나 — 영숫자·하이픈 3자 이상 토큰(합성 공고 접두 `E2E-CHAT` 등), 없으면 null */
+function queryForProcurement(text: string): string | null {
+  return /[A-Za-z0-9][A-Za-z0-9-]{2,}/.exec(text)?.[0]?.slice(0, 50) ?? null;
+}
+
+/** 도구 결과(JSON) → 한 줄 요약 — 품명·가격(조달이면 공고명·적합도)만 인용한다 */
 function summarize(message: ToolMessage): string {
   try {
     const data = JSON.parse(String(message.content)) as {
       items?: { itemName: string; price?: { unitPrice: string; currency: string } | null }[];
+      bids?: { title: string; fitGrade: string | null }[];
     };
+    if (data.bids) {
+      const titles = data.bids.map((bid) => `${bid.title}(${bid.fitGrade ?? '—'})`);
+      return titles.length > 0
+        ? `[fake LLM] 입찰 공고 ${titles.length}건: ${titles.join(', ')}`
+        : '[fake LLM] 조건에 맞는 입찰 공고가 없습니다.';
+    }
     const parts = (data.items ?? []).map((item) =>
       item.price
         ? `${item.itemName} ${item.price.unitPrice} ${item.price.currency}`
@@ -126,6 +142,25 @@ export class FakeChatModel extends BaseChatModel {
   private answer(messages: BaseMessage[]): AIMessage {
     const last = messages.at(-1);
     if (last instanceof ToolMessage) return new AIMessage(summarize(last));
+    if (this.toolNames.includes(FAKE_PROCUREMENT_TOOL)) {
+      return new AIMessage({
+        content: '',
+        tool_calls: [
+          {
+            id: `fake-call-${messages.length}`,
+            name: FAKE_PROCUREMENT_TOOL,
+            args: {
+              query: queryForProcurement(String(last?.content ?? '')),
+              product: null,
+              includeClosed: true,
+              topGradeOnly: false,
+              deadlineWithinDays: null,
+              sort: null,
+            },
+          },
+        ],
+      });
+    }
     if (this.toolNames.includes('price_lookup')) {
       const query = String(last?.content ?? '').slice(0, 100);
       return new AIMessage({

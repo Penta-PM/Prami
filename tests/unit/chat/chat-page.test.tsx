@@ -32,7 +32,7 @@ const { CHAT_PAGE_COPY, PRICING_EXAMPLE_QUESTIONS, PROCUREMENT_EXAMPLE_QUESTIONS
 /**
  * 챗봇 화면 (UX PR-C2 §4.2): 대화 목록(스켈레톤·빈 상태·최근 순·상대 시각·aria-current), 새 대화(첫 질문 때 생성 → `?c=`),
  * 이름 바꾸기(Enter 저장·Esc 취소), 삭제(확인 모달·되돌릴 수 없음·포커스 이동), `?c=` 딥 링크 복원, 스트리밍 중지·다시 시도,
- * 조달 챗봇 준비 중 오류 표시, 좁은 화면 한 화면씩, LLM 안내 배너·과금 고지, 평문 렌더. fetch·라우터는 대역(합성 데이터).
+ * 조달 챗봇 전송, 좁은 화면 한 화면씩, LLM 안내 배너·과금 고지, 평문 렌더. fetch·라우터는 대역(합성 데이터).
  */
 const fetchMock = vi.fn();
 const PATH = '/pricing/chat';
@@ -674,14 +674,11 @@ describe('스트리밍·중지·다시 시도', () => {
 });
 
 describe('조달 챗봇', () => {
-  it('domain=procurement 로 목록·생성·전송, 서버의 "아직 준비 중" 거부를 오류 말풍선 그대로 보여 준다', async () => {
+  it('domain=procurement 로 목록·생성·전송, 서버 답(조달 도구 경로)을 봇 말풍선으로 보여 준다', async () => {
     navigation.reset('/procurement/chat', '');
     const server = createFakeServer(fetchMock, {
       chat: () =>
-        json(
-          { ok: false, error: { code: 'VALIDATION', message: '조달 챗봇은 아직 준비 중입니다' } },
-          400,
-        ),
+        json({ ok: true, data: reply({ reply: '합성 조달 답: 진행 중 입찰 공고 2건입니다.' }) }),
     });
     renderPage('procurement');
     expect(await within(listNav()).findByText(/저장된 대화가 없습니다/)).toBeInTheDocument();
@@ -695,8 +692,8 @@ describe('조달 챗봇', () => {
     await userEvent.click(
       within(examples).getByRole('button', { name: PROCUREMENT_EXAMPLE_QUESTIONS[0] }),
     );
-    const error = await within(log()).findByText('조달 챗봇은 아직 준비 중입니다');
-    expect(error.closest('[data-from="bot"]')).toHaveClass('text-text-danger');
+    const answer = await within(log()).findByText('합성 조달 답: 진행 중 입찰 공고 2건입니다.');
+    expect(answer.closest('[data-from="bot"]')).not.toHaveClass('text-text-danger');
     expect(
       server.calls.find((call) => call.method === 'POST' && call.url === '/api/chat/conversations')
         ?.body,
@@ -708,7 +705,6 @@ describe('조달 챗봇', () => {
       expect.stringMatching(/^\/procurement\/chat\?c=/),
       { scroll: false },
     );
-    // 꾸며 낸 답 없음 — 봇 말풍선은 오류 하나뿐
     expect(bots()).toHaveLength(1);
   });
 });
