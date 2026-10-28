@@ -268,16 +268,19 @@ function MoneySlider({
 
   return (
     <div className="flex flex-col gap-1">
-      <p data-money-range-text="" className="m-0 text-[13px] font-semibold text-ink-900">
+      <output data-money-range-text="" className="m-0 text-[13px] font-semibold text-ink-900">
         {moneyRangeText(lower, upper, currency)}
         {outside ? <span className="font-normal text-text-tertiary"> · {OUTSIDE}</span> : null}
-      </p>
+      </output>
       <RangeSlider
         steps={MONEY_SLIDER_STEPS}
         value={steps}
         onChange={(next, handle) => {
           setSteps(next);
-          setTouched((prev) => (handle === 0 ? [true, prev[1]] : [prev[0], true]));
+          // 가운데 드래그('both')는 두 핸들 모두 움직인 것 — 옛 URL 값이 남지 않게
+          setTouched((prev) =>
+            handle === 'both' ? [true, true] : handle === 0 ? [true, prev[1]] : [prev[0], true],
+          );
         }}
         onCommit={() => onCommit(lower, upper)}
         valueText={valueText}

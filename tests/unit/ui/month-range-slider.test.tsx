@@ -120,6 +120,27 @@ describe('MonthRangeSlider — 키보드 (월 snap)', () => {
   });
 });
 
+describe('MonthRangeSlider — 가운데 드래그 (월 snap)', () => {
+  it('구간 전체가 같은 개월 수만큼 이동(폭 유지), 끝 달에서 멈춤, 손을 뗄 때 onCommit 1회', () => {
+    const onCommit = vi.fn();
+    render(<Harness onCommit={onCommit} initial={{ from: '2024-03', to: '2024-08' }} />);
+    // 18칸(steps 17) — usable 170px → 10px = 1개월, x = 22 + 칸×10
+    const rect = { left: 0, width: 214, top: 0, height: 44, right: 214, bottom: 44, x: 0, y: 0 };
+    const track = document.querySelector<HTMLElement>('[data-range-slider]')!;
+    track.getBoundingClientRect = () => ({ ...rect, toJSON: () => rect }) as DOMRect;
+    const middle = document.querySelector<HTMLElement>('[data-range-middle]')!;
+    fireEvent.pointerDown(middle, { clientX: 22 + 50 });
+    fireEvent.pointerMove(track, { clientX: 22 + 84 }); // 3.4칸 → 3개월
+    expect(value()).toBe('2024-06~2024-11');
+    fireEvent.pointerMove(track, { clientX: 22 + 999 });
+    expect(value()).toBe('2025-01~2025-06');
+    expect(screen.getByText('2025.01 ~ 2025.06 (6개월)')).toBeInTheDocument();
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.pointerUp(track, { clientX: 22 + 999 });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('MonthRangeSlider — 배경 히스토그램', () => {
   it('거래량 > 0 인 달마다 막대, 선택 구간은 진하게, 높이는 최대 대비', () => {
     const volumes = MONTHS.map((month, index) => ({
