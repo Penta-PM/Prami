@@ -3,7 +3,12 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { CHART_GRAPHIC_TOKENS, OURS_TOKEN } from '@/features/procurement/charts/palette';
+import {
+  CHART_GRAPHIC_TOKENS,
+  OTHER_TOKEN,
+  OURS_TOKEN,
+  SERIES_TOKENS,
+} from '@/features/procurement/charts/palette';
 
 /**
  * Penta 디자인 토큰 (디자인 시스템 PR-1). globals.css 의 3층 구조를 검사한다.
@@ -437,5 +442,81 @@ describe('그래픽 대비 3:1 (WCAG 1.4.11)', () => {
   it('--accent-ours 는 글자로도 쓴다(범례·표 머리글) — 흰색·gray-75 위 4.5:1 이상', () => {
     expect(contrast(hex(OURS_TOKEN), white)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(hex(OURS_TOKEN), hex('--gray-75'))).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+/** sRGB hex → OKLab (L, a, b) ×100 — 지각 색차(ΔE_ok) 비교용 */
+function oklab(color: number[]): number[] {
+  const [r, g, b] = color.map((v) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [
+    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
+  ].map((v) => v * 100);
+}
+const deltaE = (a: string, b: string) =>
+  Math.hypot(...oklab(hex(a)).map((v, i) => v - oklab(hex(b))[i]!));
+
+describe('조달 차트 팔레트 (Penta 차트 PR-5)', () => {
+  it('자사 = Primary 600, 경쟁사 4계열 = --chart-series-1..4(@theme static), 나머지 = Neutral 600', () => {
+    expect(valueOf(OURS_TOKEN)).toBe('var(--penta-primary-600)');
+    expect(SERIES_TOKENS).toEqual([
+      '--chart-series-1',
+      '--chart-series-2',
+      '--chart-series-3',
+      '--chart-series-4',
+    ]);
+    for (const token of SERIES_TOKENS) expect(themeStaticNames.has(token), token).toBe(true);
+    expect(valueOf('--chart-series-1')).toBe('var(--penta-warning-700)');
+    expect(OTHER_TOKEN).toBe('--penta-neutral-600');
+  });
+
+  it('경쟁사 계열은 흰색·N50 위 3:1 이상 (계열끼리 3:1 은 불가능 — 표식 모양으로 보완)', () => {
+    for (const token of SERIES_TOKENS)
+      for (const bg of ['--penta-neutral-0', '--penta-neutral-50'])
+        expect(contrast(hex(token), hex(bg)), `${token} on ${bg}`).toBeGreaterThanOrEqual(3);
+  });
+
+  it('자사와 각 경쟁사·나머지는 색이 뚜렷이 다르다 (ΔE_ok ≥ 15), 경쟁사·나머지끼리도 ΔE_ok ≥ 12', () => {
+    for (const token of [...SERIES_TOKENS, OTHER_TOKEN])
+      expect(deltaE(OURS_TOKEN, token), `ours vs ${token}`).toBeGreaterThanOrEqual(15);
+    const others = [...SERIES_TOKENS, OTHER_TOKEN];
+    for (let i = 0; i < others.length; i++)
+      for (let j = i + 1; j < others.length; j++)
+        expect(
+          deltaE(others[i]!, others[j]!),
+          `${others[i]} vs ${others[j]}`,
+        ).toBeGreaterThanOrEqual(12);
+  });
+
+  it('예전 문제(경쟁사 1 = 밝은 Primary 500 이 자사 남색과 같은 파랑) 재발 없음 — 경쟁사 계열에 Primary·Info 파랑 없음', () => {
+    const blues = [
+      ...['500', '600', '700'].map((step) => resolveHex(`--penta-primary-${step}`)),
+      ...['500', '700'].map((step) => resolveHex(`--penta-info-${step}`)),
+    ];
+    for (const token of SERIES_TOKENS) expect(blues).not.toContain(resolveHex(token));
+  });
+
+  it('자사 행 강조(accent-ours 8%·12% 틴트) 위 본문 글자·자사 글자 4.5:1 이상', () => {
+    for (const alpha of [0.06, 0.08, 0.12]) {
+      const tint = over(hex(OURS_TOKEN), white, alpha);
+      expect(
+        contrast(hex('--text-primary'), tint),
+        `text-primary on ${alpha}`,
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(
+        contrast(hex('--text-secondary'), tint),
+        `text-secondary on ${alpha}`,
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(hex(OURS_TOKEN), tint), `accent-ours on ${alpha}`).toBeGreaterThanOrEqual(
+        4.5,
+      );
+    }
   });
 });

@@ -302,7 +302,7 @@ export function ComboChart({
                     y={yLeft(tick) + 4}
                     textAnchor="end"
                     fontSize={12}
-                    fill="var(--slate-700-aa)"
+                    fill="var(--text-secondary)"
                     className="tabular-nums"
                   >
                     {formatEokMan(tick)}
@@ -317,7 +317,7 @@ export function ComboChart({
                   y={yRight(tick) + 4}
                   textAnchor="start"
                   fontSize={12}
-                  fill="var(--slate-700-aa)"
+                  fill="var(--text-secondary)"
                   className="tabular-nums"
                 >
                   {formatEokMan(tick)}
@@ -329,7 +329,7 @@ export function ComboChart({
                 textAnchor="end"
                 fontSize={12}
                 fontWeight={600}
-                fill="var(--slate-600-aa)"
+                fill="var(--text-secondary)"
               >
                 월별(막대)
               </text>
@@ -339,7 +339,7 @@ export function ComboChart({
                 textAnchor="start"
                 fontSize={12}
                 fontWeight={600}
-                fill="var(--slate-600-aa)"
+                fill="var(--text-secondary)"
               >
                 누적(선)
               </text>
@@ -353,7 +353,7 @@ export function ComboChart({
                     y={d.H - d.pad.b + 18}
                     textAnchor="middle"
                     fontSize={12}
-                    fill="var(--slate-700-aa)"
+                    fill="var(--text-secondary)"
                   >
                     {monthAxisLabel(month, index)}
                   </text>
@@ -381,7 +381,7 @@ export function ComboChart({
                       {...box}
                       fill={item.color}
                       fillOpacity={0.35}
-                      stroke={selected ? 'var(--ink-900)' : item.color}
+                      stroke={selected ? 'var(--text-primary)' : item.color}
                       strokeWidth={strokeWidth}
                       opacity={dimmed(segment.key) ? 0.2 : 1}
                       className="transition-opacity duration-150 motion-reduce:transition-none"
@@ -448,7 +448,7 @@ export function ComboChart({
                   width={Math.max(0, band.bandWidth - 2)}
                   height={d.IH - 2}
                   fill="none"
-                  stroke="var(--purple-500)"
+                  stroke="var(--focus-ring)"
                   strokeWidth={2}
                   rx={3}
                 />

@@ -311,6 +311,14 @@ describe('Q-D1 = B: 폼·독립 버튼·모달 주요 버튼은 44px·16px', () 
     expect(controlMetrics(screen.getByRole('textbox', { name: '작은 입력' }))).toEqual(SM);
   });
 
+  it('선택된 칩 = 반전 배경 --surface-inverse + --text-inverse (Maglo ink 이름 없음)', () => {
+    expect(chipClass(true)).toContain('bg-surface-inverse');
+    expect(chipClass(true)).toContain('text-text-inverse');
+    expect(`${chipClass(true)} ${chipClass(false)}`).not.toMatch(
+      /\b(?:ink|white)\b|-ink-|text-white/,
+    );
+  });
+
   it('필터 칩은 놓인 자리와 무관하게 sm (필터 = 밀집)', () => {
     render(
       <button type="button" className={chipClass(false)}>

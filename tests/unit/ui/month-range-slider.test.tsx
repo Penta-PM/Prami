@@ -153,8 +153,8 @@ describe('MonthRangeSlider — 배경 히스토그램', () => {
     expect(bars).toHaveLength(volumes.filter((bar) => bar.amount > 0).length);
     const feb = document.querySelector<HTMLElement>('[data-month-volume="2024-02"]')!;
     const jul = document.querySelector<HTMLElement>('[data-month-volume="2024-08"]')!;
-    expect(feb).toHaveClass('bg-purple-500/45');
-    expect(jul).toHaveClass('bg-gray-150');
+    expect(feb).toHaveClass('bg-focus-ring/45');
+    expect(jul).toHaveClass('bg-neutral-200');
     const max = document.querySelector<HTMLElement>('[data-month-volume="2025-06"]')!;
     expect(max.style.height).toBe('100%');
     expect(document.querySelector('[data-range-background]')).toHaveAttribute(

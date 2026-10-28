@@ -66,6 +66,15 @@ describe('ProductCards (AC-50)', () => {
     expect(screen.getByRole('link', { name: 'WAPPLES 가격 정책 보기' })).toBeInTheDocument();
     expect(screen.queryByText(/PKI/)).not.toBeInTheDocument();
   });
+
+  it('강조색은 Penta Primary 600·50 (Penta 디자인 PR-5 — 제품별 임의 hex 없음)', () => {
+    const { container } = render(<ProductCards />);
+    expect(container.innerHTML).not.toMatch(/#[0-9a-f]{6}/i);
+    const cta = within(screen.getByRole('link', { name: 'iSIGN 가격 정책 보기' })).getByText(
+      /가격 정책 보기/,
+    );
+    expect(cta.style.color).toBe('var(--penta-primary-600)');
+  });
 });
 
 describe('NoticeRows', () => {

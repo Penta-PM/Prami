@@ -12,7 +12,7 @@ import type { CostLinkCellView, CostRatioReason, CostRatioView } from './types';
  */
 const ITEM_STATUS_CLASSES: Record<string, string> = {
   폐기: 'bg-error-50 text-error-700',
-  임시: 'bg-[#fdf1de] text-warning-800',
+  임시: 'bg-warning-50 text-warning-800',
   사용: 'bg-neutral-100 text-text-secondary',
   미확인: 'bg-transparent text-text-tertiary shadow-(--hairline-default)',
 };

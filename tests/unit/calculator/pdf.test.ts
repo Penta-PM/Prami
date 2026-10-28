@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { QuoteDocument } from '@/server/quotes/document';
 import { QUOTE_FONT_FILES } from '@/server/quotes/pdf/fonts';
-import { PROVISIONAL_NOTICE } from '@/server/quotes/pdf/QuotePdf';
+import { PENTA_COLORS } from '@/lib/design/penta-colors';
+import { PROVISIONAL_NOTICE, QUOTE_PDF_COLORS } from '@/server/quotes/pdf/QuotePdf';
 import { LOGO_PATH, pdfFilename, renderQuotePdf } from '@/server/quotes/pdf/render';
 
 /**
@@ -59,6 +60,28 @@ async function extractText(buffer: Buffer): Promise<{ pages: number; text: strin
     chunks.push(content.items.map((item) => ('str' in item ? item.str : '')).join(''));
   }
   return { pages: pdf.numPages, text: chunks.join('\n') };
+}
+
+/** 첫 페이지에서 쓴 채움 색(#rrggbb) — pdf.js 연산자 목록의 setFillRGBColor */
+async function fillColors(buffer: Buffer): Promise<Set<string>> {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
+  const page = await pdf.getPage(1);
+  const ops = await page.getOperatorList();
+  const colors = new Set<string>();
+  ops.fnArray.forEach((fn, index) => {
+    if (fn !== pdfjs.OPS.setFillRGBColor) return;
+    const args = ops.argsArray[index] as unknown[];
+    const value =
+      typeof args[0] === 'string'
+        ? args[0]
+        : `#${(args as number[])
+            .slice(0, 3)
+            .map((v) => Math.round(v).toString(16).padStart(2, '0'))
+            .join('')}`;
+    colors.add(value.toLowerCase());
+  });
+  return colors;
 }
 
 describe('renderQuotePdf', () => {
@@ -119,6 +142,31 @@ describe('renderQuotePdf', () => {
     expect(text).toContain('통화별 소계');
     expect(text).toContain('11.12 USD');
     expect(text).toContain('KRW 소계');
+  }, 60_000);
+
+  it('Penta 디자인 PR-5: 견적서 색은 Penta 상수 — 본문 N900·보조 N600·합계 P600·안내 Warning 50/700, 옛 보라·임의 hex 없음', async () => {
+    expect(QUOTE_PDF_COLORS).toEqual({
+      ink: PENTA_COLORS['neutral-900'],
+      muted: PENTA_COLORS['neutral-600'],
+      line: PENTA_COLORS['neutral-200'],
+      accent: PENTA_COLORS['primary-600'],
+      headBg: PENTA_COLORS['neutral-100'],
+      noticeBg: PENTA_COLORS['warning-50'],
+      noticeFg: PENTA_COLORS['warning-700'],
+    });
+    const { buffer } = await renderQuotePdf(document);
+    const colors = await fillColors(buffer);
+    for (const color of [
+      PENTA_COLORS['neutral-900'],
+      PENTA_COLORS['neutral-600'],
+      PENTA_COLORS['primary-600'],
+      PENTA_COLORS['neutral-100'],
+      PENTA_COLORS['warning-50'],
+      PENTA_COLORS['warning-700'],
+    ])
+      expect(colors, color).toContain(color);
+    for (const old of ['#7c3aed', '#141519', '#6b7280', '#fff4e5', '#f3f4f6'])
+      expect(colors).not.toContain(old);
   }, 60_000);
 
   it('pdfFilename 은 ASCII 파일명', () => {

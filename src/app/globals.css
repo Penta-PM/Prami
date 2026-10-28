@@ -149,8 +149,20 @@
   --blue-600: var(--penta-primary-600);
   --gray-600: var(--penta-neutral-600);
   --amber-700: var(--penta-warning-800);
-  /* 자사 강조 (조달이 통합 UI-4) — 차트 팔레트 PR 전까지 기존 남색 유지(= Primary 800 보충값과 같은 값) */
-  --accent-ours: #1e3a8a;
+  /* 자사 강조 (조달이 통합 UI-4, Penta 차트 PR-5) = Primary 600 — 차트 계열·범례·표 글자(흰색 6.35·N50 5.98:1)·자사 행 8% 틴트 */
+  --accent-ours: var(--penta-primary-600);
+
+  /*
+   * 조달 차트 경쟁사 4계열 (Penta 차트 PR-5, palette.ts SERIES_TOKENS). 자사(Primary 600 파랑)·기타(Neutral 600 회색)와
+   * 색상(hue)이 겹치지 않는 4색 — 흰색·N50 위 그래픽 3:1 이상(tokens.test.ts). 1 은 Penta Warning 700, 2~4 는 보충값
+   * (Tailwind teal-600·pink-700·amber-900 — 디자인팀 회신 시 교체). 흰색 대비: 1 5.02 · 2 3.74 · 3 6.04 · 4 9.07:1.
+   * 모두 흰색 3:1 이상이어야 해서 계열끼리 3:1 은 불가능 → 색상 차이 + 계열마다 다른 표식 모양(Marker)으로 구분한다.
+   * 의미색(성공·경고·오류)과 헷갈리지 않도록 차트 밖에서는 쓰지 않는다.
+   */
+  --chart-series-1: var(--penta-warning-700);
+  --chart-series-2: #0d9488;
+  --chart-series-3: #be185d;
+  --chart-series-4: #78350f;
 
   /* ── L2 의미 토큰 (기존 이름 유지, Penta 로 재연결. --text-* 는 아래 :root) ── */
   --surface-page: var(--penta-neutral-0);
@@ -479,7 +491,7 @@
 
 /*
  * 범위 슬라이더 (components/ui/range-slider.tsx, 빠른 필터 바 §7.5): 겹친 네이티브 range 2개 — input 자체는 클릭을 받지 않고(트랙은
- * 감싸는 div 가 받는다) thumb 만 받는다. thumb 히트 영역 44px(터치), 보이는 핸들 20px(--action-bg 원 + 흰 테두리),
+ * 감싸는 div 가 받는다) thumb 만 받는다. thumb 히트 영역 44px(터치), 보이는 핸들 20px(--action-bg 원 + --action-fg 흰 테두리),
  * focus-visible 은 2px --focus-ring 고리. 색 경계마다 1px 섞임 구간(하드 스톱이면 원 가장자리가 계단처럼 보인다).
  */
 @layer components {
@@ -510,7 +522,7 @@
     background: radial-gradient(
       circle closest-side,
       var(--action-bg) 0 7.5px,
-      #fff 8.5px 9.5px,
+      var(--action-fg) 8.5px 9.5px,
       transparent 10.5px
     );
   }
@@ -524,7 +536,7 @@
     background: radial-gradient(
       circle closest-side,
       var(--action-bg) 0 7.5px,
-      #fff 8.5px 9.5px,
+      var(--action-fg) 8.5px 9.5px,
       transparent 10.5px
     );
   }
@@ -532,7 +544,7 @@
     background: radial-gradient(
       circle closest-side,
       var(--action-bg) 0 7.5px,
-      #fff 8.5px 9.5px,
+      var(--action-fg) 8.5px 9.5px,
       transparent 10.5px 11.5px,
       var(--focus-ring) 12.5px 13.5px,
       transparent 14.5px
@@ -542,7 +554,7 @@
     background: radial-gradient(
       circle closest-side,
       var(--action-bg) 0 7.5px,
-      #fff 8.5px 9.5px,
+      var(--action-fg) 8.5px 9.5px,
       transparent 10.5px 11.5px,
       var(--focus-ring) 12.5px 13.5px,
       transparent 14.5px

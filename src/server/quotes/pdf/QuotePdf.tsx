@@ -1,5 +1,6 @@
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 
+import { PENTA_COLORS } from '@/lib/design/penta-colors';
 import { priceLabel } from '@/lib/pricing/format';
 
 import type { QuoteDocument, QuoteDocumentLine } from '../document';
@@ -13,10 +14,24 @@ export const PROVISIONAL_NOTICE = '가견적 · 계약가 아님';
 export const PROVISIONAL_FOOTER =
   '본 견적서는 Prami 가격정책 통합 관리 플랫폼의 계산기로 산출한 가견적이며 계약 금액이 아닙니다. 실제 계약 조건은 담당 영업과 확인하십시오.';
 
-const INK = '#141519';
-const MUTED = '#6b7280';
-const LINE = '#e5e7eb';
-const ACCENT = '#7c3aed';
+/**
+ * 견적서 색 (Penta 디자인 PR-5). React-PDF 는 CSS 변수를 못 읽어 Penta L1 상수(globals.css 와 같은 값)를 쓴다.
+ * 글자 단계는 화면과 같은 규칙: 본문 Neutral 900 · 보조 Neutral 600 · 합계 강조 Primary 600 · 안내 배지 Warning 50 + 700.
+ */
+export const QUOTE_PDF_COLORS = {
+  ink: PENTA_COLORS['neutral-900'],
+  muted: PENTA_COLORS['neutral-600'],
+  line: PENTA_COLORS['neutral-200'],
+  accent: PENTA_COLORS['primary-600'],
+  headBg: PENTA_COLORS['neutral-100'],
+  noticeBg: PENTA_COLORS['warning-50'],
+  noticeFg: PENTA_COLORS['warning-700'],
+} as const;
+
+const INK = QUOTE_PDF_COLORS.ink;
+const MUTED = QUOTE_PDF_COLORS.muted;
+const LINE = QUOTE_PDF_COLORS.line;
+const ACCENT = QUOTE_PDF_COLORS.accent;
 
 const styles = StyleSheet.create({
   page: {
@@ -36,8 +51,8 @@ const styles = StyleSheet.create({
     marginTop: 6,
     alignSelf: 'flex-end',
     borderRadius: 4,
-    backgroundColor: '#fff4e5',
-    color: '#b45309',
+    backgroundColor: QUOTE_PDF_COLORS.noticeBg,
+    color: QUOTE_PDF_COLORS.noticeFg,
     paddingVertical: 3,
     paddingHorizontal: 8,
     fontSize: 8,
@@ -56,7 +71,7 @@ const styles = StyleSheet.create({
   metaValue: { fontSize: 10, fontWeight: 700 },
   table: { marginTop: 16 },
   row: { flexDirection: 'row', borderBottomWidth: 0.5, borderColor: LINE, paddingVertical: 5 },
-  head: { backgroundColor: '#f3f4f6', borderBottomWidth: 1, fontWeight: 700 },
+  head: { backgroundColor: QUOTE_PDF_COLORS.headBg, borderBottomWidth: 1, fontWeight: 700 },
   colNo: { width: 22 },
   colName: { flex: 1, paddingRight: 6 },
   colType: { width: 62 },
