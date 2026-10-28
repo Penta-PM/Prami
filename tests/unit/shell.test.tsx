@@ -3,7 +3,6 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import AppLayout from '@/app/(app)/layout';
-import { ChatProvider } from '@/features/chat/ChatContext';
 import { Header } from '@/features/shell/Header';
 import { Sidebar } from '@/features/shell/Sidebar';
 
@@ -105,6 +104,64 @@ describe('Sidebar', () => {
       'aria-current',
     );
     expect(screen.getByRole('link', { name: '계산기' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('UX PR-C2: 챗봇 메뉴 — 가격 정책 섹션 끝 "가격 정책 챗봇", 조달 섹션 끝 "조달 챗봇"(chat.use 없으면 둘 다 없음)', () => {
+    const { unmount } = render(
+      <Sidebar showPricingNav showCalculatorNav showChatNav showProcurementNav />,
+    );
+    const nav = screen.getByRole('complementary', { name: '주 메뉴' });
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href')),
+    ).toEqual([
+      '/',
+      '/pricing',
+      '/calculator',
+      '/pricing/chat',
+      '/procurement',
+      '/procurement/items',
+      '/procurement/bids',
+      '/procurement/chat',
+    ]);
+    // Penta message 아이콘
+    expect(
+      screen.getByRole('link', { name: '가격 정책 챗봇' }).querySelector('[data-icon="message"]'),
+    ).not.toBeNull();
+    unmount();
+    render(<Sidebar showPricingNav showCalculatorNav showProcurementNav />);
+    expect(screen.queryByRole('link', { name: '가격 정책 챗봇' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '조달 챗봇' })).not.toBeInTheDocument();
+  });
+
+  it('UX PR-C2: 조달 챗봇은 procurement.read 없으면(조달 섹션 없음) chat.use 가 있어도 보이지 않는다', () => {
+    render(<Sidebar showChatNav />);
+    expect(screen.getByRole('link', { name: '가격 정책 챗봇' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '조달 챗봇' })).not.toBeInTheDocument();
+    expect(screen.queryByText('조달', { selector: 'div' })).not.toBeInTheDocument();
+  });
+
+  it('UX PR-C2: /pricing/chat·/procurement/chat 에서는 그 챗봇 메뉴만 활성', () => {
+    usePathnameMock.mockReturnValue('/pricing/chat');
+    const { unmount } = render(
+      <Sidebar showPricingNav showCalculatorNav showChatNav showProcurementNav />,
+    );
+    expect(
+      screen
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('aria-current') === 'page')
+        .map((link) => link.textContent),
+    ).toEqual(['가격 정책 챗봇']);
+    unmount();
+    usePathnameMock.mockReturnValue('/procurement/chat');
+    render(<Sidebar showPricingNav showCalculatorNav showChatNav showProcurementNav />);
+    expect(
+      screen
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('aria-current') === 'page')
+        .map((link) => link.textContent),
+    ).toEqual(['조달 챗봇']);
   });
 
   it('관리자는 일반·관리자 메뉴를 모두 렌더하고 역할 토글은 없다', () => {
@@ -209,15 +266,11 @@ describe('Sidebar', () => {
 });
 
 describe('Header', () => {
-  it('검색·챗봇·알림 컨트롤과 게스트 상태를 렌더한다', async () => {
-    // 헤더의 챗봇 런처는 ChatProvider 컨텍스트를 쓴다 (PR-10)
-    render(
-      <ChatProvider>
-        <Header />
-      </ChatProvider>,
-    );
+  it('검색·알림 컨트롤과 게스트 상태를 렌더한다 — 챗봇 버튼은 없다 (UX PR-C2, 컨텍스트 없이 렌더)', async () => {
+    render(<Header />);
     expect(screen.getByRole('searchbox', { name: '통합 검색' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '챗봇' })).toBeInTheDocument();
+    // 헤더 챗봇 진입점 제거 — 사이드바 "가격 정책 챗봇"·"조달 챗봇" 메뉴로 옮겼다
+    expect(screen.queryByRole('button', { name: /챗봇/ })).not.toBeInTheDocument();
     // #31: 장식용 "공지사항" 종 → 알림 버튼 (안 읽은 알림 0 → 이름 "알림", 배지 없음)
     const bell = screen.getByRole('button', { name: '알림' });
     expect(bell).toHaveAttribute('aria-haspopup', 'dialog');
@@ -230,11 +283,7 @@ describe('Header', () => {
   });
 
   it('사용자 정보가 있으면 이름·역할·이니셜을 표시한다', () => {
-    render(
-      <ChatProvider>
-        <Header user={{ name: '김도현', roleLabel: '관리자 · 가격정책팀' }} />
-      </ChatProvider>,
-    );
+    render(<Header user={{ name: '김도현', roleLabel: '관리자 · 가격정책팀' }} />);
     expect(screen.getByText('김도현')).toBeInTheDocument();
     expect(screen.getByText('관리자 · 가격정책팀')).toBeInTheDocument();
     expect(screen.getByText('김')).toBeInTheDocument();
@@ -262,14 +311,16 @@ describe('AppLayout', () => {
     render(await AppLayout({ children: <p>본문</p> }));
     const nav = screen.getByRole('complementary', { name: '주 메뉴' });
     expect(within(nav).getByText('조달', { selector: 'div' })).toBeInTheDocument();
-    // UX PR-U1: USER 도 가격 정책 섹션(pricing.read·calculator.use)을 본다
+    // UX PR-U1: USER 도 가격 정책 섹션(pricing.read·calculator.use)을 본다, PR-C2: 챗봇 메뉴(chat.use) 두 개
     expect(within(nav).getByText('가격 정책', { selector: 'div' })).toBeInTheDocument();
     for (const [name, href] of [
       ['가격 정책 조회', '/pricing'],
       ['계산기', '/calculator'],
+      ['가격 정책 챗봇', '/pricing/chat'],
       ['조달 실적 현황', '/procurement'],
       ['등록 품목', '/procurement/items'],
       ['입찰 공고', '/procurement/bids'],
+      ['조달 챗봇', '/procurement/chat'],
     ]) {
       expect(within(nav).getByRole('link', { name })).toHaveAttribute('href', href);
     }
@@ -285,8 +336,8 @@ describe('AppLayout', () => {
       'href',
       '/admin/procurement',
     );
-    // HOME 1 + 가격 정책 2 + 조달 3 + 관리자 8
-    expect(within(nav).getAllByRole('link')).toHaveLength(1 + 2 + 3 + 8);
+    // HOME 1 + 가격 정책 3(챗봇 포함) + 조달 4(챗봇 포함) + 관리자 8
+    expect(within(nav).getAllByRole('link')).toHaveLength(1 + 3 + 4 + 8);
   });
 
   it('사이드바·헤더·본문을 조합하고 세션 사용자를 표시한다', async () => {
@@ -296,5 +347,17 @@ describe('AppLayout', () => {
     expect(screen.getByRole('complementary', { name: '주 메뉴' })).toBeInTheDocument();
     expect(screen.getByRole('banner')).toBeInTheDocument();
     expect(within(screen.getByRole('main')).getByText('본문')).toBeInTheDocument();
+  });
+
+  it('UX PR-C2: 셸에 헤더 챗봇 버튼·도킹 패널이 없고 알림 버튼은 그대로다', async () => {
+    getSessionUserMock.mockResolvedValue(ADMIN);
+    render(await AppLayout({ children: <p>본문</p> }));
+    expect(screen.queryByRole('button', { name: /챗봇/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('complementary', { name: /챗봇/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '알림' })).toBeInTheDocument();
+    // 셸에 남은 complementary 는 사이드바뿐
+    expect(screen.getAllByRole('complementary').map((el) => el.getAttribute('aria-label'))).toEqual(
+      ['주 메뉴'],
+    );
   });
 });

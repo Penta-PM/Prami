@@ -55,11 +55,14 @@ test('CSP 회귀: 로그인 후 주요 화면·챗봇·계산기에서 CSP 위�
     await page.goto(path);
     await expect(page.getByRole('main')).toBeVisible();
   }
-  await page.getByRole('button', { name: '챗봇', exact: true }).click();
-  const panel = page.getByRole('complementary', { name: '가격정책 챗봇' });
-  await panel.getByLabel('질문 입력').fill('Wapples-500 (H500 T2) 가격');
-  await panel.getByRole('button', { name: '보내기' }).click();
-  await expect(panel.locator('[data-from="bot"]').last()).toContainText('12,000,000원');
+  // 챗봇 화면 (UX PR-C2 — 헤더 버튼·도킹 패널 대체): 대화 생성·전송·목록 갱신까지
+  await page.goto('/pricing/chat');
+  await page.getByRole('button', { name: '새 대화' }).click();
+  await page.getByLabel('질문 입력').fill('Wapples-500 (H500 T2) 가격');
+  await page.getByRole('button', { name: '보내기' }).click();
+  await expect(
+    page.getByRole('log', { name: '대화' }).locator('[data-from="bot"]').last(),
+  ).toContainText('12,000,000원');
   expect(violations).toEqual([]);
 });
 
@@ -102,9 +105,9 @@ test('PR-11a QA M-1: 404(없는 경로)·세그먼트 notFound 페이지에서�
   expect(missing!.headers()['content-security-policy']).toMatch(/'nonce-[^']+'/);
   const segment = await page.goto('/notices/not-a-uuid');
   expect(segment?.status()).toBe(404);
-  // 404 화면에서도 앱 셸(클라이언트 컴포넌트)이 동작 — 헤더 챗봇 버튼으로 패널 열기
-  await page.getByRole('button', { name: '챗봇', exact: true }).click();
-  await expect(page.getByRole('complementary', { name: '가격정책 챗봇' })).toBeVisible();
+  // 404 화면에서도 앱 셸(클라이언트 컴포넌트)이 동작 — 헤더 알림 버튼으로 드롭다운 열기 (UX PR-C2: 헤더 챗봇 버튼 제거)
+  await page.getByRole('button', { name: /^알림/ }).click();
+  await expect(page.getByRole('dialog', { name: '알림' })).toBeVisible();
   expect(violations).toEqual([]);
 });
 

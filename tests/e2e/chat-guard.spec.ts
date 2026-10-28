@@ -12,10 +12,11 @@ import { FIXTURE_ADMIN, FIXTURE_USER, loginAs } from './helpers';
  * **출력 가드**(SSE 토큰 가드 + compose 최종 가드)까지 도달시킨다. 행의 R/K 는 현재 가드 판정(mentionsCostAmount) 기준.
  * PR-2(§2 G1–G6) 대표 R행: 円(G1)·엔(G2)·배수 접미 + 통화(G3)·영어 수사 + 통화(G4)·'원' 없는 억(G5)·천만(G6) — 역할별로 3건씩.
  * - R행: 최종 말풍선 = 역할별 거부 문구(USER·ADMIN 각각), final.mode=llm(precheck 거부가 아님),
- *   금액 원문이 SSE 응답 본문·봇 말풍선 DOM·다음 요청의 대화 기록(assistant) 어디에도 0회.
+ *   금액 원문이 SSE 응답 본문·봇 말풍선 DOM·저장된 대화 기록(DB — UX PR-C2 부터 history 는 서버가 DB 에서 읽는다) 어디에도 0회.
  * - K행: 응답 = 입력(표식 제거 후).
  * - 미러 청크(3자) 경계에 금액이 걸치는 R행 1건 이상 (아래 straddlesChunk 로 확인).
- * 시작·끝에 픽스처 사용자의 LLM 자격 증명을 지운다(다른 챗봇 스펙은 키 없는 상태에서 시작).
+ * 화면은 가격 정책 챗봇(/pricing/chat, UX PR-C2 — 도킹 패널 대체)의 새 대화 하나에서 모든 행을 보낸다.
+ * 시작·끝에 픽스처 사용자의 LLM 자격 증명과 저장 대화를 지운다(다른 챗봇 스펙은 키 없는 상태에서 시작).
  */
 const MARK = '§';
 const CHUNK = 3;
@@ -78,7 +79,7 @@ async function clearCredentials() {
   await client.connect();
   try {
     const users = `select id from users where email in ($1, $2)`;
-    for (const table of ['user_llm_credentials', 'user_settings']) {
+    for (const table of ['user_llm_credentials', 'user_settings', 'chat_conversations']) {
       await client.query(`delete from ${table} where user_id in (${users})`, [
         FIXTURE_USER,
         FIXTURE_ADMIN,
@@ -141,13 +142,12 @@ async function captureChatBodies(page: Page): Promise<string[]> {
 
 /** 질문 1건: SSE 응답 본문(완료까지)과 봇 말풍선 */
 async function ask(page: Page, bodies: string[], text: string) {
-  const panel = page.getByRole('complementary', { name: '가격정책 챗봇' });
-  const bots = panel.locator('[data-from="bot"]');
+  const bots = page.getByRole('log', { name: '대화' }).locator('[data-from="bot"]');
   const before = await bots.count();
   const seen = bodies.length;
   const responsePromise = page.waitForResponse((response) => isChatPost(response.request()));
-  await panel.getByLabel('질문 입력').fill(text);
-  await panel.getByRole('button', { name: '보내기' }).click();
+  await page.getByLabel('질문 입력').fill(text);
+  await page.getByRole('button', { name: '보내기' }).click();
   const response = await responsePromise;
   expect(response.headers()['content-type']).toContain('text/event-stream');
   await expect.poll(() => bodies.length).toBeGreaterThan(seen);
@@ -167,7 +167,7 @@ async function runRows(page: Page, rows: readonly Row[], refusal: string) {
   page.on('request', (request) => {
     if (isChatPost(request)) requests.push(request);
   });
-  const panel = page.getByRole('complementary', { name: '가격정책 챗봇' });
+  const log = page.getByRole('log', { name: '대화' });
   for (const row of rows) {
     const { raw, tokens, final, bubble } = await ask(page, bodies, row.input);
     if (row.verdict === 'R') {
@@ -184,24 +184,26 @@ async function runRows(page: Page, rows: readonly Row[], refusal: string) {
     }
   }
   // 봇 말풍선 DOM 전체에 금액 원문 0회 (사용자 말풍선은 본인이 입력한 원문이라 제외)
-  const botTexts = (await panel.locator('[data-from="bot"]').allTextContents()).join('\n');
-  // 대화 기록: 요청마다 보낸 history 의 assistant 항목. 클라이언트는 최근 HISTORY_TURNS(10)개만 보내므로
-  // 마지막 요청 하나로는 모든 행을 볼 수 없다 → 요청 i 의 마지막 assistant 항목 = 행 i-1 의 답(R행이면 거부 문구)
-  const assistantOf = (request: Request) =>
-    (
-      (request.postDataJSON() as { history?: { role: string; text: string }[] }).history ?? []
-    ).filter((item) => item.role === 'assistant');
+  const botTexts = (await log.locator('[data-from="bot"]').allTextContents()).join('\n');
+  // 대화 기록: 클라이언트는 history 를 보내지 않고(저장 대화 id·domain 만) 서버가 DB 에서 읽는다 — 저장된 assistant 메시지가
+  // 행마다 가드 통과 최종 텍스트(R행이면 거부 문구)인지 본다
   expect(requests).toHaveLength(rows.length);
-  for (let index = 1; index < rows.length; index += 1) {
-    const previous = rows[index - 1]!;
-    expect(assistantOf(requests[index]!).at(-1)?.text, previous.input).toBe(
-      previous.verdict === 'R' ? refusal : mirrored(previous.input),
-    );
+  const conversationId = new URL(page.url()).searchParams.get('c');
+  expect(conversationId).toBeTruthy();
+  for (const request of requests) {
+    const body = request.postDataJSON() as Record<string, unknown>;
+    expect(body).not.toHaveProperty('history');
+    expect(body).toMatchObject({ conversationId, domain: 'pricing' });
   }
-  const historyText = requests
-    .flatMap(assistantOf)
-    .map((item) => item.text)
-    .join('\n');
+  const stored = await page.request.get(`/api/chat/conversations/${conversationId}`);
+  expect(stored.status()).toBe(200);
+  const assistant = (
+    (await stored.json()) as { data: { messages: { role: string; content: string }[] } }
+  ).data.messages.filter((message) => message.role === 'assistant');
+  expect(assistant.map((message) => message.content)).toEqual(
+    rows.map((row) => (row.verdict === 'R' ? refusal : mirrored(row.input))),
+  );
+  const historyText = assistant.map((message) => message.content).join('\n');
   for (const row of rows.filter((entry) => entry.verdict === 'R')) {
     expect(botTexts, `봇 말풍선에 ${row.amount}`).not.toContain(row.amount!);
     expect(historyText, `대화 기록에 ${row.amount}`).not.toContain(row.amount!);
@@ -209,11 +211,10 @@ async function runRows(page: Page, rows: readonly Row[], refusal: string) {
 }
 
 async function openReadyPanel(page: Page) {
-  // 저장한 키로 상태를 새로 읽게 한 번 새로고침 → LLM 연결(SSE 경로)인지 과금 고지로 확인
-  await page.reload();
-  await page.getByRole('button', { name: '챗봇', exact: true }).click();
-  const panel = page.getByRole('complementary', { name: '가격정책 챗봇' });
-  await expect(panel.getByRole('note', { name: '과금 안내' })).toBeVisible();
+  // 저장한 키로 상태를 읽는 챗봇 화면(새 대화) → LLM 연결(SSE 경로)인지 과금 고지로 확인
+  await page.goto('/pricing/chat');
+  await page.getByRole('button', { name: '새 대화' }).click();
+  await expect(page.getByRole('main').getByRole('note', { name: '과금 안내' })).toBeVisible();
 }
 
 test.describe.configure({ mode: 'serial' });

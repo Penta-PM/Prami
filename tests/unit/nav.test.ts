@@ -9,6 +9,7 @@ import {
   isNavActive,
   navVisibility,
   pricingNavItems,
+  getProcurementNavItems,
 } from '@/features/shell/nav';
 
 describe('isNavActive', () => {
@@ -42,22 +43,35 @@ describe('isNavActive', () => {
     expect(isNavActive('/calculator', calculator.href, calculator.exact)).toBe(true);
     expect(isNavActive('/pricing/chat', calculator.href, calculator.exact)).toBe(false);
   });
+
+  it('UX PR-C2: 챗봇 경로에서는 그 챗봇 메뉴만 활성 — 가격 정책 조회·조달 실적 현황(exact)은 아님', () => {
+    const items = [...NAV_PRICING, ...NAV_PROCUREMENT];
+    const activeOn = (pathname: string) =>
+      items.filter((item) => isNavActive(pathname, item.href, item.exact)).map((item) => item.key);
+    expect(activeOn('/pricing/chat')).toEqual(['pricing-chat']);
+    expect(activeOn('/procurement/chat')).toEqual(['procurement-chat']);
+    expect(activeOn('/pricing')).toEqual(['pricing']);
+    expect(activeOn('/procurement')).toEqual(['procurement']);
+  });
 });
 
 describe('메뉴 정의', () => {
   const all = [...NAV_MAIN, ...NAV_PRICING, ...NAV_PROCUREMENT, ...NAV_ADMIN];
 
-  it('일반 1개(HOME), 가격 정책 2개, 조달 3개, 관리자 8개 메뉴를 가진다 (UX PR-U1 — URL 그대로)', () => {
+  it('일반 1개(HOME), 가격 정책 3개, 조달 4개, 관리자 8개 메뉴를 가진다 (UX PR-U1 — URL 그대로, PR-C2 챗봇 2개)', () => {
     expect(NAV_MAIN.map((item) => [item.label, item.href])).toEqual([['HOME', '/']]);
     expect(NAV_PRICING.map((item) => [item.label, item.href, item.icon])).toEqual([
       ['가격 정책 조회', '/pricing', 'tag'],
       ['계산기', '/calculator', 'calculator'],
+      ['가격 정책 챗봇', '/pricing/chat', 'message'],
     ]);
     expect(NAV_PROCUREMENT.map((item) => [item.label, item.href])).toEqual([
       ['조달 실적 현황', '/procurement'],
       ['등록 품목', '/procurement/items'],
       ['입찰 공고', '/procurement/bids'],
+      ['조달 챗봇', '/procurement/chat'],
     ]);
+    expect(NAV_PROCUREMENT.at(-1)?.icon).toBe('message');
     expect(NAV_ADMIN.map((item) => item.label)).toEqual([
       '가격정책 관리',
       '원가 관리',
@@ -85,6 +99,7 @@ describe('메뉴 노출 (조달이 통합 UI-1 — D-1·D-2)', () => {
     expect(navVisibility('USER')).toEqual({
       showPricingNav: true,
       showCalculatorNav: true,
+      showChatNav: true,
       showAdminNav: false,
       showProcurementNav: true,
       showProcurementAdminNav: false,
@@ -96,6 +111,7 @@ describe('메뉴 노출 (조달이 통합 UI-1 — D-1·D-2)', () => {
     expect(visibility).toEqual({
       showPricingNav: true,
       showCalculatorNav: true,
+      showChatNav: true,
       showAdminNav: true,
       showProcurementNav: true,
       showProcurementAdminNav: true,
@@ -107,6 +123,7 @@ describe('메뉴 노출 (조달이 통합 UI-1 — D-1·D-2)', () => {
     expect(navVisibility(null)).toEqual({
       showPricingNav: false,
       showCalculatorNav: false,
+      showChatNav: false,
       showAdminNav: false,
       showProcurementNav: false,
       showProcurementAdminNav: false,
@@ -119,18 +136,41 @@ describe('메뉴 노출 (조달이 통합 UI-1 — D-1·D-2)', () => {
     expect(items).toHaveLength(NAV_ADMIN.length - 1);
   });
 
-  it('가격 정책 섹션은 항목별 권한으로 거른다 (pricing.read·calculator.use)', () => {
-    expect(NAV_PRICING.map((item) => item.permission)).toEqual(['pricing.read', 'calculator.use']);
-    const keys = (showPricingNav: boolean, showCalculatorNav: boolean) =>
-      pricingNavItems({ showPricingNav, showCalculatorNav }).map((item) => item.key);
+  it('가격 정책 섹션은 항목별 권한으로 거른다 (pricing.read·calculator.use·chat.use)', () => {
+    expect(NAV_PRICING.map((item) => item.permission)).toEqual([
+      'pricing.read',
+      'calculator.use',
+      'chat.use',
+    ]);
+    const keys = (showPricingNav: boolean, showCalculatorNav: boolean, showChatNav = false) =>
+      pricingNavItems({ showPricingNav, showCalculatorNav, showChatNav }).map((item) => item.key);
+    expect(keys(true, true, true)).toEqual(['pricing', 'calculator', 'pricing-chat']);
     expect(keys(true, true)).toEqual(['pricing', 'calculator']);
     expect(keys(true, false)).toEqual(['pricing']);
     expect(keys(false, true)).toEqual(['calculator']);
+    expect(keys(false, false, true)).toEqual(['pricing-chat']);
     expect(keys(false, false)).toEqual([]);
   });
 
-  it('조달 메뉴는 procurement.read, 조달 관리는 procurement.write 로 표시한다', () => {
-    for (const item of NAV_PROCUREMENT) expect(item.permission).toBe('procurement.read');
+  it('UX PR-C2: 조달 챗봇은 procurement.read(섹션) + chat.use 둘 다 있어야 보인다', () => {
+    const keys = (showProcurementNav: boolean, showChatNav: boolean) =>
+      getProcurementNavItems({ showProcurementNav, showChatNav }).map((item) => item.key);
+    expect(keys(true, true)).toEqual([
+      'procurement',
+      'procurement-items',
+      'procurement-bids',
+      'procurement-chat',
+    ]);
+    expect(keys(true, false)).toEqual(['procurement', 'procurement-items', 'procurement-bids']);
+    expect(keys(false, true)).toEqual([]);
+    expect(keys(false, false)).toEqual([]);
+  });
+
+  it('조달 메뉴는 procurement.read(조달 챗봇은 chat.use 추가), 조달 관리는 procurement.write 로 표시한다', () => {
+    for (const item of NAV_PROCUREMENT)
+      expect(item.permission).toBe(
+        item.key === 'procurement-chat' ? 'chat.use' : 'procurement.read',
+      );
     expect(NAV_ADMIN.find((item) => item.key === 'admin-procurement')?.permission).toBe(
       'procurement.write',
     );

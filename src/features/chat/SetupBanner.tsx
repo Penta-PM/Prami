@@ -7,15 +7,18 @@ import { Icon } from '@/components/icons/Icon';
 import type { ChatSetupView } from './types';
 
 /**
- * 챗봇 패널 안내 (PRAMI-002 §4.9·§4.8.2): LLM 미연결·키 오류 배너(+사용자 설정 링크), 첫 LLM 응답 전 과금 고지(닫으면 세션 동안 숨김, 저장 안 함).
- * 링크는 Next Link — 패널은 닫히지 않고 대화 상태는 유지된다(같은 앱 셸 안 이동).
+ * 챗봇 화면 안내 (PRAMI-002 §4.9·§4.8.2): LLM 미연결·키 오류 배너(+사용자 설정 링크), 첫 LLM 응답 전 과금 고지(닫으면 화면에 있는 동안 숨김, 저장 안 함).
+ * 링크는 Next Link(같은 탭) — 대화는 DB 에 있어 돌아오면 `?c=` 로 복원된다 (UX PR-C2).
  */
 export const SETUP_LINK_LABEL = '사용자 설정에서 등록하기';
 export const BILLING_NOTICE = 'LLM 요금은 등록한 본인 벤더 계정으로 청구됩니다.';
 
 export function SetupLink({ href }: { href: string }) {
   return (
-    <Link href={href} className="mt-2 block text-[12px] font-semibold text-purple-600 underline">
+    <Link
+      href={href}
+      className="mt-2 block text-[12px] font-semibold text-link underline hover:text-link-hover"
+    >
       {SETUP_LINK_LABEL} →
     </Link>
   );

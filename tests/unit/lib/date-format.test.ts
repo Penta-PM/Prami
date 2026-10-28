@@ -10,6 +10,7 @@ import {
   formatDateTime,
   formatDateTimeSeconds,
   formatNullableDateTime,
+  formatRelativeTime,
 } from '@/lib/date-format';
 
 /**
@@ -60,6 +61,23 @@ function listSourceFiles(dir: string): string[] {
     return /\.(ts|tsx)$/.test(name) ? [full] : [];
   });
 }
+
+describe('formatRelativeTime (챗봇 대화 목록, UX PR-C2)', () => {
+  const now = '2026-10-28T09:00:00Z';
+  const ago = (ms: number) => new Date(new Date(now).getTime() - ms).toISOString();
+
+  it('방금 → N분 전 → N시간 전 → N일 전 → 7일 이상은 KST 날짜', () => {
+    expect(formatRelativeTime(ago(30_000), now)).toBe('방금');
+    expect(formatRelativeTime(ago(5 * 60_000), now)).toBe('5분 전');
+    expect(formatRelativeTime(ago(3 * 3_600_000), now)).toBe('3시간 전');
+    expect(formatRelativeTime(ago(2 * 86_400_000), now)).toBe('2일 전');
+    expect(formatRelativeTime('2026-10-01T16:00:00Z', now)).toBe('2026-10-02');
+  });
+
+  it('미래 시각(시계 차이)은 방금', () => {
+    expect(formatRelativeTime('2026-10-28T09:05:00Z', now)).toBe('방금');
+  });
+});
 
 describe('CLDR 종속 날짜 API 가드 (src/)', () => {
   const root = path.resolve(import.meta.dirname, '../../..');

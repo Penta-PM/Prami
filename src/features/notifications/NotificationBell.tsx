@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 
 import { Presence } from '@/components/motion/Presence';
-import { useChatPanel } from '@/features/chat/ChatContext';
 import { ImportantBadge } from '@/features/notices/NoticeRows';
 import { Icon } from '@/components/icons/Icon';
 import { LegacyIcon, type LegacyIconName } from '@/features/shell/icons';
@@ -37,33 +36,11 @@ export function notificationBellLabel(unreadCount: number): string {
 /**
  * 헤더 알림 버튼 + 드롭다운 (#31 스펙 §4 UI — NotificationBell). 비모달 dialog — 포커스 트랩 없음.
  * - 배지는 SSR 하지 않는다: 첫 렌더는 이름 "알림" 의 종만, 개수는 클라이언트 조회 뒤에 그린다.
- * - 챗 패널과 동시에 보이지 않는다(#31 Q1 A): 열 때 챗 패널을 먼저 닫고, 챗 패널의 퇴장 애니메이션이 끝난 뒤(isVisible=false)
- *   드롭다운을 그린다(퇴장이 없으면 즉시). 그 사이 종을 다시 누르면 여는 의도를 취소한다(마지막 의도만 반영).
- *   챗 패널을 열면(여는 의도) 드롭다운을 렌더 중에 바로 닫고, 챗 패널은 드롭다운 퇴장이 끝난 뒤 그려진다(반대 방향도 같은 규칙).
+ * - 단독 동작: 헤더 챗봇 버튼·도킹 패널이 없어져(UX PR-C2) #31 의 챗 패널 상호 배제 결합을 걷어 냈다.
  */
 export function NotificationBell() {
   const router = useRouter();
-  const chat = useChatPanel();
-  /** 여는 의도. 챗 패널이 아직 화면에 있으면(퇴장 중) 드롭다운은 그 뒤에 그려진다 */
-  const [open, setOpen] = useState(false);
-
-  // 챗 패널이 열리면 알림을 닫는다 — effect 가 아니라 렌더 중 상태 조정이라 둘 다 열린 커밋이 생기지 않는다
-  const [prevChatOpen, setPrevChatOpen] = useState(chat.isOpen);
-  if (prevChatOpen !== chat.isOpen) {
-    setPrevChatOpen(chat.isOpen);
-    if (chat.isOpen && open) setOpen(false);
-  }
-  const isOpen = open && !chat.isVisible;
-
-  // 드롭다운이 화면에 있는지(열림·퇴장 중)를 챗 컨텍스트에 알린다 — 챗 패널은 이것이 false 가 된 뒤 그려진다 (#31 Q1 반대 방향 A)
-  const [exited, setExited] = useState(true);
-  if (isOpen && exited) setExited(false);
-  const visible = isOpen || !exited;
-  const { setOverlayVisible } = chat;
-  useEffect(() => {
-    setOverlayVisible(visible);
-  }, [visible, setOverlayVisible]);
-  useEffect(() => () => setOverlayVisible(false), [setOverlayVisible]);
+  const [isOpen, setOpen] = useState(false);
 
   const { unreadCount, items, status, refresh, markRead, markAllRead } = useNotifications(isOpen);
   const bellRef = useRef<HTMLButtonElement>(null);
@@ -76,16 +53,7 @@ export function NotificationBell() {
     bellRef.current?.focus();
   }, []);
 
-  const toggle = () => {
-    // 열림이거나 챗 퇴장을 기다리는 중이면 닫는다(연타 시 마지막 의도만 반영)
-    if (open) {
-      setOpen(false);
-      return;
-    }
-    // 챗 패널을 먼저 닫는다. 드롭다운은 패널 퇴장이 끝나면(isVisible=false) 그려진다
-    if (chat.isOpen) chat.close();
-    setOpen(true);
-  };
+  const toggle = () => setOpen((current) => !current);
 
   // 열면 드롭다운의 첫 요소로 포커스 (없으면 dialog 자신)
   useEffect(() => {
@@ -169,7 +137,7 @@ export function NotificationBell() {
           </span>
         ) : null}
       </button>
-      <Presence onExitComplete={() => setExited(true)}>
+      <Presence>
         {isOpen ? (
           <m.div
             key="notification-panel"

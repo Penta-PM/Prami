@@ -7,7 +7,7 @@ import { FIXTURE_ADMIN, FIXTURE_USER, loginAs, signOutLocally } from './helpers'
 
 /**
  * #31 PR-2 앱 내 알림 (스펙 §6 UI 수용 기준): ADMIN 공지 게시 → USER 배지 1·"알림 1개 안 읽음" → 항목 클릭으로 /notices/{id} 이동·배지 제거,
- * 모두 읽음 새로고침 유지, 게시자(ADMIN) 본인에게는 알림 없음, 챗 패널과 동시 표시 없음, 375/320px 가로 스크롤 0·1280px 종 기준 오른쪽 정렬.
+ * 모두 읽음 새로고침 유지, 게시자(ADMIN) 본인에게는 알림 없음, 알림 단독 동작(UX PR-C2 — 헤더 챗봇·#31 결합 제거), 375/320px 가로 스크롤 0·1280px 종 기준 오른쪽 정렬.
  * 다른 스펙이 만든 공지 알림이 남아 있을 수 있어 시작 전에 두 픽스처 사용자의 알림을 모두 읽음으로 맞춘다(DB).
  * 정리: 이 스펙이 만든 공지(제목 접두사)를 소프트 삭제하고 그 알림 행을 지운다.
  */
@@ -182,66 +182,27 @@ test('Escape 로 닫으면 포커스가 종 버튼으로 돌아온다', async ({
   await expect(bell(page, '알림')).toBeFocused();
 });
 
-test('챗 패널과 알림 드롭다운은 동시에 보이지 않는다', async ({ page }) => {
+test('UX PR-C2: 헤더에 챗봇 버튼이 없고, 알림 드롭다운은 챗봇 화면에서도 단독으로 열고 닫힌다 (#31 결합 제거)', async ({
+  page,
+}) => {
   await loginAs(page, FIXTURE_USER, '/');
-  await gotoAndWaitForNotifications(page, '/');
-  const chat = page.getByRole('complementary', { name: '가격정책 챗봇' });
-  const launcher = page.getByRole('button', { name: '챗봇', exact: true });
-
-  // 두 요소가 DOM 에 함께 있는 순간(퇴장 애니메이션 중 포함)을 페이지 안에서 기록한다 — DOM 변경마다 + 매 프레임.
-  // 양방향(#31 Q1 A): 종 → 챗 퇴장 뒤 드롭다운, 챗 → 드롭다운 퇴장 뒤 패널. 상태 속성이 동시에 true 인 순간도 함께 센다.
-  // (E2E 서버는 Motion 을 끈다 — 실제 퇴장 대기는 단위 테스트 bell.test '퇴장 애니메이션 대기' 가 확인한다)
-  await page.evaluate(() => {
-    const w = window as unknown as { __bothOpen: number; __bothShown: number };
-    w.__bothOpen = 0;
-    w.__bothShown = 0;
-    const sample = () => {
-      const chatOpen = document.querySelector('button[aria-label="챗봇"][aria-pressed="true"]');
-      const bellOpen = document.querySelector(
-        'button[aria-haspopup="dialog"][aria-expanded="true"]',
-      );
-      if (chatOpen && bellOpen) w.__bothOpen += 1;
-      const panel = document.querySelector('aside[aria-label="가격정책 챗봇"]');
-      const list = document.querySelector('[role="dialog"][aria-label="알림"]');
-      if (panel && list) w.__bothShown += 1;
-    };
-    new MutationObserver(sample).observe(document.body, {
-      attributes: true,
-      subtree: true,
-      childList: true,
-    });
-    const frame = () => {
-      sample();
-      requestAnimationFrame(frame);
-    };
-    requestAnimationFrame(frame);
-  });
-
-  await launcher.click();
-  await expect(chat).toBeVisible();
-  // 열린 챗 패널(오른쪽 고정·전체 높이)이 헤더 오른쪽의 종·챗 버튼을 덮으므로 이 방향은 키보드로 연다(포인터로는 닿지 않음)
-  await bell(page, '알림').focus();
-  await page.keyboard.press('Enter');
-  await expect(dropdown(page)).toBeVisible();
-  await expect(chat).toHaveCount(0);
-  await expect(launcher).toHaveAttribute('aria-pressed', 'false');
-
-  await launcher.click();
-  await expect(chat).toBeVisible();
+  await gotoAndWaitForNotifications(page, '/pricing/chat');
+  await expect(page.getByRole('banner').getByRole('button', { name: /챗봇/ })).toHaveCount(0);
+  await expect(page.getByRole('complementary', { name: /챗봇/ })).toHaveCount(0);
+  const panel = await openDropdown(page, '알림');
+  await expect(bell(page, '알림')).toHaveAttribute('aria-expanded', 'true');
+  // 바깥(챗봇 화면 제목) 클릭으로 닫히고 포커스는 종으로 돌아온다 — 제목은 전체 폭이라 가운데는 오른쪽 드롭다운에
+  // 가려지므로 왼쪽 끝을 누른다
+  await page
+    .getByRole('heading', { level: 1, name: '가격 정책 챗봇' })
+    .click({ position: { x: 4, y: 4 } });
+  await expect(panel).toHaveCount(0);
+  await expect(bell(page, '알림')).toBeFocused();
+  // 다시 열고 Esc → 종으로 포커스
+  await openDropdown(page, '알림');
+  await page.keyboard.press('Escape');
   await expect(dropdown(page)).toHaveCount(0);
-  await expect(bell(page, '알림')).toHaveAttribute('aria-expanded', 'false');
-
-  // 챗 패널을 닫아도 알림이 되살아나지 않는다 (챗 버튼도 패널 아래라 키보드로)
-  await launcher.focus();
-  await page.keyboard.press('Enter');
-  await expect(chat).toHaveCount(0);
-  await expect(dropdown(page)).toHaveCount(0);
-
-  const counts = await page.evaluate(() => {
-    const w = window as unknown as { __bothOpen: number; __bothShown: number };
-    return { bothOpen: w.__bothOpen, bothShown: w.__bothShown };
-  });
-  expect(counts).toEqual({ bothOpen: 0, bothShown: 0 });
+  await expect(bell(page, '알림')).toBeFocused();
 });
 
 for (const width of [375, 320]) {
