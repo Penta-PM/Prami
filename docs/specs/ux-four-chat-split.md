@@ -73,3 +73,4 @@
 
 ## 9. 진행 기록
 - 2026-10-28 Q-U1=A·Q-U2=A·Q-U3=A(사용자 확인, Main msg_e0bda9fe7541): 대화방 이름 바꾸기만(메시지 편집·재생성은 후속), 각 묶음 안 메뉴(/pricing/chat·/procurement/chat), 무기한 보관 + 즉시 완전 삭제(audit_logs 에 chat.conversation.delete — 대화 ID·domain 만, 제목·내용 미기록). 나머지 Plan 결정 수용 → PR-C2 대기 해제(Penta PR-2 머지 후).
+- 2026-10-28 PR-C1 #95 머지(squash e4e7934): 0014 chat_conversations·chat_messages, 소유자 전용 API, 서버 history(10턴·1,000자), 상한 200/400, 감사 create/rename/delete 에 ID·domain 만. 게이트 unit 3705·integration 31·E2E 20/20, CI 녹색. LAN 0014 적용(추가형, 적용 전 pg_dump 백업 Dev scratchpad `prami-before-0014-20261028-170917.dump`). Dev 해석 수용: conversationId 없는 요청은 옛 비저장 경로(도킹 패널은 C2 까지 유지) / 조달 대화 전송은 C3 전까지 "준비 중" 거부 / domain 불일치 404 / `procurement.read` 상실 시 조달 대화 모든 동작 403 + 거부 감사, 데이터 보존 / 스트림 실패·중단 시 답 미저장·사용자 메시지만 남기고 같은 질문 재전송 시 재사용. 참고: audit_logs append-only 로 감사 행 있는 사용자는 하드 삭제 불가(기존 제약, 이번 변경 무관).
