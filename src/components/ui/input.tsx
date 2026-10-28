@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode } from 'react';
+import type { InputHTMLAttributes, ReactNode, Ref } from 'react';
 
 import { cn } from '@/lib/cn';
 
@@ -10,6 +10,8 @@ export type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & {
   wrapperClassName?: string;
   /** sm 36·14 / md 44·16. 주지 않으면 가장 가까운 `data-density` 컨테이너를 따른다 (./density.tsx) */
   size?: ControlSize;
+  /** React 19 — 함수 컴포넌트도 ref 를 prop 으로 받는다 (챗봇 이름 바꾸기·질문 입력 포커스) */
+  ref?: Ref<HTMLInputElement>;
 };
 
 /**

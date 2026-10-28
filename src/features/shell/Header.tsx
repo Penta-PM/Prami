@@ -4,7 +4,6 @@ import { Icon } from '@/components/icons/Icon';
 import { Input } from '@/components/ui/input';
 import { signOutAction } from '@/features/auth/actions';
 import { TestModeBanner } from '@/features/auth/TestModeBanner';
-import { ChatLauncher } from '@/features/chat/ChatDock';
 import { NotificationBell } from '@/features/notifications/NotificationBell';
 
 export type HeaderUser = {
@@ -20,7 +19,7 @@ export type HeaderProps = {
   testMode?: boolean;
 };
 
-/** 앱 셸 헤더: 통합 검색, 챗봇/알림 버튼, 사용자 표시·로그아웃 */
+/** 앱 셸 헤더: 통합 검색, 알림 버튼, 사용자 표시·로그아웃. 챗봇 진입점은 사이드바 메뉴(UX PR-C2 — 헤더 버튼 제거) */
 export function Header({ user, testMode = false }: HeaderProps) {
   const initial = user?.name.trim().charAt(0) || '?';
 
@@ -37,7 +36,6 @@ export function Header({ user, testMode = false }: HeaderProps) {
       </form>
       <div className="flex-1 max-md:hidden" />
       {testMode ? <TestModeBanner variant="inline" /> : null}
-      <ChatLauncher />
       <NotificationBell />
       <div className="flex items-center gap-2.5 border-l border-border-subtle pl-3.5 max-md:gap-1 max-md:pl-2">
         <div

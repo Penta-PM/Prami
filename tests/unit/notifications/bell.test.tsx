@@ -2,13 +2,12 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ChatProvider, useChatPanel } from '@/features/chat/ChatContext';
-import { ChatDock, ChatLauncher } from '@/features/chat/ChatDock';
 import type { NotificationItemView, NotificationsResponse } from '@/features/notifications/types';
 
 /**
  * #31 PR-2 NotificationBell (스펙 §4 UI): 접근성 이름·배지, 로딩/빈/오류 상태, 항목 클릭(읽음 → 이동 → 닫기),
- * 모두 읽음, 키보드(Escape·바깥 클릭·Tab 이탈·Modal 우선), 챗 패널 상호 배타, 중요 배지, 절대 시각.
+ * 모두 읽음, 키보드(Escape·바깥 클릭·Tab 이탈·Modal 우선), 중요 배지, 절대 시각.
+ * UX PR-C2: 헤더 챗봇 버튼·도킹 패널이 없어져 #31 챗 패널 상호 배제 결합을 걷어 냈다 — 알림은 챗 컨텍스트 없이 단독으로 동작한다.
  * fetch·서버 액션·라우터는 모킹 — 서버 계약(NotificationsResponse)만 따른다.
  */
 const pushMock = vi.fn();
@@ -54,15 +53,13 @@ function serve(body: NotificationsResponse) {
 
 function renderShell() {
   return render(
-    <ChatProvider>
+    <>
       <button type="button">바깥 버튼</button>
-      <ChatLauncher />
       <NotificationBell />
       {/* 실제 헤더처럼 종 뒤에도 포커스 가능한 요소(사용자 설정·로그아웃)가 있다 */}
       <button type="button">뒤 버튼</button>
-      <ChatDock />
       <p>본문 영역</p>
-    </ChatProvider>,
+    </>,
   );
 }
 
@@ -365,188 +362,28 @@ describe('NotificationBell 키보드·닫기', () => {
   });
 });
 
-describe('챗 패널과 상호 배타', () => {
-  const chatPanel = () => screen.queryByRole('complementary', { name: '가격정책 챗봇' });
-
-  it('챗 패널이 열린 상태에서 알림을 열면 같은 클릭에서 챗 패널이 닫힌다', async () => {
+describe('단독 동작 (UX PR-C2 — #31 챗 패널 결합 제거)', () => {
+  it('챗 컨텍스트(Provider) 없이 열고 닫히고, 연타해도 마지막 의도만 남는다', async () => {
     serve({ unreadCount: 0, items: [] });
     renderShell();
-    const launcher = screen.getByRole('button', { name: '챗봇' });
-    await userEvent.click(launcher);
-    expect(chatPanel()).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '알림' }));
-    // 상태는 같은 커밋에서 바뀐다(챗 닫힘 + 알림 열림)
-    expect(launcher).toHaveAttribute('aria-pressed', 'false');
+    const bell = screen.getByRole('button', { name: '알림' });
+    await userEvent.click(bell);
     expect(screen.getByRole('dialog', { name: '알림' })).toBeInTheDocument();
-    await waitFor(() => expect(chatPanel()).not.toBeInTheDocument());
-  });
-
-  it('알림이 열린 상태에서 챗 패널을 열면 알림이 닫힌다', async () => {
-    serve({ unreadCount: 0, items: [] });
-    renderShell();
-    const { bell } = await openDropdown('알림');
-    await userEvent.click(screen.getByRole('button', { name: '챗봇' }));
-    expect(bell).toHaveAttribute('aria-expanded', 'false');
-    expect(chatPanel()).toBeInTheDocument();
+    expect(bell).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.click(bell);
     await waitFor(() =>
       expect(screen.queryByRole('dialog', { name: '알림' })).not.toBeInTheDocument(),
     );
-    // 챗 패널을 닫아도 알림이 되살아나지 않는다
-    await userEvent.click(screen.getByRole('button', { name: '챗봇' }));
     expect(bell).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByRole('dialog', { name: '알림' })).not.toBeInTheDocument();
-  });
-
-  it('번갈아 열어도 두 상태(aria-pressed·aria-expanded)가 동시에 true 인 순간이 없다', async () => {
-    serve({ unreadCount: 0, items: [] });
-    renderShell();
-    const launcher = screen.getByRole('button', { name: '챗봇' });
-    const bell = screen.getByRole('button', { name: '알림' });
-    const violations: string[] = [];
-    const observer = new MutationObserver(() => {
-      if (
-        launcher.getAttribute('aria-pressed') === 'true' &&
-        bell.getAttribute('aria-expanded') === 'true'
-      ) {
-        violations.push('both');
-      }
-    });
-    observer.observe(document.body, { attributes: true, subtree: true });
-    for (const target of [launcher, bell, launcher, bell, bell, launcher]) {
-      await userEvent.click(target);
-    }
-    observer.disconnect();
-    expect(violations).toEqual([]);
-  });
-});
-
-/**
- * #31 Q1 A(양방향): 한쪽이 퇴장 애니메이션 중이면 다른 쪽은 그 뒤에 그려진다. jsdom 에서는 Motion 퇴장이 즉시 끝나므로
- * 퇴장 완료를 테스트가 직접 알리는 대역 패널(StubPanel)로 대기·취소를 확인한다. 실제 브라우저 확인은 E2E notifications.spec.
- */
-describe('퇴장 애니메이션 대기 (#31 Q1 A, 양방향)', () => {
-  /** 실제 ChatPanel 대신: isShown 이면 패널을 그리고, "패널 퇴장 완료" 버튼이 onPanelExitComplete 를 부른다 */
-  function StubPanel() {
-    const chat = useChatPanel();
-    return (
-      <>
-        {chat.isShown ? <aside aria-label="대역 챗 패널" /> : null}
-        <button type="button" onClick={chat.onPanelExitComplete}>
-          패널 퇴장 완료
-        </button>
-        <output data-testid="chat-visible">{String(chat.isVisible)}</output>
-      </>
-    );
-  }
-
-  function renderWithStub() {
-    return render(
-      <ChatProvider>
-        <ChatLauncher />
-        <NotificationBell />
-        <StubPanel />
-      </ChatProvider>,
-    );
-  }
-
-  const stubPanel = () => screen.queryByRole('complementary', { name: '대역 챗 패널' });
-  const dropdown = () => screen.queryByRole('dialog', { name: '알림' });
-
-  it('챗 패널 퇴장이 끝나기 전에는 드롭다운을 그리지 않고, 끝나면 그린다', async () => {
-    serve({ unreadCount: 0, items: [] });
-    renderWithStub();
-    const launcher = screen.getByRole('button', { name: '챗봇' });
-    await userEvent.click(launcher);
-    expect(stubPanel()).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '알림' }));
-    // 챗은 닫힘(의도) — 패널은 퇴장 중이라 화면에 있는 것으로 본다
-    expect(launcher).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByTestId('chat-visible')).toHaveTextContent('true');
-    expect(dropdown()).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '패널 퇴장 완료' }));
-    expect(await screen.findByRole('dialog', { name: '알림' })).toBeInTheDocument();
-  });
-
-  it('챗 퇴장을 기다리는 중에 종을 다시 누르면 여는 의도가 취소된다(마지막 의도만)', async () => {
-    serve({ unreadCount: 0, items: [] });
-    renderWithStub();
-    await userEvent.click(screen.getByRole('button', { name: '챗봇' }));
-    const bell = screen.getByRole('button', { name: '알림' });
     await userEvent.click(bell);
     await userEvent.click(bell);
-    await userEvent.click(screen.getByRole('button', { name: '패널 퇴장 완료' }));
-    expect(dropdown()).not.toBeInTheDocument();
-    expect(bell).toHaveAttribute('aria-expanded', 'false');
-    // 세 번째 클릭은 다시 연다(챗은 이미 사라짐 → 즉시)
     await userEvent.click(bell);
     expect(await screen.findByRole('dialog', { name: '알림' })).toBeInTheDocument();
   });
 
-  it('드롭다운이 화면에 있는 동안 챗 패널은 그려지지 않고(aria-pressed 는 즉시 true), 드롭다운이 사라지면 그려진다', async () => {
-    serve({ unreadCount: 0, items: [] });
-    renderWithStub();
-    const { bell } = await openDropdown('알림');
-    const launcher = screen.getByRole('button', { name: '챗봇' });
-    await userEvent.click(launcher);
-    expect(launcher).toHaveAttribute('aria-pressed', 'true');
-    expect(bell).toHaveAttribute('aria-expanded', 'false');
-    // jsdom 에서는 드롭다운 퇴장이 곧 끝나므로, 끝난 뒤 패널이 그려지는지와 그 전 순간에 둘 다 있지 않은지를 본다
-    await waitFor(() => expect(stubPanel()).toBeInTheDocument());
-    expect(dropdown()).not.toBeInTheDocument();
-  });
-
-  it('드롭다운 퇴장을 기다리는 동안 챗 버튼을 다시 누르면 챗 패널은 열리지 않는다', async () => {
-    serve({ unreadCount: 0, items: [] });
-    const view = renderWithStub();
-    await openDropdown('알림');
-    const launcher = screen.getByRole('button', { name: '챗봇' });
-    // 두 클릭을 한 act 안에서 — 드롭다운 퇴장이 끝나기 전
-    await act(async () => {
-      launcher.click();
-      launcher.click();
-    });
-    expect(launcher).toHaveAttribute('aria-pressed', 'false');
-    await waitFor(() => expect(dropdown()).not.toBeInTheDocument());
-    expect(stubPanel()).not.toBeInTheDocument();
-    view.unmount();
-  });
-
-  it('컨텍스트: 드롭다운(오버레이)이 화면에 있다고 알린 동안은 여는 의도여도 패널을 그리지 않는다', async () => {
-    function StubOverlay() {
-      const { setOverlayVisible } = useChatPanel();
-      return (
-        <>
-          <button type="button" onClick={() => setOverlayVisible(true)}>
-            오버레이 표시
-          </button>
-          <button type="button" onClick={() => setOverlayVisible(false)}>
-            오버레이 사라짐
-          </button>
-        </>
-      );
-    }
-    render(
-      <ChatProvider>
-        <ChatLauncher />
-        <StubOverlay />
-        <StubPanel />
-      </ChatProvider>,
-    );
-    const launcher = screen.getByRole('button', { name: '챗봇' });
-    await userEvent.click(screen.getByRole('button', { name: '오버레이 표시' }));
-    await userEvent.click(launcher);
-    expect(launcher).toHaveAttribute('aria-pressed', 'true');
-    expect(stubPanel()).not.toBeInTheDocument();
-    expect(screen.getByTestId('chat-visible')).toHaveTextContent('false');
-    // 대기 중 재클릭은 취소 → 오버레이가 사라져도 열리지 않는다
-    await userEvent.click(launcher);
-    await userEvent.click(screen.getByRole('button', { name: '오버레이 사라짐' }));
-    expect(stubPanel()).not.toBeInTheDocument();
-    // 다시 표시 → 열기 → 사라지면 그려진다
-    await userEvent.click(screen.getByRole('button', { name: '오버레이 표시' }));
-    await userEvent.click(launcher);
-    expect(stubPanel()).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: '오버레이 사라짐' }));
-    expect(stubPanel()).toBeInTheDocument();
+  it('알림 코드에 챗봇 모듈 의존이 없다', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync('src/features/notifications/NotificationBell.tsx', 'utf8');
+    expect(source).not.toMatch(/features\/chat|useChatPanel|setOverlayVisible/);
   });
 });

@@ -1,11 +1,15 @@
 'use client';
 
-import type { ChatHistoryItem, ChatReplyView } from './types';
+import type { ChatDomain } from '@/lib/chat/conversations';
+
+import type { ChatReplyView } from './types';
 
 /**
- * 챗봇 SSE 클라이언트 (PRAMI-002 §4.3.9, PR-C): `Accept: text/event-stream` 으로 요청하고 token·status·final·done 을 점진적으로 전달한다.
- * `final` 이 정본 — 토큰으로 그린 텍스트를 교체한다(출력 가드가 바꿀 수 있음). `discard` 는 거부 전 부분 출력을 즉시 비운다. 서버가 JSON 으로 답하면(규칙 전용 배포 등) JSON 으로 처리한다.
- * 같은 출처 fetch 만 쓴다(CSP connect-src 'self' 유지). 중단은 AbortSignal.
+ * 챗봇 전송 클라이언트 (PRAMI-002 §4.3.9 + UX PR-C2): 저장 대화로 `POST /api/chat { message, conversationId, domain }`.
+ * history 는 보내지 않는다 — 서버가 DB 에서 읽는다(PR-C1). `stream` 이면 `Accept: text/event-stream` 으로 token·status·final·done 을
+ * 점진적으로 전달하고, 서버가 JSON 으로 답하면(규칙 전용 배포·오류 봉투) JSON 으로 처리한다.
+ * `final` 이 정본 — 토큰으로 그린 텍스트를 교체한다(출력 가드가 바꿀 수 있음). `discard` 는 거부 전 부분 출력을 즉시 비운다.
+ * 같은 출처 fetch 만 쓴다(CSP connect-src 'self' 유지). 중단(중지 버튼·대화 전환)은 AbortSignal.
  */
 export type StreamHandlers = {
   onToken: (text: string) => void;
@@ -14,7 +18,10 @@ export type StreamHandlers = {
   onDiscard: () => void;
 };
 
-export type AskResult = { ok: true; data: ChatReplyView } | { ok: false; message: string };
+export type AskResult =
+  { ok: true; data: ChatReplyView } | { ok: false; message: string; aborted?: boolean };
+
+export type ChatRequestBody = { message: string; conversationId: string; domain: ChatDomain };
 
 export const CONNECT_ERROR = '챗봇 서버에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.';
 export const STREAM_ERROR = '답변을 받는 중 오류가 발생했습니다. 다시 시도해주세요.';
@@ -67,17 +74,18 @@ async function readStream(
   return final ? { ok: true, data: final } : { ok: false, message: STREAM_ERROR };
 }
 
-export async function askChatStream(
-  message: string,
-  history: ChatHistoryItem[],
-  signal: AbortSignal,
-  handlers: StreamHandlers,
+/** 저장 대화로 질문 1건. stream=false 면 JSON 봉투(LLM 미연결 — 규칙 답) */
+export async function postChat(
+  body: ChatRequestBody,
+  options: { stream: boolean; signal: AbortSignal; handlers: StreamHandlers },
 ): Promise<AskResult> {
+  const { stream, signal, handlers } = options;
   try {
-    const body = history.length > 0 ? { message, history } : { message };
     const response = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
+      headers: stream
+        ? { 'content-type': 'application/json', accept: 'text/event-stream' }
+        : { 'content-type': 'application/json' },
       body: JSON.stringify(body),
       signal,
     });
@@ -85,6 +93,8 @@ export async function askChatStream(
     if (!type.includes('text/event-stream') || !response.body) return await readJson(response);
     return await readStream(response.body, handlers);
   } catch {
-    return { ok: false, message: signal.aborted ? STREAM_ABORTED : CONNECT_ERROR };
+    return signal.aborted
+      ? { ok: false, message: STREAM_ABORTED, aborted: true }
+      : { ok: false, message: CONNECT_ERROR };
   }
 }

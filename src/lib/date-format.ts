@@ -55,3 +55,20 @@ export function formatDateTimeSeconds(value: DateInput): string {
 export function formatNullableDateTime(value: DateInput | null | undefined): string {
   return value ? formatDateTime(value) : '—';
 }
+
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+
+/**
+ * 상대 시각 (챗봇 대화 목록, UX PR-C2): 1분 미만 "방금", 1시간 미만 "N분 전", 24시간 미만 "N시간 전", 7일 미만 "N일 전",
+ * 그 밖은 한국 시간 `YYYY-MM-DD`. 미래 시각(시계 차이)은 "방금". 클라이언트에서만 그린다(SSR 하이드레이션 차이 방지).
+ */
+export function formatRelativeTime(value: DateInput, now: DateInput = new Date()): string {
+  const diff = toDate(now).getTime() - toDate(value).getTime();
+  if (diff < MINUTE_MS) return '방금';
+  if (diff < HOUR_MS) return `${Math.floor(diff / MINUTE_MS)}분 전`;
+  if (diff < DAY_MS) return `${Math.floor(diff / HOUR_MS)}시간 전`;
+  if (diff < 7 * DAY_MS) return `${Math.floor(diff / DAY_MS)}일 전`;
+  return formatDate(value);
+}
