@@ -87,6 +87,27 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: 'HOME' })).not.toHaveAttribute('aria-current');
   });
 
+  it('Penta 활성 메뉴: P50 바탕 + P700 글자·아이콘 + 왼쪽 3px P500 막대, 모든 메뉴에 포커스 고리', () => {
+    usePathnameMock.mockReturnValue('/admin/costs');
+    render(<Sidebar showAdminNav />);
+    const active = screen.getByRole('link', { name: '원가 관리' });
+    expect(active).toHaveClass(
+      'bg-primary-50',
+      'text-primary-700',
+      'font-semibold',
+      'before:w-[3px]',
+      'before:bg-primary-500',
+      'before:left-0',
+    );
+    expect(active.querySelector('svg')).toHaveClass('text-primary-700');
+    expect(active.className).not.toMatch(/lime/);
+    const idle = screen.getByRole('link', { name: 'HOME' });
+    expect(idle).not.toHaveClass('bg-primary-50');
+    expect(idle.className).not.toMatch(/before:bg-/);
+    for (const link of [active, idle])
+      expect(link).toHaveClass('focus-visible:outline-2', 'focus-visible:outline-focus-ring');
+  });
+
   it('접기 버튼으로 라벨을 숨기고 다시 펼친다', async () => {
     render(<Sidebar showAdminNav />);
     const toggle = screen.getByRole('button', { name: '사이드바 접기/펼치기' });

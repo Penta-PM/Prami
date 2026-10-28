@@ -7,11 +7,16 @@ import type {
 
 import { cn } from '@/lib/cn';
 
-/** 표 프리미티브. 가로 스크롤 래퍼를 포함한다 */
+import { densityAttrs } from './density';
+
+/**
+ * 표 프리미티브. 가로 스크롤 래퍼를 포함한다.
+ * 표는 밀집 컨테이너(Q-D1 = B) — 래퍼가 `data-density="sm"` 이라 칸 안의 공용 컨트롤은 36·14, 본문 글자 BodySmall 14
+ */
 export function Table({ className, ...props }: TableHTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="w-full overflow-x-auto">
-      <table className={cn('w-full border-collapse text-[13px]', className)} {...props} />
+    <div {...densityAttrs('sm')} className="w-full overflow-x-auto">
+      <table className={cn('w-full border-collapse text-[14px]', className)} {...props} />
     </div>
   );
 }

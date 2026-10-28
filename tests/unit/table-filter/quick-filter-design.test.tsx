@@ -72,7 +72,7 @@ function EditorHarness({ field = STATUS }: { field?: DataTableFilterField<Row> }
 const optionRow = (label: string) => screen.getByText(label).closest('label') as HTMLElement;
 
 describe('enum 목록 행 (§7.2)', () => {
-  it('행: min-h-10 px-2.5 py-2 rounded-lg gap-2.5 text-[13px], 미선택 hover bg-gray-75, 긴 글자 min-w-0 break-words', () => {
+  it('행: min-h-10 px-2.5 py-2 rounded-lg gap-2.5 text-[14px](BodySmall — Penta PR-2), 미선택 hover bg-gray-75, 긴 글자 min-w-0 break-words', () => {
     render(<EditorHarness />);
     const row = optionRow('활성');
     expect(row).toHaveClass(
@@ -81,7 +81,7 @@ describe('enum 목록 행 (§7.2)', () => {
       'py-2',
       'rounded-lg',
       'gap-2.5',
-      'text-[13px]',
+      'text-[14px]',
       'hover:bg-gray-75',
     );
     expect(row).not.toHaveClass('bg-purple-600/8');
@@ -109,7 +109,7 @@ describe('enum 목록 행 (§7.2)', () => {
   it('공용 Checkbox 사용 — accent- 네이티브 체크 없음', () => {
     render(<EditorHarness />);
     const input = screen.getByRole('checkbox', { name: '활성' });
-    expect(input).toHaveClass('appearance-none', 'border-slate-600-aa');
+    expect(input).toHaveClass('appearance-none', 'border-neutral-600');
     expect(input.className).not.toMatch(/accent-/);
   });
 

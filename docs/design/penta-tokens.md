@@ -88,7 +88,7 @@ Success·Warning 800 은 기존 화면의 성공·경고 글자 자리에서 700
 새 이름(유틸리티로 바로 쓸 수 있음): `--radius-chip`(4) · `--radius-control`(8) · `--radius-card`(12) · `--radius-modal`(16) · `--height-control-sm/md/lg`(36/44/52) · `--shadow-dropdown`·`--shadow-card`·`--shadow-modal`·`--shadow-panel`.
 Tailwind 기본 `shadow-sm/md/lg/xl`·`rounded-full` 은 덮지 않습니다.
 
-## 4. 컴포넌트 수치 (참고 — 적용은 공용 컴포넌트 PR)
+## 4. 컴포넌트 수치 (공용 컴포넌트 PR-2 에서 적용)
 
 | 컴포넌트 | 문서 값 | Prami 적용 시 |
 |---|---|---|
@@ -98,6 +98,17 @@ Tailwind 기본 `shadow-sm/md/lg/xl`·`rounded-full` 은 덮지 않습니다.
 | Card | 배경 N0 · 테두리 1px N100 · 반경 12 · 그림자 md · 패딩 20 | |
 
 문서 표의 Button Primary·Secondary·Danger 는 500 단계를 글자·글자 배경에 씁니다 — 아래 접근성 규칙에 따라 600/700 으로 올려 씁니다.
+
+### 밀도 규칙 (Q-D1 = B)
+
+| 밀도 | 쓰는 곳 | 컨트롤 높이 · 글자 |
+|---|---|---|
+| `md` (기본) | 폼 · 독립 버튼 · 모달(주요 버튼 포함) | 44 · Body 16 |
+| `sm` | 밀집 컨테이너 — 표(`Table`·`DataTable`) · 빠른 필터 바 · 드로어 · 관리 목록(`DensityScope`) · 필터 칩 | 36 · BodySmall 14 |
+
+- 컨테이너가 `data-density` 를 달고(`densityAttrs()`·`DensityScope`), Button·Input·Select·Segmented 는 `size` 를 주지 않으면 가장 가까운 컨테이너를 따릅니다(CSS 변수 `--density-control-height`·`--density-font-size` 상속 — 서버 컴포넌트에서도 동작, 중첩 시 가까운 쪽 우선). 모달은 `md` 로 되돌립니다.
+- 예외는 컨트롤의 `size` prop(`sm`·`md`·`lg`)으로만 정합니다. 화면별 크기 클래스(`h-8`·`text-[12px]` …)로 덮지 않습니다.
+- 문서의 Button "14 SemiBold" 는 `sm` 에 해당하고, `md` 버튼은 사용자 결정(Q-D1)에 따라 16 SemiBold 입니다.
 
 아이콘: 24px · 1px 선 · `icon/<이름>` 규칙. 아이콘 적용은 별도 PR 입니다.
 

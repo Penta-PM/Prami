@@ -18,6 +18,7 @@ import { sortRows } from '@/lib/table/compare';
 import { serializeFilters, type FilterCondition } from '@/lib/table/filter';
 import { MAX_COL_WIDTH, MIN_COL_WIDTH } from '@/lib/table/layout-storage';
 
+import { densityAttrs } from '../density';
 import { Table, TableBody, TableCell, TableHead, TableRow } from '../table';
 import { applyFilterFields, filterFieldsOf, type DataTableFilterField } from './filter-fields';
 import { reconcileSort, requestSort, sortBase, sortKey, type PendingSort } from './pending-sort';
@@ -114,7 +115,7 @@ function FilterDot() {
     <span
       aria-hidden="true"
       data-testid="data-table-filter-dot"
-      className="size-1.5 shrink-0 rounded-full bg-purple-600"
+      className="size-1.5 shrink-0 rounded-full bg-primary-600"
     />
   );
 }
@@ -539,7 +540,8 @@ export function DataTable<T>({
     : undefined;
 
   return (
-    <div ref={wrapperRef} className="relative">
+    // 표는 밀집 컨테이너(Q-D1 = B) — Table 래퍼와 같이 표 밖에 뜨는 끌기 라벨까지 sm
+    <div ref={wrapperRef} {...densityAttrs('sm')} className="relative">
       <Table
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
@@ -610,7 +612,7 @@ export function DataTable<T>({
                       onKeyDown={(event) => onHeaderKeyDown(event, column)}
                       className={cn(
                         'inline-flex max-w-full cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent p-0 align-middle text-inherit select-none [font:inherit] hover:text-ink-900',
-                        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500',
+                        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
                         column.align === 'right' && 'flex-row-reverse',
                       )}
                     >
@@ -634,7 +636,7 @@ export function DataTable<T>({
                       onKeyDown={(event) => onHeaderKeyDown(event, column)}
                       className={cn(
                         'inline-flex max-w-full cursor-grab items-center gap-1 border-0 bg-transparent p-0 align-middle text-inherit select-none [font:inherit]',
-                        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500',
+                        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
                       )}
                     >
                       <span id={labelId}>{column.header}</span>
@@ -667,8 +669,8 @@ export function DataTable<T>({
                       className={cn(
                         'absolute inset-y-0 right-0 w-2 cursor-col-resize touch-none outline-none',
                         'before:absolute before:inset-y-2 before:right-0 before:w-0.5 before:rounded-full before:bg-transparent',
-                        'hover:before:bg-border-default focus-visible:before:bg-purple-600',
-                        draft?.id === column.id && 'before:bg-purple-600',
+                        'hover:before:bg-border-default focus-visible:before:bg-focus-ring',
+                        draft?.id === column.id && 'before:bg-focus-ring',
                       )}
                     />
                   ) : null}
@@ -736,7 +738,7 @@ export function DataTable<T>({
           <div
             aria-hidden="true"
             data-testid="data-table-drop-indicator"
-            className="pointer-events-none absolute inset-y-0 z-10 w-0.5 -translate-x-1/2 bg-purple-600"
+            className="pointer-events-none absolute inset-y-0 z-10 w-0.5 -translate-x-1/2 bg-primary-600"
             style={{ left: dragView.indicatorX }}
           />
           <div

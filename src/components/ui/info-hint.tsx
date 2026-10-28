@@ -101,7 +101,7 @@ export function InfoHint({ name, text, children, align = 'start', className }: I
         onPointerLeave={onPointerLeave}
         className={cn(
           'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent',
-          'hover:bg-gray-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500',
+          'hover:bg-gray-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
           text
             ? 'min-h-8 gap-1.5 px-2 text-[12px] font-semibold text-text-secondary'
             : 'size-6 p-0 text-text-tertiary',

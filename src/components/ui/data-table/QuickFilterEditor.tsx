@@ -15,6 +15,8 @@ import {
 import { Button } from '../button';
 import { Checkbox } from '../checkbox';
 import { chipClass } from '../chip';
+import { INHERIT_CONTROL_CLASSES } from '../density';
+import { FIELD_CLASSES } from '../input';
 import type { DataTableFilterField } from './filter-fields';
 import { MoneyRangeEditor } from './MoneyRangeEditor';
 import { DATE_PRESETS, datePresetRange } from './quick-filters';
@@ -45,12 +47,12 @@ export type QuickFilterEditorProps<T> = {
 };
 
 const LABEL_CLASS = 'text-[12px] font-semibold text-text-secondary';
-const FIELD_CLASS =
-  'w-full min-w-0 rounded-lg border-0 bg-gray-75 px-3 py-2 text-[13px] text-ink-900 shadow-(--hairline-default) outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--purple-500)] disabled:cursor-not-allowed disabled:opacity-50';
+/** Input 과 같은 Penta 입력창 — 높이·글자는 빠른 필터 바(밀집 컨테이너)의 sm 36·14 를 따른다 */
+const FIELD_CLASS = cn(FIELD_CLASSES, INHERIT_CONTROL_CLASSES, 'min-w-0 px-3');
 
 /** enum 목록 행 (§7.2) — 행 전체가 클릭 영역(label), 40px 이상. 선택 행은 옅은 보라 + font-medium */
 export const OPTION_ROW_CLASS =
-  'flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-ink-900';
+  'flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] text-ink-900';
 export const OPTION_ROW_IDLE = 'hover:bg-gray-75';
 export const OPTION_ROW_SELECTED = 'bg-purple-600/8 font-medium';
 
