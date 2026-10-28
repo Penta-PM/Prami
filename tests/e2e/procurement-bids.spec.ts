@@ -153,7 +153,7 @@ test('기본: 진행 중·적합도순 — 칩 건수, 적합도 배지, 억·�
   await expect(second.getByTestId('bid-deadline-badge')).toHaveText(/D-[12] 임박/);
   await expect(second.getByTestId('bid-deadline-badge')).toHaveCSS(
     'background-color',
-    'rgb(255, 95, 0)',
+    'rgb(245, 158, 11)', // --accent-orange = Penta Warning 500
   );
   await expect(second).toContainText('4,567만');
 });

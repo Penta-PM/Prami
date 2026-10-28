@@ -29,7 +29,7 @@ describe('Button', () => {
     );
     const button = screen.getByRole('button', { name: '저장' });
     expect(button).toHaveAttribute('type', 'button');
-    expect(button.className).toContain('bg-lime-400');
+    expect(button.className).toContain('bg-action-bg');
     expect(button.className).toContain('h-8');
   });
 

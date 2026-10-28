@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import localFont from 'next/font/local';
 import { connection } from 'next/server';
 import type { ReactNode } from 'react';
 
@@ -7,14 +8,17 @@ import { MotionProvider } from '@/components/motion/MotionProvider';
 import './globals.css';
 
 /**
- * 디자인 토큰(typography.css)이 지정한 Pretendard 웹폰트. 토큰 파일의 @import 와 동일 URL(버전 고정).
- * SRI 해시로 내용을 고정한다 — 불일치 시 폰트만 시스템 폰트로 대체되고 화면은 정상 동작한다.
- * 셀프 호스팅(폰트 파일 저장소 보관)은 후속 PR 에서 검토한다.
+ * Pretendard 셀프 호스트 (Penta 디자인 토큰 PR-1): 공식 npm pretendard@1.3.9 의 가변 폰트(전체 글리프, OFL — ./fonts/OFL.txt).
+ * 외부 CDN 요청 0 — CSP 에 폰트 출처를 따로 두지 않는다. `--font-pretendard` 를 <html> 에 달고 globals.css 의 --font-body 가 참조한다.
+ * 견적서 PDF 의 NotoSansKR(src/assets/fonts)과는 별개다.
  */
-const PRETENDARD_CSS_URL =
-  'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css';
-const PRETENDARD_CSS_INTEGRITY =
-  'sha384-SN6A48CJQjx946+DRb8wsoifC4a8ur9ZS6R+HCTgnBHOKCa6GLXAR3Qn8d1jztxg';
+const pretendard = localFont({
+  src: './fonts/PretendardVariable.woff2',
+  weight: '45 920',
+  style: 'normal',
+  display: 'swap',
+  variable: '--font-pretendard',
+});
 
 export const metadata: Metadata = {
   title: { default: 'Prami — 가격정책 통합 관리', template: '%s | Prami' },
@@ -30,16 +34,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   await connection();
   return (
-    <html lang="ko">
-      <head>
-        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
-        <link
-          rel="stylesheet"
-          href={PRETENDARD_CSS_URL}
-          integrity={PRETENDARD_CSS_INTEGRITY}
-          crossOrigin="anonymous"
-        />
-      </head>
+    <html lang="ko" className={pretendard.variable}>
       <body className="antialiased">
         {/* 모션 Provider 는 루트에 둬 (app) 밖의 /login·/share 에도 적용한다 (Motion 도입 스펙 §3.2) */}
         <MotionProvider>{children}</MotionProvider>

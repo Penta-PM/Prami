@@ -39,7 +39,7 @@ test('사이드바를 접고 펼칠 수 있다', async ({ page }) => {
   await expect(label).toBeVisible();
 });
 
-test('디자인 토큰 CSS 변수가 원본 값으로 정의된다', async ({ page }) => {
+test('디자인 토큰 CSS 변수가 Penta 값으로 정의된다', async ({ page }) => {
   await page.goto('/');
   const tokens = await page.evaluate(() => {
     const style = getComputedStyle(document.documentElement);
@@ -60,15 +60,17 @@ test('디자인 토큰 CSS 변수가 원본 값으로 정의된다', async ({ pa
   });
   // 브라우저는 커스텀 속성의 계산값에서 var() 를 치환해 돌려준다 → 참조 대상 토큰의 원본 값과 비교한다
   const compact = (value: string) => value.replace(/\s+/g, '').replace(/"/g, "'");
-  expect(tokens.lime500).toBe('#97f675');
-  expect(tokens.lime400).toBe('#c8ee44');
-  expect(tokens.ink900).toBe('#1b212d');
+  // Maglo 별칭은 Penta 값으로 재지정 (lime → Primary 100, ink → Neutral 900)
+  expect(tokens.lime500).toBe('#c2d9ff');
+  expect(tokens.lime400).toBe('#c2d9ff');
+  expect(tokens.ink900).toBe('#111620');
+  // 셀프 호스트 Pretendard(next/font/local 이 만든 패밀리) 뒤에 로컬 'Pretendard' 대비
   expect(compact(tokens.fontBody)).toContain("'Pretendard'");
-  expect(tokens.textPrimary).toBe('#1b212d'); // var(--ink-900)
-  expect(compact(tokens.textH2)).toMatch(/^60018px\/1'Pretendard',/); // 600 18px/1 var(--font-body)
+  expect(tokens.textPrimary).toBe('#111620'); // var(--penta-neutral-900)
+  expect(compact(tokens.textH2)).toMatch(/^60018px\/1.*'Pretendard',/); // 600 18px/1 var(--font-body)
   expect(tokens.radiusLg).toBe('8px');
   expect(tokens.sidebarWidth).toBe('250px');
-  expect(compact(tokens.hairlineSubtle)).toBe('inset0001px#f5f5f5'); // var(--border-subtle) = gray-100
+  expect(compact(tokens.hairlineSubtle)).toBe('inset0001px#eceef2'); // var(--border-subtle) = Neutral 100
   // var(--shadow-soft) = rgba(0,0,0,0.1). 빌드 시 CSS 최소화가 동일 색을 #0000001a 로 직렬화할 수 있다
   expect(compact(tokens.shadowElevated)).toMatch(/^012px24px(rgba\(0,0,0,0\.1\)|#0000001a)$/);
   expect(tokens.bodyFont).toContain('Pretendard');
