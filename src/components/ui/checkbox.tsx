@@ -4,15 +4,17 @@ import { useEffect, useRef, type InputHTMLAttributes, type Ref, type SVGProps } 
 
 import { cn } from '@/lib/cn';
 
+import { FOCUS_RING_CLASSES } from './button';
+
 /**
  * 공용 Checkbox·Radio (빠른 필터 바 디자인 보정 §7.3). 네이티브 input 을 그대로 쓰고(`appearance-none`) 체크·가로선·점만 SVG/span 으로
  * 그린다 — 레이블 연결·폼 제출·키보드·접근성 이름은 네이티브 그대로. 체크 표시 디자인을 앱에서 하나로 맞춘다.
  *
  * - 크기: sm 16px / md 18px(기본). 클릭 영역은 감싸는 행(label, 40px+)이 넓힌다.
- * - 기본: 흰 배경 + 테두리 1.5px `slate-600-aa`(#6c6b7d, 흰 배경 5.2:1 — `--border-default` 는 3:1 미달이라 쓰지 않는다).
- * - hover(체크 안 됨): 테두리 `ink-900`·배경 `gray-75`.
- * - checked·indeterminate: `purple-600`(#6c55e0) 배경 + 흰 체크/가로선(흰색 대비 5.2:1, 배경 대비 흰 페이지 5.2:1).
- * - disabled: `opacity-50`. focus-visible: 2px `purple-500` outline offset 2 (Button 과 같은 값).
+ * - 기본: 흰 배경 + 테두리 1.5px `neutral-600`(흰 배경 6.6:1 — `--border-default`(N200) 는 3:1 미달이라 쓰지 않는다).
+ * - hover(체크 안 됨): 테두리 `neutral-900`·배경 `neutral-50`.
+ * - checked·indeterminate: `primary-600`(Penta P600) 배경 + 흰 체크/가로선(흰색 대비 6.35:1).
+ * - disabled: `opacity-50`. focus-visible: 2px `--focus-ring`(P500) outline offset 2 (Button 과 같은 FOCUS_RING_CLASSES).
  * - Radio: 같은 체계, 원형 + 가운데 흰 점 8px.
  */
 export type CheckboxSize = 'sm' | 'md';
@@ -36,10 +38,10 @@ const BOX_SIZE: Record<CheckboxSize, string> = { sm: 'size-4', md: 'size-[18px]'
 
 /** 상자·원 공통 — 테두리·hover·checked·focus-visible·disabled */
 const CONTROL_CLASS = cn(
-  'peer m-0 block size-full shrink-0 cursor-pointer appearance-none border-[1.5px] border-solid border-slate-600-aa bg-white p-0 transition-colors',
-  'enabled:hover:not-checked:not-indeterminate:border-ink-900 enabled:hover:not-checked:not-indeterminate:bg-gray-75',
-  'checked:border-purple-600 checked:bg-purple-600 indeterminate:border-purple-600 indeterminate:bg-purple-600',
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500',
+  'peer m-0 block size-full shrink-0 cursor-pointer appearance-none border-[1.5px] border-solid border-neutral-600 bg-neutral-0 p-0 transition-colors',
+  'enabled:hover:not-checked:not-indeterminate:border-neutral-900 enabled:hover:not-checked:not-indeterminate:bg-neutral-50',
+  'checked:border-primary-600 checked:bg-primary-600 indeterminate:border-primary-600 indeterminate:bg-primary-600',
+  FOCUS_RING_CLASSES,
   'disabled:cursor-not-allowed disabled:opacity-50',
 );
 

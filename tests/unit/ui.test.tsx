@@ -30,13 +30,13 @@ describe('Button', () => {
     const button = screen.getByRole('button', { name: '저장' });
     expect(button).toHaveAttribute('type', 'button');
     expect(button.className).toContain('bg-action-bg');
-    expect(button.className).toContain('h-8');
+    expect(button).toHaveClass('h-(--height-control-sm)', 'text-[14px]');
   });
 
   it('secondary 가 기본이며 className 을 병합한다', () => {
     render(<Button className="px-8">확인</Button>);
     const button = screen.getByRole('button', { name: '확인' });
-    expect(button.className).toContain('bg-gray-75');
+    expect(button).toHaveClass('bg-neutral-0', 'text-primary-600', 'border-primary-600');
     expect(button.className).toContain('px-8');
     expect(button.className).not.toContain('px-4');
   });
@@ -48,23 +48,31 @@ describe('Button', () => {
 });
 
 describe('Pill', () => {
-  it.each(['neutral', 'positive', 'purple', 'amber', 'red'] as const)(
-    '%s tone 을 렌더한다',
-    (tone) => {
-      render(<Pill tone={tone}>사용</Pill>);
-      expect(screen.getByText('사용')).toBeInTheDocument();
-    },
-  );
-  it('글자색은 배경 위 4.5:1 이상 토큰 — amber-700·red-600 (원본 amber-500 1.9:1·red-500 3.7:1 아님, BL-1)', () => {
+  it.each([
+    'neutral',
+    'positive',
+    'purple',
+    'amber',
+    'red',
+    'success',
+    'warning',
+    'error',
+    'info',
+    'primary',
+  ] as const)('%s tone 을 렌더한다', (tone) => {
+    render(<Pill tone={tone}>사용</Pill>);
+    expect(screen.getByText('사용')).toBeInTheDocument();
+  });
+  it('옛 tone 이름은 Status Badge 별칭 — X50 바탕 + X700 글자 (500 글자 아님, BL-1)', () => {
     render(
       <>
         <Pill tone="amber">가견적</Pill>
         <Pill tone="red">비활성</Pill>
       </>,
     );
-    expect(screen.getByText('가견적')).toHaveClass('text-amber-700');
-    expect(screen.getByText('가견적')).not.toHaveClass('text-amber-500');
-    expect(screen.getByText('비활성')).toHaveClass('text-red-600');
+    expect(screen.getByText('가견적')).toHaveClass('bg-warning-50', 'text-warning-700');
+    expect(screen.getByText('가견적').className).not.toMatch(/-500\b/);
+    expect(screen.getByText('비활성')).toHaveClass('bg-error-50', 'text-error-700');
   });
 });
 
@@ -136,7 +144,7 @@ describe('Card / Input / Table', () => {
 
   it('Input 은 leading 이 없으면 기본 여백을 쓴다', () => {
     render(<Input aria-label="이름" />);
-    expect(screen.getByRole('textbox', { name: '이름' }).className).toContain('pl-3.5');
+    expect(screen.getByRole('textbox', { name: '이름' })).toHaveClass('px-3');
   });
 
   it('Table 프리미티브는 표 시맨틱을 유지한다', () => {

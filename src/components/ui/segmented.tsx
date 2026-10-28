@@ -6,6 +6,9 @@ import { useId, type KeyboardEvent } from 'react';
 import { cn } from '@/lib/cn';
 import { spring } from '@/lib/motion/tokens';
 
+import { FOCUS_RING_CLASSES } from './button';
+import { controlSizeClasses, type ControlSize } from './density';
+
 export type SegmentedOption<T extends string> = { value: T; label: string };
 
 export type SegmentedProps<T extends string> = {
@@ -14,6 +17,8 @@ export type SegmentedProps<T extends string> = {
   onChange: (value: T) => void;
   'aria-label': string;
   className?: string;
+  /** 전체 높이·글자 sm 36·14 / md 44·16. 주지 않으면 가장 가까운 `data-density` 컨테이너를 따른다 (./density.tsx) */
+  size?: ControlSize;
 };
 
 const PREV_KEYS = ['ArrowLeft', 'ArrowUp'];
@@ -36,6 +41,7 @@ export function Segmented<T extends string>({
   value,
   onChange,
   className,
+  size,
   ...rest
 }: SegmentedProps<T>) {
   const pillId = `segmented-pill-${useId()}`;
@@ -57,7 +63,11 @@ export function Segmented<T extends string>({
       role="radiogroup"
       aria-label={rest['aria-label']}
       onKeyDown={handleKeyDown}
-      className={cn('inline-flex gap-0.5 rounded-pill bg-gray-100 p-[3px]', className)}
+      className={cn(
+        'inline-flex gap-0.5 rounded-pill bg-neutral-100 p-[3px]',
+        controlSizeClasses(size),
+        className,
+      )}
     >
       {options.map((option) => {
         const isActive = option.value === value;
@@ -70,8 +80,9 @@ export function Segmented<T extends string>({
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={cn(
-              'relative flex-1 rounded-pill border-0 bg-transparent px-3.5 py-[7px] text-[12px] font-semibold whitespace-nowrap transition-colors',
-              isActive ? 'text-ink-900' : 'text-text-tertiary hover:text-ink-900',
+              'relative flex-1 rounded-pill border-0 bg-transparent px-3.5 py-0 font-semibold whitespace-nowrap transition-colors',
+              FOCUS_RING_CLASSES,
+              isActive ? 'text-text-primary' : 'text-text-tertiary hover:text-text-primary',
             )}
           >
             {isActive ? (
@@ -80,7 +91,7 @@ export function Segmented<T extends string>({
                 data-segmented-pill=""
                 layoutId={pillId}
                 transition={spring.layout}
-                className="absolute inset-0 rounded-pill bg-white shadow-(--hairline-subtle)"
+                className="absolute inset-0 rounded-pill bg-neutral-0 shadow-(--hairline-subtle)"
               />
             ) : null}
             <span className="relative">{option.label}</span>

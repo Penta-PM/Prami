@@ -15,6 +15,7 @@ import { Presence } from '@/components/motion/Presence';
 import { cn } from '@/lib/cn';
 import { fade, transition, VARIANT_KEYS } from '@/lib/motion/tokens';
 
+import { densityAttrs } from './density';
 import { CloseButton } from './modal';
 
 export type DrawerProps = {
@@ -143,6 +144,8 @@ function DrawerPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        // 드로어는 밀집 컨테이너 — 안의 공용 컨트롤 기본 sm(36·14) (Q-D1 = B)
+        {...densityAttrs('sm')}
         tabIndex={-1}
         inert={!isPresent || undefined}
         onKeyDown={handleKeyDown}
@@ -152,7 +155,8 @@ function DrawerPanel({
         exit={VARIANT_KEYS.exit}
         style={{ width }}
         className={cn(
-          'relative flex h-full max-w-full flex-col bg-surface-card shadow-(--shadow-elevated) outline-none',
+          // Penta 사이드패널 그림자 xl
+          'relative flex h-full max-w-full flex-col bg-surface-card shadow-panel outline-none',
           className,
         )}
       >

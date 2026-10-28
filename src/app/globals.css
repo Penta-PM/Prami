@@ -388,6 +388,27 @@
   --font-sans: var(--font-body);
 }
 
+/*
+ * 밀도 (Penta 디자인 PR-2, Q-D1 = B). 공용 컨트롤(Button·Input·Select·Segmented·칩)은 size 를 주지 않으면 가장 가까운
+ * [data-density] 조상의 값을 쓴다 — CSS 변수 상속이라 서버 컴포넌트에서도 동작하고, 중첩되면 가장 가까운 쪽이 이긴다.
+ *   md(기본·폼·독립 버튼·모달): 높이 44 · Body 16/24
+ *   sm(밀집 컨테이너 — Table·DataTable·빠른 필터 바·Drawer·관리 목록 DensityScope): 높이 36 · BodySmall 14/20
+ * 화면별 임시 클래스로 크기를 덮지 않는다. 컨테이너가 data-density 를 정하고, 예외는 컨트롤의 size prop 으로만.
+ */
+@layer base {
+  :root,
+  [data-density='md'] {
+    --density-control-height: var(--height-control-md);
+    --density-font-size: 16px;
+    --density-line-height: 24px;
+  }
+  [data-density='sm'] {
+    --density-control-height: var(--height-control-sm);
+    --density-font-size: 14px;
+    --density-line-height: 20px;
+  }
+}
+
 /* 디자인 소스의 전역 스타일 */
 @layer base {
   body {

@@ -46,30 +46,30 @@ describe('Checkbox', () => {
     expect(onChange.mock.calls).toEqual([[true], [false]]);
   });
 
-  it('기본 상자: appearance-none, 테두리 1.5px slate-600-aa(border-default 아님), checked·indeterminate = purple-600, hover 는 미체크만', () => {
+  it('기본 상자: appearance-none, 테두리 1.5px neutral-600(border-default 아님), checked·indeterminate = primary-600, hover 는 미체크만', () => {
     render(<Checkbox aria-label="x" />);
     const input = screen.getByRole('checkbox', { name: 'x' });
     expect(input).toHaveClass(
       'appearance-none',
       'border-[1.5px]',
-      'border-slate-600-aa',
-      'bg-white',
-      'checked:bg-purple-600',
-      'checked:border-purple-600',
-      'indeterminate:bg-purple-600',
-      'enabled:hover:not-checked:not-indeterminate:border-ink-900',
-      'enabled:hover:not-checked:not-indeterminate:bg-gray-75',
+      'border-neutral-600',
+      'bg-neutral-0',
+      'checked:bg-primary-600',
+      'checked:border-primary-600',
+      'indeterminate:bg-primary-600',
+      'enabled:hover:not-checked:not-indeterminate:border-neutral-900',
+      'enabled:hover:not-checked:not-indeterminate:bg-neutral-50',
       'rounded-[4px]',
     );
     expect(input.className).not.toMatch(/border-default|accent-/);
   });
 
-  it('focus-visible: 2px purple-500 outline offset 2 (Button 과 같은 값)', () => {
+  it('focus-visible: 2px --focus-ring outline offset 2 (Button 과 같은 값)', () => {
     render(<Checkbox aria-label="x" />);
     expect(screen.getByRole('checkbox', { name: 'x' })).toHaveClass(
       'focus-visible:outline-2',
       'focus-visible:outline-offset-2',
-      'focus-visible:outline-purple-500',
+      'focus-visible:outline-focus-ring',
     );
   });
 
@@ -151,9 +151,9 @@ describe('Radio', () => {
     expect(krw).toHaveClass(
       'appearance-none',
       'rounded-full',
-      'border-slate-600-aa',
-      'checked:bg-purple-600',
-      'focus-visible:outline-purple-500',
+      'border-neutral-600',
+      'checked:bg-primary-600',
+      'focus-visible:outline-focus-ring',
       'disabled:opacity-50',
     );
     const dot = box(krw).querySelector('[aria-hidden="true"]');

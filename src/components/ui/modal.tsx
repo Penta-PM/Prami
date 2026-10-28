@@ -14,7 +14,8 @@ import {
 import { cn } from '@/lib/cn';
 import { scaleIn, VARIANT_KEYS } from '@/lib/motion/tokens';
 
-import { PRESS_CLASSES } from './button';
+import { FOCUS_RING_CLASSES, PRESS_CLASSES } from './button';
+import { densityAttrs } from './density';
 
 export type ModalProps = {
   open: boolean;
@@ -190,6 +191,8 @@ export function Modal({
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
+      // 모달은 폼·주요 버튼 영역 — 밀집 컨테이너(드로어·표) 안에서 열려도 md(44·16)로 되돌린다 (Q-D1 = B)
+      {...densityAttrs('md')}
       data-closing={closing ? '' : undefined}
       onCancel={handleCancel}
       onClose={handleNativeClose}
@@ -232,7 +235,8 @@ export function Modal({
           if (definition === VARIANT_KEYS.exit) finishClose();
         }}
         className={cn(
-          'rounded-2xl bg-surface-card shadow-(--shadow-elevated)',
+          // Penta 모달: 반경 16 · 그림자 lg
+          'rounded-modal bg-surface-card shadow-modal',
           closing && 'pointer-events-none',
         )}
       >
@@ -260,8 +264,9 @@ export function CloseButton({ onClick }: { onClick: () => void }) {
       aria-label="닫기"
       onClick={onClick}
       className={cn(
-        'flex size-8 items-center justify-center rounded-pill border-0 bg-gray-75 text-[16px] leading-none text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900',
+        'flex size-8 shrink-0 items-center justify-center rounded-pill border border-solid border-neutral-200 bg-neutral-50 text-[16px] leading-none text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900',
         PRESS_CLASSES,
+        FOCUS_RING_CLASSES,
       )}
     >
       ×

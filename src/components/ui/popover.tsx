@@ -67,6 +67,7 @@ type Position = { top: number; left: number; placement: 'bottom' | 'top' };
  * - 위치: `position: fixed` 로 트리거 아래(공간이 모자라면 위)에 놓고, 가로는 화면 안으로 고정한다(좌우 16px 여백).
  *   표 컨테이너의 overflow 에 잘리지 않게 fixed 를 쓴다. 포털을 쓰지 않으므로 Modal(<dialog>) 안에서는 같은 top layer 에 남는다.
  *   z-40: 표 sticky 헤더(z-10)·챗 패널(z-30) 위, 페이지 레벨 Modal·Drawer(z-50) 아래.
+ * - 모양(Penta): 반경 12 · 1px N100 테두리 · 드롭다운 그림자 sm. 밀도는 렌더된 자리(표·빠른 필터 바 안이면 sm)를 따른다.
  * - Esc: 팝오버만 닫고 트리거로 포커스 복귀. keydown 의 기본 동작·전파를 막아 바깥 <dialog> 의 cancel(모달 닫힘)이
  *   일어나지 않는다. 같은 키 입력에서 cancel 이 오더라도 한 틱 동안 가로채 막는다(브라우저 차이 대비).
  * - 바깥 클릭(터치 포함 — click 은 탭에도 발생)·Tab 이탈 시 닫힌다. 트리거 클릭은 무시해 호출자의 토글과 겹치지 않는다.
@@ -284,7 +285,7 @@ function PopoverPanel({
         close();
       }}
       className={cn(
-        'fixed z-40 max-h-[calc(100vh-32px)] w-[min(320px,calc(100vw-32px))] overflow-x-hidden overflow-y-auto rounded-xl bg-surface-card p-4 text-ink-900 shadow-(--shadow-elevated) outline-none',
+        'fixed z-40 max-h-[calc(100vh-32px)] w-[min(320px,calc(100vw-32px))] overflow-x-hidden overflow-y-auto rounded-card border border-solid border-border-subtle bg-surface-card p-4 text-text-primary shadow-dropdown outline-none',
         !isPresent && 'pointer-events-none',
         className,
       )}

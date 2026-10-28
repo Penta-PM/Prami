@@ -205,8 +205,8 @@ describe('DataTableQuickFilterBar — 형태 (§2.1)', () => {
     expect(bar).not.toHaveClass('overflow-x-auto');
     const count = document.querySelector('[data-quick-filter-count]') as HTMLElement;
     expect(count.parentElement).toHaveClass('max-sm:w-full', 'ml-auto');
-    // 버튼 글자 12px
-    expect(fieldButton('이름')).toHaveClass('text-[12px]');
+    // 칩은 밀집 크기 sm 고정 — 36px·14px (Penta PR-2, Q-D1 = B)
+    expect(fieldButton('이름')).toHaveClass('h-(--height-control-sm)', 'text-[14px]');
   });
 
   it('leading slot: 페이지 필터를 같은 카드 안, 바 위에 놓는다', () => {

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { m } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 
+import { FOCUS_RING_CLASSES } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
 import { transition } from '@/lib/motion/tokens';
 
@@ -240,16 +241,18 @@ function SidebarLink({ item, isActive, isExpanded, fadeIn }: SidebarLinkProps) {
       title={item.label}
       aria-current={isActive ? 'page' : undefined}
       className={cn(
-        '-mx-1 flex items-center gap-3 rounded-lg py-[11px] text-[14px] no-underline transition-colors hover:no-underline',
+        'relative -mx-1 flex items-center gap-3 rounded-lg py-[11px] text-[14px] no-underline transition-colors hover:no-underline',
+        FOCUS_RING_CLASSES,
         isExpanded ? 'justify-start px-3' : 'justify-center px-0',
+        // 활성 (Penta 디자인 PR-2, Plan 결정 — 문서에 내비 정의 없음): P50 바탕 + P700 글자(8.3:1) + 왼쪽 3px P500 막대
         isActive
-          ? 'bg-lime-500 font-semibold text-ink-900 hover:text-ink-900'
+          ? 'bg-primary-50 font-semibold text-primary-700 before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-primary-500 hover:text-primary-700'
           : 'font-medium text-text-secondary hover:bg-gray-100 hover:text-ink-900',
       )}
     >
       <Icon
         name={item.icon}
-        className={cn('size-[18px] shrink-0', isActive ? 'text-ink-900' : 'text-text-tertiary')}
+        className={cn('size-[18px] shrink-0', isActive ? 'text-primary-700' : 'text-text-tertiary')}
       />
       {isExpanded ? (
         <m.span {...labelFade(fadeIn)} className="whitespace-nowrap">

@@ -8,6 +8,7 @@ import { OP_ORDER, withoutColumn, type FilterCondition } from '@/lib/table/filte
 
 import { Button } from '../button';
 import { chipClass } from '../chip';
+import { densityAttrs } from '../density';
 import { Popover } from '../popover';
 import { applyFilterFields, type DataTableFilterField } from './filter-fields';
 import {
@@ -305,10 +306,7 @@ export function DataTableQuickFilterBar<T>({
                 if (expanded) close();
                 else openFrom(event, { id: field.id, via: 'field' });
               }}
-              className={cn(
-                chipClass(summary !== null),
-                'inline-flex max-w-[min(100%,260px)] min-w-0 items-center gap-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500',
-              )}
+              className={cn(chipClass(summary !== null), 'max-w-[min(100%,260px)] min-w-0 gap-1')}
             >
               <span className="min-w-0 truncate">
                 {field.label}
@@ -327,7 +325,7 @@ export function DataTableQuickFilterBar<T>({
                   if (opened?.id === field.id) close();
                   focusRequestRef.current = field.id;
                 }}
-                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-[14px] leading-none text-text-tertiary hover:bg-gray-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-purple-500"
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-[14px] leading-none text-text-tertiary hover:bg-gray-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-focus-ring"
               >
                 <span aria-hidden="true">×</span>
               </button>
@@ -338,13 +336,11 @@ export function DataTableQuickFilterBar<T>({
 
       {more.length > 0 ? (
         <Button
-          size="sm"
           variant="ghost"
           data-quick-filter-more=""
           data-table-filter-trigger=""
           aria-haspopup="dialog"
           aria-expanded={opened?.via === 'more'}
-          className="text-[12px]"
           onClick={(event) => {
             if (opened?.via === 'more') close();
             else openFrom(event, { id: null, via: 'more' });
@@ -386,7 +382,7 @@ export function DataTableQuickFilterBar<T>({
                 key={field.id}
                 type="button"
                 onClick={() => setOpened({ id: field.id, via: 'more' })}
-                className="flex min-h-10 w-full min-w-0 items-center justify-between rounded-lg border-0 bg-transparent px-2.5 py-2 text-left text-[13px] break-words text-ink-900 hover:bg-gray-75 focus-visible:outline-2 focus-visible:outline-purple-500"
+                className="flex min-h-10 w-full min-w-0 items-center justify-between rounded-lg border-0 bg-transparent px-2.5 py-2 text-left text-[14px] break-words text-ink-900 hover:bg-gray-75 focus-visible:outline-2 focus-visible:outline-focus-ring"
               >
                 {field.label}
               </button>
@@ -398,8 +394,6 @@ export function DataTableQuickFilterBar<T>({
       {showReset ? (
         <Button
           variant="ghost"
-          size="sm"
-          className="text-[12px]"
           onClick={() => {
             clearTimer();
             setTrack((prev) => ({
@@ -443,6 +437,8 @@ export function DataTableQuickFilterBar<T>({
       ref={rootRef}
       role="group"
       aria-label={label}
+      // 빠른 필터 바는 밀집 컨테이너 — 안의 칩·버튼·입력(페이지 필터 leading 포함)·팝오버 편집기는 sm 36·14 (Q-D1 = B)
+      {...densityAttrs('sm')}
       aria-busy={pending || undefined}
       data-quick-filter-bar={leading ? undefined : ''}
       className={cn(

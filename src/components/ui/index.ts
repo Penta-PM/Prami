@@ -1,4 +1,10 @@
-export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './button';
+export {
+  Button,
+  FOCUS_RING_CLASSES,
+  type ButtonProps,
+  type ButtonSize,
+  type ButtonVariant,
+} from './button';
 export { Card, CardTitle } from './card';
 export {
   CheckMark,
@@ -9,6 +15,14 @@ export {
   type CheckboxSize,
   type RadioProps,
 } from './checkbox';
+export {
+  DENSITY_METRICS,
+  DensityScope,
+  densityAttrs,
+  type ControlSize,
+  type Density,
+  type DensityScopeProps,
+} from './density';
 export { Drawer, type DrawerProps } from './drawer';
 export {
   ErpPathHint,
@@ -20,7 +34,7 @@ export {
 export { Input, type InputProps } from './input';
 export { CloseButton, Modal, type ModalProps, type ModalSize } from './modal';
 export { Popover, type PopoverAlign, type PopoverProps } from './popover';
-export { Pill, type PillProps, type PillTone } from './pill';
+export { Pill, type PillProps, type PillTone, type StatusTone } from './pill';
 export {
   MONTH_SLIDER_PAGE,
   MonthRangeSlider,
@@ -33,6 +47,6 @@ export {
   type RangeSliderProps,
   type RangeSliderValue,
 } from './range-slider';
-export { Select } from './select';
+export { Select, type SelectProps } from './select';
 export { Segmented, type SegmentedOption, type SegmentedProps } from './segmented';
 export { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from './table';
