@@ -389,5 +389,7 @@ export default defineConfig([
     'playwright-report/**',
     'test-results/**',
     'next-env.d.ts',
+    // 조달이 수집기(Python) 가상환경 — 안의 Playwright 드라이버 JS 까지 검사하지 않는다
+    '**/.venv/**',
   ]),
 ]);

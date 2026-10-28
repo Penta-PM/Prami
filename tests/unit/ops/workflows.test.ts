@@ -636,8 +636,8 @@ describe('ci.yml 라벨 게이트·job 통합 (CI 사용량 절감 PR-A)', () =>
     expect(pr.paths).toBeUndefined();
   });
 
-  it('잡은 quality → e2e 두 개 (secret scan 은 quality, integration 은 e2e 안), 병렬화 없음', () => {
-    expect(Object.keys(workflow.jobs).sort()).toEqual(['e2e', 'quality']);
+  it('잡은 quality → e2e (secret scan 은 quality, integration 은 e2e 안) + quality → collector, 병렬화 없음', () => {
+    expect(Object.keys(workflow.jobs).sort()).toEqual(['collector', 'e2e', 'quality']);
     expect(needsOf(e2e)).toEqual(['quality']);
     expect(quality.if).toBeUndefined();
     expect(e2e.if).toBe("needs.quality.outputs.heavy == 'true'");
@@ -747,6 +747,32 @@ describe('ci.yml 라벨 게이트·job 통합 (CI 사용량 절감 PR-A)', () =>
     );
     expect(createDb).toBeLessThan(
       indexOfStep(e2e, 'E2E (globalSetup 이 db:migrate → seed 후 next dev 기동)'),
+    );
+  });
+
+  it('collector 잡(수집기 Prami 이전 PR-2): ci:run 전체 실행에서만, 단계 안 판정으로 collector/·drizzle/ 변경 시에만 ruff·pytest', () => {
+    const collector = workflow.jobs.collector!;
+    expect(needsOf(collector)).toEqual(['quality']);
+    expect(collector.if).toBe("needs.quality.outputs.heavy == 'true'");
+    const checkout = collector.steps.find((step) => step.uses?.startsWith('actions/checkout@'))!;
+    expect(checkout.with).toEqual({ 'persist-credentials': false, 'fetch-depth': 2 });
+    const changed = collector.steps.find((step) => step.id === 'changed')!;
+    expect(changed.if).toBeUndefined();
+    expect(changed.run).toContain(
+      'git -c core.quotePath=false diff --no-renames --name-only HEAD^1 HEAD -- collector drizzle',
+    );
+    // 판정 뒤 단계는 전부 판정 결과 조건
+    for (const step of collector.steps.slice(collector.steps.indexOf(changed) + 1)) {
+      expect(step.if, step.name).toBe("steps.changed.outputs.run == 'true'");
+    }
+    const runs = collector.steps.map((step) => step.run ?? '').join('\n');
+    expect(runs).toContain('ruff check . && ruff format --check .');
+    expect(runs).toContain('pytest -q');
+    // 브라우저 설치·라이브 크롤링 없음, 사용자 입력을 run 에 넣지 않음
+    expect(runs).not.toMatch(/playwright install/);
+    expect(runs).not.toMatch(/\$\{\{\s*github\.event\./);
+    expect(collector.env?.COLLECTOR_TEST_DATABASE_URL).toBe(
+      'postgres://prami:prami@localhost:5432/prami_collector_test',
     );
   });
 });
