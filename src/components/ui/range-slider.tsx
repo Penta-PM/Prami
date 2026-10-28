@@ -2,12 +2,14 @@
 
 import {
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react';
+import { flushSync } from 'react-dom';
 
 import { cn } from '@/lib/cn';
 import {
@@ -25,18 +27,23 @@ import {
  * - 키보드(브라우저마다 다른 기본 동작 대신 직접 처리): ←↓ −1칸, →↑ +1칸, PageDown/PageUp ∓10칸, Home/End 끝(다른 핸들을 넘지 않음).
  * - 핸들은 교차하지 않는다(하한 ≤ 상한, 같은 칸은 허용).
  * - 트랙 클릭/탭 → 가까운 핸들이 그 칸으로(드래그 대안). 핸들 20px, 터치 영역 44px(input 높이·thumb 히트 영역).
+ * - 가운데 드래그: 두 핸들 사이(data-range-middle)를 끌면 구간 전체가 같은 칸 수만큼 이동(폭은 칸 공간에서 유지, 경계에서 멈춤).
+ *   4px 이하로 끝나면 탭 — 손을 뗄 때 위 트랙 탭과 같다. 폭 0·전체 범위·핸들 터치 영역보다 좁은 구간은 가운데 드래그 없음.
  * - onChange 는 움직이는 동안 매번(표시만), onCommit 은 손을 뗄 때(pointerup·keyup·blur) — 적용 시점은 호출자가 정한다.
  * - 칸의 의미는 호출자가 정한다: 금액 모드(MoneyRangeEditor — 로그 눈금 칸) / 월 모드(아래 MonthRangeSlider — 칸 = 월, 조달이 통합 UI-4).
  * - background: 트랙 뒤에 깔리는 장식(예: 월별 거래량 히스토그램) — 칸 0..steps 와 같은 가로 구간(양 끝 22px 안쪽)에 맞춰 그린다.
  */
 export type RangeSliderValue = readonly [number, number];
 
+/** onChange 로 움직인 핸들 — 'both' 는 가운데 드래그(두 핸들이 함께) */
+export type RangeSliderHandle = 0 | 1 | 'both';
+
 export type RangeSliderProps = {
   /** 마지막 칸 번호 (값은 0..steps) */
   steps: number;
   value: RangeSliderValue;
-  /** 움직이는 동안 — 다음 값과 움직인 핸들(0 = 하한, 1 = 상한) */
-  onChange: (next: RangeSliderValue, handle: 0 | 1) => void;
+  /** 움직이는 동안 — 다음 값과 움직인 핸들(0 = 하한, 1 = 상한, 'both' = 가운데 드래그로 둘 다) */
+  onChange: (next: RangeSliderValue, handle: RangeSliderHandle) => void;
   /** 손을 뗐을 때 (pointerup·keyup·blur) */
   onCommit?: () => void;
   /** aria-valuetext */
@@ -124,6 +131,23 @@ export function stepFromPointer(
   return Math.min(steps, Math.max(0, Math.round(ratio * steps)));
 }
 
+/** 가운데 드래그 — 시작 칸 [l0, u0] 을 δ 칸 옮긴다. δ 는 [-l0, steps-u0] 로 제한(폭 유지, 경계에서 멈춤) */
+export function shiftRange(
+  start: RangeSliderValue,
+  delta: number,
+  steps: number,
+): RangeSliderValue {
+  const [l0, u0] = start;
+  const d = Math.min(steps - u0, Math.max(-l0, delta));
+  return [l0 + d, u0 + d];
+}
+
+/** 이만큼(px) 이하로 움직이고 손을 떼면 가운데 드래그가 아니라 탭 */
+const TAP_SLOP = 4;
+
+/** 진행 중인 가운데 드래그 */
+type MiddleDrag = { startX: number; start: RangeSliderValue; moved: boolean };
+
 export function RangeSlider({
   steps,
   value,
@@ -140,14 +164,24 @@ export function RangeSlider({
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState<0 | 1 | null>(null);
   const [lower, upper] = value;
+  const middle = useRef<MiddleDrag | null>(null);
+  const [grabbing, setGrabbing] = useState(false);
+  // 가운데 탭은 손을 뗄 때 값을 바꾸고 바로 onCommit — 바뀐 값으로 다시 그린 뒤의 onCommit 을 부른다
+  const latestCommit = useRef(onCommit);
+  useLayoutEffect(() => {
+    latestCommit.current = onCommit;
+  });
 
+  /** 핸들 하나를 그 칸으로 — 값이 바뀌었으면 true */
   const set = (handle: 0 | 1, step: number) => {
     const next: [number, number] =
       handle === 0
         ? [Math.min(Math.max(0, step), upper), upper]
         : [lower, Math.max(Math.min(steps, step), lower)];
     setActive(handle);
-    if (next[0] !== lower || next[1] !== upper) onChange(next, handle);
+    const changed = next[0] !== lower || next[1] !== upper;
+    if (changed) onChange(next, handle);
+    return changed;
   };
 
   const onKeyDown = (handle: 0 | 1) => (event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -163,18 +197,71 @@ export function RangeSlider({
     if (NAV_KEYS.has(event.key)) onCommit?.();
   };
 
+  /** 트랙 탭 — 가까운 핸들이 그 칸으로. 값이 바뀌었으면 true */
+  const jumpTo = (clientX: number, rect: DOMRect) => {
+    const step = stepFromPointer(clientX, rect, steps);
+    const handle = nearestHandle(step, value);
+    const changed = set(handle, step);
+    // 움직인 핸들로 포커스 — 이어서 키보드로 조정할 수 있게
+    trackRef.current
+      ?.querySelector<HTMLInputElement>(`[data-range-handle="${handle}"]`)
+      ?.focus({ preventScroll: true });
+    return changed;
+  };
+
+  // 폭 0·전체 범위면 가운데 영역 자체가 없다
+  const middleEnabled = !disabled && lower < upper && !(lower === 0 && upper === steps);
+
   // 트랙 클릭/탭 — input 은 pointer-events 가 꺼져 있고(thumb 만 켜짐) 트랙은 이 div 가 받는다
   const onTrackPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (disabled || event.target instanceof HTMLInputElement) return;
     const rect = trackRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const step = stepFromPointer(event.clientX, rect, steps);
-    const handle = nearestHandle(step, value);
-    set(handle, step);
-    // 움직인 핸들로 포커스 — 이어서 키보드로 조정할 수 있게
-    trackRef.current
-      ?.querySelector<HTMLInputElement>(`[data-range-handle="${handle}"]`)
-      ?.focus({ preventScroll: true });
+    const onMiddle =
+      middleEnabled &&
+      event.target instanceof Element &&
+      event.target.closest('[data-range-middle]') !== null &&
+      // 구간이 핸들 터치 영역보다 좁으면 가운데 드래그 없음(기존 탭)
+      ((upper - lower) / Math.max(1, steps)) * Math.max(1, rect.width - THUMB) >= THUMB;
+    if (!onMiddle) {
+      jumpTo(event.clientX, rect);
+      return;
+    }
+    // 가운데 — 탭인지 드래그인지는 움직여 봐야 안다
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    middle.current = { startX: event.clientX, start: [lower, upper], moved: false };
+    setGrabbing(true);
+  };
+
+  const onTrackPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = middle.current;
+    if (!drag) return;
+    if (!drag.moved && Math.abs(event.clientX - drag.startX) <= TAP_SLOP) return;
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    drag.moved = true;
+    const delta =
+      stepFromPointer(event.clientX, rect, steps) - stepFromPointer(drag.startX, rect, steps);
+    const next = shiftRange(drag.start, delta, steps);
+    if (next[0] !== lower || next[1] !== upper) onChange(next, 'both');
+  };
+
+  // 손을 뗄 때(pointerup·pointercancel) onCommit 1회
+  const onTrackPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    const drag = middle.current;
+    middle.current = null;
+    if (!drag) {
+      if (event.type === 'pointerup') onCommit?.();
+      return;
+    }
+    setGrabbing(false);
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!drag.moved && event.type === 'pointerup' && rect) {
+      // 탭 — 기존 트랙 탭과 같다. 바뀐 값으로 다시 그린 뒤 onCommit(호출자가 렌더 값으로 확정하므로)
+      if (flushSync(() => jumpTo(event.clientX, rect))) return latestCommit.current?.();
+    }
+    onCommit?.();
   };
 
   const pct = (step: number) => (steps === 0 ? 0 : (step / steps) * 100);
@@ -215,9 +302,9 @@ export function RangeSlider({
       ref={trackRef}
       data-range-slider=""
       onPointerDown={onTrackPointerDown}
-      onPointerUp={() => {
-        if (!disabled) onCommit?.();
-      }}
+      onPointerMove={onTrackPointerMove}
+      onPointerUp={onTrackPointerEnd}
+      onPointerCancel={onTrackPointerEnd}
       className={cn(
         'relative h-11 w-full min-w-0 touch-none select-none',
         disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
@@ -242,6 +329,20 @@ export function RangeSlider({
           style={{ left: `${pct(lower)}%`, right: `${100 - pct(upper)}%` }}
         />
       </div>
+      {/* 가운데 드래그 영역 — 높이 44px(터치), 핸들 thumb(z-10·z-20)이 위에 있어 우선 */}
+      {middleEnabled && (
+        <div className="pointer-events-none absolute inset-x-[22px] inset-y-0">
+          <div
+            aria-hidden="true"
+            data-range-middle=""
+            className={cn(
+              'pointer-events-auto absolute inset-y-0',
+              grabbing ? 'cursor-grabbing' : 'cursor-grab',
+            )}
+            style={{ left: `${pct(lower)}%`, right: `${100 - pct(upper)}%` }}
+          />
+        </div>
+      )}
       {input(0)}
       {input(1)}
     </div>

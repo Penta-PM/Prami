@@ -29,6 +29,7 @@ export {
   type MonthRangeSliderProps,
   type MonthRangeValue,
   type MonthVolumeBar,
+  type RangeSliderHandle,
   type RangeSliderProps,
   type RangeSliderValue,
 } from './range-slider';

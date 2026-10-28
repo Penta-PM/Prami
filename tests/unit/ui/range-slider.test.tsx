@@ -3,22 +3,25 @@ import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { RangeSlider, type RangeSliderValue } from '@/components/ui';
-import { keyStep, nearestHandle, stepFromPointer } from '@/components/ui/range-slider';
+import { RangeSlider, type RangeSliderHandle, type RangeSliderValue } from '@/components/ui';
+import { keyStep, nearestHandle, shiftRange, stepFromPointer } from '@/components/ui/range-slider';
 
 /**
  * 공용 양쪽 범위 슬라이더 (빠른 필터 바 §7.5): 네이티브 range 2개, role=slider·aria-valuetext(끝 = "제한 없음"),
- * 키보드 1칸·PageUp/Down 10칸·Home/End, 교차 금지, 트랙 클릭 → 가까운 핸들, 손을 뗄 때 onCommit, 터치 영역 44px.
+ * 키보드 1칸·PageUp/Down 10칸·Home/End, 교차 금지, 트랙 클릭 → 가까운 핸들, 손을 뗄 때 onCommit, 터치 영역 44px,
+ * 가운데 드래그(두 값 같은 칸 수 이동·폭 유지·경계 정지, 4px 이하 = 탭).
  */
 const STEPS = 200;
 
 function Harness({
   initial = [0, STEPS],
   onCommit = () => undefined,
+  onHandle = () => undefined,
   disabled = false,
 }: {
   initial?: RangeSliderValue;
   onCommit?: () => void;
+  onHandle?: (handle: RangeSliderHandle) => void;
   disabled?: boolean;
 }) {
   const [value, setValue] = useState<RangeSliderValue>(initial);
@@ -27,7 +30,10 @@ function Harness({
       <RangeSlider
         steps={STEPS}
         value={value}
-        onChange={(next) => setValue(next)}
+        onChange={(next, handle) => {
+          setValue(next);
+          onHandle(handle);
+        }}
         onCommit={onCommit}
         valueText={(step, handle) =>
           (handle === 0 && step === 0) || (handle === 1 && step === STEPS)
@@ -171,5 +177,118 @@ describe('RangeSlider — 트랙 클릭/탭', () => {
     expect(keyStep('PageUp', 195, 0, 200)).toBe(200);
     expect(keyStep('Home', 50, 20, 200)).toBe(20);
     expect(keyStep('Tab', 50, 0, 200)).toBeNull();
+  });
+});
+
+describe('RangeSlider — 가운데 드래그', () => {
+  // usable 200px(양 끝 22px) → 1px = 1칸, x = 22 + 칸
+  const rect = { left: 0, width: 244, top: 0, height: 44, right: 244, bottom: 44, x: 0, y: 0 };
+  const mount = (props: Parameters<typeof Harness>[0]) => {
+    render(<Harness {...props} />);
+    const track = document.querySelector<HTMLElement>('[data-range-slider]')!;
+    track.getBoundingClientRect = () => ({ ...rect, toJSON: () => rect }) as DOMRect;
+    return { track, middle: () => document.querySelector<HTMLElement>('[data-range-middle]') };
+  };
+
+  it('가운데 영역: 선택 구간 위치, aria-hidden, 포커스 대상 아님, cursor-grab → 끄는 동안 grabbing', () => {
+    const { track, middle } = mount({ initial: [50, 150] });
+    expect(middle()).toHaveAttribute('aria-hidden', 'true');
+    expect(middle()).not.toHaveAttribute('tabindex');
+    expect(middle()!.style.left).toBe('25%');
+    expect(middle()!.style.right).toBe('25%');
+    expect(middle()).toHaveClass('cursor-grab');
+    fireEvent.pointerDown(middle()!, { clientX: 22 + 100 });
+    expect(middle()).toHaveClass('cursor-grabbing');
+    fireEvent.pointerUp(track, { clientX: 22 + 100 });
+    expect(middle()).toHaveClass('cursor-grab');
+  });
+
+  it("두 값이 같은 칸 수만큼 이동(폭 유지), 경계에서 멈춤, handle = 'both', onCommit 은 손을 뗄 때 1회", () => {
+    const onCommit = vi.fn();
+    const onHandle = vi.fn();
+    const { track, middle } = mount({ initial: [50, 150], onCommit, onHandle });
+    fireEvent.pointerDown(middle()!, { clientX: 22 + 100 });
+    fireEvent.pointerMove(track, { clientX: 22 + 130 });
+    expect(value()).toBe('80,180');
+    expect(onHandle).toHaveBeenLastCalledWith('both');
+    // 오른쪽 경계 — 상한이 200 에서 멈추고 폭 100 유지(반대편으로 밀리지 않음)
+    fireEvent.pointerMove(track, { clientX: 22 + 400 });
+    expect(value()).toBe('100,200');
+    // 왼쪽 경계
+    fireEvent.pointerMove(track, { clientX: -300 });
+    expect(value()).toBe('0,100');
+    fireEvent.pointerMove(track, { clientX: 22 + 90 });
+    expect(value()).toBe('40,140');
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.pointerUp(track, { clientX: 22 + 90 });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(value()).toBe('40,140');
+    // 손을 뗀 뒤 움직임은 무시
+    fireEvent.pointerMove(track, { clientX: 22 + 150 });
+    expect(value()).toBe('40,140');
+  });
+
+  it('pointercancel 도 손을 뗀 것 — onCommit 1회', () => {
+    const onCommit = vi.fn();
+    const { track, middle } = mount({ initial: [50, 150], onCommit });
+    fireEvent.pointerDown(middle()!, { clientX: 22 + 100 });
+    fireEvent.pointerMove(track, { clientX: 22 + 110 });
+    fireEvent.pointerCancel(track, { clientX: 22 + 110 });
+    expect(value()).toBe('60,160');
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it('터치(pointerType touch)도 같다', () => {
+    const onCommit = vi.fn();
+    const { track, middle } = mount({ initial: [50, 150], onCommit });
+    fireEvent.pointerDown(middle()!, { clientX: 22 + 100, pointerType: 'touch' });
+    fireEvent.pointerMove(track, { clientX: 22 + 80, pointerType: 'touch' });
+    expect(value()).toBe('30,130');
+    fireEvent.pointerUp(track, { clientX: 22 + 80, pointerType: 'touch' });
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it('4px 이하로 끝나면 탭 — 손을 뗄 때 가까운 핸들이 그 칸으로(기존 동작), onCommit 1회', () => {
+    const onCommit = vi.fn();
+    const onHandle = vi.fn();
+    const { track, middle } = mount({ initial: [50, 150], onCommit, onHandle });
+    fireEvent.pointerDown(middle()!, { clientX: 22 + 60 });
+    fireEvent.pointerMove(track, { clientX: 22 + 64 });
+    expect(value()).toBe('50,150');
+    fireEvent.pointerUp(track, { clientX: 22 + 64 });
+    expect(value()).toBe('64,150');
+    expect(onHandle).toHaveBeenCalledWith(0);
+    expect(onHandle).not.toHaveBeenCalledWith('both');
+    expect(lower()).toHaveFocus();
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it('폭 0·전체 범위·disabled 면 가운데 영역 없음', () => {
+    const { unmount } = render(<Harness initial={[100, 100]} />);
+    expect(document.querySelector('[data-range-middle]')).toBeNull();
+    unmount();
+    const full = render(<Harness initial={[0, STEPS]} />);
+    expect(document.querySelector('[data-range-middle]')).toBeNull();
+    full.unmount();
+    render(<Harness initial={[50, 150]} disabled />);
+    expect(document.querySelector('[data-range-middle]')).toBeNull();
+  });
+
+  it('핸들 터치 영역(44px)보다 좁은 구간은 가운데 드래그 없이 기존 탭(누르는 즉시 가까운 핸들)', () => {
+    const onHandle = vi.fn();
+    const { track, middle } = mount({ initial: [50, 80], onHandle }); // 30px
+    fireEvent.pointerDown(middle()!, { clientX: 22 + 70 });
+    expect(value()).toBe('50,70');
+    fireEvent.pointerMove(track, { clientX: 22 + 120 });
+    fireEvent.pointerUp(track, { clientX: 22 + 120 });
+    expect(value()).toBe('50,70');
+    expect(onHandle).not.toHaveBeenCalledWith('both');
+  });
+
+  it('순수 함수 shiftRange — δ 를 [-l0, steps-u0] 로 제한', () => {
+    expect(shiftRange([50, 150], 30, STEPS)).toEqual([80, 180]);
+    expect(shiftRange([50, 150], 999, STEPS)).toEqual([100, 200]);
+    expect(shiftRange([50, 150], -999, STEPS)).toEqual([0, 100]);
+    expect(shiftRange([0, 10], -5, STEPS)).toEqual([0, 10]);
   });
 });

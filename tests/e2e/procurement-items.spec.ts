@@ -154,6 +154,56 @@ test('계약단가 슬라이더(로그 눈금): 하한 End = 실제 최대 → f
   await expect(itemIds(page)).toContainText([`${PREFIX}A003`]);
 });
 
+test('계약단가 슬라이더 가운데 드래그: 두 값이 같은 칸 수만큼 이동 → f.unitPrice.gte·lte 둘 다 바뀌고 표 갱신', async ({
+  page,
+}) => {
+  await bar(page)
+    .getByRole('button', { name: /^＋ \d+개 더$/ })
+    .click();
+  await page
+    .getByRole('dialog', { name: '필터 더 보기' })
+    .getByRole('button', { name: '계약단가' })
+    .click();
+  const dialog = page.getByRole('dialog', { name: '계약단가 필터' });
+  const lower = dialog.getByRole('slider', { name: '계약단가 최소' });
+  const upper = dialog.getByRole('slider', { name: '계약단가 최대' });
+  // 전체가 아닌 구간 [100, 180] — 범위 4백만~2.5억(로그)에서 1.2억 품목(A001)만 들어온다
+  await lower.focus();
+  for (let i = 0; i < 10; i += 1) await page.keyboard.press('PageUp');
+  await upper.focus();
+  for (let i = 0; i < 2; i += 1) await page.keyboard.press('PageDown');
+  await expect(lower).toHaveAttribute('aria-valuenow', '100');
+  await expect(upper).toHaveAttribute('aria-valuenow', '180');
+  await expect(page).toHaveURL(/f\.unitPrice\.gte=\d+/, { timeout: 5_000 });
+  await expect(page).toHaveURL(/f\.unitPrice\.lte=\d+/, { timeout: 5_000 });
+  await expect(itemIds(page)).toHaveText([`${PREFIX}A001`]);
+  const before = new URL(page.url()).searchParams;
+
+  // 가운데(칸 140)를 잡아 50칸 왼쪽(칸 90)으로 — 칸 위치는 트랙 상자에서 계산(양 끝 22px 안쪽, 200칸)
+  const box = (await dialog.locator('[data-range-slider]').boundingBox())!;
+  const xAt = (step: number) => box.x + 22 + (step / 200) * (box.width - 44);
+  const y = box.y + box.height / 2;
+  await page.mouse.move(xAt(140), y);
+  await page.mouse.down();
+  await page.mouse.move(xAt(90), y, { steps: 5 });
+  await page.mouse.up();
+  await expect(lower).toHaveAttribute('aria-valuenow', '50');
+  await expect(upper).toHaveAttribute('aria-valuenow', '130');
+
+  await expect
+    .poll(() => new URL(page.url()).searchParams.get('f.unitPrice.lte'), { timeout: 5_000 })
+    .not.toBe(before.get('f.unitPrice.lte'));
+  const after = new URL(page.url()).searchParams;
+  const gte = Number(after.get('f.unitPrice.gte'));
+  const lte = Number(after.get('f.unitPrice.lte'));
+  expect(gte).toBeLessThan(Number(before.get('f.unitPrice.gte')));
+  expect(lte).toBeLessThan(Number(before.get('f.unitPrice.lte')));
+  // 새 구간(약 1천만~6천만)에는 합성 품목(4백만·1.2억·2.5억)이 없다 — 표가 비고 필터 빈 상태
+  expect(gte).toBeGreaterThan(4 * M);
+  expect(lte).toBeLessThan(123_456_789);
+  await expect(itemIds(page)).toHaveCount(0);
+});
+
 test('xlsx 내려받기 = 현재 필터 결과, 계약단가는 원 단위', async ({ page }) => {
   await page.goto('/procurement/items?f.product.in=WAPPLES&sort=itemId&dir=asc');
   await expect(itemIds(page)).toHaveCount(2);

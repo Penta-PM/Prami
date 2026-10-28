@@ -283,7 +283,7 @@
 /*
  * 범위 슬라이더 (components/ui/range-slider.tsx, 빠른 필터 바 §7.5): 겹친 네이티브 range 2개 — input 자체는 클릭을 받지 않고(트랙은
  * 감싸는 div 가 받는다) thumb 만 받는다. thumb 히트 영역 44px(터치), 보이는 핸들 20px(보라 원 + 흰 테두리),
- * focus-visible 은 2px purple-500 고리(Button 과 같은 색).
+ * focus-visible 은 2px purple-500 고리(Button 과 같은 색). 색 경계마다 1px 섞임 구간(하드 스톱이면 원 가장자리가 계단처럼 보인다).
  */
 @layer components {
   .range-slider-input {
@@ -312,8 +312,8 @@
     border-radius: 50%;
     background: radial-gradient(
       circle closest-side,
-      var(--purple-600) 0 8px,
-      #fff 8px 10px,
+      var(--purple-600) 0 7.5px,
+      #fff 8.5px 9.5px,
       transparent 10.5px
     );
   }
@@ -326,28 +326,28 @@
     border-radius: 50%;
     background: radial-gradient(
       circle closest-side,
-      var(--purple-600) 0 8px,
-      #fff 8px 10px,
+      var(--purple-600) 0 7.5px,
+      #fff 8.5px 9.5px,
       transparent 10.5px
     );
   }
   .range-slider-input:focus-visible::-webkit-slider-thumb {
     background: radial-gradient(
       circle closest-side,
-      var(--purple-600) 0 8px,
-      #fff 8px 10px,
-      transparent 10.5px 12px,
-      var(--purple-500) 12px 14px,
+      var(--purple-600) 0 7.5px,
+      #fff 8.5px 9.5px,
+      transparent 10.5px 11.5px,
+      var(--purple-500) 12.5px 13.5px,
       transparent 14.5px
     );
   }
   .range-slider-input:focus-visible::-moz-range-thumb {
     background: radial-gradient(
       circle closest-side,
-      var(--purple-600) 0 8px,
-      #fff 8px 10px,
-      transparent 10.5px 12px,
-      var(--purple-500) 12px 14px,
+      var(--purple-600) 0 7.5px,
+      #fff 8.5px 9.5px,
+      transparent 10.5px 11.5px,
+      var(--purple-500) 12.5px 13.5px,
       transparent 14.5px
     );
   }

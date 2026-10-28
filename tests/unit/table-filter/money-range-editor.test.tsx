@@ -9,12 +9,12 @@ import {
   type DataTableFilterField,
 } from '@/components/ui/data-table';
 import type { FilterCondition } from '@/lib/table/filter';
-import { moneyCompact, stepValue, type MoneyRange } from '@/lib/table/money-range';
+import { moneyCompact, stepValue, valueToStep, type MoneyRange } from '@/lib/table/money-range';
 
 /**
  * money 범위 = 양쪽 슬라이더 (빠른 필터 바 §7.5, 숫자 입력 없음): 통화 라디오 먼저(슬라이더 disabled + 문구), 라디오 = 통화 조건 즉시,
  * 선택지 1개면 미리 선택, 통화 변경 시 범위 초기화, 값 1개뿐·행 없음 문구, 키보드 → 손을 뗀 뒤 400ms 디바운스 적용(팝오버 유지),
- * 양 끝 = 조건 없음, 옛 URL·범위 밖 값은 실제 값 표시 + 움직인 핸들만 다시 기록.
+ * 양 끝 = 조건 없음, 옛 URL·범위 밖 값은 실제 값 표시 + 움직인 핸들만 다시 기록, 가운데 드래그는 두 핸들 모두 다시 기록.
  */
 type Row = { amount: number; currency: string };
 
@@ -255,5 +255,75 @@ describe('옛 URL·범위 밖 값 (§7.5)', () => {
     fireEvent.blur(upper());
     advance(MONEY_RANGE_DEBOUNCE_MS);
     expect(requests).toEqual([]);
+  });
+});
+
+describe('가운데 드래그 (두 핸들이 함께)', () => {
+  // 트랙 244px → usable 200px = 200칸, 1px = 1칸, x = 22 + 칸
+  const rect = { left: 0, width: 244, top: 0, height: 44, right: 244, bottom: 44, x: 0, y: 0 };
+  const track = () => {
+    const el = document.querySelector<HTMLElement>('[data-range-slider]')!;
+    el.getBoundingClientRect = () => ({ ...rect, toJSON: () => rect }) as DOMRect;
+    return el;
+  };
+  const middle = () => document.querySelector<HTMLElement>('[data-range-middle]')!;
+  // 옛 URL 값(칸 경계에 맞지 않는 값)
+  const initial: FilterCondition[] = [
+    KRW_IN,
+    { col: 'price', op: 'gte', value: '1234567' },
+    { col: 'price', op: 'lte', value: '98765432' },
+  ];
+  const l0 = valueToStep(1234567, 'lower', KRW);
+  const u0 = valueToStep(98765432, 'upper', KRW);
+
+  it('두 값 모두 새 칸 값으로 URL 에 반영(옛 값 잔존 없음), 손을 뗀 뒤 디바운스 1회, 범위 글자는 output', () => {
+    setup({ initial });
+    expect(u0 - l0).toBeGreaterThanOrEqual(44); // 핸들 터치 영역보다 넓은 구간
+    expect(rangeText()).toBe('₩1,234,567 ~ ₩98,765,432');
+    expect(document.querySelector('[data-money-range-text]')?.tagName).toBe('OUTPUT');
+    const el = track();
+    const x = 22 + Math.round((l0 + u0) / 2);
+    fireEvent.pointerDown(middle(), { clientX: x });
+    fireEvent.pointerMove(el, { clientX: x - 10 });
+    fireEvent.pointerUp(el, { clientX: x - 10 });
+    expect(lower()).toHaveAttribute('aria-valuenow', String(l0 - 10));
+    expect(upper()).toHaveAttribute('aria-valuenow', String(u0 - 10));
+    advance(MONEY_RANGE_DEBOUNCE_MS);
+    expect(requests).toEqual([
+      [
+        KRW_IN,
+        { col: 'price', op: 'gte', value: stepValue(l0 - 10, 'lower', KRW) },
+        { col: 'price', op: 'lte', value: stepValue(u0 - 10, 'upper', KRW) },
+      ],
+    ]);
+  });
+
+  it('끝까지 밀면 그쪽은 "제한 없음"(조건 없음)', () => {
+    setup({ initial });
+    const el = track();
+    const x = 22 + Math.round((l0 + u0) / 2);
+    fireEvent.pointerDown(middle(), { clientX: x });
+    fireEvent.pointerMove(el, { clientX: x + 400 });
+    fireEvent.pointerUp(el, { clientX: x + 400 });
+    expect(upper()).toHaveAttribute('aria-valuetext', '제한 없음');
+    advance(MONEY_RANGE_DEBOUNCE_MS);
+    expect(requests).toEqual([
+      [KRW_IN, { col: 'price', op: 'gte', value: stepValue(200 - (u0 - l0), 'lower', KRW) }],
+    ]);
+  });
+
+  it('가운데 탭(4px 이하) — 가까운 핸들만 그 칸으로, 확정 값도 새 값(다른 핸들의 옛 값은 그대로)', () => {
+    setup({ initial });
+    const el = track();
+    fireEvent.pointerDown(middle(), { clientX: 22 + l0 + 5 });
+    fireEvent.pointerUp(el, { clientX: 22 + l0 + 5 });
+    advance(MONEY_RANGE_DEBOUNCE_MS);
+    expect(requests).toEqual([
+      [
+        KRW_IN,
+        { col: 'price', op: 'gte', value: stepValue(l0 + 5, 'lower', KRW) },
+        { col: 'price', op: 'lte', value: '98765432' },
+      ],
+    ]);
   });
 });
