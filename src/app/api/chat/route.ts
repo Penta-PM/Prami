@@ -8,11 +8,12 @@ import { runRoute } from '@/server/auth/rbac';
 import type { SessionUser } from '@/server/auth/session-user';
 import { chatOwner } from '@/server/chat/conversation-owner';
 import { beginTurn, completeTurn } from '@/server/chat/conversations';
+import { chatGraphFor } from '@/server/chat/domains';
 import { HistorySchema } from '@/server/chat/graph/history';
 import { TRUNCATED_NOTICE } from '@/server/chat/graph/messages';
 import { runChat, type ChatRunInput } from '@/server/chat/graph/run';
 import { streamChat, type StreamHooks } from '@/server/chat/graph/stream';
-import { chatGraph, createChatRuntime } from '@/server/chat/graph/runtime';
+import { createChatRuntime } from '@/server/chat/graph/runtime';
 import { CHAT_MAX_LENGTH, normalizeMessage } from '@/server/chat/intent';
 import { rateLimiters, retryAfterSeconds } from '@/server/rate-limit';
 import { REQUEST_ID_HEADER } from '@/server/security/headers';
@@ -25,6 +26,8 @@ import { REQUEST_ID_HEADER } from '@/server/security/headers';
  *   history 를 **DB 에서** 읽는다(본문 history 는 무시). 가드를 통과한 최종 답 텍스트·액션만 final 직전에 저장한다.
  *   답이 실패·중단되면 질문만 남는다(같은 질문 다시 보내기 = 재사용, 중복 저장 없음).
  * - `conversationId` 가 없으면 기존 무저장 경로 그대로(도킹 패널 호환 — PR-C2 가 패널을 걷어 낼 때까지). 이 경로는 pricing 만.
+ * - 그래프는 domain 별(PR-C3, server/chat/domains): 저장 대화면 beginTurn 이 검증한 대화 domain, 무저장이면 pricing.
+ *   가격 대화에는 조달 도구가, 조달 대화에는 가격 도구가 노출·실행되지 않는다.
  * 사용자당 분당 RATE_LIMIT_PER_MIN 회 — LLM·규칙 경로가 기존 chat 버킷을 공유(AC-95). 응답에 원가 키·API 키가 없다.
  * LLM 경로 오류는 HTTP 200 + data.setup/notice 로 대화 안에서 안내한다(§4.8.3).
  * `Accept: text/event-stream` 이면 SSE(token·status·final·done, §4.3.9 — PR-C), 없으면 기존 JSON 그대로.
@@ -155,6 +158,7 @@ export async function POST(request: Request): Promise<Response> {
       },
       chatRuntime.settings.historyMaxTurns,
     );
+    const chatGraph = chatGraphFor(body.conversation?.domain ?? 'pricing');
     if (wantsEventStream(request)) {
       // SSE 옵트인 (§4.3.9) — 연결이 끊기면 request.signal 로 그래프·모델 호출을 중단한다
       return new Response(streamChat(chatGraph, input, chatRuntime, request.signal, hooks), {

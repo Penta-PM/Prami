@@ -231,7 +231,20 @@ export function normalizeForGuard(text: string): string {
 
 /** 판정용 사본에서 품명·품번을 가리는 자리표시자 (원가 단어·숫자 없음) */
 const TERM_PLACEHOLDER = '[품목]';
+/**
+ * 가릴 도구 출력 키: 판매단가 품명·품번 + 조달 도구(PR-C3)의 외부 수집 이름 — 공고명·품목명·물품식별번호·기관·제조사·업체.
+ * 공고명에 "원가 분석"·"마진" 같은 말이 있어도 그 공고의 예산 문장이 원가 문장으로 오인되지 않게(가드 오탐 방지). 판정용 사본에서만.
+ */
 const TERM_KEYS = new Set(['itemName', 'itemCode']);
+const EXTERNAL_TERM_KEYS = new Set(['itemId', 'title', 'demandOrg', 'manufacturer', 'vendor']);
+/** 조달 이름은 이보다 짧으면 가리지 않는다 — "원가"·"마진" 같은 한 단어 이름이 원가 단어 자체를 가리지 않게 */
+const EXTERNAL_TERM_MIN = 4;
+
+function isTerm(key: string, entry: unknown): entry is string {
+  if (typeof entry !== 'string' || !entry.trim()) return false;
+  if (TERM_KEYS.has(key)) return true;
+  return EXTERNAL_TERM_KEYS.has(key) && Array.from(entry.trim()).length >= EXTERNAL_TERM_MIN;
+}
 
 function collectTerms(value: unknown, out: Set<string>): void {
   if (Array.isArray(value)) {
@@ -240,7 +253,7 @@ function collectTerms(value: unknown, out: Set<string>): void {
   }
   if (!value || typeof value !== 'object') return;
   for (const [key, entry] of Object.entries(value)) {
-    if (TERM_KEYS.has(key) && typeof entry === 'string' && entry.trim()) out.add(entry);
+    if (isTerm(key, entry)) out.add(entry);
     else collectTerms(entry, out);
   }
 }

@@ -1,6 +1,7 @@
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import type { LangGraphRunnableConfig } from '@langchain/langgraph';
 
+import type { ChatDomain } from '@/lib/chat/conversations';
 import { modelLabel } from '@/server/llm/models';
 
 import type { ChatFeature } from '../../features/types';
@@ -8,7 +9,12 @@ import { classifyIntent } from '../../intent';
 import { COST_REPLY, COST_REPLY_USER, respondToChat } from '../../respond';
 import { historyToMessages, recentHistory } from '../history';
 import { withMessageId } from '../message-id';
-import { setupFor, TRUNCATED_NOTICE, unsupportedVendorsMessage } from '../messages';
+import {
+  PROCUREMENT_RULE_REPLY,
+  setupFor,
+  TRUNCATED_NOTICE,
+  unsupportedVendorsMessage,
+} from '../messages';
 import { buildSystemPrompt } from '../prompt';
 import type { ChatGraphState, ChatGraphUpdate } from '../state';
 import type { ChatRuntime, SetupStatus } from '../types';
@@ -18,8 +24,8 @@ import { baseReply, runtimeOf } from './util';
  * 결정적 노드 (PRAMI-002 §4.3.2) — LLM 을 부르지 않는다.
  * prepare → precheck → (costRefusal | resolveCredential) → (setupGuide) → ruleAnswer
  */
-export function makePrepare(features: readonly ChatFeature[]) {
-  const system = buildSystemPrompt(features);
+export function makePrepare(features: readonly ChatFeature[], domain: ChatDomain = 'pricing') {
+  const system = buildSystemPrompt(features, domain);
   return (state: ChatGraphState, config: LangGraphRunnableConfig): ChatGraphUpdate => {
     const { settings } = runtimeOf(config);
     const history = recentHistory(state.history, settings.historyMaxTurns);
@@ -95,6 +101,14 @@ export async function ruleAnswer(
   const runtime = runtimeOf(config);
   const answer = await respondToChat(runtime.db, { role: state.actor.role }, state.input.text);
   return { route: 'rule', reply: { ...baseReply(state, 'rule'), ...answer } };
+}
+
+/**
+ * 조달 대화의 규칙 폴백 (PR-C3): 기존 규칙 엔진은 판매단가 전용이라 조달 대화에서는 돌리지 않는다(가격 데이터를 조달 대화에
+ * 섞지 않음). DB 0·LLM 0 — LLM 연결이 필요하다는 고정 안내만.
+ */
+export function ruleAnswerForProcurement(state: ChatGraphState): ChatGraphUpdate {
+  return { route: 'rule', reply: { ...baseReply(state, 'rule'), reply: PROCUREMENT_RULE_REPLY } };
 }
 
 /** agent 오류(모델 없음·한도·일시)의 안내 — ruleAnswer 전에 setup 으로 남긴다 */

@@ -21,6 +21,7 @@ import {
   changeRate,
   countDistinct,
   countRows,
+  escapeLike,
   inPeriod,
   monthOf,
   monthsBetween,
@@ -578,6 +579,16 @@ export type MonthContractRow = {
   amount: number | null;
 };
 
+function contractQueryCondition(q: string | undefined): SQL[] {
+  const text = q?.trim();
+  if (!text) return [];
+  const pattern = `%${escapeLike(text)}%`;
+  return [
+    sql`(${v.dlvrReqNo} ilike ${pattern} or ${v.itemId} ilike ${pattern} or ${v.itemName} ilike ${pattern}
+      or ${v.demandOrg} ilike ${pattern})`,
+  ];
+}
+
 /** 그 달의 계약(납품요구) 목록 — 서버 페이지네이션, 날짜 최신·금액 큰 순. amount = 선택 범위 전체 합계 */
 export async function getMonthContracts(
   access: ProcurementAccess,
@@ -587,6 +598,8 @@ export async function getMonthContracts(
     month: MonthKey;
     /** 제조사 한정 (제조사별 표에서 연 경우) */
     manufacturer?: string;
+    /** 납품요구번호·물품식별번호·품목명·수요기관 부분 일치 (조달 챗봇 납품요구 검색, UX PR-C3) */
+    q?: string;
     page?: number;
     pageSize?: number;
   },
@@ -598,6 +611,7 @@ export async function getMonthContracts(
     ...scopeConditions(input.scope),
     inPeriod(v.dlvrReqDate, { from: input.month, to: input.month }),
     ...(input.manufacturer !== undefined ? [eq(i.manufacturer, input.manufacturer) as SQL] : []),
+    ...contractQueryCondition(input.q),
   );
   const [counted] = await db
     .select({ total: countRows(), amount: sumAmount(v.amount) })

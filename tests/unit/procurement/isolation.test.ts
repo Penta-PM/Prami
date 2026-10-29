@@ -20,6 +20,8 @@ import * as procurementSchemaModule from '@/db/schema/procurement';
  * app/(app)/procurement, app/(app)/admin/procurement)에서만. 위반 파일을 만들어 lint 실패를 확인한다(원가 AC-42 패턴).
  */
 const ROOT = process.cwd();
+/** UX PR-C3: 조달 챗봇 domain 조립 — server/chat 에서 조달 모듈을 import 할 수 있는 유일한 파일 */
+const CHAT_DOMAINS_FILE = 'src/server/chat/domains.ts';
 const created: string[] = [];
 /** 테스트가 새로 만든 디렉터리 (아직 없는 조달 경로) — 끝나면 비어 있을 때만 지운다 */
 const createdDirs: string[] = [];
@@ -114,7 +116,7 @@ describe('조달 격리 규칙 (ESLint)', () => {
 
   it('허용 목록 밖(features/chat·server/search)에서 import·동적 import·require·스키마 이름·스키마 객체·관계형 쿼리·raw SQL 을 막는다', async () => {
     for (const [name, source] of VIOLATIONS) {
-      for (const dir of ['src/features/chat', 'src/server/search']) {
+      for (const dir of ['src/features/chat', 'src/server/search', 'src/server/chat/features']) {
         const file = write(`${dir}/__procurement_${name}.tmp.ts`, source);
         const [result] = await eslint.lintFiles([file]);
         const messages = restricted(result);
@@ -166,6 +168,21 @@ describe('조달 격리 규칙 (ESLint)', () => {
     expect(restricted(result).some((m) => m.message.includes('server/cost'))).toBe(true);
   }, 120_000);
 
+  it('조달 챗봇 조립 예외(server/chat/domains.ts)는 그 파일 하나뿐 — 조달 도구 모듈만 import, 스키마·raw SQL 없음', async () => {
+    const [result] = await eslint.lintFiles([path.join(ROOT, CHAT_DOMAINS_FILE)]);
+    expect(restricted(result)).toEqual([]);
+    const code = readFileSync(path.join(ROOT, CHAT_DOMAINS_FILE), 'utf8');
+    const imports = [...code.matchAll(/from '([^']+)'/g)].map((match) => match[1]);
+    expect(imports.filter((source) => /procurement/.test(source!))).toEqual([
+      '@/server/procurement/chat/tools',
+    ]);
+    expect(code).not.toMatch(/schema|sql`/);
+    // 같은 디렉터리의 다른 파일은 여전히 막힌다
+    const sibling = write('src/server/chat/__domains_sibling.tmp.ts', VIOLATIONS[0]![1]);
+    const [blocked] = await eslint.lintFiles([sibling]);
+    expect(restricted(blocked).some((m) => m.message.includes('조달 모듈'))).toBe(true);
+  }, 60_000);
+
   it('권한 키·감사 키 문자열(procurement.read·procurement.item.add)은 raw SQL 로 오인하지 않는다', async () => {
     const file = write(
       'src/features/chat/__procurement_keys.tmp.ts',
@@ -206,7 +223,8 @@ describe('조달 격리 규칙 (ESLint)', () => {
         if (
           /^src\/(server\/procurement|features\/procurement|app\/\(app\)\/procurement|app\/\(app\)\/admin\/procurement|db)\//.test(
             rel,
-          )
+          ) ||
+          rel === CHAT_DOMAINS_FILE
         )
           continue;
         const code = readFileSync(full, 'utf8')

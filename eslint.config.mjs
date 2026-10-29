@@ -130,10 +130,12 @@ const PROCUREMENT_ALLOWLIST = [
   'src/features/procurement/**',
   'src/app/(app)/procurement/**',
   'src/app/(app)/admin/procurement/**',
+  // UX PR-C3: 조달 챗봇 domain 조립 단일 파일(조달 도구는 server/procurement/chat — 읽기 전용·필드 화이트리스트)
+  'src/server/chat/domains.ts',
 ];
 
 const PROCUREMENT_MESSAGE =
-  '조달 모듈(server/procurement·procurement 스키마)은 server/procurement, features/procurement, app/(app)/procurement, app/(app)/admin/procurement 에서만 사용할 수 있습니다 (조달이 통합 DB-2 격리).';
+  '조달 모듈(server/procurement·procurement 스키마)은 server/procurement, features/procurement, app/(app)/procurement, app/(app)/admin/procurement(+ 조달 챗봇 조립 server/chat/domains.ts) 에서만 사용할 수 있습니다 (조달이 통합 DB-2 격리).';
 
 /** `@/db/schema` 가 재노출하는 procurement 이름 (src/db/schema/procurement/* — 격리 테스트가 목록 누락을 검사한다) */
 const PROCUREMENT_SCHEMA_EXPORTS = [
