@@ -67,10 +67,8 @@ export function ItemEditModal({
       title="품목 수정"
       footer={
         <>
-          <Button size="sm" onClick={onClose}>
-            취소
-          </Button>
-          <Button size="sm" variant="primary" disabled={isPending} onClick={() => save()}>
+          <Button onClick={onClose}>취소</Button>
+          <Button variant="primary" disabled={isPending} onClick={() => save()}>
             저장
           </Button>
         </>
@@ -134,7 +132,7 @@ export function ItemEditModal({
         <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
       </form>
       {error ? (
-        <p role="alert" className="m-0 mt-3 text-[12px] text-red-600">
+        <p role="alert" className="m-0 mt-3 text-[12px] text-text-danger">
           {error}
         </p>
       ) : null}

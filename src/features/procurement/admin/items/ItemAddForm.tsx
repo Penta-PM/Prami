@@ -46,7 +46,7 @@ export function ItemAddForm({
     <form
       aria-label="품목 직접 추가"
       onSubmit={submit}
-      className="flex flex-col gap-2 border-t border-border-subtle bg-gray-75/60 px-5 py-4"
+      className="flex flex-col gap-2 border-t border-border-subtle bg-surface-muted px-5 py-4"
     >
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex w-[140px] flex-col gap-1 text-[12px] text-text-tertiary">
@@ -86,7 +86,7 @@ export function ItemAddForm({
         </Button>
       </div>
       {error ? (
-        <p role="alert" className="m-0 text-[12px] text-red-600">
+        <p role="alert" className="m-0 text-[12px] text-text-danger">
           {error}
         </p>
       ) : null}

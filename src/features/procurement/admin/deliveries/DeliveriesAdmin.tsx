@@ -55,7 +55,7 @@ export const DELIVERIES_TRASH_TABLE_ID = 'procurement-admin-deliveries-trash';
 
 const HEADER_CLASS = 'py-[13px] first:pl-5 last:pr-5';
 const CELL_CLASS = 'px-3 py-2.5 whitespace-nowrap first:pl-5 last:pr-5';
-const NUM_CLASS = 'text-[13px] text-ink-900 tabular-nums';
+const NUM_CLASS = 'text-[14px] text-text-primary tabular-nums';
 
 type Notice = { tone: 'success' | 'warn'; text: string };
 type Pending = { kind: 'exclude' | 'restore'; row: DeliveryAdminRow };
@@ -81,7 +81,7 @@ function textColumn(
   id: DeliverySortId,
   header: string,
   value: (row: DeliveryAdminRow) => string | null,
-  cellClass = 'text-[13px] text-ink-900',
+  cellClass = 'text-[14px] text-text-primary',
 ): DataTableColumn<DeliveryAdminRow> {
   return {
     id,
@@ -122,7 +122,7 @@ const PRODUCT_COLUMN = textColumn(
   'product',
   '제품',
   (row) => row.product ?? DELIVERY_NO_PRODUCT,
-  'text-[13px] font-semibold text-ink-900',
+  'text-[14px] font-semibold text-text-primary',
 );
 const ORG_COLUMN = textColumn('demandOrg', '수요기관', (row) => row.demandOrg);
 const VENDOR_COLUMN = textColumn('vendor', '납품업체', (row) => row.vendor);
@@ -366,10 +366,10 @@ export function DeliveriesAdmin({
         <p
           role={notice.tone === 'warn' ? 'alert' : 'status'}
           className={cn(
-            'm-0 rounded-lg px-4 py-2.5 text-[13px]',
+            'm-0 rounded-lg px-4 py-2.5 text-[14px]',
             notice.tone === 'warn'
-              ? 'bg-accent-orange/10 text-ink-900'
-              : 'bg-gray-75 text-text-secondary',
+              ? 'bg-warning-50 text-text-primary shadow-(--hairline-default)'
+              : 'bg-surface-muted text-text-secondary',
           )}
         >
           {notice.text}
@@ -421,13 +421,13 @@ export function DeliveriesAdmin({
           filters={filters}
           filteredTotal={total}
           aria-label={view.trash ? '휴지통 표' : '납품요구 표'}
-          headClassName="bg-gray-75"
+          headClassName="bg-surface-muted"
         />
         {rows.length === 0 ? (
           filtered ? (
             <DataTableFilterEmpty onReset={resetFilters} />
           ) : (
-            <p role="status" className="m-0 p-12 text-center text-[13px] text-text-tertiary">
+            <p role="status" className="m-0 p-12 text-center text-[14px] text-text-tertiary">
               {view.trash
                 ? '휴지통이 비어 있어요. 삭제한 납품요구는 여기로 옮겨지고, 언제든 되살릴 수 있어요.'
                 : '납품요구가 없습니다.'}
@@ -466,7 +466,7 @@ export function DeliveriesAdmin({
           onClose={() => setPending(null)}
         >
           <p className="m-0">
-            <strong className="text-ink-900">{deliveryName(pending.row)}</strong> (
+            <strong className="text-text-primary">{deliveryName(pending.row)}</strong> (
             {pending.row.itemName ?? pending.row.itemId}) 납품요구를 휴지통으로 옮길까요? 조달
             통계에서 빠지고, 휴지통에서 언제든 되살릴 수 있어요.
           </p>
@@ -483,7 +483,7 @@ export function DeliveriesAdmin({
           onClose={() => setPending(null)}
         >
           <p className="m-0">
-            <strong className="text-ink-900">{deliveryName(pending.row)}</strong> (
+            <strong className="text-text-primary">{deliveryName(pending.row)}</strong> (
             {pending.row.itemName ?? pending.row.itemId}) 납품요구를 되살릴까요? 다시 조달 통계에
             반영돼요.
           </p>

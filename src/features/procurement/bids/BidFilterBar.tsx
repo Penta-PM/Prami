@@ -73,7 +73,12 @@ export function BidFilterBar({ filter, productCounts, allCount }: BidFilterBarPr
               className={cn(chipClass(active), 'inline-flex items-center gap-1.5')}
             >
               <span>{chip.label}</span>
-              <span className={cn('tabular-nums', active ? 'text-white/80' : 'text-text-tertiary')}>
+              <span
+                className={cn(
+                  'tabular-nums',
+                  active ? 'text-text-inverse/80' : 'text-text-tertiary',
+                )}
+              >
                 {countFormat.format(chip.count)}
               </span>
             </button>

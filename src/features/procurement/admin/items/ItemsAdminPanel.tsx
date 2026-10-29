@@ -31,9 +31,9 @@ import { toTarget, type AdminItemRow, type ItemsAdminData, type ItemTrashRow } f
 type Notice = { tone: 'success' | 'warning' | 'error'; text: string };
 
 const NOTICE_TONE: Record<Notice['tone'], string> = {
-  success: 'bg-green-600/10 text-green-700',
-  warning: 'bg-amber-500/15 text-amber-700',
-  error: 'bg-red-500/10 text-red-600',
+  success: 'bg-success-50 text-success-700',
+  warning: 'bg-warning-50 text-warning-700 shadow-(--hairline-default)',
+  error: 'bg-surface-danger text-text-danger',
 };
 
 const describe = (rows: readonly AdminItemRow[]) =>
@@ -133,10 +133,12 @@ export function ItemsAdminPanel({ filter, data }: ItemsAdminPanelProps) {
       body: (
         <>
           <p className="m-0">
-            일일 신규 품목 <strong className="text-ink-900">{ready.length}건</strong>을 모두 등록
-            품목에 추가할까요?
+            일일 신규 품목 <strong className="text-text-primary">{ready.length}건</strong>을 모두
+            등록 품목에 추가할까요?
           </p>
-          {undecidedNote ? <p className="m-0 text-[12px] text-amber-700">{undecidedNote}</p> : null}
+          {undecidedNote ? (
+            <p className="m-0 text-[12px] text-warning-700">{undecidedNote}</p>
+          ) : null}
         </>
       ),
       perform,
@@ -151,7 +153,7 @@ export function ItemsAdminPanel({ filter, data }: ItemsAdminPanelProps) {
       danger: true,
       body: (
         <p className="m-0">
-          <strong className="text-ink-900">{describe(rows)}</strong>을 휴지통으로 옮길까요?
+          <strong className="text-text-primary">{describe(rows)}</strong>을 휴지통으로 옮길까요?
           휴지통에서 언제든 되살릴 수 있어요.
         </p>
       ),
@@ -175,7 +177,7 @@ export function ItemsAdminPanel({ filter, data }: ItemsAdminPanelProps) {
       confirmLabel: '적용',
       body: (
         <p className="m-0">
-          선택한 <strong className="text-ink-900">{rows.length}건</strong>의 {parts.join(', ')}
+          선택한 <strong className="text-text-primary">{rows.length}건</strong>의 {parts.join(', ')}
           (으)로 바꿀까요?
         </p>
       ),
@@ -231,7 +233,7 @@ export function ItemsAdminPanel({ filter, data }: ItemsAdminPanelProps) {
         <div
           role={notice.tone === 'error' ? 'alert' : 'status'}
           className={cn(
-            'flex items-start justify-between gap-3 rounded-xl px-4 py-3 text-[13px]',
+            'flex items-start justify-between gap-3 rounded-xl px-4 py-3 text-[14px]',
             NOTICE_TONE[notice.tone],
           )}
         >

@@ -3,8 +3,8 @@ import { cn } from '@/lib/cn';
 import type { KpiCard, Tone } from './model';
 
 export const TONE_TEXT: Record<Exclude<Tone, null>, string> = {
-  good: 'text-green-700',
-  bad: 'text-red-600',
+  good: 'text-success-700',
+  bad: 'text-text-danger',
 };
 
 /**

@@ -103,8 +103,10 @@ export function PerformanceDashboard(props: PerformanceDashboardProps) {
         <PerformanceBody {...props} label={label} navigate={navigate} />
       ) : (
         <Card role="status" className="flex flex-col items-center gap-2 py-12 text-center">
-          <p className="m-0 text-[15px] font-semibold text-ink-900">{label} 조달 실적이 없습니다</p>
-          <p className="m-0 text-[13px] break-keep text-text-tertiary">
+          <p className="m-0 text-[16px] font-semibold text-text-primary">
+            {label} 조달 실적이 없습니다
+          </p>
+          <p className="m-0 text-[14px] break-keep text-text-tertiary">
             수집된 납품요구 실적이 생기면 월 실적 보고표·월별 추이·연도별 표를 보여 줍니다.
           </p>
         </Card>
@@ -177,7 +179,7 @@ function PerformanceBody({
         className="grid min-w-0 grid-cols-1 gap-6 rounded-2xl bg-surface-card px-4 py-5 shadow-(--hairline-default) sm:px-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]"
       >
         <div className="flex min-w-0 flex-col gap-2">
-          <h2 className="m-0 text-[15px] font-semibold text-text-primary">월별 매출 추이</h2>
+          <h2 className="m-0 text-text-primary [font:var(--text-h2)]">월별 매출 추이</h2>
           <ComboChart
             title={`${label} 월별 매출 추이`}
             months={chart.months}
@@ -190,7 +192,7 @@ function PerformanceBody({
           />
         </div>
         <div className="flex min-w-0 flex-col gap-2 lg:border-l lg:border-border-subtle lg:pl-6">
-          <h2 className="m-0 text-[15px] font-semibold text-text-primary">제조사별 실적</h2>
+          <h2 className="m-0 text-text-primary [font:var(--text-h2)]">제조사별 실적</h2>
           <ManufacturerTable
             rows={tableRows}
             total={manufacturers.total.amount}

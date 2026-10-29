@@ -22,7 +22,7 @@ export function scopeLabel(tab: ProcurementProductTab, group: IsignProductGroup 
 }
 
 const FOCUS =
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500';
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring';
 
 /**
  * 제품 탭 (원본 ProductTabs — STATS_TABS: 전체·WAPPLES·D.AMO·iSIGN) + iSIGN 세부 그룹 탭 (원본 IsignGroupTabs — 고른 그룹을
@@ -57,7 +57,7 @@ export function ProductTabs({
                 if (!active) onTabChange(value);
               }}
               className={cn(
-                '-mb-px border-0 border-b-2 bg-transparent px-4 py-2.5 text-[15px] whitespace-nowrap',
+                '-mb-px border-0 border-b-2 bg-transparent px-4 py-2.5 text-[16px] whitespace-nowrap',
                 active
                   ? 'border-accent-primary-strong font-semibold text-text-primary'
                   : 'border-transparent font-medium text-text-tertiary hover:text-text-primary',

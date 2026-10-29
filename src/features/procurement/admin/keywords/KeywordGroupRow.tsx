@@ -60,7 +60,7 @@ export function KeywordGroupRow({ group, keywords, onAdd, onRequestDelete }: Key
       className="flex flex-col gap-2 border-t border-border-subtle pt-3 sm:flex-row sm:gap-3"
     >
       <div className="flex shrink-0 items-baseline gap-2 sm:w-28 sm:flex-col sm:gap-0.5 sm:pt-1">
-        <h3 id={headingId} className="m-0 text-[13px] font-bold text-ink-900">
+        <h3 id={headingId} className="m-0 text-[14px] font-bold text-text-primary">
           {group.label}
         </h3>
         <span className="text-[12px] text-text-tertiary tabular-nums">{keywords.length}개</span>
@@ -80,9 +80,11 @@ export function KeywordGroupRow({ group, keywords, onAdd, onRequestDelete }: Key
                 title={row.addedBy ? `추가: ${row.addedBy}` : '기본 키워드'}
                 data-manual={row.addedBy ? '' : undefined}
                 className={cn(
-                  'inline-flex max-w-full items-center gap-0.5 rounded-pill py-1 pr-1 pl-2.5 text-[13px] font-semibold',
-                  excluded ? 'bg-gray-100 text-text-secondary' : 'bg-purple-500/12 text-purple-600',
-                  row.addedBy && 'shadow-[inset_0_0_0_1px_var(--purple-500)]',
+                  'inline-flex max-w-full items-center gap-0.5 rounded-pill py-1 pr-1 pl-2.5 text-[14px] font-semibold',
+                  excluded
+                    ? 'bg-neutral-100 text-text-secondary'
+                    : 'bg-primary-50 text-primary-700',
+                  row.addedBy && 'inset-ring inset-ring-primary-500',
                 )}
               >
                 <span className="min-w-0 break-all">{row.keyword}</span>
@@ -91,7 +93,7 @@ export function KeywordGroupRow({ group, keywords, onAdd, onRequestDelete }: Key
                   aria-label={`${row.keyword} 삭제`}
                   title="삭제"
                   onClick={() => onRequestDelete(row)}
-                  className="hover:bg-black/5 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-pill border-0 bg-transparent p-0 text-text-tertiary hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-purple-500"
+                  className="inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-pill border-0 bg-transparent p-0 text-text-tertiary hover:bg-surface-inverse/5 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-focus-ring"
                 >
                   <Icon name="close" />
                 </button>
@@ -121,7 +123,7 @@ export function KeywordGroupRow({ group, keywords, onAdd, onRequestDelete }: Key
           </Button>
         </span>
         {error ? (
-          <p id={errorId} role="alert" className="m-0 w-full text-[12px] text-red-600">
+          <p id={errorId} role="alert" className="m-0 w-full text-[12px] text-text-danger">
             {error}
           </p>
         ) : null}

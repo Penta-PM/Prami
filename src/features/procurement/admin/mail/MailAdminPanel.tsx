@@ -97,13 +97,16 @@ export function MailAdminPanel({ board }: { board: MailReportBoard }) {
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <Card className="flex min-w-0 flex-col gap-3 p-4 sm:p-6">
-        <h2 className="m-0 text-[15px] font-bold text-ink-900">일일 보고 메일</h2>
+        <h2 className="m-0 text-text-primary [font:var(--text-h2)]">일일 보고 메일</h2>
         <dl
           aria-label="보고 메일 상태"
-          className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[13px]"
+          className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[14px]"
         >
           <dt className="font-semibold text-text-tertiary">마지막 보고 실행</dt>
-          <dd className="m-0 text-ink-900 tabular-nums" data-testid="procurement-mail-last-run">
+          <dd
+            className="m-0 text-text-primary tabular-nums"
+            data-testid="procurement-mail-last-run"
+          >
             {ranAt ? (
               <time dateTime={ranAt.toISOString()}>{formatCollectedAt(ranAt)}</time>
             ) : (
@@ -111,7 +114,7 @@ export function MailAdminPanel({ board }: { board: MailReportBoard }) {
             )}
           </dd>
           <dt className="font-semibold text-text-tertiary">결과</dt>
-          <dd className="m-0 text-ink-900" data-testid="procurement-mail-result">
+          <dd className="m-0 text-text-primary" data-testid="procurement-mail-result">
             {lastReport ? mailReportText(lastReport) : NO_MAIL_REPORT_TEXT}
             {lastReport?.runStatus === 'failed' ? (
               <span className="text-text-tertiary"> (수집 실행 실패)</span>
@@ -119,7 +122,7 @@ export function MailAdminPanel({ board }: { board: MailReportBoard }) {
           </dd>
           <dt className="font-semibold text-text-tertiary">마지막 보고 기준일</dt>
           <dd
-            className="m-0 text-ink-900 tabular-nums"
+            className="m-0 text-text-primary tabular-nums"
             data-testid="procurement-mail-last-end-date"
           >
             {lastEndDate ?? NO_MAIL_REPORT_TEXT}
@@ -133,7 +136,7 @@ export function MailAdminPanel({ board }: { board: MailReportBoard }) {
 
       <Card className="flex min-w-0 flex-col gap-3 p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <h2 className="m-0 text-[15px] font-bold text-ink-900">수신처</h2>
+          <h2 className="m-0 text-text-primary [font:var(--text-h2)]">수신처</h2>
           <span className="text-[12px] text-text-tertiary tabular-nums">
             {recipients.length} / {MAIL_RECIPIENT_MAX}개
           </span>
@@ -168,7 +171,7 @@ export function MailAdminPanel({ board }: { board: MailReportBoard }) {
             </Button>
           </div>
           {error ? (
-            <p id={errorId} role="alert" className="m-0 text-[12px] text-red-600">
+            <p id={errorId} role="alert" className="m-0 text-[12px] text-text-danger">
               {error}
             </p>
           ) : full ? (
@@ -179,7 +182,7 @@ export function MailAdminPanel({ board }: { board: MailReportBoard }) {
         </form>
         {recipients.length === 0 ? (
           <p
-            className="m-0 rounded-xl bg-gray-75/60 px-5 py-6 text-center text-[13px] text-text-tertiary"
+            className="m-0 rounded-xl bg-surface-muted px-5 py-6 text-center text-[14px] text-text-tertiary"
             data-testid="procurement-mail-empty"
           >
             {NO_MAIL_RECIPIENTS_TEXT}

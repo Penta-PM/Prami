@@ -5,10 +5,10 @@
 export function ProcurementLoading() {
   return (
     <section aria-busy="true" aria-label="조달 화면 불러오는 중" className="flex flex-col gap-4">
-      <div aria-hidden="true" className="h-[25px] w-48 max-w-full rounded-lg bg-gray-100" />
-      <div aria-hidden="true" className="h-4 w-72 max-w-full rounded-lg bg-gray-75" />
-      <div aria-hidden="true" className="h-48 w-full rounded-2xl bg-gray-75" />
-      <p role="status" className="m-0 text-[13px] text-text-tertiary">
+      <div aria-hidden="true" className="h-[25px] w-48 max-w-full rounded-lg bg-neutral-100" />
+      <div aria-hidden="true" className="h-4 w-72 max-w-full rounded-lg bg-surface-muted" />
+      <div aria-hidden="true" className="h-48 w-full rounded-2xl bg-surface-muted" />
+      <p role="status" className="m-0 text-[14px] text-text-tertiary">
         불러오는 중…
       </p>
     </section>

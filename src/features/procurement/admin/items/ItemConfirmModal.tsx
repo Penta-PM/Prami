@@ -38,11 +38,8 @@ export function ItemConfirmModal({
       title={request.title}
       footer={
         <>
-          <Button size="sm" onClick={onClose}>
-            취소
-          </Button>
+          <Button onClick={onClose}>취소</Button>
           <Button
-            size="sm"
             variant={request.danger ? 'danger' : 'primary'}
             disabled={isPending}
             onClick={confirm}
@@ -55,7 +52,7 @@ export function ItemConfirmModal({
       <div className="flex flex-col gap-2">
         {request.body}
         {error ? (
-          <p role="alert" className="m-0 text-[12px] text-red-600">
+          <p role="alert" className="m-0 text-[12px] text-text-danger">
             {error}
           </p>
         ) : null}

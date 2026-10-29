@@ -26,9 +26,9 @@ export function BidEmpty({ filter, allCount }: { filter: BidFilter; allCount: nu
       data-testid="bid-empty"
       className="flex flex-col items-center gap-2 py-12 text-center"
     >
-      <p className="m-0 text-[15px] font-semibold text-ink-900">{title}</p>
+      <p className="m-0 text-[16px] font-semibold text-text-primary">{title}</p>
       {hints.map((hint) => (
-        <p key={hint} className="m-0 text-[13px] break-keep text-text-tertiary">
+        <p key={hint} className="m-0 text-[14px] break-keep text-text-tertiary">
           {hint}
         </p>
       ))}

@@ -38,7 +38,7 @@ export function ItemTrashPanel({
       <p
         role="region"
         aria-label="휴지통"
-        className="m-0 border-t border-border-subtle bg-gray-75/60 px-5 py-6 text-center text-[13px] text-text-tertiary"
+        className="m-0 border-t border-border-subtle bg-surface-muted px-5 py-6 text-center text-[14px] text-text-tertiary"
       >
         휴지통이 비어 있어요. 삭제한 물품은 여기로 옮겨지고, 언제든 되살릴 수 있어요.
       </p>
@@ -48,7 +48,7 @@ export function ItemTrashPanel({
     <div
       role="region"
       aria-label="휴지통"
-      className="flex flex-col gap-2 border-t border-border-subtle bg-gray-75/60 px-5 py-3"
+      className="flex flex-col gap-2 border-t border-border-subtle bg-surface-muted px-5 py-3"
     >
       <p className="m-0 text-[12px] text-text-tertiary">
         삭제한 물품 {trash.total.toLocaleString('ko-KR')}건 · 되살리면 원래 자리(등록 품목, 제품

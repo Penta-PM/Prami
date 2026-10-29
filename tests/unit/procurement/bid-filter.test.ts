@@ -127,9 +127,12 @@ describe('마감 D-day 배지', () => {
     });
   });
 
-  it('임박 배지는 --accent-orange 배경 토큰을 쓴다', () => {
+  it('임박 배지는 --accent-orange 배경 토큰 + 기본 글자, 진행·마감은 X50/X700 배지 짝 (Penta PR-4d)', () => {
     expect(DEADLINE_TONE_CLASS.urgent).toContain('bg-accent-orange');
-    expect(DEADLINE_TONE_CLASS.urgent).toContain('text-ink-900');
+    expect(DEADLINE_TONE_CLASS.urgent).toContain('text-text-primary');
+    expect(DEADLINE_TONE_CLASS.open).toBe('bg-primary-50 text-primary-700');
+    expect(DEADLINE_TONE_CLASS.closed).toBe('bg-neutral-100 text-text-secondary');
+    expect(DEADLINE_TONE_CLASS.none).toBe('bg-neutral-100 text-text-secondary');
   });
 });
 
@@ -218,26 +221,18 @@ describe('배지 글자 대비 (WCAG AA 4.5:1)', () => {
     return (hi! + 0.05) / (lo! + 0.05);
   };
   const white = [255, 255, 255];
-  const over = (fg: number[], bg: number[], alpha: number) =>
-    fg.map((v, i) => Math.round(v * alpha + bg[i]! * (1 - alpha)));
 
-  it('임박: --accent-orange(=orange-500) 배경 위 ink-900 글자 4.5:1 이상 (흰 글자는 미달이라 쓰지 않는다)', () => {
+  it('임박: --accent-orange(=orange-500 = Warning 500) 배경 위 기본 글자(--text-primary) 4.5:1 이상 (흰 글자는 미달이라 쓰지 않는다)', () => {
     expect(css).toMatch(/--accent-orange:\s*var\(--orange-500\)/);
     const orange = hex('--orange-500');
-    expect(contrast(hex('--ink-900'), orange)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(hex('--text-primary'), orange)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(white, orange)).toBeLessThan(4.5);
   });
 
-  it('적합도 상(green-700 on green/12)·중(amber-700 on amber/15)·진행 D-day(purple-600 on purple/12) 4.5:1 이상', () => {
-    expect(contrast(hex('--green-700'), over(hex('--green-600'), white, 0.12))).toBeGreaterThan(
-      4.5,
-    );
-    expect(contrast(hex('--amber-700'), over(hex('--amber-500'), white, 0.15))).toBeGreaterThan(
-      4.5,
-    );
-    expect(contrast(hex('--purple-600'), over(hex('--purple-500'), white, 0.12))).toBeGreaterThan(
-      4.5,
-    );
-    expect(contrast(hex('--slate-700-aa'), hex('--gray-100'))).toBeGreaterThan(4.5);
+  it('적합도 상(S700 on S50)·중(W700 on W50)·진행 D-day(P700 on P50)·마감(text-secondary on N100) 4.5:1 이상', () => {
+    expect(contrast(hex('--penta-success-700'), hex('--penta-success-50'))).toBeGreaterThan(4.5);
+    expect(contrast(hex('--penta-warning-700'), hex('--penta-warning-50'))).toBeGreaterThan(4.5);
+    expect(contrast(hex('--penta-primary-700'), hex('--penta-primary-50'))).toBeGreaterThan(4.5);
+    expect(contrast(hex('--text-secondary'), hex('--penta-neutral-100'))).toBeGreaterThan(4.5);
   });
 });

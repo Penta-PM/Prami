@@ -3,11 +3,17 @@
 import { useId, useState } from 'react';
 
 import { Select } from '@/components/ui';
+import { controlSizeClasses } from '@/components/ui/density';
+import { FIELD_CLASSES } from '@/components/ui/input';
 import { cn } from '@/lib/cn';
 import { ISIGN_DETAIL_CATEGORIES, isIsignDetailCategory } from '@/lib/procurement/item-admin';
 
-const CELL_INPUT =
-  'w-full min-w-[120px] rounded-lg border-0 bg-gray-75 px-2.5 py-1.5 text-[13px] text-ink-900 shadow-(--hairline-default) outline-none placeholder:text-text-tertiary focus-visible:shadow-[inset_0_0_0_1px_var(--purple-500)]';
+/** 표 칸 입력 — 공용 입력창 모양, 크기는 표(밀집 sm)를 따른다 */
+const CELL_INPUT = cn(
+  FIELD_CLASSES,
+  controlSizeClasses(undefined),
+  'min-w-[120px] px-3 placeholder:text-text-placeholder',
+);
 
 /** iSIGN 세부분류 선택 (목록 8개). 목록 밖 값이면 "(선택 필요)" 로 보여 준다 — 원본 IsignCategorySelect */
 export function IsignCategorySelect({
@@ -35,7 +41,7 @@ export function IsignCategorySelect({
       value={known ? value : ''}
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
-      className={cn('py-1.5 text-[13px]', !known && !allowEmpty && 'text-red-600', className)}
+      className={cn(!known && !allowEmpty && 'text-text-danger', className)}
     >
       <option value="" disabled={!allowEmpty}>
         {value && !known ? `${value} (선택 필요)` : emptyLabel}

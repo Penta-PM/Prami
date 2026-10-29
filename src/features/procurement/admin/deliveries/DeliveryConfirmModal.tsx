@@ -49,10 +49,8 @@ export function DeliveryConfirmModal<T>({
       title={title}
       footer={
         <>
-          <Button size="sm" onClick={onClose}>
-            취소
-          </Button>
-          <Button size="sm" variant={variant} disabled={isPending} onClick={confirm}>
+          <Button onClick={onClose}>취소</Button>
+          <Button variant={variant} disabled={isPending} onClick={confirm}>
             {isPending ? '처리 중…' : confirmLabel}
           </Button>
         </>
@@ -62,7 +60,7 @@ export function DeliveryConfirmModal<T>({
       <Presence>
         {error ? (
           <Collapse key="error" role="alert">
-            <p className="m-0 mt-3 text-[12px] text-red-600">{error}</p>
+            <p className="m-0 mt-3 text-[12px] text-text-danger">{error}</p>
           </Collapse>
         ) : null}
       </Presence>

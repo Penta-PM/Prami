@@ -139,7 +139,7 @@ export function RegisteredItemsCard({
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
         <div className="flex items-baseline gap-2.5">
           <CardTitle id="item-registered-title">등록 품목</CardTitle>
-          <span className="text-[13px] text-text-tertiary tabular-nums">
+          <span className="text-[14px] text-text-tertiary tabular-nums">
             {registered.total.toLocaleString('ko-KR')}건{filtered ? ' (필터 적용)' : ''}
           </span>
         </div>
@@ -209,9 +209,9 @@ export function RegisteredItemsCard({
         <div
           role="group"
           aria-label="선택한 품목 일괄 변경"
-          className="flex flex-wrap items-center gap-2 border-t border-border-subtle bg-purple-500/5 px-5 py-3"
+          className="flex flex-wrap items-center gap-2 border-t border-border-subtle bg-primary-50 px-5 py-3"
         >
-          <span className="mr-1 text-[14px] font-bold text-purple-600 tabular-nums">
+          <span className="mr-1 text-[14px] font-bold text-primary-600 tabular-nums">
             {selectedRows.length}건 선택
           </span>
           <Select
@@ -277,7 +277,7 @@ export function RegisteredItemsCard({
 
       <div className="border-t border-border-subtle">
         {rows.length === 0 ? (
-          <p className="m-0 px-5 py-7 text-center text-[13px] text-text-tertiary">
+          <p className="m-0 px-5 py-7 text-center text-[14px] text-text-tertiary">
             {filtered ? '조건에 맞는 등록 품목이 없습니다.' : '등록된 품목이 없습니다.'}
           </p>
         ) : (
@@ -326,7 +326,7 @@ export function RegisteredItemsCard({
               {rows.map((row) => {
                 const label = `${row.itemId} ${row.product}`;
                 return (
-                  <TableRow key={row.id} className={cn(selected.has(row.id) && 'bg-purple-500/5')}>
+                  <TableRow key={row.id} className={cn(selected.has(row.id) && 'bg-primary-50')}>
                     <TableCell className="py-2">
                       <Checkbox
                         size="sm"
@@ -341,7 +341,7 @@ export function RegisteredItemsCard({
                     <TableCell className="font-semibold whitespace-nowrap">
                       {row.product}
                       {row.source === 'manual' ? (
-                        <span className="ml-1.5 rounded-pill bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-text-secondary">
+                        <span className="ml-1.5 rounded-pill bg-neutral-100 px-1.5 py-0.5 text-[11px] font-medium text-text-secondary">
                           직접
                         </span>
                       ) : null}
@@ -376,7 +376,7 @@ export function RegisteredItemsCard({
                           disabled={busy}
                           aria-label={`${label} 삭제`}
                           onClick={() => onExclude([row])}
-                          className="text-red-600"
+                          className="text-text-danger"
                         >
                           삭제
                         </Button>
