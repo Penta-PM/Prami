@@ -2,7 +2,7 @@
 
 import { m, type Variants } from 'motion/react';
 import Link from 'next/link';
-import { useEffect, useId, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type RefObject } from 'react';
 
 import { Icon } from '@/components/icons/Icon';
 import { Presence } from '@/components/motion/Presence';
@@ -12,13 +12,15 @@ import { cn } from '@/lib/cn';
 import { formatDateTime } from '@/lib/date-format';
 import { transition, VARIANT_KEYS } from '@/lib/motion/tokens';
 
+import { ChatMarkdown } from './ChatMarkdown';
 import { CONVERSATION_LOAD_ERROR, PRODUCT_CHIPS, type ChatPageCopy } from './copy';
 import { BillingNotice, SetupBanner, SetupLink } from './SetupBanner';
 import type { ChatMessage, ChatStatusView } from './types';
 import type { useConversationThread } from './useConversationThread';
 
 /**
- * 대화창 (UX PR-C2): 말풍선(평문 — 마크다운·링크화 없음, §4.3.10)·작성 시각, 예시 질문 칩(빈 대화), 제품 퀵칩·후보 칩,
+ * 대화창 (UX PR-C2): 말풍선·작성 시각 — assistant 답변 본문만 마크다운(ChatMarkdown, docs/specs/chat-markdown.md, 옛 §4.3.10 평문 규칙 대체),
+ * 사용자·오류 말풍선과 안내(notice·setup·footnote·statusLabel)·견적 링크는 평문 그대로. 예시 질문 칩(빈 대화), 제품 퀵칩·후보 칩,
  * "계산기에서 열기" 같은 서버 액션 링크(같은 탭), 스트리밍 중 "중지", 실패·중지 뒤 "다시 시도", LLM 안내 배너·과금 고지.
  * 접근성: 말풍선 영역은 role=log(스트리밍 동안 aria-busy), 진행 상태는 별도 live region 으로 한 번씩만 알린다.
  * 밀도: 입력창·보내기·중지 = 폼(md), 칩 = 기존 칩 크기.
@@ -56,10 +58,11 @@ export function ConversationPane({
   const logRef = useRef<HTMLDivElement>(null);
   const { messages, isSending, load, chips } = thread;
 
-  useEffect(() => {
-    // 새 메시지가 오면 바닥으로 (jsdom 에는 scrollTo 가 없다)
+  // 바닥으로 (jsdom 에는 scrollTo 가 없다) — 새 메시지, 그리고 스트리밍 중 마크다운 렌더(throttle)가 반영될 때마다
+  const scrollToEnd = useCallback(() => {
     logRef.current?.scrollTo?.({ top: logRef.current.scrollHeight });
-  }, [messages]);
+  }, []);
+  useEffect(scrollToEnd, [messages, scrollToEnd]);
 
   const send = (raw: string) => {
     if (!raw.trim() || isSending) return;
@@ -124,7 +127,7 @@ export function ConversationPane({
         ) : null}
         <Presence key={`${thread.activeId ?? 'new'}:${load}`}>
           {messages.map((message) => (
-            <Bubble key={message.id} message={message} />
+            <Bubble key={message.id} message={message} onRendered={scrollToEnd} />
           ))}
         </Presence>
         {thread.canRetry ? (
@@ -193,8 +196,10 @@ export function ConversationPane({
   );
 }
 
-function Bubble({ message }: { message: ChatMessage }) {
+function Bubble({ message, onRendered }: { message: ChatMessage; onRendered: () => void }) {
   const isUser = message.from === 'user';
+  // 마크다운은 assistant 답변 본문만 — 사용자·오류 말풍선은 평문(§2.1)
+  const markdown = !isUser && message.tone !== 'error';
   // key=message.id 는 스트리밍 내내 같다 — 글자가 늘어도 재마운트·재진입하지 않는다
   return (
     <m.div
@@ -206,7 +211,8 @@ function Bubble({ message }: { message: ChatMessage }) {
       <div
         data-from={message.from}
         className={cn(
-          'max-w-[78%] rounded-[14px] px-[15px] py-[11px] text-[14px] leading-[1.55] whitespace-pre-line max-md:max-w-[90%]',
+          'max-w-[78%] min-w-0 rounded-[14px] px-[15px] py-[11px] text-[14px] leading-[1.55] max-md:max-w-[90%]',
+          !markdown && 'whitespace-pre-line',
           isUser
             ? 'bg-primary-600 text-text-inverse'
             : message.tone === 'error'
@@ -224,7 +230,15 @@ function Bubble({ message }: { message: ChatMessage }) {
             {message.statusLabel ?? '답변을 쓰는 중…'}
           </span>
         ) : null}
-        {message.text}
+        {markdown && message.text ? (
+          <ChatMarkdown
+            text={message.text}
+            streaming={message.streaming}
+            onRendered={message.streaming ? onRendered : undefined}
+          />
+        ) : (
+          message.text
+        )}
         {message.setup ? (
           <>
             {message.setup.message !== message.text ? (

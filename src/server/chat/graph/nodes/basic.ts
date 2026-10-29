@@ -2,6 +2,7 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import type { LangGraphRunnableConfig } from '@langchain/langgraph';
 
 import type { ChatDomain } from '@/lib/chat/conversations';
+import { escapeMarkdownText } from '@/lib/chat/markdown';
 import { modelLabel } from '@/server/llm/models';
 
 import type { ChatFeature } from '../../features/types';
@@ -100,7 +101,11 @@ export async function ruleAnswer(
 ): Promise<ChatGraphUpdate> {
   const runtime = runtimeOf(config);
   const answer = await respondToChat(runtime.db, { role: state.actor.role }, state.input.text);
-  return { route: 'rule', reply: { ...baseReply(state, 'rule'), ...answer } };
+  // 답변은 마크다운으로 렌더된다 — 품명·품번·검색어의 `*`·`_`·`|`·`[`… 가 서식이 되지 않게 이스케이프 (챗봇 마크다운 §2.4)
+  return {
+    route: 'rule',
+    reply: { ...baseReply(state, 'rule'), ...answer, reply: escapeMarkdownText(answer.reply) },
+  };
 }
 
 /**

@@ -59,10 +59,16 @@ export function chatProcurementAccess(actor: ToolActor): ProcurementAccess {
 const HIDDEN = /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u2064\ufeff]/g;
 const ELLIPSIS = '\u2026';
 
-/** 공백 정리 + 숨은 문자 제거 + 길이 상한(UTF-16 길이 기준, 코드 포인트를 가르지 않음). 빈 값은 null */
+/**
+ * 표 칸 구분 `|` → 전각 `｜` (챗봇 마크다운 렌더 §2.2): 모델이 외부 문구를 표 칸에 그대로 옮겨도 칸이 갈라지지 않는다.
+ * 이스케이프(`\|`)가 아니라 글자 치환이라 가드의 품명 가림이 그대로 맞고(NFKC 가 판정용 사본에서 `|` 로 되돌림), 보이는 모양도 같다.
+ */
+const TABLE_PIPE = /\|/g;
+
+/** 공백 정리 + 숨은 문자 제거 + 표 칸 구분 치환 + 길이 상한(UTF-16 길이 기준, 코드 포인트를 가르지 않음). 빈 값은 null */
 export function clipText(value: string | null | undefined, max: number): string | null {
   if (value === null || value === undefined) return null;
-  const clean = value.replace(HIDDEN, ' ').replace(/\s+/g, ' ').trim();
+  const clean = value.replace(HIDDEN, ' ').replace(/\s+/g, ' ').replace(TABLE_PIPE, '｜').trim();
   if (!clean) return null;
   if (clean.length <= max) return clean;
   let out = '';

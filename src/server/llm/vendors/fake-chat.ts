@@ -15,7 +15,8 @@ import { ChatGenerationChunk, type ChatResult } from '@langchain/core/outputs';
  *
  * | 접두 | 동작 |
  * | `fake-valid-` 등 정상 키 | Human 다음 → `price_lookup({query: 질문})` 도구 호출(조달 대화면 `procurement_bid_search` — 질문의
- *   영숫자·하이픈 토큰을 검색어로, 마감 포함), 도구 결과 다음 → 결과 요약 문장 |
+ *   영숫자·하이픈 토큰을 검색어로, 마감 포함), 도구 결과 다음 → 결과 요약 문장(질문에 "마크다운"이 있으면 제목·굵게·목록·표·
+ *   인라인/블록 코드·인용이 든 합성 마크다운 요약 — 챗봇 마크다운 렌더 E2E) |
  * | `fake-401-` / `fake-gemini400-` | 401 / Gemini 식 400 API_KEY_INVALID |
  * | `fake-403-` `fake-404-` `fake-429-` `fake-500-` | 해당 HTTP 상태 오류 |
  * | `fake-timeout-` | 호출 신호가 끊길 때까지 응답하지 않음(타임아웃 경로) |
@@ -118,6 +119,54 @@ function summarize(message: ToolMessage): string {
   }
 }
 
+/** 질문에 이 낱말이 있으면 도구 결과 요약을 마크다운으로 (챗봇 마크다운 렌더 E2E). 검색어에서는 뺀다 */
+const MARKDOWN_TRIGGER = /\s*마크다운(?:으로)?/g;
+const MARKDOWN_NOTE =
+  '합성 응답 — 표 가로 스크롤과 키보드 포커스를 확인하기 위한 긴 설명 문구입니다';
+
+/** 도구 결과(JSON) → 마크다운 요약 (요소마다 하나 이상: ###·굵게·목록·GFM 표·인라인/블록 코드·인용) */
+function summarizeMarkdown(message: ToolMessage): string {
+  try {
+    const data = JSON.parse(String(message.content)) as {
+      items?: { itemName: string; price?: { unitPrice: string; currency: string } | null }[];
+      bids?: { title: string; fitGrade: string | null }[];
+    };
+    const rows = data.bids
+      ? data.bids.map((bid) => [bid.title, bid.fitGrade ?? '—', '입찰 공고', MARKDOWN_NOTE])
+      : (data.items ?? []).map((item) => [
+          item.itemName,
+          item.price?.unitPrice ?? '—',
+          item.price?.currency ?? '—',
+          MARKDOWN_NOTE,
+        ]);
+    if (rows.length === 0) return '[fake LLM] 조회 결과가 없습니다.';
+    const head = data.bids
+      ? ['공고명', '적합도', '구분', '비고']
+      : ['품목', '판매가', '통화', '비고'];
+    return [
+      `### [fake LLM] ${data.bids ? '입찰 공고' : '조회 결과'} ${rows.length}건`,
+      ...rows.map((row) => `- **${row[0]}** \`${row[1]}\``),
+      '',
+      `| ${head.join(' | ')} |`,
+      `|${head.map(() => '---').join('|')}|`,
+      ...rows.map((row) => `| ${row.join(' | ')} |`),
+      '',
+      '> 합성 마크다운 응답입니다.',
+      '',
+      '```',
+      'fake-markdown-block',
+      '```',
+    ].join('\n');
+  } catch {
+    return '[fake LLM] 도구 결과를 읽지 못했습니다.';
+  }
+}
+
+function wantsMarkdown(messages: BaseMessage[]): boolean {
+  const human = messages.findLast((message) => message instanceof HumanMessage);
+  return /마크다운/.test(String(human?.content ?? ''));
+}
+
 export class FakeChatModel extends BaseChatModel {
   private readonly behavior: FakeChatBehavior;
   private readonly toolNames: readonly string[];
@@ -141,7 +190,8 @@ export class FakeChatModel extends BaseChatModel {
 
   private answer(messages: BaseMessage[]): AIMessage {
     const last = messages.at(-1);
-    if (last instanceof ToolMessage) return new AIMessage(summarize(last));
+    if (last instanceof ToolMessage)
+      return new AIMessage(wantsMarkdown(messages) ? summarizeMarkdown(last) : summarize(last));
     if (this.toolNames.includes(FAKE_PROCUREMENT_TOOL)) {
       return new AIMessage({
         content: '',
@@ -150,7 +200,7 @@ export class FakeChatModel extends BaseChatModel {
             id: `fake-call-${messages.length}`,
             name: FAKE_PROCUREMENT_TOOL,
             args: {
-              query: queryForProcurement(String(last?.content ?? '')),
+              query: queryForProcurement(String(last?.content ?? '').replace(MARKDOWN_TRIGGER, '')),
               product: null,
               includeClosed: true,
               topGradeOnly: false,
@@ -162,7 +212,9 @@ export class FakeChatModel extends BaseChatModel {
       });
     }
     if (this.toolNames.includes('price_lookup')) {
-      const query = String(last?.content ?? '').slice(0, 100);
+      const query = String(last?.content ?? '')
+        .replace(MARKDOWN_TRIGGER, '')
+        .slice(0, 100);
       return new AIMessage({
         content: '',
         tool_calls: [
