@@ -47,15 +47,22 @@ export const PENTA_ICONS = {
       </g>
     ),
   },
-  shield: {
+  'file-edit': {
     viewBox: '0 0 24 24',
     body: (
-      <g transform="translate(-180,0)">
+      <g transform="translate(-468,-36)">
         <path
-          d="M192 22C192 22 182.788 20.8201 182.788 4.93882L192 2L201.212 4.93882C201.212 20.8201 192 22 192 22Z"
+          d="M483.17 53.5215L481.231 53.7658L481.475 51.8264L486.017 47.2851L487.712 48.9872L483.17 53.5215Z"
           stroke="currentColor"
           strokeMiterlimit="10"
         />
+        <path d="M479.627 55.3423H484.475" stroke="currentColor" strokeMiterlimit="10" />
+        <path
+          d="M486.254 45.4433V43.0855L481.168 38H472.288V58H486.254V55.4747"
+          stroke="currentColor"
+          strokeMiterlimit="10"
+        />
+        <path d="M486.142 43.2879H480.959V38.1047" stroke="currentColor" strokeMiterlimit="10" />
       </g>
     ),
   },

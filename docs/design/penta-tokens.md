@@ -203,7 +203,7 @@ import { DisclosureIcon, Icon } from '@/components/icons/Icon';
 |---|---|---|---|
 | 사이드바 HOME | home | `home` | 일치 |
 | 사이드바 계산기 | calc | `calculator` | 일치 |
-| 사이드바 가격정책 관리 | shield | `shield` | 일치 |
+| 사이드바 가격정책 관리 | shield | `file-edit` | 대체(정책 문서 편집 — file-log·file-text 와 연필로 구분) |
 | 사이드바 사용자 · 권한 | users | `users` | 일치 |
 | 사이드바 등록 품목 | list | `list` | 일치 |
 | 사이드바 감사 로그 | log | `file-log` | 일치 |
