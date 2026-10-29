@@ -6,7 +6,7 @@ import { CONTROL_SIZE_CLASSES } from './density';
 /**
  * 칩 버튼 클래스 (디자인 토큰만). 가격 날짜 퀵칩(DateFilter)·표 빠른 필터 바·조달 필터 바가 같이 쓴다.
  * 칩은 필터 전용 컨트롤이라 놓인 자리와 관계없이 밀집 크기 sm(36·14)로 고정한다 (Q-D1 = B — 필터는 밀집).
- * active = 선택된 칩(잉크 배경).
+ * active = 선택된 칩(반전 배경 --surface-inverse + --text-inverse).
  */
 export function chipClass(active: boolean) {
   return cn(
@@ -14,7 +14,7 @@ export function chipClass(active: boolean) {
     CONTROL_SIZE_CLASSES.sm,
     FOCUS_RING_CLASSES,
     active
-      ? 'bg-ink-900 text-white'
-      : 'bg-surface-card text-text-secondary shadow-(--hairline-default) hover:text-ink-900',
+      ? 'bg-surface-inverse text-text-inverse'
+      : 'bg-surface-card text-text-secondary shadow-(--hairline-default) hover:text-text-primary',
   );
 }

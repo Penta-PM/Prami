@@ -77,6 +77,15 @@ describe('RangeSlider — 접근성', () => {
     expect(lower()).toHaveClass('range-slider-input');
   });
 
+  it('색은 Penta 토큰 — 트랙 Neutral 100, 선택 구간 --action-bg (보라·회색 원시 이름 없음)', () => {
+    render(<Harness initial={[10, 50]} />);
+    const fill = document.querySelector('[data-range-fill]')!;
+    expect(fill).toHaveClass('bg-action-bg');
+    expect(fill.previousElementSibling).toHaveClass('bg-neutral-100');
+    const html = document.querySelector('[data-range-slider]')!.outerHTML;
+    expect(html).not.toMatch(/\b(?:bg|text)-(?:purple|gray|ink|slate|lime)-/);
+  });
+
   it('disabled 면 두 핸들 모두 비활성', () => {
     render(<Harness disabled />);
     expect(lower()).toBeDisabled();

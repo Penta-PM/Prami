@@ -165,6 +165,9 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
     expect(screen.getByText('미사용')).toHaveClass('text-neutral-600');
     expect(screen.getByText('폐기')).toHaveClass('bg-error-50', 'text-error-700');
     expect(screen.getByText('임시')).toHaveClass('text-warning-800');
+    // 임시 배경 = Penta Warning 50 (Penta 디자인 PR-5 — 예전 bg-[#fdf1de])
+    expect(screen.getByText('임시')).toHaveClass('bg-warning-50');
+    expect(screen.getByText('임시').className).not.toMatch(/\[#/);
     for (const text of ['운영중', '미사용', '폐기', '임시'])
       expect(screen.getByText(text).className).not.toMatch(/#3075FF|#797C85|#a86a00|text-red-500/i);
   });

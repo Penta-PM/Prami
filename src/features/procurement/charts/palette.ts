@@ -1,24 +1,27 @@
 /**
- * 조달 차트 색·표식 (조달이 통합 UI-4). 새 색 토큰은 `--accent-ours` 하나뿐 — 경쟁사·과거 연도는 기존 토큰을 순서대로 쓴다.
- * 모든 계열 색은 차트 배경(흰색 `--surface-card`, hover 띠 `--gray-75`) 위 그래픽 대비 3:1 이상 — tokens.test.ts 가 검사한다.
- * 색만으로 구분하지 않도록 계열마다 **표식 모양**(원·사각·삼각·마름모·역삼각·십자)을 달리하고, 범례·툴팁·표에 이름을 함께 쓴다.
+ * 조달 차트 색·표식 (조달이 통합 UI-4 → Penta 차트 PR-5). 매핑만 여기서 정한다 — 렌더링(#88)은 차트 컴포넌트.
+ *   자사 = `--accent-ours`(Primary 600) · 경쟁사 순위 1~4 = `--chart-series-1..4` · 나머지 = Neutral 600 · 최근 연도 선 = Neutral 900
+ * 모든 계열 색은 차트 배경(흰색 `--surface-card`, hover 띠 N50) 위 그래픽 대비 3:1 이상 — tokens.test.ts 가 검사한다.
+ * 경쟁사끼리·자사와의 명도 대비 3:1 은 (모두 흰색 3:1 이어야 해서) 불가능하므로 색상(hue)을 달리하고,
+ * 색만으로 구분하지 않도록 계열마다 **표식 모양**(원·사각·삼각·마름모·역삼각·십자)을 달리하며 범례·툴팁·표에 이름을 함께 쓴다.
  */
 
-/** 자사 강조 토큰 이름 */
+/** 자사 강조 토큰 이름 (= Primary 600) */
 export const OURS_TOKEN = '--accent-ours';
 
-/**
- * 경쟁사(또는 과거 연도) 계열 색 토큰 — 순위 순서. 이 수를 넘는 계열은 OTHER_TOKEN.
- * 녹색은 --green-700(Penta Success 800 보충값): Penta 토큰 PR-1 에서 --green-600 이 Success 500(흰색 2.28:1)이 되어 그래픽 3:1 미달.
- * 차트 전용 팔레트(--chart-series-*)는 차트 PR 에서 정한다.
- */
-export const SERIES_TOKENS = ['--purple-500', '--green-700', '--amber-700', '--red-500'] as const;
+/** 경쟁사(또는 과거 연도) 계열 색 토큰 — 순위 순서. 이 수를 넘는 계열은 OTHER_TOKEN. 값·근거는 globals.css */
+export const SERIES_TOKENS = [
+  '--chart-series-1',
+  '--chart-series-2',
+  '--chart-series-3',
+  '--chart-series-4',
+] as const;
 
-/** 하위 계열(나머지) 회색 */
-export const OTHER_TOKEN = '--gray-600';
+/** 하위 계열(나머지) 회색 = Neutral 600 */
+export const OTHER_TOKEN = '--penta-neutral-600';
 
-/** 가장 최근 연도 선(연도별 선 차트) — 자사 강조와 섞이지 않게 중립 진한 색 */
-export const LATEST_YEAR_TOKEN = '--ink-900';
+/** 가장 최근 연도 선(연도별 선 차트) — 자사 강조와 섞이지 않게 중립 진한 색 = Neutral 900 */
+export const LATEST_YEAR_TOKEN = '--penta-neutral-900';
 
 /** 대비 검사 대상(그래픽 3:1) — tokens.test.ts */
 export const CHART_GRAPHIC_TOKENS = [
@@ -30,7 +33,7 @@ export const CHART_GRAPHIC_TOKENS = [
 
 const cssVar = (token: string) => `var(${token})`;
 
-/** 계열 색 — 자사면 --accent-ours, 아니면 경쟁사 순번(rank 0부터)의 토큰 */
+/** 계열 색 — 자사면 --accent-ours, 아니면 경쟁사 순번(rank 0부터)의 --chart-series-*, 넘치면 Neutral 600 */
 export function seriesColor(rank: number, isOurs = false): string {
   if (isOurs) return cssVar(OURS_TOKEN);
   return cssVar(SERIES_TOKENS[rank] ?? OTHER_TOKEN);

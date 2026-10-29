@@ -9,27 +9,36 @@ export type ProductCard = {
   major: string;
   /** 카드로 진입할 때 함께 보여 줄 대분류 (PR-9 QA LOW-1: iSIGN 카드 = iSIGN + iSIGN PKI). 없으면 major 하나 */
   majors?: readonly string[];
+  /** 강조색(아이콘 사각형·"가격 정책 보기 →" 글자) — CSS 색 값. 글자로 쓰이므로 흰 카드 위 4.5:1 이상 */
   accent: string;
+  /** 아이콘 배경(옅은 틴트) — CSS 색 값 */
   accentSoft: string;
 };
 
+/**
+ * 제품 카드 강조색 (Penta 디자인 PR-5): 브랜드 축이 Penta Primary 하나라 제품별 임의 hex(분홍·보라·황토·하늘 — 황토·하늘은
+ * 글자 대비 2.9·3.5:1 로 AA 미달)를 Primary 600(글자 6.35:1)·Primary 50 으로 통일한다. 제품은 이름으로 구분한다.
+ */
+const PRODUCT_ACCENT = {
+  accent: 'var(--penta-primary-600)',
+  accentSoft: 'var(--penta-primary-50)',
+};
+
 export const PRODUCT_CARDS: readonly ProductCard[] = [
-  { id: 'wapples', name: 'WAPPLES', major: 'WAPPLES', accent: '#D6428F', accentSoft: '#FCE0F1' },
-  { id: 'damo', name: 'D.AMO', major: 'D.AMO', accent: '#6E62E8', accentSoft: '#E3E0FB' },
+  { id: 'wapples', name: 'WAPPLES', major: 'WAPPLES', ...PRODUCT_ACCENT },
+  { id: 'damo', name: 'D.AMO', major: 'D.AMO', ...PRODUCT_ACCENT },
   {
     id: 'isign',
     name: 'iSIGN',
     major: 'iSIGN',
     majors: ['iSIGN', 'iSIGN PKI'],
-    accent: '#B8941F',
-    accentSoft: '#FBF0B8',
+    ...PRODUCT_ACCENT,
   },
   {
     id: 'cloudbric',
     name: 'Cloudbric',
     major: 'Cloudbric',
-    accent: '#2A8FD6',
-    accentSoft: '#D3ECFB',
+    ...PRODUCT_ACCENT,
   },
 ];
 

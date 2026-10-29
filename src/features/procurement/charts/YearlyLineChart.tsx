@@ -70,7 +70,7 @@ function segmentsOf<P extends { amount: number }>(
 }
 
 /**
- * 연도별 선 차트 (조달이 YearlyTrendChart 이식): x = 1~12월, 연도마다 선 하나. 최근 연도는 진한 중립색(--ink-900),
+ * 연도별 선 차트 (조달이 YearlyTrendChart 이식): x = 1~12월, 연도마다 선 하나. 최근 연도는 진한 중립색(Neutral 900),
  * 과거 연도는 최근부터 계열색. 실적 없는 달(누적이 평평)은 점선. 선 끝에 연도 글자(색 외 구분) + 연도별 표식 모양.
  */
 export function YearlyLineChart({
@@ -222,7 +222,7 @@ export function YearlyLineChart({
                     y={y(tick) + 4}
                     textAnchor="end"
                     fontSize={12}
-                    fill="var(--slate-700-aa)"
+                    fill="var(--text-secondary)"
                   >
                     {formatEokMan(tick)}
                   </text>
@@ -235,7 +235,7 @@ export function YearlyLineChart({
                   y={d.H - d.pad.b + 18}
                   textAnchor="middle"
                   fontSize={12}
-                  fill="var(--slate-700-aa)"
+                  fill="var(--text-secondary)"
                 >
                   {month}월
                 </text>
@@ -247,7 +247,7 @@ export function YearlyLineChart({
                   x2={xOf(active + 1)}
                   y1={d.pad.t}
                   y2={d.BASE}
-                  stroke="var(--purple-500)"
+                  stroke="var(--focus-ring)"
                   strokeWidth={2}
                 />
               )}

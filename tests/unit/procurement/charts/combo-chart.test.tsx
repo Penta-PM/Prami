@@ -63,6 +63,33 @@ describe('ComboChart — 렌더링', () => {
     expect(new Set(shapes).size).toBe(SERIES.length);
   });
 
+  it('Penta 차트 팔레트 — 경쟁사 순위대로 --chart-series-1..4, 다섯째부터 Neutral 600, 선택 막대 테두리·현재 달 표시는 의미 토큰', () => {
+    render(<ComboChart title="t" months={MONTHS} series={SERIES} selectedMonth="2025-01" />);
+    const stroke = (key: string) =>
+      document
+        .querySelector(`[data-line="${key}"]`)!
+        .querySelectorAll('path')[1]!
+        .getAttribute('stroke');
+    expect(stroke('ours')).toBe('var(--accent-ours)');
+    // 누적 순위: 알파 > 베타 > 감마 > 델타 > 엡실론
+    expect(['alpha', 'beta', 'gamma', 'delta', 'eps'].map(stroke)).toEqual([
+      'var(--chart-series-1)',
+      'var(--chart-series-2)',
+      'var(--chart-series-3)',
+      'var(--chart-series-4)',
+      'var(--penta-neutral-600)',
+    ]);
+    // 선택한 달 막대 = 2px + --text-primary 테두리
+    const selected = document.querySelector('[data-bar="alpha:2025-01"]')!;
+    expect(selected.getAttribute('stroke')).toBe('var(--text-primary)');
+    act(() => plot().focus());
+    expect(document.querySelector('rect[data-active-month]')!.getAttribute('stroke')).toBe(
+      'var(--focus-ring)',
+    );
+    // Maglo 원시 이름(var(--purple-500)·--ink-900·--slate-*-aa …)이 SVG 에 남지 않는다
+    expect(svg().outerHTML).not.toMatch(/var\(--(?:purple|ink|slate|gray|lime|green|amber|red)-/);
+  });
+
   it('축 라벨은 억·만 (D-3), 월이 없으면 안내 문구', () => {
     const { unmount } = render(<ComboChart title="t" months={MONTHS} series={SERIES} />);
     expect(svg()).toHaveTextContent('월별(막대)');

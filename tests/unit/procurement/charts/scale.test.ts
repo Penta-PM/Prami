@@ -195,11 +195,16 @@ describe('계열 집계', () => {
 });
 
 describe('팔레트', () => {
-  it('자사 = --accent-ours·원, 경쟁사 순번대로 기존 토큰, 넘치면 회색 — 표식은 서로 다르다', () => {
+  it('자사 = --accent-ours·원, 경쟁사 순번대로 --chart-series-1..4, 넘치면 Neutral 600 — 표식은 서로 다르다', () => {
     expect(seriesColor(0, true)).toBe('var(--accent-ours)');
-    expect(seriesColor(0)).toBe('var(--purple-500)');
-    expect(seriesColor(3)).toBe('var(--red-500)');
-    expect(seriesColor(9)).toBe('var(--gray-600)');
+    expect([0, 1, 2, 3].map((rank) => seriesColor(rank))).toEqual([
+      'var(--chart-series-1)',
+      'var(--chart-series-2)',
+      'var(--chart-series-3)',
+      'var(--chart-series-4)',
+    ]);
+    expect(seriesColor(4)).toBe('var(--penta-neutral-600)');
+    expect(seriesColor(9)).toBe('var(--penta-neutral-600)');
     expect(seriesMarker(0, true)).toBe('circle');
     const rivals = [0, 1, 2, 3, 4].map((rank) => seriesMarker(rank));
     expect(new Set(rivals).size).toBe(5);

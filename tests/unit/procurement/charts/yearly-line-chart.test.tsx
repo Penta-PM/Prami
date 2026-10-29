@@ -22,13 +22,13 @@ const POINTS = [
 const plot = () => screen.getByRole('group', { name: '연도별 누적 매출' });
 
 describe('YearlyLineChart', () => {
-  it('연도마다 선 1개, 최근 연도는 --ink-900·굵게, 선 끝 연도 글자, 실적 없는 달은 점선', () => {
+  it('연도마다 선 1개, 최근 연도는 Neutral 900·굵게, 선 끝 연도 글자, 실적 없는 달은 점선', () => {
     render(<YearlyLineChart title="연도별 누적 매출" points={POINTS} />);
     const lines = [...document.querySelectorAll('[data-line]')];
     expect(lines.map((line) => line.getAttribute('data-line'))).toEqual(['2023', '2024', '2025']);
     const latest = lines.at(-1)!;
     const latestPath = latest.querySelector('path[data-segment]')!;
-    expect(latestPath.getAttribute('stroke')).toBe('var(--ink-900)');
+    expect(latestPath.getAttribute('stroke')).toBe('var(--penta-neutral-900)');
     expect(latestPath.getAttribute('stroke-width')).toBe('3');
     expect(latest).toHaveTextContent('25년');
     // 2025 는 4월까지 → 실선 path 1개(점 4개를 한 번에 — 꺾임점 틈 없음), 표식 4개

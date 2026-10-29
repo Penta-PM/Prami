@@ -320,12 +320,12 @@ export function RangeSlider({
           {background}
         </div>
       )}
-      {/* 트랙(회색) + 선택 구간(보라) — thumb 중심이 움직이는 구간에 맞춰 양 끝 22px 안쪽 */}
+      {/* 트랙(Neutral 100) + 선택 구간(--action-bg) — thumb 중심이 움직이는 구간에 맞춰 양 끝 22px 안쪽 */}
       <div aria-hidden="true" className="absolute inset-x-[22px] top-1/2 h-1 -translate-y-1/2">
-        <div className="absolute inset-0 rounded-full bg-gray-200" />
+        <div className="absolute inset-0 rounded-full bg-neutral-100" />
         <div
           data-range-fill=""
-          className="absolute inset-y-0 rounded-full bg-purple-600"
+          className="absolute inset-y-0 rounded-full bg-action-bg"
           style={{ left: `${pct(lower)}%`, right: `${100 - pct(upper)}%` }}
         />
       </div>
@@ -437,7 +437,7 @@ export function MonthRangeSlider({
               data-month-volume={month}
               className={cn(
                 'absolute bottom-[3px] rounded-t-[1px]',
-                inRange ? 'bg-purple-500/45' : 'bg-gray-150',
+                inRange ? 'bg-focus-ring/45' : 'bg-neutral-200',
               )}
               style={{
                 left: `${at(index) - band / 2}%`,

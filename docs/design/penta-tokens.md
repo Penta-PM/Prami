@@ -139,7 +139,7 @@ Tailwind 기본 `shadow-sm/md/lg/xl`·`rounded-full` 은 덮지 않습니다.
 | `--amber-700` | `#8F5A00` | Warning 800 (보충값) | 경고 글자 |
 | `--red-500` | `#EB001B` | Error 500 | 틴트·테두리·차트 |
 | `--red-600` | `#C40018` | Error 700 | 오류 글자·빨간 배지 |
-| `--accent-ours` | `#1E3A8A` | (유지) | 조달 차트 자사색 — 차트 팔레트 PR 에서 정함 |
+| `--accent-ours` | `#1E3A8A` | Primary 600 | 조달 자사색(차트 계열·범례·표 글자·자사 행 8% 틴트) — 차트 PR-5 |
 
 L2 재연결: `--surface-page/card` N0 · `--surface-sidebar/muted` N50 · `--surface-inverse` N900 · `--border-subtle` N100 · `--border-default/button` N200 · `--accent-primary` P600 · `--accent-primary-strong` P700 · `--text-primary` N900 · `--text-secondary/tertiary/placeholder` N600 · `--text-on-accent`·`--text-inverse` N0 · `--text-danger` E700 · `--surface-danger` E500 8% · `--border-danger` E500.
 
@@ -162,6 +162,30 @@ L2 재연결: `--surface-page/card` N0 · `--surface-sidebar/muted` N50 · `--su
 | X-700 on X-50 (Status Badge) | Success 4.79 · Warning 4.84 · Error 5.91 · Info 6.16 |
 | 포커스 고리 P500 on 흰색 / N50 / P100 (그래픽 3:1) | 4.40 / 4.14 / 3.07 |
 | 차트 계열 색 on 흰색·N50 (그래픽 3:1) | 전부 3:1 이상 |
+| N900 / N600 / P600 글자 on 자사 행 틴트(P600 8%) | 16.12 / 5.89 / 5.65 |
+
+### 조달 차트 팔레트 (디자인 PR-5)
+
+`src/features/procurement/charts/palette.ts` 가 매핑하고 렌더링(#88)은 바꾸지 않습니다. 계열마다 표식 모양(원·사각·삼각·마름모·역삼각·십자)과 범례·툴팁·표의 이름이 색과 함께 구분합니다.
+
+| 계열 | 토큰 | 값 | 흰색 / N50 대비 |
+|---|---|---|---|
+| 자사 | `--accent-ours` | Primary 600 `#1858CC` | 6.35 / 5.98 |
+| 경쟁사 1 | `--chart-series-1` | Warning 700 `#B45309` | 5.02 / 4.73 |
+| 경쟁사 2 | `--chart-series-2` | 보충값 teal `#0D9488` | 3.74 / 3.52 |
+| 경쟁사 3 | `--chart-series-3` | 보충값 magenta `#BE185D` | 6.04 / 5.68 |
+| 경쟁사 4 | `--chart-series-4` | 보충값 brown `#78350F` | 9.07 / 8.54 |
+| 나머지 | `--penta-neutral-600` | Neutral 600 `#545D70` | 6.61 / 6.22 |
+| 최근 연도 선 | `--penta-neutral-900` | Neutral 900 `#111620` | 18.1 / 17.0 |
+
+- 선택 근거: 자사 파랑·나머지 회색과 색상(hue)이 겹치지 않는 주황·청록·자홍·갈색. Primary·Info 파랑 계열은 경쟁사에 쓰지 않습니다(예전 문제: 경쟁사 1 = 밝은 Primary 500 이 자사 남색과 같은 파랑, 대비 2.35:1).
+- 색차(OKLab ΔE×100): 자사 ↔ 경쟁사 1~4 = 32.9 · 22.1 · 30.6 · 29.5, 경쟁사·나머지끼리 최소 14.4(경쟁사 1↔3). 적록 색각(deutan·protan) 모의에서도 자사 ↔ 경쟁사 최소 18.5.
+- 모든 계열이 흰색 3:1 이상이어야 해서 **계열끼리 3:1 은 불가능**(4단계 명도 분리 불가) → 표식 모양으로 보완합니다. `tokens.test.ts` 가 3:1·ΔE 를 검사합니다.
+- 보충값 3색은 디자인팀 회신 시 교체합니다. 의미색(성공·경고·오류)과 헷갈리지 않도록 차트 밖에서는 쓰지 않습니다.
+
+### CSS 변수를 못 쓰는 곳 (디자인 PR-5)
+
+React-PDF 견적서(`QuotePdf.tsx`)는 `src/lib/design/penta-colors.ts` 의 `PENTA_COLORS`(L1 hex)를 씁니다. 값은 globals.css L1 과 같아야 하며 `tests/unit/design/penta-colors.test.ts` 가 대조합니다. 견적서: 본문 N900 · 보조 N600 · 선 N200 · 표 머리 N100 · 합계 P600 · "가견적" 배지 Warning 50 + 700.
 
 ## 7. 아이콘 (디자인 PR-3)
 

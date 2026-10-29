@@ -14,12 +14,22 @@ async function ask(page: Page, text: string): Promise<string> {
   const bubble = log.locator('[data-from="bot"]').nth(before);
   await expect(bubble).toBeVisible();
   await expect(bubble).not.toContainText('답변을 쓰는 중…');
+  // 같은 사용자의 분당 chat 버킷을 앞선 스펙(chat-pages)이 썼을 수 있다 — 429 안내면 그 초만큼 기다렸다 "다시 시도"
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const limited = /요청이 너무 잦습니다\. (\d+)초 후/.exec(await bubble.innerText());
+    if (!limited) break;
+    await page.waitForTimeout((Math.min(Number(limited[1]), 65) + 1) * 1000);
+    await log.getByRole('button', { name: '다시 시도' }).last().click();
+    await expect(bubble).not.toContainText('요청이 너무 잦습니다');
+    await expect(bubble).not.toContainText('답변을 쓰는 중…');
+  }
   return bubble.innerText();
 }
 
 test('USER: 챗봇 화면 새 대화 → 가격 조회 → 연도 비교 → 원가 거부 → 도움말 → 견적 시작 링크로 계산기 이동', async ({
   page,
 }) => {
+  test.setTimeout(180_000); // 분당 chat 버킷 초과 시 ask 가 기다렸다 다시 시도
   await loginAs(page, FIXTURE_USER, '/pricing/chat');
   await page.getByRole('button', { name: '새 대화' }).click();
   const panel = page.getByRole('main');
