@@ -212,10 +212,20 @@ test('스트리밍 중지 → "답변을 중단했습니다" → 다시 시도, 
   await page.getByRole('button', { name: '새 대화' }).click();
 
   // 응답을 붙잡아 두고 중지
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let intercepted = () => {};
+  const reached = new Promise<void>((resolve) => {
+    intercepted = resolve;
+  });
   await page.route('**/api/chat', async (route) => {
     if (route.request().method() !== 'POST') return route.continue();
-    // 서버로 보내지 않고 붙잡아 둔다 — 그 사이 클라이언트가 중지(abort)하면 이어 보내기는 실패하고 무시한다
-    await new Promise((resolve) => setTimeout(resolve, 5_000));
+    intercepted();
+    // 중지를 누를 때까지 서버로 보내지 않고 붙잡아 둔다 — 고정 대기면 느린 실행에서 중지 전에 끊겨 연결 오류가 된다.
+    // 가로챈 요청은 route 가 끝나야 fetch 가 거부되므로, 중지(signal abort) 뒤에 놓아 준다
+    await held;
     await route.abort().catch(() => undefined);
   });
   await page.getByLabel('질문 입력').fill(PRICE_QUESTION);
@@ -223,7 +233,10 @@ test('스트리밍 중지 → "답변을 중단했습니다" → 다시 시도, 
   const stop = page.getByRole('button', { name: '중지' });
   await expect(stop).toBeVisible();
   await expect(chatLog(page)).toHaveAttribute('aria-busy', 'true');
+  // 중지 버튼은 대화 생성 중에도 보인다 — /api/chat 요청이 실제로 나간 뒤에 누른다
+  await reached;
   await stop.click();
+  release();
   await expect(botBubbles(page).last()).toHaveText('답변을 중단했습니다.');
   await page.unroute('**/api/chat');
   await chatLog(page).getByRole('button', { name: '다시 시도' }).click();
