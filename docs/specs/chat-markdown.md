@@ -70,3 +70,4 @@
 
 ## 6. 진행 기록
 - 2026-10-29 Dev 구현 해석 5건 수용(msg_99243219dbb5): ① 조달 외부 문구 `|` → clipText 에서 전각 `｜` 치환(이스케이프 아님, 표 칸 분리 방지), 가드 NFKC 가 판정용 사본에서 `|` 로 되돌려 maskTerms 일치 유지 ② 말풍선 제목 요소 자체 강등 h1·h2→`<h3>`(16px/600), h3·h4→`<h4>`(14px/600) — 페이지 h1 계층 보호 ③ 규칙 응답은 ruleAnswer 출력에 한 번 escapeMarkdownText(품명·품번·사용자 검색어의 마크다운 기호) ④ 가드 판정 사본에 HTML 문자 참조 디코드·태그 모양 제거 추가(react-markdown 이 `&#50896;` 를 글자로 풀고 skipHtml 이 태그만 지우는 우회 차단), 태그 아닌 꺾쇠 글은 유지 ⑤ E2E fake 모델은 질문에 '마크다운'이 있을 때만 합성 마크다운 요약, 픽스처 관리자 사용. 의존성 react-markdown 10.1.0·remark-gfm 4.0.1·remark-breaks 4.0.0 정확 고정.
+- 2026-10-29 PR-MD #107 머지(main 5742131, head ffac6e2, CI 녹색). 마이그레이션 없음. 게이트 unit 3921·integration 31·E2E 207/207, #106 위 rebase 후 PR-6 ESLint 포함 lint·typecheck·unit 통과. 번들 gzip /pricing/chat·/procurement/chat 각 +45.7 KB, 다른 화면 0. LAN :3000: Dev 워크트리에서 `pnpm install --frozen-lockfile --offline`(재시작 없음, HMR) → 조달 챗봇 전송 200, 확인용 픽스처 관리자 합성 대화 2건 삭제. 비범위 유지: .md 내려받기·복사(사용자 확인 대기), 외부 링크·이미지·하이라이트.
