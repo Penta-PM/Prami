@@ -632,6 +632,18 @@ describe('스트리밍·중지·다시 시도', () => {
     expect(screen.queryByRole('note', { name: '과금 안내' })).not.toBeInTheDocument();
     await ask('견적 뽑아줘');
     const products = await within(log()).findByRole('group', { name: '제품 선택' });
+    // 제품 칩 = 제품 색 배경 + N900 글자 (§13). 누르면 보내는 칩이라 aria-pressed 없음
+    for (const [name, token] of [
+      ['WAPPLES', 'wapples'],
+      ['D.AMO', 'damo'],
+      ['iSIGN', 'isign'],
+      ['Cloudbric', 'cloudbric'],
+    ] as const) {
+      const chip = within(products).getByRole('button', { name });
+      expect(chip).toHaveStyle({ background: `var(--penta-product-${token})` });
+      expect(chip).toHaveClass('text-neutral-900', 'hover:border-neutral-900/40');
+      expect(chip).not.toHaveAttribute('aria-pressed');
+    }
     await userEvent.click(within(products).getByRole('button', { name: 'WAPPLES' }));
     const candidates = await within(log()).findByRole('group', { name: '후보 품목' });
     expect(server.chatCalls[1]!.body.message).toBe('WAPPLES 견적');

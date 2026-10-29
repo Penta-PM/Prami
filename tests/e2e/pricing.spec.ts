@@ -132,6 +132,13 @@ test('ADMIN 관리: 헤더(적용시작일·운영 연도·관리), 등록(사�
   await expect(row).toContainText('2025 ~ 현재');
   await expect(row).toContainText('미확인');
   await expect(row).toContainText('운영중');
+  // 대분류 칸 = 제품 색 칩(디자인 §13): WAPPLES #FFDCF6 + N900 글자, 칩이 행 높이를 늘리지 않음
+  const majorChip = row.locator('td').nth(1).locator('[data-product-chip]');
+  await expect(majorChip).toHaveText('WAPPLES');
+  await expect(majorChip).toHaveCSS('background-color', 'rgb(255, 220, 246)');
+  await expect(majorChip).toHaveCSS('color', 'rgb(17, 22, 32)');
+  const [chipBox, rowBox] = [await majorChip.boundingBox(), await row.boundingBox()];
+  expect(chipBox!.height).toBeLessThan(rowBox!.height);
 
   await row.getByRole('button', { name: 'E2E 모델 삭제' }).click();
   const del = page.getByRole('dialog', { name: '가격정책 삭제' });

@@ -9,6 +9,7 @@ import { Presence } from '@/components/motion/Presence';
 import { Button, FOCUS_RING_CLASSES, Input } from '@/components/ui';
 import { PRESS_CLASSES } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
+import { PRODUCT_FG_CLASS, productColor } from '@/lib/constants/product-colors';
 import { formatDateTime } from '@/lib/date-format';
 import { transition, VARIANT_KEYS } from '@/lib/motion/tokens';
 
@@ -144,6 +145,7 @@ export function ConversationPane({
           <ChipRow
             label="제품 선택"
             chips={PRODUCT_CHIPS}
+            colorOf={productColor}
             onPick={(chip) => send(`${chip} 견적`)}
           />
         ) : null}
@@ -276,28 +278,38 @@ function Bubble({ message, onRendered }: { message: ChatMessage; onRendered: () 
 function ChipRow({
   label,
   chips,
+  colorOf,
   onPick,
 }: {
   label: string;
   chips: readonly string[];
+  /** 제품 칩: 칩 → 배경 색(§13). 색이 있으면 N900 글자, hover 테두리 N900/40 — 누르면 바로 보내는 칩이라 선택 상태 없음 */
+  colorOf?: (chip: string) => string | null;
   onPick: (chip: string) => void;
 }) {
   return (
     <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
-      {chips.map((chip) => (
-        <button
-          key={chip}
-          type="button"
-          onClick={() => onPick(chip)}
-          className={cn(
-            'rounded-pill border border-border-subtle bg-surface-card px-3 py-1.5 text-[13px] font-semibold text-text-secondary hover:border-primary-600 hover:text-primary-700',
-            PRESS_CLASSES,
-            FOCUS_RING_CLASSES,
-          )}
-        >
-          {chip}
-        </button>
-      ))}
+      {chips.map((chip) => {
+        const color = colorOf?.(chip) ?? null;
+        return (
+          <button
+            key={chip}
+            type="button"
+            onClick={() => onPick(chip)}
+            style={color ? { background: color } : undefined}
+            className={cn(
+              'rounded-pill border px-3 py-1.5 text-[13px] font-semibold',
+              color
+                ? cn('border-transparent hover:border-neutral-900/40', PRODUCT_FG_CLASS)
+                : 'border-border-subtle bg-surface-card text-text-secondary hover:border-primary-600 hover:text-primary-700',
+              PRESS_CLASSES,
+              FOCUS_RING_CLASSES,
+            )}
+          >
+            {chip}
+          </button>
+        );
+      })}
     </div>
   );
 }

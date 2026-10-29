@@ -29,6 +29,9 @@ test('AC-50: 홈 제품 카드 4개 → /pricing?major=…, 최근 공지 5건 �
   // r5: family 만 있으면 드롭다운은 전체, 표 위 배지 "제품군: WAPPLES"
   await expect(page.getByRole('combobox', { name: '대분류' })).toHaveValue('전체');
   await expect(page.getByRole('status')).toContainText('제품군: WAPPLES');
+  // 제품 색 배지 (디자인 §13): WAPPLES #FFDCF6 배경 + N900 #111620 글자
+  await expect(page.getByRole('status')).toHaveCSS('background-color', 'rgb(255, 220, 246)');
+  await expect(page.getByRole('status')).toHaveCSS('color', 'rgb(17, 22, 32)');
   await page.goto('/');
   await page.getByRole('link', { name: '전체보기 →' }).click();
   await expect(page).toHaveURL(/\/notices$/);

@@ -75,6 +75,12 @@
   --penta-info-500: #3b82f6;
   --penta-info-700: #1d4ed8;
 
+  /* Product — 제품별 칩 배경(디자인 §13, 사용자 지정 hex). 배경 전용 — 위 글자·아이콘은 항상 neutral-900 */
+  --penta-product-wapples: #ffdcf6;
+  --penta-product-damo: #c1c9ff;
+  --penta-product-isign: #fff0b5;
+  --penta-product-cloudbric: #b0e1ff;
+
   /* Typography — 웹 스케일 (font shorthand: weight size/line-height family) */
   --penta-type-display: 700 56px/64px var(--font-body);
   --penta-type-h1: 700 40px/48px var(--font-body);

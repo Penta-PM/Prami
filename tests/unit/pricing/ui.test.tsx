@@ -150,6 +150,30 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
     expect(screen.getByText('미사용')).toBeInTheDocument();
   });
 
+  it('대분류 칸: 4개 제품은 제품 색 칩(N900 글자, 버튼 아님), 그 밖 값은 평문 (§13)', () => {
+    render(
+      <PriceTable
+        mode="admin"
+        rows={[ROW, { ...ROW, id: 8, major: 'iSIGN PKI' }, { ...ROW, id: 9, major: '기타' }]}
+        userId="u1"
+        onRowClick={vi.fn()}
+      />,
+    );
+    const majors = [...document.querySelectorAll('tbody tr')].map(
+      (tr) => tr.querySelectorAll('td')[1]!,
+    );
+    expect(majors[0]!.querySelector('[data-product-chip]')).toHaveStyle({
+      background: 'var(--penta-product-wapples)',
+    });
+    expect(majors[0]!.querySelector('[data-product-chip]')).toHaveClass('text-neutral-900');
+    expect(majors[1]!.querySelector('[data-product-chip]')).toHaveStyle({
+      background: 'var(--penta-product-isign)',
+    });
+    expect(majors[2]!.querySelector('[data-product-chip]')).toBeNull();
+    expect(majors[2]).toHaveTextContent('기타');
+    expect(majors.map((td) => td.textContent)).toEqual(['WAPPLES', 'iSIGN PKI', '기타']);
+  });
+
   it('상태 표시 대비 4.5:1 이상 (BL-1, QA #59 백로그 — 모달·드로어·표 공용 셀): 운영중 primary-600·미사용 neutral-600·폐기 error-700·임시 warning-800', async () => {
     const { ItemStatusPill, OperationStatus } = await import('@/features/pricing/cells');
     render(
@@ -257,8 +281,21 @@ describe('PricingFilters (AC-10·11, R-01·R-13)', () => {
     searchPlaceholder: '모델명으로 검색',
   };
 
-  it('제품군 배지는 warning-50 바탕 + warning-700 글자 4.84:1 (warning-500 글자는 AA 미달, BL-2)', () => {
-    render(<PricingFilters {...baseProps} filter={{ ...baseProps.filter, family: 'WAPPLES' }} />);
+  it.each([
+    ['WAPPLES', 'wapples'],
+    ['iSIGN', 'isign'],
+    ['isign', 'isign'],
+    ['damo', 'damo'],
+  ])('제품군 배지 %s = 제품 색 배경 + N900 글자 (§13)', (family, token) => {
+    render(<PricingFilters {...baseProps} filter={{ ...baseProps.filter, family }} />);
+    const badge = screen.getByText(/^제품군: /);
+    expect(badge).toHaveStyle({ background: `var(--penta-product-${token})` });
+    expect(badge).toHaveClass('text-neutral-900');
+    expect(badge).not.toHaveClass('bg-warning-50');
+  });
+
+  it('4개 제품 밖 제품군 배지는 기존 warning-50 + warning-700 글자 4.84:1 (warning-500 글자는 AA 미달, BL-2)', () => {
+    render(<PricingFilters {...baseProps} filter={{ ...baseProps.filter, family: '기타' }} />);
     const badge = screen.getByText(/^제품군: /);
     expect(badge).toHaveClass('bg-warning-50', 'text-warning-700');
     expect(badge).not.toHaveClass('text-warning-500');

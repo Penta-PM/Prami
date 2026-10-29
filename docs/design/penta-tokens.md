@@ -65,6 +65,20 @@ Primary 보충값은 Tailwind blue 의 **한 단계 진한 번호**를 씁니다
 문서의 500·700 은 Tailwind green·amber·red·blue 와 같은 값이라 50·800 도 같은 계열에서 가져왔습니다.
 Success·Warning 800 은 기존 화면의 성공·경고 글자 자리에서 700 이 AA 에 못 미쳐(아래 §6) 추가했습니다.
 
+### Product — 제품별 칩 배경 (디자인 §13, 사용자 지정)
+
+| 제품 | 토큰 | 값 | N900 글자 대비 |
+|---|---|---|---|
+| WAPPLES | `--penta-product-wapples` | `#FFDCF6` | 14.51 |
+| D.AMO | `--penta-product-damo` | `#C1C9FF` | 11.27 |
+| iSIGN · iSIGN PKI | `--penta-product-isign` | `#FFF0B5` | 15.86 |
+| Cloudbric | `--penta-product-cloudbric` | `#B0E1FF` | 12.99 |
+
+- 배경 전용입니다. 위 글자·아이콘은 항상 `text-neutral-900`(`PRODUCT_FG_CLASS`) — 의미 토큰 text-text-primary 를 쓰지 않습니다. 화면에 다크 전환이 없고 L1 고정값끼리라 대비는 한 벌입니다.
+- 매핑은 `src/lib/constants/product-colors.ts` 한 곳(`productColor(제품명)` → `var(--penta-product-…)`, 4개 제품 밖은 `null` → 기존 중립 스타일).
+- 적용: 홈 제품 카드 아이콘 사각형(아이콘 N900, "가격 정책 보기 →" 는 Primary 600 유지), 챗봇 "제품 선택" 칩(누르면 보내는 칩 — hover 1px N900/40), 가격 정책 "제품군: …" 필터 배지, 표 분류 칸 `ProductChip`(`src/components/ui/product-chip.tsx` — 읽기 전용 배지, py-0.5·12px 로 밀집 행 높이 불변): 가격 정책 표(조회·관리) '대분류', 조달 품목 표 '제품'(제품군 정규화 `normalizeErpMajor` 로 맞는 값만, 글자는 원래 값). 렌더만 칩이고 정렬·필터·내보내기 값은 텍스트 그대로입니다.
+- 쓰지 않는 곳: 계산기 칩(사용자 미리보기 후 원복), 계산기 '저장된 견적' 표, 차트 팔레트, 그 밖 조달 화면, 제품 외 칩.
+
 ## 3. 타이포그래피·간격·반경·그림자 (L1)
 
 글꼴: **Pretendard** (한글·영문 공통). `next/font/local` 로 셀프 호스트합니다(`src/app/fonts/PretendardVariable.woff2`, 공식 npm `pretendard@1.3.9` 가변 폰트, SIL OFL 1.1 — `src/app/fonts/OFL.txt`). 외부 CDN 요청이 없으므로 CSP 에 폰트 출처가 없습니다. 견적서 PDF 의 NotoSansKR 는 별개입니다.

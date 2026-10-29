@@ -19,7 +19,7 @@ import {
  */
 const ROOT = process.cwd();
 const FIXTURE = path.join(ROOT, 'tests', 'fixtures', 'design-tokens', 'penta.css');
-const EXPECTED_L1_COUNT = 65;
+const EXPECTED_L1_COUNT = 69;
 
 const globalsCss = stripComments(
   readFileSync(path.join(ROOT, 'src', 'app', 'globals.css'), 'utf8'),
@@ -424,6 +424,28 @@ describe('글자 대비 AA 4.5:1 (Penta 값 기준)', () => {
     walk(path.join(ROOT, 'src'));
     expect(hits).toEqual([]);
   });
+});
+
+describe('제품 색 (Penta 디자인 §13)', () => {
+  const PRODUCTS: Record<string, string> = {
+    wapples: '#ffdcf6',
+    damo: '#c1c9ff',
+    isign: '#fff0b5',
+    cloudbric: '#b0e1ff',
+  };
+
+  it.each(Object.entries(PRODUCTS))('--penta-product-%s = %s (사용자 지정 hex)', (name, value) => {
+    expect(resolveHex(`--penta-product-${name}`)).toBe(value);
+  });
+
+  it.each(Object.keys(PRODUCTS))(
+    'N900 글자 on --penta-product-%s ≥ 4.5:1 — 다크 전환이 없는 L1 고정값끼리라 라이트·다크 같음',
+    (name) => {
+      expect(
+        contrast(hex('--penta-neutral-900'), hex(`--penta-product-${name}`)),
+      ).toBeGreaterThanOrEqual(4.5);
+    },
+  );
 });
 
 describe('그래픽 대비 3:1 (WCAG 1.4.11)', () => {

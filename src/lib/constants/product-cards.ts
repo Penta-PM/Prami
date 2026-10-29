@@ -2,6 +2,8 @@
  * 홈 제품 바로가기 카드 (§4.5.4, 디자인 PRODUCTS). `iSIGN PKI` 는 iSIGN 카드로 묶고 조회 화면의 대분류에서만
  * 별도 값으로 구분한다 (§11 Q-10). 카드 → `/pricing?family=…` (r5).
  */
+import { productColor } from './product-colors';
+
 export type ProductCard = {
   id: string;
   name: string;
@@ -9,37 +11,30 @@ export type ProductCard = {
   major: string;
   /** 카드로 진입할 때 함께 보여 줄 대분류 (PR-9 QA LOW-1: iSIGN 카드 = iSIGN + iSIGN PKI). 없으면 major 하나 */
   majors?: readonly string[];
-  /** 강조색(아이콘 사각형·"가격 정책 보기 →" 글자) — CSS 색 값. 글자로 쓰이므로 흰 카드 위 4.5:1 이상 */
+  /** 강조색("가격 정책 보기 →" 글자) — CSS 색 값. 글자로 쓰이므로 흰 카드 위 4.5:1 이상 */
   accent: string;
-  /** 아이콘 배경(옅은 틴트) — CSS 색 값 */
+  /** 아이콘 사각형 배경 = 제품 색(Penta 디자인 §13) — CSS 색 값. 위 아이콘은 N900 */
   accentSoft: string;
 };
 
 /**
- * 제품 카드 강조색 (Penta 디자인 PR-5): 브랜드 축이 Penta Primary 하나라 제품별 임의 hex(분홍·보라·황토·하늘 — 황토·하늘은
- * 글자 대비 2.9·3.5:1 로 AA 미달)를 Primary 600(글자 6.35:1)·Primary 50 으로 통일한다. 제품은 이름으로 구분한다.
+ * 제품 카드 색: "가격 정책 보기 →" 글자는 Primary 600(흰 카드 위 6.35:1 — 파스텔은 글자로 못 씀), 아이콘 사각형 배경은
+ * 제품 색(§13, PR-5 의 Primary 50 통일을 대체).
  */
-const PRODUCT_ACCENT = {
+const productCard = (id: string, name: string, rest: Partial<ProductCard> = {}): ProductCard => ({
+  id,
+  name,
+  major: name,
   accent: 'var(--penta-primary-600)',
-  accentSoft: 'var(--penta-primary-50)',
-};
+  accentSoft: productColor(name)!,
+  ...rest,
+});
 
 export const PRODUCT_CARDS: readonly ProductCard[] = [
-  { id: 'wapples', name: 'WAPPLES', major: 'WAPPLES', ...PRODUCT_ACCENT },
-  { id: 'damo', name: 'D.AMO', major: 'D.AMO', ...PRODUCT_ACCENT },
-  {
-    id: 'isign',
-    name: 'iSIGN',
-    major: 'iSIGN',
-    majors: ['iSIGN', 'iSIGN PKI'],
-    ...PRODUCT_ACCENT,
-  },
-  {
-    id: 'cloudbric',
-    name: 'Cloudbric',
-    major: 'Cloudbric',
-    ...PRODUCT_ACCENT,
-  },
+  productCard('wapples', 'WAPPLES'),
+  productCard('damo', 'D.AMO'),
+  productCard('isign', 'iSIGN', { majors: ['iSIGN', 'iSIGN PKI'] }),
+  productCard('cloudbric', 'Cloudbric'),
 ];
 
 /**

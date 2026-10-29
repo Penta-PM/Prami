@@ -2,6 +2,7 @@
 
 import { useMemo, type ReactNode } from 'react';
 
+import { ProductChip } from '@/components/ui';
 import {
   DataTable,
   DataTableFilterEmpty,
@@ -110,7 +111,8 @@ function cellContent(
     case 'priceType':
       return priceTypeLabel(row.priceType);
     case 'major':
-      return row.major;
+      // 렌더만 제품 색 칩(§13) — 정렬·필터·내보내기는 row.major 텍스트 그대로
+      return <ProductChip product={row.major} />;
     case 'mid':
       return row.mid ?? '—';
     case 'minor':
