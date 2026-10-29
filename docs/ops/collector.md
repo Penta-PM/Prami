@@ -68,7 +68,7 @@ Dev 는 아래를 직접 실행하지 않는다. 필요 여부만 확인해 Main
 | -------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | linger — 로그아웃·재부팅 뒤에도 사용자 타이머 실행 | `loginctl show-user "$USER" -p Linger --value` → `yes` 여야 함             | `sudo loginctl enable-linger <사용자>`                                         |
 | Chromium 시스템 라이브러리                         | §3.2 의 브라우저 기동 확인이 `Host system is missing dependencies` 로 실패 | `sudo <체크아웃>/collector/.venv/bin/playwright install-deps chromium`         |
-| Python venv 모듈                                   | `python3 -m venv --help` 실패                                              | `sudo apt-get install python3-venv` (Python ≥ 3.12 필요 — `python3 --version`) |
+| Python venv 모듈                                   | `python3 -m venv --help` 실패                                              | `sudo apt-get install python3-venv` (Python ≥ 3.12 필요 — `python3 --version`) — 바로 못 받으면 §3.2 의 uv 대안 |
 
 ## 3. 설치
 
@@ -92,6 +92,14 @@ collector/.venv/bin/playwright install chromium        # ~/.cache/ms-playwright 
 # 브라우저 기동 확인 — 실패하면 §2 의 install-deps 를 Main 에 요청
 collector/.venv/bin/python -c "from playwright.sync_api import sync_playwright as s; p=s().start(); b=p.chromium.launch(); print('chromium', b.version); b.close(); p.stop()"
 ```
+
+- `python3 -m venv` 가 `ensurepip is not available` 로 실패하는데 §2 의 `python3-venv` 설치(sudo)를 바로 받을 수 없으면, **uv 로 같은 위치에 venv 를 만든다**(2026-10-28 LAN 설치에서 쓴 방법). `--seed` 가 pip 를 넣어 주므로 그다음 `pip install` 부터는 위 순서 그대로다.
+
+  ```bash
+  uv venv --seed --python python3 collector/.venv   # Python ≥ 3.12 — `python3 --version`
+  ```
+
+  uv 가 없으면 공식 안내(https://docs.astral.sh/uv/)대로 사용자 홈에 설치한다(sudo 불필요). 나중에 `python3-venv` 가 설치돼도 이 venv 는 그대로 써도 된다.
 
 ### 3.3 env 파일 (저장소 밖, 600)
 
