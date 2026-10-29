@@ -101,11 +101,11 @@ export function InfoHint({ name, text, children, align = 'start', className }: I
         onPointerLeave={onPointerLeave}
         className={cn(
           'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent',
-          'hover:bg-gray-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
+          'hover:bg-neutral-100 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
           text
             ? 'min-h-8 gap-1.5 px-2 text-[12px] font-semibold text-text-secondary'
             : 'size-6 p-0 text-text-tertiary',
-          open && 'bg-gray-100 text-ink-900',
+          open && 'bg-neutral-100 text-text-primary',
           className,
         )}
       >
@@ -147,7 +147,7 @@ export function ErpPathHint({ label, item, path, ...rest }: ErpPathHintProps) {
   return (
     <InfoHint name={`${label} ERP 메뉴 경로`} {...rest}>
       <span className="flex flex-col gap-1">
-        <strong className="font-semibold text-ink-900">{item}</strong>
+        <strong className="font-semibold text-text-primary">{item}</strong>
         {/* 설명 낭독 시 항목명과 경로 사이 띄어 읽기 (flex 안 공백 텍스트는 화면에 그리지 않는다) */}{' '}
         <span>{path}</span>
       </span>

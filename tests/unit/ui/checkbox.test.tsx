@@ -157,7 +157,13 @@ describe('Radio', () => {
       'disabled:opacity-50',
     );
     const dot = box(krw).querySelector('[aria-hidden="true"]');
-    expect(dot).toHaveClass('size-2', 'rounded-full', 'bg-white', 'hidden', 'peer-checked:block');
+    expect(dot).toHaveClass(
+      'size-2',
+      'rounded-full',
+      'bg-neutral-0',
+      'hidden',
+      'peer-checked:block',
+    );
     expect(box(krw)).toHaveClass('size-[18px]');
     expect(box(usd)).toHaveClass('size-4');
   });

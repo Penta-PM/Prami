@@ -149,7 +149,7 @@ export function MoneyRangeEditor<T>({
             {currencyOptions.map((option) => (
               <label
                 key={option.value}
-                className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-1.5 text-[13px] text-ink-900 hover:bg-gray-75"
+                className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-1.5 text-[13px] text-text-primary hover:bg-surface-muted"
               >
                 <Radio
                   name={`${id}-currency`}
@@ -206,7 +206,7 @@ export function MoneyRangeEditor<T>({
       )}
 
       {error ? (
-        <p id={errorId} role="alert" className="m-0 text-[12px] text-red-600">
+        <p id={errorId} role="alert" className="m-0 text-[12px] text-text-danger">
           {error}
         </p>
       ) : null}
@@ -268,7 +268,7 @@ function MoneySlider({
 
   return (
     <div className="flex flex-col gap-1">
-      <output data-money-range-text="" className="m-0 text-[13px] font-semibold text-ink-900">
+      <output data-money-range-text="" className="m-0 text-[13px] font-semibold text-text-primary">
         {moneyRangeText(lower, upper, currency)}
         {outside ? <span className="font-normal text-text-tertiary"> · {OUTSIDE}</span> : null}
       </output>

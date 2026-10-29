@@ -117,6 +117,24 @@ const MODEL_ID_SYNTAX = [
   { selector: 'TemplateElement[value.raw=/^(claude-|gpt-|gemini-)/]', message: MODEL_ID_MESSAGE },
 ];
 
+/**
+ * Penta 디자인 PR-6: 옛 Maglo 원시 색 이름(별칭 제거됨)을 className·인라인 스타일 문자열에 쓰지 않는다.
+ * 유틸리티(bg-·text-·border-… + hover: 등 변형 포함)와 `var(--이름)` 둘 다. 의미 토큰(text-text-primary·bg-surface-muted·
+ * text-text-danger …)이나 primary-*·neutral-* 를 쓴다(docs/design/penta-tokens.md). 다른 규칙과 같은 목록에 합쳐 건다.
+ */
+const DESIGN_ALIAS_NAMES =
+  '(white|gray-(50|75|100|150|200|600)|slate-(600|700)(-aa)?|ink-(900|950)|purple-ink-(700|800|900)|lime-(400|500)|green-(600|700)|purple-(500|600)|orange-500|amber-(500|700)|red-(500|600)|blue-600)';
+const DESIGN_ALIAS_CLASS = `/(^|[^-\\w])(bg|text|border|ring|outline|fill|stroke|from|via|to|shadow|divide|placeholder|decoration|caret|accent)-${DESIGN_ALIAS_NAMES}($|[^-\\w])/`;
+const DESIGN_ALIAS_VAR = `/var\\(--${DESIGN_ALIAS_NAMES}\\)/`;
+const DESIGN_ALIAS_MESSAGE =
+  '옛 Maglo 색 이름(ink-900·gray-75·purple-600·red-600 …)은 제거됐습니다 — 의미 토큰(text-text-primary·bg-surface-muted·text-text-danger …)이나 primary-*·neutral-* 를 쓰세요 (Penta 디자인 PR-6, docs/design/penta-tokens.md).';
+const DESIGN_ALIAS_SYNTAX = [
+  { selector: `Literal[value=${DESIGN_ALIAS_CLASS}]`, message: DESIGN_ALIAS_MESSAGE },
+  { selector: `TemplateElement[value.raw=${DESIGN_ALIAS_CLASS}]`, message: DESIGN_ALIAS_MESSAGE },
+  { selector: `Literal[value=${DESIGN_ALIAS_VAR}]`, message: DESIGN_ALIAS_MESSAGE },
+  { selector: `TemplateElement[value.raw=${DESIGN_ALIAS_VAR}]`, message: DESIGN_ALIAS_MESSAGE },
+];
+
 const MODEL_CONSTANTS_FILE = 'src/server/llm/models.ts';
 
 /**
@@ -220,7 +238,13 @@ const restrictCostSyntax = {
   files: ['src/**/*.{ts,tsx}'],
   ignores: [...COST_IMPORT_ALLOWLIST, 'src/db/**', ...CREDENTIALS_ALLOWLIST],
   rules: {
-    'no-restricted-syntax': ['error', ...COST_SYNTAX, ...MODEL_ID_SYNTAX, ...PROCUREMENT_SYNTAX],
+    'no-restricted-syntax': [
+      'error',
+      ...COST_SYNTAX,
+      ...MODEL_ID_SYNTAX,
+      ...PROCUREMENT_SYNTAX,
+      ...DESIGN_ALIAS_SYNTAX,
+    ],
     'no-restricted-imports': [
       'error',
       {
@@ -317,19 +341,33 @@ const credentialsModule = {
 /** 모델 상수 파일: 원가 선택자만 (모델 ID 리터럴 허용) */
 const modelConstants = {
   files: [MODEL_CONSTANTS_FILE],
-  rules: { 'no-restricted-syntax': ['error', ...COST_SYNTAX, ...PROCUREMENT_SYNTAX] },
+  rules: {
+    'no-restricted-syntax': [
+      'error',
+      ...COST_SYNTAX,
+      ...PROCUREMENT_SYNTAX,
+      ...DESIGN_ALIAS_SYNTAX,
+    ],
+  },
 };
 
 /** 원가 선택자가 빠지는 경로(원가 허용 목록·src/db)에도 모델 ID 리터럴 제한은 건다 */
 const restrictModelIdsElsewhere = {
   files: ['src/db/**/*.{ts,tsx}'],
-  rules: { 'no-restricted-syntax': ['error', ...MODEL_ID_SYNTAX] },
+  rules: { 'no-restricted-syntax': ['error', ...MODEL_ID_SYNTAX, ...DESIGN_ALIAS_SYNTAX] },
 };
 
 /** 원가 허용 목록: 원가 선택자는 빠지지만 모델 ID·조달 선택자는 건다 */
 const restrictSyntaxInCost = {
   files: COST_IMPORT_ALLOWLIST.map((glob) => glob.replace('/**', '/**/*.{ts,tsx}')),
-  rules: { 'no-restricted-syntax': ['error', ...MODEL_ID_SYNTAX, ...PROCUREMENT_SYNTAX] },
+  rules: {
+    'no-restricted-syntax': [
+      'error',
+      ...MODEL_ID_SYNTAX,
+      ...PROCUREMENT_SYNTAX,
+      ...DESIGN_ALIAS_SYNTAX,
+    ],
+  },
 };
 
 /** 원가 허용 목록 파일에도 자격 증명 스키마 제한은 건다 */
@@ -353,7 +391,7 @@ const restrictCredentialsInCost = {
 const procurementModule = {
   files: PROCUREMENT_ALLOWLIST.map((glob) => glob.replace('/**', '/**/*.{ts,tsx}')),
   rules: {
-    'no-restricted-syntax': ['error', ...COST_SYNTAX, ...MODEL_ID_SYNTAX],
+    'no-restricted-syntax': ['error', ...COST_SYNTAX, ...MODEL_ID_SYNTAX, ...DESIGN_ALIAS_SYNTAX],
     'no-restricted-imports': [
       'error',
       {

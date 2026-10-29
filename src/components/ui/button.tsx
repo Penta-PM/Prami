@@ -29,7 +29,7 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     'border-primary-600 bg-neutral-0 text-primary-600 hover:border-primary-700 hover:bg-primary-50 hover:text-primary-700',
   ghost:
     'border-neutral-200 bg-neutral-50 text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900',
-  danger: 'border-transparent bg-danger-bg text-white hover:opacity-90',
+  danger: 'border-transparent bg-danger-bg text-text-inverse hover:opacity-90',
 };
 
 /**

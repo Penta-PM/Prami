@@ -70,7 +70,7 @@ export function MinusMark(props: SVGProps<SVGSVGElement>) {
 }
 
 const MARK_CLASS =
-  'pointer-events-none absolute inset-0 m-auto size-[75%] text-white peer-disabled:opacity-50';
+  'pointer-events-none absolute inset-0 m-auto size-[75%] text-action-fg peer-disabled:opacity-50';
 
 export function Checkbox({
   size = 'md',
@@ -126,7 +126,7 @@ export function Radio({ size = 'md', className, wrapperClassName, ref, ...props 
       />
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 m-auto hidden size-2 rounded-full bg-white peer-checked:block peer-disabled:opacity-50"
+        className="pointer-events-none absolute inset-0 m-auto hidden size-2 rounded-full bg-neutral-0 peer-checked:block peer-disabled:opacity-50"
       />
     </span>
   );

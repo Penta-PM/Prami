@@ -324,7 +324,7 @@ export function DataTableQuickFilterBar<T>({
                   if (opened?.id === field.id) close();
                   focusRequestRef.current = field.id;
                 }}
-                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border-0 bg-transparent p-0 text-text-tertiary hover:bg-gray-100 hover:text-ink-900 focus-visible:outline-2 focus-visible:outline-focus-ring"
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border-0 bg-transparent p-0 text-text-tertiary hover:bg-neutral-100 hover:text-text-primary focus-visible:outline-2 focus-visible:outline-focus-ring"
               >
                 <Icon name="close" />
               </button>
@@ -381,7 +381,7 @@ export function DataTableQuickFilterBar<T>({
                 key={field.id}
                 type="button"
                 onClick={() => setOpened({ id: field.id, via: 'more' })}
-                className="flex min-h-10 w-full min-w-0 items-center justify-between rounded-lg border-0 bg-transparent px-2.5 py-2 text-left text-[14px] break-words text-ink-900 hover:bg-gray-75 focus-visible:outline-2 focus-visible:outline-focus-ring"
+                className="flex min-h-10 w-full min-w-0 items-center justify-between rounded-lg border-0 bg-transparent px-2.5 py-2 text-left text-[14px] break-words text-text-primary hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-focus-ring"
               >
                 {field.label}
               </button>

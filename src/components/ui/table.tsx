@@ -34,7 +34,7 @@ export function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowEle
   return (
     <tr
       className={cn(
-        'border-b border-border-subtle last:border-b-0 hover:bg-gray-75 [thead_&]:hover:bg-transparent',
+        'border-b border-border-subtle last:border-b-0 hover:bg-surface-muted [thead_&]:hover:bg-transparent',
         className,
       )}
       {...props}
@@ -56,5 +56,5 @@ export function TableHeaderCell({ className, ...props }: ThHTMLAttributes<HTMLTa
 }
 
 export function TableCell({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn('px-3 py-3 align-middle text-ink-900', className)} {...props} />;
+  return <td className={cn('px-3 py-3 align-middle text-text-primary', className)} {...props} />;
 }

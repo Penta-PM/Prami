@@ -112,9 +112,12 @@ Tailwind 기본 `shadow-sm/md/lg/xl`·`rounded-full` 은 덮지 않습니다.
 
 아이콘: 24px · 1px 선 · `icon/<이름>` 규칙. 아이콘 적용은 별도 PR 입니다.
 
-## 5. Maglo 별칭표 (L1 재지정)
+## 5. Maglo 별칭표 (제거됨 — 이전 기록)
 
-기존 화면의 원시 클래스(`bg-lime-400`, `text-ink-900` …)가 한 번에 Penta 색이 되도록 **이름은 남기고 값만 Penta 로** 바꿨습니다. 새 코드는 쓰지 마세요 — 화면 sweep 뒤 정리 PR 에서 제거합니다.
+디자인 PR-1 에서 기존 화면의 원시 클래스(`bg-lime-400`, `text-ink-900` …)가 한 번에 Penta 색이 되도록 이름은 남기고 값만 Penta 로 바꿨고, 화면 sweep(PR-4a~4d·PR-5) 뒤 **PR-6 에서 별칭을 모두 제거**했습니다. 아래 표는 옛 이름을 만났을 때 무엇으로 바꿀지 찾는 기록입니다. `--accent-ours` 는 의미 토큰이라 남습니다.
+
+- 대신 쓸 것: 글자 `text-text-primary`·`text-text-secondary`·`text-text-danger`, 면 `bg-surface-muted`·`bg-surface-inverse`·`bg-surface-danger`, 강조 `bg-primary-*`·`text-link`, 그 밖은 `neutral-*`·`success-*`·`warning-*`·`error-*`.
+- ESLint(`eslint.config.mjs` `DESIGN_ALIAS_SYNTAX`)가 `src` 의 className·문자열에서 옛 이름 유틸리티(`hover:` 등 변형 포함)와 `var(--옛 이름)` 을 막습니다. `tokens.test` 는 옛 이름이 `globals.css` 에 정의돼 있지 않음을 검사합니다.
 
 | 기존 이름 | 이전 값 | Penta | 근거 |
 |---|---|---|---|

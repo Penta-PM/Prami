@@ -52,9 +52,9 @@ const FIELD_CLASS = cn(FIELD_CLASSES, INHERIT_CONTROL_CLASSES, 'min-w-0 px-3');
 
 /** enum 목록 행 (§7.2) — 행 전체가 클릭 영역(label), 40px 이상. 선택 행은 옅은 보라 + font-medium */
 export const OPTION_ROW_CLASS =
-  'flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] text-ink-900';
-export const OPTION_ROW_IDLE = 'hover:bg-gray-75';
-export const OPTION_ROW_SELECTED = 'bg-purple-600/8 font-medium';
+  'flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-[14px] text-text-primary';
+export const OPTION_ROW_IDLE = 'hover:bg-surface-muted';
+export const OPTION_ROW_SELECTED = 'bg-primary-600/8 font-medium';
 
 const LIMIT_MESSAGE = `조건은 최대 ${FILTER_LIMITS.conditionsMax}개까지 걸 수 있습니다`;
 
@@ -194,7 +194,7 @@ function EnumEditor<T>({
         </div>
       </fieldset>
       {error ? (
-        <p id={errorId} role="alert" className="m-0 text-[12px] text-red-600">
+        <p id={errorId} role="alert" className="m-0 text-[12px] text-text-danger">
           {error}
         </p>
       ) : null}
@@ -229,7 +229,7 @@ function enterSubmits(submit: () => void) {
 
 function ErrorText({ id, error }: { id: string; error: string | null }) {
   return error ? (
-    <p id={id} role="alert" className="m-0 text-[12px] text-red-600">
+    <p id={id} role="alert" className="m-0 text-[12px] text-text-danger">
       {error}
     </p>
   ) : null;

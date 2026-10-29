@@ -30,7 +30,7 @@ export default async function SharedQuotePage({ params }: SharePageProps) {
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Image src="/logo-prami-mark.png" alt="Prami" width={28} height={28} />
-            <span className="text-ink-900 [font:var(--text-wordmark)]">Prami</span>
+            <span className="text-text-primary [font:var(--text-wordmark)]">Prami</span>
           </div>
           <p role="note" className="m-0 text-[12px] text-text-tertiary">
             공유 링크 만료: {formatAuditTime(new Date(shared.expiresAt))}

@@ -356,7 +356,10 @@ describe('Penta §6 값', () => {
       'text-primary-600',
       'border-primary-600',
     );
-    expect(screen.getByRole('button', { name: 'D' })).toHaveClass('bg-danger-bg', 'text-white');
+    expect(screen.getByRole('button', { name: 'D' })).toHaveClass(
+      'bg-danger-bg',
+      'text-text-inverse',
+    );
     expect(screen.getByRole('button', { name: 'G' })).toHaveClass(
       'bg-neutral-50',
       'text-neutral-700',
