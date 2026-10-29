@@ -17,7 +17,7 @@ import path from 'node:path';
 export const PENTA_ICON_ALLOWLIST = [
   'home',
   'calculator',
-  'shield',
+  'file-edit',
   'users',
   'search',
   'bell',

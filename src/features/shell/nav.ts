@@ -89,7 +89,7 @@ export const NAV_PROCUREMENT: readonly NavItem[] = [
  * 디자인의 "보기 권한" 역할 토글은 제거했다. 실제 역할 기반 노출은 PR-2(인증·RBAC)에서 세션으로 결정한다.
  */
 export const NAV_ADMIN: readonly NavItem[] = [
-  { key: 'admin-policies', label: '가격정책 관리', href: '/admin/policies', icon: 'shield' },
+  { key: 'admin-policies', label: '가격정책 관리', href: '/admin/policies', icon: 'file-edit' },
   { key: 'admin-costs', label: '원가 관리', href: '/admin/costs', icon: 'won-note' },
   { key: 'admin-parts', label: '파츠 관리', href: '/admin/parts', icon: 'blocks-2' },
   { key: 'admin-groups', label: '솔루션 그룹 관리', href: '/admin/groups', icon: 'grid' },
