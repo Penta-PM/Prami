@@ -232,7 +232,7 @@ export function CostLinkPicker({
                   className={cn(
                     'flex min-h-11 cursor-pointer items-center gap-2 px-3 py-2',
                     selected ? 'bg-primary-600/8' : 'hover:bg-surface-muted',
-                    isActive && 'shadow-[inset_0_0_0_2px_var(--purple-500)]',
+                    isActive && 'shadow-[inset_0_0_0_2px_var(--focus-ring)]',
                     disabled && 'cursor-not-allowed opacity-50',
                   )}
                 >

@@ -82,9 +82,9 @@ describe('enum 목록 행 (§7.2)', () => {
       'rounded-lg',
       'gap-2.5',
       'text-[14px]',
-      'hover:bg-gray-75',
+      'hover:bg-surface-muted',
     );
-    expect(row).not.toHaveClass('bg-purple-600/8');
+    expect(row).not.toHaveClass('bg-primary-600/8');
     expect(screen.getByText('아주 긴 이름의 상태값으로 줄바꿈이 필요한 선택지')).toHaveClass(
       'min-w-0',
       'break-words',
@@ -94,16 +94,16 @@ describe('enum 목록 행 (§7.2)', () => {
     expect(screen.getByText('상태', { selector: 'legend' })).toHaveClass('mb-2');
   });
 
-  it('행 전체가 클릭 영역 — 글자가 아닌 행(label)을 눌러도 체크·즉시 적용, 선택 행은 bg-purple-600/8 font-medium', async () => {
+  it('행 전체가 클릭 영역 — 글자가 아닌 행(label)을 눌러도 체크·즉시 적용, 선택 행은 bg-primary-600/8 font-medium', async () => {
     render(<EditorHarness />);
     await userEvent.click(optionRow('비활성'));
     expect(screen.getByRole('checkbox', { name: '비활성' })).toBeChecked();
     expect(screen.getByTestId('filters')).toHaveTextContent(
       JSON.stringify([{ col: 'status', op: 'in', values: ['INACTIVE'] }]),
     );
-    expect(optionRow('비활성')).toHaveClass('bg-purple-600/8', 'font-medium');
-    expect(optionRow('비활성')).not.toHaveClass('hover:bg-gray-75');
-    expect(optionRow('활성')).not.toHaveClass('bg-purple-600/8');
+    expect(optionRow('비활성')).toHaveClass('bg-primary-600/8', 'font-medium');
+    expect(optionRow('비활성')).not.toHaveClass('hover:bg-surface-muted');
+    expect(optionRow('활성')).not.toHaveClass('bg-primary-600/8');
   });
 
   it('공용 Checkbox 사용 — accent- 네이티브 체크 없음', () => {

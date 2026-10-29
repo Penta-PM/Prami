@@ -125,7 +125,10 @@ function SortIcon({ dir }: { dir: 'asc' | 'desc' | null }) {
     <svg
       aria-hidden="true"
       viewBox="0 0 8 12"
-      className={cn('h-3 w-2 shrink-0', dir ? 'text-ink-900' : 'text-text-tertiary opacity-50')}
+      className={cn(
+        'h-3 w-2 shrink-0',
+        dir ? 'text-text-primary' : 'text-text-tertiary opacity-50',
+      )}
     >
       <path d="M4 1 7 5H1z" fill="currentColor" opacity={dir === 'desc' ? 0.25 : 1} />
       <path d="M4 11 1 7h6z" fill="currentColor" opacity={dir === 'asc' ? 0.25 : 1} />
@@ -611,7 +614,7 @@ export function DataTable<T>({
                       }}
                       onKeyDown={(event) => onHeaderKeyDown(event, column)}
                       className={cn(
-                        'inline-flex max-w-full cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent p-0 align-middle text-inherit select-none [font:inherit] hover:text-ink-900',
+                        'inline-flex max-w-full cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent p-0 align-middle text-inherit select-none [font:inherit] hover:text-text-primary',
                         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
                         column.align === 'right' && 'flex-row-reverse',
                       )}

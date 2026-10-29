@@ -24,7 +24,7 @@ type PricingFiltersProps = {
 type Patch = (patch: Partial<PriceFilter>) => void;
 
 const SELECT_CLASS =
-  'rounded-lg border-0 bg-surface-card px-3 py-[9px] text-[12px] shadow-(--hairline-default) outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--purple-500)] disabled:opacity-60';
+  'rounded-lg border-0 bg-surface-card px-3 py-[9px] text-[12px] shadow-(--hairline-default) outline-none focus-visible:shadow-[inset_0_0_0_1px_var(--focus-ring)] disabled:opacity-60';
 
 /**
  * 조회·관리 공용 필터 (§4.5.1·§4.5.2): 대/중/소분류 연쇄 드롭다운(R-01), 날짜 기준 선택(R-13),

@@ -122,7 +122,7 @@ const DOC_COLORS: Record<string, string> = {
   'info-700': '#1d4ed8',
 };
 
-/** Maglo 원시 이름 → Penta 별칭 (docs/design/penta-tokens.md 별칭표와 같다) */
+/** 옛 Maglo 원시 이름 → 가리키던 Penta 단계 (디자인 PR-6 에서 별칭 제거 — 아래 대비 검사는 Penta 이름으로 같은 값을 본다) */
 const MAGLO_ALIASES: Record<string, string> = {
   '--white': 'neutral-0',
   '--gray-50': 'neutral-50',
@@ -173,7 +173,7 @@ const SEMANTIC: Record<string, string> = {
   '--accent-primary-strong': 'var(--penta-primary-700)',
   '--accent-positive': 'var(--penta-success-500)',
   '--accent-purple': 'var(--penta-primary-600)',
-  '--accent-orange': 'var(--orange-500)',
+  '--accent-orange': 'var(--penta-warning-500)',
   '--accent-amber': 'var(--penta-warning-500)',
   '--accent-red': 'var(--penta-error-500)',
   '--action-bg': 'var(--penta-primary-600)',
@@ -236,11 +236,14 @@ describe('L2 의미 토큰 · Maglo 별칭 · L3 유틸리티', () => {
     );
   });
 
-  it.each(Object.entries(MAGLO_ALIASES))('Maglo %s → Penta %s (+ --color-* 별칭)', (name, step) => {
-    expect(valueOf(name)).toBe(`var(--penta-${step})`);
-    expect(themeStaticNames.has(name)).toBe(true);
-    expect(themeInline.get(`--color-${name.slice(2)}`)?.[0]).toBe(`var(${name})`);
-  });
+  it.each(Object.keys(MAGLO_ALIASES))(
+    '옛 Maglo %s 별칭은 제거됐다 (정의·--color-* 유틸리티 없음, PR-6)',
+    (name) => {
+      expect(declarations.has(name), `${name} 가 아직 정의돼 있습니다`).toBe(false);
+      expect(themeInline.has(`--color-${name.slice(2)}`)).toBe(false);
+      expect(globalsCss).not.toContain(`var(${name})`);
+    },
+  );
 
   it('Penta 원시 팔레트는 전부 --color-<계열>-<단계> 유틸리티가 있다 (bg-primary-600 …)', () => {
     for (const step of PALETTE)
@@ -318,7 +321,12 @@ const white = [255, 255, 255];
 
 describe('글자 대비 AA 4.5:1 (Penta 값 기준)', () => {
   /** 밝은 화면 배경: 페이지·카드(흰색), 사이드바·입력·hover 띠(N50), 회색 배지(N100) */
-  const lightBackgrounds = ['--surface-page', '--surface-muted', '--gray-75', '--gray-100'];
+  const lightBackgrounds = [
+    '--surface-page',
+    '--surface-muted',
+    '--penta-neutral-50',
+    '--penta-neutral-100',
+  ];
 
   it.each([
     '--text-primary',
@@ -328,11 +336,11 @@ describe('글자 대비 AA 4.5:1 (Penta 값 기준)', () => {
     '--text-danger',
     '--link',
     '--link-hover',
-    '--purple-600',
-    '--blue-600',
-    '--gray-600',
-    '--green-700',
-    '--amber-700',
+    '--penta-primary-600',
+    '--penta-primary-600',
+    '--penta-neutral-600',
+    '--penta-success-800',
+    '--penta-warning-800',
   ])('%s 는 밝은 배경 전부에서 4.5:1 이상', (fg) => {
     for (const bg of lightBackgrounds)
       expect(contrast(hex(fg), hex(bg)), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
@@ -342,19 +350,19 @@ describe('글자 대비 AA 4.5:1 (Penta 값 기준)', () => {
     const pairs: [string, string][] = [
       ['--action-fg', '--action-bg'],
       ['--action-fg', '--action-bg-hover'],
-      ['--white', '--danger-bg'],
+      ['--penta-neutral-0', '--danger-bg'],
       ['--text-on-accent', '--accent-primary'],
       ['--text-inverse', '--surface-inverse'],
-      ['--white', '--purple-600'], // Checkbox checked ✓
-      ['--white', '--red-600'], // 알림·검토 대기 개수 배지
-      ['--white', OURS_TOKEN], // "자사" 배지
+      ['--penta-neutral-0', '--penta-primary-600'], // Checkbox checked ✓
+      ['--penta-neutral-0', '--penta-error-700'], // 알림·검토 대기 개수 배지
+      ['--penta-neutral-0', OURS_TOKEN], // "자사" 배지
       // lime 별칭(Primary 100) = 선택·강조 배경 + 어두운 글자, 어두운 패널 위 강조 글자
-      ['--ink-900', '--lime-400'],
-      ['--ink-900', '--lime-500'],
-      ['--lime-500', '--ink-900'],
-      ['--amber-500', '--ink-900'], // 어두운 패널 위 경고
-      ['--ink-900', '--accent-orange'], // 임박 배지
-      ['--ink-900', '--amber-500'], // 테스트 모드 배지
+      ['--penta-neutral-900', '--penta-primary-100'],
+      ['--penta-neutral-900', '--penta-primary-100'],
+      ['--penta-primary-100', '--penta-neutral-900'],
+      ['--penta-warning-500', '--penta-neutral-900'], // 어두운 패널 위 경고
+      ['--penta-neutral-900', '--accent-orange'], // 임박 배지
+      ['--penta-neutral-900', '--penta-warning-500'], // 테스트 모드 배지
     ];
     for (const [fg, bg] of pairs)
       expect(contrast(hex(fg), hex(bg)), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5);
@@ -362,18 +370,18 @@ describe('글자 대비 AA 4.5:1 (Penta 값 기준)', () => {
 
   it('틴트 배지·안내 상자: X/10~15 배경 위 글자용 단계', () => {
     const cases: [string, string, number, number[]][] = [
-      ['--green-700', '--green-600', 0.12, white],
-      ['--amber-700', '--amber-500', 0.15, white],
-      ['--amber-700', '--amber-500', 0.15, hex('--gray-75')],
-      ['--red-600', '--red-500', 0.12, white],
-      ['--red-600', '--red-500', 0.1, hex('--gray-75')], // 업로드 결과 상자 안 오류 상자 (BL-2)
-      ['--purple-600', '--purple-500', 0.12, white],
-      ['--purple-600', '--purple-600', 0.1, white], // [제안] 배지
-      ['--text-primary', '--purple-600', 0.08, white], // 선택 행
-      ['--slate-600-aa', '--purple-600', 0.08, white],
-      ['--amber-700', '--lime-500', 0.25, white], // 강조 행(lime/25) 위 경고·상태 글자 (BL-1·BL-2)
-      ['--blue-600', '--lime-500', 0.25, white],
-      ['--gray-600', '--lime-500', 0.25, white],
+      ['--penta-success-800', '--penta-success-500', 0.12, white],
+      ['--penta-warning-800', '--penta-warning-500', 0.15, white],
+      ['--penta-warning-800', '--penta-warning-500', 0.15, hex('--penta-neutral-50')],
+      ['--penta-error-700', '--penta-error-500', 0.12, white],
+      ['--penta-error-700', '--penta-error-500', 0.1, hex('--penta-neutral-50')], // 업로드 결과 상자 안 오류 상자 (BL-2)
+      ['--penta-primary-600', '--penta-primary-500', 0.12, white],
+      ['--penta-primary-600', '--penta-primary-600', 0.1, white], // [제안] 배지
+      ['--text-primary', '--penta-primary-600', 0.08, white], // 선택 행
+      ['--penta-neutral-600', '--penta-primary-600', 0.08, white],
+      ['--penta-warning-800', '--penta-primary-100', 0.25, white], // 강조 행(lime/25) 위 경고·상태 글자 (BL-1·BL-2)
+      ['--penta-primary-600', '--penta-primary-100', 0.25, white],
+      ['--penta-neutral-600', '--penta-primary-100', 0.25, white],
     ];
     for (const [fg, tint, alpha, base] of cases)
       expect(
@@ -394,7 +402,7 @@ describe('글자 대비 AA 4.5:1 (Penta 값 기준)', () => {
     for (const family of ['primary', 'success', 'warning', 'error', 'info'])
       expect(contrast(white, hex(`--penta-${family}-500`)), family).toBeLessThan(4.5);
     // 그래서 성공·경고 글자 별칭은 700 이 아닌 보충값 800: 700 은 N100·15% 앰버 틴트 위 미달
-    expect(contrast(hex('--penta-success-700'), hex('--gray-100'))).toBeLessThan(4.5);
+    expect(contrast(hex('--penta-success-700'), hex('--penta-neutral-100'))).toBeLessThan(4.5);
     expect(
       contrast(hex('--penta-warning-700'), over(hex('--penta-warning-500'), white, 0.15)),
     ).toBeLessThan(4.5);
@@ -420,28 +428,30 @@ describe('글자 대비 AA 4.5:1 (Penta 값 기준)', () => {
 
 describe('그래픽 대비 3:1 (WCAG 1.4.11)', () => {
   it('포커스 고리(--focus-ring·purple-500)는 흰색·N50 위 3:1 이상, 고리 안쪽 선택 배경(lime 별칭)과도 3:1 이상', () => {
-    for (const ring of ['--focus-ring', '--purple-500'])
-      for (const bg of ['--surface-page', '--gray-75', '--lime-500'])
+    for (const ring of ['--focus-ring', '--penta-primary-500'])
+      for (const bg of ['--surface-page', '--penta-neutral-50', '--penta-primary-100'])
         expect(contrast(hex(ring), hex(bg)), `${ring} on ${bg}`).toBeGreaterThanOrEqual(3);
   });
 
   it('Checkbox 테두리 slate-600-aa 는 흰색·gray-75·선택 행 위 3:1 이상 — border-default(gray-150)는 미달이라 쓰지 않는다', () => {
-    const selectedRow = over(hex('--purple-600'), white, 0.08);
-    for (const bg of [white, hex('--gray-75'), selectedRow])
-      expect(contrast(hex('--slate-600-aa'), bg)).toBeGreaterThanOrEqual(3);
-    expect(contrast(hex('--gray-150'), white)).toBeLessThan(3);
-    expect(contrast(hex('--purple-600'), hex('--gray-75'))).toBeGreaterThanOrEqual(3);
+    const selectedRow = over(hex('--penta-primary-600'), white, 0.08);
+    for (const bg of [white, hex('--penta-neutral-50'), selectedRow])
+      expect(contrast(hex('--penta-neutral-600'), bg)).toBeGreaterThanOrEqual(3);
+    expect(contrast(hex('--penta-neutral-200'), white)).toBeLessThan(3);
+    expect(contrast(hex('--penta-primary-600'), hex('--penta-neutral-50'))).toBeGreaterThanOrEqual(
+      3,
+    );
   });
 
   it('조달 차트 계열 색(자사·경쟁사·나머지·최근 연도)은 카드(흰색)·hover 띠(gray-75) 위 3:1 이상', () => {
     for (const token of CHART_GRAPHIC_TOKENS)
-      for (const bg of [white, hex('--gray-75')])
+      for (const bg of [white, hex('--penta-neutral-50')])
         expect(contrast(hex(token), bg), token).toBeGreaterThanOrEqual(3);
   });
 
   it('--accent-ours 는 글자로도 쓴다(범례·표 머리글) — 흰색·gray-75 위 4.5:1 이상', () => {
     expect(contrast(hex(OURS_TOKEN), white)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(hex(OURS_TOKEN), hex('--gray-75'))).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(hex(OURS_TOKEN), hex('--penta-neutral-50'))).toBeGreaterThanOrEqual(4.5);
   });
 });
 

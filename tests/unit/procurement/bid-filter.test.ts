@@ -222,9 +222,9 @@ describe('배지 글자 대비 (WCAG AA 4.5:1)', () => {
   };
   const white = [255, 255, 255];
 
-  it('임박: --accent-orange(=orange-500 = Warning 500) 배경 위 기본 글자(--text-primary) 4.5:1 이상 (흰 글자는 미달이라 쓰지 않는다)', () => {
-    expect(css).toMatch(/--accent-orange:\s*var\(--orange-500\)/);
-    const orange = hex('--orange-500');
+  it('임박: --accent-orange(= Warning 500) 배경 위 기본 글자(--text-primary) 4.5:1 이상 (흰 글자는 미달이라 쓰지 않는다)', () => {
+    expect(css).toMatch(/--accent-orange:\s*var\(--penta-warning-500\)/);
+    const orange = hex('--accent-orange');
     expect(contrast(hex('--text-primary'), orange)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(white, orange)).toBeLessThan(4.5);
   });

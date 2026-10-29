@@ -216,10 +216,10 @@ export function Modal({
         if (event.target === event.currentTarget && !fromInside) beginClose('user');
       }}
       className={cn(
-        'm-auto border-0 bg-transparent p-0 text-ink-900',
+        'm-auto border-0 bg-transparent p-0 text-text-primary',
         SIZE_CLASSES[size],
         // 백드롭 fade — duration·ease 는 tokens.ts 의 enter(240ms)/exit(160ms) 와 동일 값
-        'backdrop:bg-ink-900/40 backdrop:transition-opacity backdrop:duration-240 backdrop:ease-[cubic-bezier(0.05,0.7,0.1,1)]',
+        'backdrop:bg-neutral-900/40 backdrop:transition-opacity backdrop:duration-240 backdrop:ease-[cubic-bezier(0.05,0.7,0.1,1)]',
         'starting:backdrop:opacity-0',
         'data-[closing]:backdrop:opacity-0 data-[closing]:backdrop:duration-160 data-[closing]:backdrop:ease-[cubic-bezier(0.3,0,0.8,0.15)]',
         className,

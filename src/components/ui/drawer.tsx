@@ -137,7 +137,7 @@ function DrawerPanel({
         initial={VARIANT_KEYS.initial}
         animate={VARIANT_KEYS.animate}
         exit={VARIANT_KEYS.exit}
-        className="absolute inset-0 bg-ink-900/40"
+        className="absolute inset-0 bg-neutral-900/40"
       />
       <m.aside
         ref={panelRef}

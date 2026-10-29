@@ -46,8 +46,8 @@ test('디자인 토큰 CSS 변수가 Penta 값으로 정의된다', async ({ pag
     const read = (name: string) => style.getPropertyValue(name).trim();
     return {
       lime500: read('--lime-500'),
-      lime400: read('--lime-400'),
       ink900: read('--ink-900'),
+      primary100: read('--penta-primary-100'),
       fontBody: read('--font-body'),
       textPrimary: read('--text-primary'),
       textH2: read('--text-h2'),
@@ -60,10 +60,10 @@ test('디자인 토큰 CSS 변수가 Penta 값으로 정의된다', async ({ pag
   });
   // 브라우저는 커스텀 속성의 계산값에서 var() 를 치환해 돌려준다 → 참조 대상 토큰의 원본 값과 비교한다
   const compact = (value: string) => value.replace(/\s+/g, '').replace(/"/g, "'");
-  // Maglo 별칭은 Penta 값으로 재지정 (lime → Primary 100, ink → Neutral 900)
-  expect(tokens.lime500).toBe('#c2d9ff');
-  expect(tokens.lime400).toBe('#c2d9ff');
-  expect(tokens.ink900).toBe('#111620');
+  // 옛 Maglo 별칭은 제거됐다(디자인 PR-6) — 계산값이 비어 있고, 가리키던 Penta 값은 L1 에 그대로
+  expect(tokens.lime500).toBe('');
+  expect(tokens.ink900).toBe('');
+  expect(tokens.primary100).toBe('#c2d9ff');
   // 셀프 호스트 Pretendard(next/font/local 이 만든 패밀리) 뒤에 로컬 'Pretendard' 대비
   expect(compact(tokens.fontBody)).toContain("'Pretendard'");
   expect(tokens.textPrimary).toBe('#111620'); // var(--penta-neutral-900)
