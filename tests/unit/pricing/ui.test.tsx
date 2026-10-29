@@ -257,8 +257,21 @@ describe('PricingFilters (AC-10·11, R-01·R-13)', () => {
     searchPlaceholder: '모델명으로 검색',
   };
 
-  it('제품군 배지는 warning-50 바탕 + warning-700 글자 4.84:1 (warning-500 글자는 AA 미달, BL-2)', () => {
-    render(<PricingFilters {...baseProps} filter={{ ...baseProps.filter, family: 'WAPPLES' }} />);
+  it.each([
+    ['WAPPLES', 'wapples'],
+    ['iSIGN', 'isign'],
+    ['isign', 'isign'],
+    ['damo', 'damo'],
+  ])('제품군 배지 %s = 제품 색 배경 + N900 글자 (§13)', (family, token) => {
+    render(<PricingFilters {...baseProps} filter={{ ...baseProps.filter, family }} />);
+    const badge = screen.getByText(/^제품군: /);
+    expect(badge).toHaveStyle({ background: `var(--penta-product-${token})` });
+    expect(badge).toHaveClass('text-neutral-900');
+    expect(badge).not.toHaveClass('bg-warning-50');
+  });
+
+  it('4개 제품 밖 제품군 배지는 기존 warning-50 + warning-700 글자 4.84:1 (warning-500 글자는 AA 미달, BL-2)', () => {
+    render(<PricingFilters {...baseProps} filter={{ ...baseProps.filter, family: '기타' }} />);
     const badge = screen.getByText(/^제품군: /);
     expect(badge).toHaveClass('bg-warning-50', 'text-warning-700');
     expect(badge).not.toHaveClass('text-warning-500');

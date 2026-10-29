@@ -38,6 +38,10 @@
   --penta-info-50: #eff6ff;  /* 보충값 */
   --penta-info-500: #3b82f6;
   --penta-info-700: #1d4ed8;
+  --penta-product-wapples: #ffdcf6;
+  --penta-product-damo: #c1c9ff;
+  --penta-product-isign: #fff0b5;
+  --penta-product-cloudbric: #b0e1ff;
   --penta-type-display: 700 56px/64px var(--font-body);
   --penta-type-h1: 700 40px/48px var(--font-body);
   --penta-type-h2: 700 32px/40px var(--font-body);

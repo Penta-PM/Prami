@@ -4,7 +4,7 @@ import { PRODUCT_CARDS, productCardHref } from '@/lib/constants/product-cards';
 
 /**
  * 홈 제품 바로가기 카드 4개 (디자인 HOME, AC-50). 디자인의 제품 로고 이미지는 저장소에 없어 제품명을 강조색으로
- * 표시한다. 카드 → `/pricing?major=…` (iSIGN PKI 는 iSIGN 카드에 포함, Q-10).
+ * 표시한다. 아이콘 사각형 = 제품 색 + N900 아이콘(§13). 카드 → `/pricing?major=…` (iSIGN PKI 는 iSIGN 카드에 포함, Q-10).
  */
 export function ProductCards() {
   return (
@@ -25,7 +25,7 @@ export function ProductCards() {
                 className="flex size-10 items-center justify-center rounded-lg"
                 style={{ background: card.accentSoft }}
               >
-                <span className="size-5 rounded-[5px]" style={{ background: card.accent }} />
+                <span className="size-5 rounded-[5px] bg-neutral-900" />
               </span>
               <span className="text-[18px] font-bold tracking-[-0.01em]">{card.name}</span>
               <span className="mt-1 text-[14px] font-semibold" style={{ color: card.accent }}>

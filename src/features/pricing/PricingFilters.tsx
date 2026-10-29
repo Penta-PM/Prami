@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useState, useTransition, type FormEvent } from 'react';
 
 import { productFamilyMajors } from '@/lib/constants/product-cards';
+import { PRODUCT_FG_CLASS, productColor } from '@/lib/constants/product-colors';
 import { Input } from '@/components/ui';
 import { Icon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
@@ -120,6 +121,8 @@ function CategoryCascade({
   onChange: Patch;
 }) {
   const noSub = !options.hasMaster;
+  // 제품군 배지 = 제품 색 + N900 (§13). 4개 제품 밖 값은 기존 경고 틴트
+  const familyColor = productColor(productFamilyMajors(filter.family)?.[0] ?? filter.family);
   return (
     <div className="flex flex-wrap items-center gap-2.5">
       <CategorySelect
@@ -134,7 +137,11 @@ function CategoryCascade({
       {filter.family ? (
         <span
           role="status"
-          className="rounded-pill bg-warning-50 px-2.5 py-1 text-[12px] font-semibold text-warning-700"
+          style={familyColor ? { background: familyColor } : undefined}
+          className={cn(
+            'rounded-pill px-2.5 py-1 text-[12px] font-semibold',
+            familyColor ? PRODUCT_FG_CLASS : 'bg-warning-50 text-warning-700',
+          )}
         >
           제품군: {familyBadge(filter.family)}
         </span>

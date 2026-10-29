@@ -3,13 +3,18 @@
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/cn';
+import { PRODUCT_FG_CLASS, productColor } from '@/lib/constants/product-colors';
 
-/** 디자인의 선택 칩(제품·단가유형·분류·그룹) 공용 */
+/**
+ * 디자인의 선택 칩(제품·단가유형·분류·그룹) 공용. `product` 가 4개 제품(+iSIGN PKI)이면 제품 색 배경 + N900 글자(§13):
+ * 선택 = 같은 배경 + 2px N900 안쪽 테두리 + 굵게(색만으로 구분하지 않음), hover = 1px N900/40.
+ */
 export function Chip({
   active,
   onClick,
   children,
   hint,
+  product,
   className,
   ...rest
 }: {
@@ -17,19 +22,30 @@ export function Chip({
   onClick: () => void;
   children: ReactNode;
   hint?: string;
+  /** 제품명 — 제품 색 칩 */
+  product?: string;
   className?: string;
   'aria-label'?: string;
 }) {
+  const color = productColor(product);
   return (
     <button
       type="button"
       aria-pressed={active}
       onClick={onClick}
+      style={color ? { background: color } : undefined}
       className={cn(
         'rounded-[10px] border-0 px-3 py-2.5 text-center text-[12px] font-semibold',
-        active
-          ? 'bg-surface-inverse text-text-inverse'
-          : 'bg-surface-muted text-text-secondary shadow-(--hairline-subtle) hover:text-text-primary',
+        color
+          ? cn(
+              PRODUCT_FG_CLASS,
+              active
+                ? 'font-bold inset-ring-2 inset-ring-neutral-900'
+                : 'hover:inset-ring hover:inset-ring-neutral-900/40',
+            )
+          : active
+            ? 'bg-surface-inverse text-text-inverse'
+            : 'bg-surface-muted text-text-secondary shadow-(--hairline-subtle) hover:text-text-primary',
         className,
       )}
       {...rest}

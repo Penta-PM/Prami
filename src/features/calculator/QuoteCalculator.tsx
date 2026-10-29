@@ -450,6 +450,7 @@ export function QuoteCalculator({
                 <Chip
                   key={entry.family}
                   active={entry.family === family}
+                  product={entry.family}
                   onClick={() => chooseFamily(entry.family)}
                 >
                   {entry.family}
