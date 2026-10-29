@@ -35,6 +35,7 @@ export { Input, type InputProps } from './input';
 export { CloseButton, Modal, type ModalProps, type ModalSize } from './modal';
 export { Popover, type PopoverAlign, type PopoverProps } from './popover';
 export { Pill, type PillProps, type PillTone, type StatusTone } from './pill';
+export { ProductChip } from './product-chip';
 export {
   MONTH_SLIDER_PAGE,
   MonthRangeSlider,

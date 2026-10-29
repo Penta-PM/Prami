@@ -150,6 +150,30 @@ describe('PriceTable (AC-12~14, AC-22)', () => {
     expect(screen.getByText('미사용')).toBeInTheDocument();
   });
 
+  it('대분류 칸: 4개 제품은 제품 색 칩(N900 글자, 버튼 아님), 그 밖 값은 평문 (§13)', () => {
+    render(
+      <PriceTable
+        mode="admin"
+        rows={[ROW, { ...ROW, id: 8, major: 'iSIGN PKI' }, { ...ROW, id: 9, major: '기타' }]}
+        userId="u1"
+        onRowClick={vi.fn()}
+      />,
+    );
+    const majors = [...document.querySelectorAll('tbody tr')].map(
+      (tr) => tr.querySelectorAll('td')[1]!,
+    );
+    expect(majors[0]!.querySelector('[data-product-chip]')).toHaveStyle({
+      background: 'var(--penta-product-wapples)',
+    });
+    expect(majors[0]!.querySelector('[data-product-chip]')).toHaveClass('text-neutral-900');
+    expect(majors[1]!.querySelector('[data-product-chip]')).toHaveStyle({
+      background: 'var(--penta-product-isign)',
+    });
+    expect(majors[2]!.querySelector('[data-product-chip]')).toBeNull();
+    expect(majors[2]).toHaveTextContent('기타');
+    expect(majors.map((td) => td.textContent)).toEqual(['WAPPLES', 'iSIGN PKI', '기타']);
+  });
+
   it('상태 표시 대비 4.5:1 이상 (BL-1, QA #59 백로그 — 모달·드로어·표 공용 셀): 운영중 primary-600·미사용 neutral-600·폐기 error-700·임시 warning-800', async () => {
     const { ItemStatusPill, OperationStatus } = await import('@/features/pricing/cells');
     render(

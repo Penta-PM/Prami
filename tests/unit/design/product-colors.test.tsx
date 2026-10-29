@@ -1,12 +1,14 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { Chip } from '@/features/calculator/chips';
+import { ProductChip } from '@/components/ui';
+import { itemColumns } from '@/features/procurement/items/ItemsBrowser';
+import type { ItemRowView } from '@/features/procurement/items/types';
 import { ProductCards } from '@/features/home/ProductCards';
 import { PRODUCT_CARDS } from '@/lib/constants/product-cards';
 import { PRODUCT_COLORS, productColor } from '@/lib/constants/product-colors';
 
-/** 제품별 칩 색 (Penta 디자인 §13) — 매핑 상수 1곳, 홈 카드, 계산기 선택 칩 */
+/** 제품별 칩 색 (Penta 디자인 §13) — 매핑 상수 1곳, 홈 카드, 표 분류 칩 */
 describe('productColor', () => {
   it.each([
     ['WAPPLES', 'wapples'],
@@ -48,57 +50,46 @@ describe('홈 제품 카드', () => {
   });
 });
 
-describe('계산기 Chip product', () => {
-  const noop = () => undefined;
-
-  it('기본: 제품 색 배경 + N900, hover 1px N900/40, aria-pressed=false', () => {
-    render(
-      <Chip active={false} product="iSIGN PKI" onClick={noop}>
-        iSIGN PKI
-      </Chip>,
-    );
-    const chip = screen.getByRole('button', { name: 'iSIGN PKI' });
-    expect(chip).toHaveStyle({ background: 'var(--penta-product-isign)' });
-    expect(chip).toHaveClass(
-      'text-neutral-900',
-      'hover:inset-ring',
-      'hover:inset-ring-neutral-900/40',
-    );
-    expect(chip).toHaveAttribute('aria-pressed', 'false');
-    expect(chip).not.toHaveClass('bg-surface-muted', 'font-bold');
+describe('ProductChip (표 분류 칸)', () => {
+  it.each([
+    ['WAPPLES', 'wapples'],
+    ['iSIGN PKI', 'isign'],
+  ])('%s: 읽기 전용 배지 — 제품 색 배경 + N900, 밀집 행 높이용 py-0.5·12px', (name, token) => {
+    render(<ProductChip product={name} />);
+    const chip = screen.getByText(name);
+    expect(chip.tagName).toBe('SPAN');
+    expect(chip).toHaveStyle({ background: `var(--penta-product-${token})` });
+    expect(chip).toHaveClass('text-neutral-900', 'rounded-pill', 'py-0.5', 'text-[12px]');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('선택: 같은 배경 + 2px N900 안쪽 테두리 + 굵게 + aria-pressed (색만으로 구분하지 않음)', () => {
-    render(
-      <Chip active product="Cloudbric" onClick={noop}>
-        Cloudbric
-      </Chip>,
-    );
-    const chip = screen.getByRole('button', { name: 'Cloudbric' });
-    expect(chip).toHaveStyle({ background: 'var(--penta-product-cloudbric)' });
-    expect(chip).toHaveClass(
-      'inset-ring-2',
-      'inset-ring-neutral-900',
-      'font-bold',
-      'text-neutral-900',
-    );
-    expect(chip).toHaveAttribute('aria-pressed', 'true');
-    expect(chip).not.toHaveClass('bg-surface-inverse', 'text-text-inverse');
+  it('4개 제품 밖 값은 평문 그대로(칩 없음)', () => {
+    const { container } = render(<ProductChip product="기타 제품" />);
+    expect(container.innerHTML).toBe('기타 제품');
+  });
+});
+
+describe('조달 품목 표 제품 칸 (합성 값)', () => {
+  const productCell = itemColumns().find((column) => column.id === 'product')!;
+  const cell = (product: string) =>
+    render(<>{productCell.cell!({ product } as ItemRowView)}</>).container;
+
+  it.each([
+    ['WAPPLES', 'wapples'],
+    ["D'Amo", 'damo'],
+    ['D.AMO', 'damo'],
+    ['iSIGN+ PKI', 'isign'],
+    ['Cloudbric', 'cloudbric'],
+  ])('%s → 제품 색 칩(글자는 원래 값)', (product, token) => {
+    const chip = cell(product).querySelector('[data-product-chip]');
+    expect(chip).toHaveStyle({ background: `var(--penta-product-${token})` });
+    expect(chip).toHaveTextContent(product);
+    expect(chip).toHaveClass('text-neutral-900', 'py-0.5');
   });
 
-  it('4개 제품 밖·product 없음: 기존 중립/반전 칩', () => {
-    render(
-      <>
-        <Chip active product="기타" onClick={noop}>
-          기타
-        </Chip>
-        <Chip active={false} onClick={noop}>
-          연간
-        </Chip>
-      </>,
-    );
-    expect(screen.getByRole('button', { name: '기타' })).toHaveClass('bg-surface-inverse');
-    expect(screen.getByRole('button', { name: '연간' })).toHaveClass('bg-surface-muted');
-    expect(screen.getByRole('button', { name: '기타' })).not.toHaveAttribute('style');
+  it('정규화되지 않는 값은 평문', () => {
+    const container = cell('가상 기타 제품');
+    expect(container.querySelector('[data-product-chip]')).toBeNull();
+    expect(container).toHaveTextContent('가상 기타 제품');
   });
 });

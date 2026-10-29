@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition, type FormEvent, type ReactNode } from 'react';
 
-import { Input } from '@/components/ui';
+import { Input, ProductChip } from '@/components/ui';
 import {
   DataTable,
   DataTableFilterEmpty,
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/data-table';
 import { Icon } from '@/components/icons/Icon';
 import { cn } from '@/lib/cn';
+import { normalizeErpMajor } from '@/lib/constants/product-family';
 import { navigateView } from '@/lib/page-state/view-navigation';
 import {
   EMPTY_VALUE,
@@ -136,7 +137,12 @@ function cellContent(key: ColumnKey, row: ItemRowView): ReactNode {
     case 'registeredOn':
       return row.registeredOn ?? EMPTY_VALUE;
     case 'product':
-      return row.product;
+      // 제품군 정규화(D'Amo → D.AMO 등)로 4개 제품에 맞는 값만 제품 색 칩(§13), 글자는 원래 값 — 정렬·필터·내보내기 불변
+      return (
+        <ProductChip product={normalizeErpMajor(row.product) ?? row.product}>
+          {row.product}
+        </ProductChip>
+      );
     case 'detailCategory':
       return row.detailCategory ?? EMPTY_VALUE;
     case 'manufacturer':

@@ -69,7 +69,7 @@ export function StepCategory({
       <div className="flex flex-col gap-3">
         <ChipRow label="대분류">
           {chips.majors.map((major) => (
-            <Chip key={major} active product={major} onClick={() => undefined}>
+            <Chip key={major} active onClick={() => undefined}>
               {major}
             </Chip>
           ))}
