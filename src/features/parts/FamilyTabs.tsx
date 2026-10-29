@@ -30,8 +30,8 @@ export function FamilyTabs({ families, active, basePath, counts }: FamilyTabsPro
             className={cn(
               'relative flex items-center gap-1.5 border-b-2 border-transparent px-1.5 py-[11px] text-[14px] no-underline hover:no-underline',
               isActive
-                ? 'font-semibold text-ink-900'
-                : 'font-medium text-text-tertiary hover:text-ink-900',
+                ? 'font-semibold text-text-primary'
+                : 'font-medium text-text-tertiary hover:text-text-primary',
             )}
           >
             {family}

@@ -49,28 +49,20 @@ export function CostEditModal({ row, onClose, onSaved }: CostEditModalProps) {
       title="원가 수정"
       footer={
         <>
-          <Button size="sm" onClick={onClose}>
-            취소
-          </Button>
-          <Button
-            size="sm"
-            variant="primary"
-            type="submit"
-            form="cost-edit-form"
-            disabled={isPending}
-          >
+          <Button onClick={onClose}>취소</Button>
+          <Button variant="primary" type="submit" form="cost-edit-form" disabled={isPending}>
             저장
           </Button>
         </>
       }
     >
       <form id="cost-edit-form" onSubmit={submit} className="flex flex-col gap-3">
-        <p className="m-0 text-[13px]">
-          <strong className="text-ink-900">{row.materialName}</strong> ({row.materialCode}) ·{' '}
+        <p className="m-0 text-[14px]">
+          <strong className="text-text-primary">{row.materialName}</strong> ({row.materialCode}) ·{' '}
           {row.unit}
         </p>
         {row.source === 'erp' ? (
-          <p className="m-0 rounded-lg bg-amber-500/15 px-3 py-2.5 text-[12px] text-amber-700">
+          <p className="m-0 rounded-lg bg-warning-50 px-3 py-2.5 text-[12px] text-warning-700 shadow-(--hairline-default)">
             ERP 임포트 행을 수정하면 수동 등록 행으로 바뀌며, 다음 원가 적용 시 같은
             자재·적용시작일의 ERP 값으로 대체될 수 있습니다.
           </p>
@@ -78,7 +70,7 @@ export function CostEditModal({ row, onClose, onSaved }: CostEditModalProps) {
         <Presence>
           {error ? (
             <Collapse key="error" role="alert">
-              <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-600">
+              <p className="m-0 rounded-lg bg-surface-danger px-3 py-2.5 text-[14px] text-text-danger">
                 {error}
               </p>
             </Collapse>
@@ -151,7 +143,9 @@ function Field({
     <label className="flex flex-col gap-1.5">
       <span className="text-[12px] font-medium text-text-secondary">{label}</span>
       {children}
-      {error?.length ? <span className="text-[12px] text-red-600">{error.join(' ')}</span> : null}
+      {error?.length ? (
+        <span className="text-[12px] text-text-danger">{error.join(' ')}</span>
+      ) : null}
     </label>
   );
 }

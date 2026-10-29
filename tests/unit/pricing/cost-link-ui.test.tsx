@@ -149,8 +149,8 @@ describe('원가 매핑 칸 (§2.1-4)', () => {
     expect(name).toHaveAttribute('title', 'WAPPLES-1700 T2 본체');
     expect(name).toHaveClass('truncate');
     rerender(<CostLink value={LINKS.P2} />);
-    // BL-2: 경고색은 amber-700(흰색~gray-200·강조 행에서 5.13:1 이상) — #a86a00(흰색 4.44:1) 아님
-    expect(screen.getByText('WGONE (원가표에 없음)')).toHaveClass('text-amber-700');
+    // BL-2: 경고색은 warning-800(흰색~neutral-100·강조 행에서 5.7:1 이상) — #a86a00(흰색 4.44:1) 아님
+    expect(screen.getByText('WGONE (원가표에 없음)')).toHaveClass('text-warning-800');
     expect(screen.getByText('WGONE (원가표에 없음)').className).not.toMatch(/#a86a00/i);
     rerender(<CostLink value={LINKS.P3} />);
     expect(screen.getByText('미매핑')).toHaveClass('text-text-tertiary');
@@ -164,7 +164,7 @@ describe('원가 매핑 칸 (§2.1-4)', () => {
     );
     expect(container).toHaveTextContent('W2600');
     expect(container.querySelector('[data-cost-link-state="out-of-scope-linked"]')).toHaveClass(
-      'text-amber-700',
+      'text-warning-800',
     );
     // 값 없음(계산 실패): 툴팁 없는 '—'
     rerender(<CostLink value={undefined} />);
@@ -344,9 +344,9 @@ describe('칸 클릭 → 매핑 수정 모달 (§2.1-6·§2.3)', () => {
     expect(
       await within(dialog()).findByText('후보 밖 — 원가 비중에 쓰이지 않음'),
     ).toBeInTheDocument();
-    // BL-2: 모달(흰 배경) 경고 안내 amber-700 5.78:1 — #a86a00 은 4.44:1
+    // BL-2: 모달(흰 배경) 경고 안내 warning-700 5.0:1 — #a86a00 은 4.44:1
     expect(within(dialog()).getByText('후보 밖 — 원가 비중에 쓰이지 않음')).toHaveClass(
-      'text-amber-700',
+      'text-warning-700',
     );
     expect(within(dialog()).queryByRole('listbox')).toBeNull();
     expect(within(dialog()).queryByRole('button', { name: '확정' })).toBeNull();

@@ -20,15 +20,15 @@ export function QuoteSheet({ document }: { document: QuoteDocumentView }) {
         </div>
         <Pill tone="amber">가견적 · 계약가 아님</Pill>
       </header>
-      <dl className="m-0 grid grid-cols-2 gap-3 rounded-xl bg-surface-card p-4 text-[13px] shadow-(--hairline-default) sm:grid-cols-4">
+      <dl className="m-0 grid grid-cols-2 gap-3 rounded-xl bg-surface-card p-4 text-[14px] shadow-(--hairline-default) sm:grid-cols-4">
         <Meta label="견적 번호" value={document.quoteNo} />
         <Meta label="견적 일자" value={formatDate(document.createdAt)} />
         <Meta label="제품군" value={document.productFamily ?? '—'} />
         <Meta label="작성자" value={document.ownerName} />
       </dl>
       <div className="overflow-x-auto rounded-xl bg-surface-card shadow-(--hairline-default)">
-        <table aria-label="견적 품목 표" className="w-full border-collapse text-[13px]">
-          <thead className="bg-gray-75 text-left text-[12px] text-text-tertiary">
+        <table aria-label="견적 품목 표" className="w-full border-collapse text-[14px]">
+          <thead className="bg-surface-muted text-left text-[12px] text-text-tertiary">
             <tr>
               <th className="py-2.5 pl-4 font-semibold">No</th>
               <th className="py-2.5 font-semibold">품목</th>
@@ -77,19 +77,19 @@ export function QuoteSheet({ document }: { document: QuoteDocumentView }) {
       </div>
       <section
         aria-label="견적 합계"
-        className="flex flex-col items-end gap-1 rounded-2xl bg-ink-900 p-6 text-white"
+        className="flex flex-col items-end gap-1 rounded-2xl bg-surface-inverse p-6 text-text-inverse"
       >
         {document.totalAmount !== null && document.currency ? (
           <>
-            <span className="text-[12px] text-white/60">합계 (할인 반영)</span>
+            <span className="text-[12px] text-text-inverse/60">합계 (할인 반영)</span>
             <strong className="text-[28px] font-bold" data-testid="share-total">
               {priceLabel(document.totalAmount, document.currency)}
             </strong>
           </>
         ) : (
           <>
-            {/* 어두운 패널(bg-ink-900) 위 — amber-500 이 7.57:1 (amber-700 은 2.79:1 이라 쓰지 않는다, BL-2) */}
-            <span className="text-[12px] text-amber-500">
+            {/* 어두운 패널(surface-inverse) 위 — warning-500 이 글자 AA 이상 (warning-700 은 어두운 바탕에서 미달이라 쓰지 않는다, BL-2) */}
+            <span className="text-[12px] text-warning-500">
               통화가 섞여 있어 통화별 소계로 표시합니다
             </span>
             {document.subtotals.map((subtotal) => (

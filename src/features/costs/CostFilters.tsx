@@ -85,10 +85,10 @@ function FamilyTabs({ filter, families }: Pick<CostFiltersProps, 'filter' | 'fam
             href={`${COSTS_PATH}${costFilterToQuery({ ...filter, family: tab.family || undefined, page: 1 })}`}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              '-mb-px shrink-0 border-b-2 px-3.5 py-2.5 text-[13px] whitespace-nowrap no-underline hover:no-underline',
+              '-mb-px shrink-0 border-b-2 px-3.5 py-2.5 text-[14px] whitespace-nowrap no-underline hover:no-underline',
               active
-                ? 'border-ink-900 font-semibold text-ink-900'
-                : 'border-transparent font-medium text-text-tertiary hover:text-ink-900',
+                ? 'border-neutral-900 font-semibold text-text-primary'
+                : 'border-transparent font-medium text-text-tertiary hover:text-text-primary',
             )}
           >
             {tab.label}

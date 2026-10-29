@@ -134,7 +134,7 @@ function CategoryCascade({
       {filter.family ? (
         <span
           role="status"
-          className="rounded-pill bg-amber-500/15 px-2.5 py-1 text-[12px] font-semibold text-amber-700"
+          className="rounded-pill bg-warning-50 px-2.5 py-1 text-[12px] font-semibold text-warning-700"
         >
           제품군: {familyBadge(filter.family)}
         </span>

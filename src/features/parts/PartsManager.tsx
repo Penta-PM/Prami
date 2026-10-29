@@ -111,8 +111,8 @@ export function PartsManager({ models, parts, mappings, batchOptions, userId }: 
             <p
               className={
                 flash.tone === 'error'
-                  ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-600'
-                  : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
+                  ? 'm-0 rounded-lg bg-surface-danger px-3.5 py-2.5 text-[14px] text-text-danger'
+                  : 'm-0 rounded-lg bg-success-50 px-3.5 py-2.5 text-[14px] text-success-700'
               }
             >
               {flash.text}
@@ -159,17 +159,15 @@ export function PartsManager({ models, parts, mappings, batchOptions, userId }: 
             title="매핑 삭제"
             footer={
               <>
-                <Button size="sm" onClick={() => setDeleting(null)}>
-                  취소
-                </Button>
-                <Button size="sm" variant="danger" disabled={isPending} onClick={remove}>
+                <Button onClick={() => setDeleting(null)}>취소</Button>
+                <Button variant="danger" disabled={isPending} onClick={remove}>
                   삭제
                 </Button>
               </>
             }
           >
             <p className="m-0">
-              <strong className="text-ink-900">{deleting.modelName}</strong> 의 장착 가능 파츠{' '}
+              <strong className="text-text-primary">{deleting.modelName}</strong> 의 장착 가능 파츠{' '}
               {deleting.parts.length}건을 모두 삭제합니다.
             </p>
           </Modal>

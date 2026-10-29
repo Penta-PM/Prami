@@ -61,15 +61,15 @@ describe('CostLinkPicker', () => {
     expect(combo()).toHaveAttribute('aria-activedescendant', option('W2600').id);
   });
 
-  it('행: min-h-11 px-3 py-2, 1행 자재명 13px font-medium 2줄, 2행 자재번호 12px tabular-nums tertiary, 선택 행 bg-purple-600/8 + 체크, divide-y', () => {
+  it('행: min-h-11 px-3 py-2, 1행 자재명 14px(BodySmall) font-medium 2줄, 2행 자재번호 12px tabular-nums tertiary, 선택 행 bg-primary-600/8 + 체크, divide-y', () => {
     render(<Harness initial="W2600" currentCode="W1700" suggestedCode="W2600" />);
     const row = option('W2600');
-    expect(row).toHaveClass('min-h-11', 'px-3', 'py-2', 'bg-purple-600/8');
+    expect(row).toHaveClass('min-h-11', 'px-3', 'py-2', 'bg-primary-600/8');
     expect(row.querySelector('svg')).not.toBeNull();
-    expect(option('W1700')).toHaveClass('hover:bg-gray-75');
+    expect(option('W1700')).toHaveClass('hover:bg-surface-muted');
     expect(option('W1700').querySelector('svg')).toBeNull();
     expect(within(row).getByText('WAPPLES-2600')).toHaveClass(
-      'text-[13px]',
+      'text-[14px]',
       'font-medium',
       'line-clamp-2',
     );

@@ -4,8 +4,10 @@ import { useEffect, useState, useTransition } from 'react';
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
-import { Button, Modal } from '@/components/ui';
+import { Button, FOCUS_RING_CLASSES, Modal } from '@/components/ui';
+import { controlSizeClasses } from '@/components/ui/density';
 import { formatAuditTime } from '@/lib/audit-format';
+import { cn } from '@/lib/cn';
 
 import { createQuoteShareAction, listQuoteSharesAction, revokeQuoteShareAction } from './actions';
 import type { QuoteShareView, SavedQuoteView } from './types';
@@ -78,7 +80,7 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
       className="w-[min(720px,calc(100vw-32px))]"
     >
       <div className="flex flex-col gap-4">
-        <p className="m-0 text-[13px] text-text-secondary">
+        <p className="m-0 text-[14px] text-text-secondary">
           링크를 아는 사람은 로그인 없이 견적서를 읽을 수 있습니다(원가 없음). 만료되거나 폐기하면
           링크는 404 로 닫힙니다.
         </p>
@@ -88,8 +90,8 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
               <p
                 className={
                   flash.tone === 'error'
-                    ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-600'
-                    : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
+                    ? 'm-0 rounded-lg bg-surface-danger px-3.5 py-2.5 text-[14px] text-text-danger'
+                    : 'm-0 rounded-lg bg-success-50 px-3.5 py-2.5 text-[14px] text-success-700'
                 }
               >
                 {flash.text}
@@ -112,7 +114,7 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
               max={365}
               value={days}
               onChange={(event) => setDays(event.target.value)}
-              className="w-[96px] rounded-lg border border-border-subtle px-3 py-2 text-[13px] text-text-primary"
+              className="w-[96px] rounded-lg border border-border-subtle px-3 py-2 text-[14px] text-text-primary"
             />
           </label>
           <Button type="submit" variant="primary" disabled={isPending}>
@@ -132,9 +134,9 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
         ) : null}
         <ul aria-label="공유 링크 목록" className="m-0 flex list-none flex-col gap-2 p-0">
           {shares === null ? (
-            <li className="text-[13px] text-text-tertiary">불러오는 중…</li>
+            <li className="text-[14px] text-text-tertiary">불러오는 중…</li>
           ) : visibleShares.length === 0 ? (
-            <li className="text-[13px] text-text-tertiary">
+            <li className="text-[14px] text-text-tertiary">
               {inactiveCount > 0
                 ? '살아 있는 공유 링크가 없습니다.'
                 : '아직 만든 공유 링크가 없습니다.'}
@@ -160,8 +162,13 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
                     <Button size="sm" onClick={() => void copy(share)}>
                       링크 복사
                     </Button>
+                    {/* 옆 Button(secondary·sm)과 같은 모양 — 링크 목록 행의 밀집 동작이라 sm(36·14) */}
                     <a
-                      className="inline-flex items-center rounded-lg border border-border-subtle px-3 text-[12px] font-semibold text-purple-600"
+                      className={cn(
+                        'inline-flex items-center rounded-control border border-solid border-primary-600 bg-neutral-0 px-4 font-semibold text-primary-600 no-underline hover:border-primary-700 hover:bg-primary-50 hover:text-primary-700 hover:no-underline',
+                        controlSizeClasses('sm'),
+                        FOCUS_RING_CLASSES,
+                      )}
                       href={share.path}
                       target="_blank"
                       rel="noreferrer"

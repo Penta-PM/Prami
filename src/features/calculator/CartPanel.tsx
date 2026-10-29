@@ -3,7 +3,7 @@
 import { m } from 'motion/react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { Button, Modal } from '@/components/ui';
+import { Button, FOCUS_RING_CLASSES, Modal } from '@/components/ui';
 import {
   DataTable,
   DataTableFilterEmpty,
@@ -19,7 +19,9 @@ import {
   type DataTableSort,
 } from '@/components/ui/data-table';
 import { Icon } from '@/components/icons/Icon';
+import { controlSizeClasses } from '@/components/ui/density';
 import { Presence } from '@/components/motion/Presence';
+import { cn } from '@/lib/cn';
 import { formatDate } from '@/lib/date-format';
 import { VARIANT_KEYS, listItem, transition } from '@/lib/motion/tokens';
 import { priceLabel } from '@/lib/pricing/format';
@@ -67,7 +69,7 @@ export function CartPanel(props: CartPanelProps) {
         aria-label="장바구니"
         className="max-h-[300px] overflow-y-auto rounded-xl bg-surface-card p-5 shadow-(--hairline-default)"
       >
-        <h2 className="m-0 mb-3 text-[13px] font-semibold">장바구니 ({lines.length})</h2>
+        <h2 className="m-0 mb-3 text-[14px] font-semibold">장바구니 ({lines.length})</h2>
         <ul className="m-0 flex list-none flex-col p-0">
           {/* 담기·삭제는 height 접힘 + fade, 나머지는 layout 재배치 (Motion 도입 스펙 §3.3 클라이언트 목록).
               Presence initial={false} 라 페이지 로드·복원 시 이미 있는 항목은 애니메이션 없이 최종 상태 */}
@@ -97,7 +99,7 @@ export function CartPanel(props: CartPanelProps) {
                     <button
                       type="button"
                       aria-label={`${line.name} 삭제`}
-                      className="flex border-0 bg-transparent p-0 text-red-600"
+                      className="flex border-0 bg-transparent p-0 text-text-danger"
                       onClick={() => props.onRemove(line.id)}
                     >
                       <Icon name="close" />
@@ -120,10 +122,10 @@ export function CartPanel(props: CartPanelProps) {
         className="rounded-xl bg-surface-card p-5 shadow-(--hairline-default)"
       >
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="m-0 text-[13px] font-semibold">내 견적 목록 ({saved.length})</h2>
+          <h2 className="m-0 text-[14px] font-semibold">내 견적 목록 ({saved.length})</h2>
           <button
             type="button"
-            className="border-0 bg-transparent text-[11px] font-semibold text-purple-600"
+            className="border-0 bg-transparent text-[11px] font-semibold text-link hover:text-link-hover"
             onClick={() => setListOpen(true)}
           >
             전체보기
@@ -146,7 +148,7 @@ export function CartPanel(props: CartPanelProps) {
                 <button
                   type="button"
                   aria-label={`${quote.quoteNo} 담기`}
-                  className="border-0 bg-transparent text-[11px] font-semibold text-purple-600"
+                  className="border-0 bg-transparent text-[11px] font-semibold text-link hover:text-link-hover"
                   onClick={() => props.onReload(quote)}
                 >
                   담기
@@ -164,9 +166,9 @@ export function CartPanel(props: CartPanelProps) {
 
       <section
         aria-label="예상 견적 금액"
-        className="flex flex-col gap-4 rounded-2xl bg-ink-900 p-7 text-white"
+        className="flex flex-col gap-4 rounded-2xl bg-surface-inverse p-7 text-text-inverse"
       >
-        <span className="text-[13px] font-semibold text-lime-500">예상 견적 금액</span>
+        <span className="text-[14px] font-semibold text-primary-100">예상 견적 금액</span>
         {totals.total !== null && totals.currency ? (
           <strong className="text-[34px] font-bold" data-testid="quote-total">
             {priceLabel(totals.total, totals.currency)}
@@ -177,8 +179,8 @@ export function CartPanel(props: CartPanelProps) {
           </strong>
         ) : (
           <div role="note" aria-label="통화별 소계" className="flex flex-col gap-1">
-            {/* 어두운 패널(bg-ink-900) 위 — amber-500 이 7.57:1 (amber-700 은 2.79:1 이라 쓰지 않는다, BL-2) */}
-            <span className="text-[12px] text-amber-500">
+            {/* 어두운 패널(surface-inverse) 위 — warning-500 이 글자 AA 이상 (warning-700 은 어두운 바탕에서 미달이라 쓰지 않는다, BL-2) */}
+            <span className="text-[12px] text-warning-500">
               통화가 섞여 있어 단일 합계 대신 통화별 소계를 표시합니다
             </span>
             {totals.subtotals.map((subtotal) => (
@@ -188,13 +190,13 @@ export function CartPanel(props: CartPanelProps) {
             ))}
           </div>
         )}
-        <dl className="m-0 flex flex-col gap-2.5 border-t border-white/12 pt-4 text-[13px]">
+        <dl className="m-0 flex flex-col gap-2.5 border-t border-neutral-0/12 pt-4 text-[14px]">
           <div className="flex justify-between">
-            <dt className="text-white/60">품목 수</dt>
+            <dt className="text-text-inverse/60">품목 수</dt>
             <dd className="m-0">{totals.count}개</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-white/60">합계 (할인 반영)</dt>
+            <dt className="text-text-inverse/60">합계 (할인 반영)</dt>
             <dd className="m-0">
               {totals.subtotals
                 .map((subtotal) => priceLabel(subtotal.amount, subtotal.currency))
@@ -204,7 +206,7 @@ export function CartPanel(props: CartPanelProps) {
         </dl>
         <div className="mt-2 flex flex-wrap gap-2">
           <Button
-            className="flex-1 border border-white/20 bg-transparent text-white hover:bg-white/10"
+            className="flex-1 border border-neutral-0/20 bg-transparent text-text-inverse hover:bg-neutral-0/10"
             onClick={props.onReset}
           >
             견적 초기화
@@ -218,7 +220,7 @@ export function CartPanel(props: CartPanelProps) {
             견적 저장
           </Button>
         </div>
-        <p className="m-0 text-[11px] text-white/60" data-testid="active-quote">
+        <p className="m-0 text-[11px] text-text-inverse/60" data-testid="active-quote">
           {activeQuote
             ? `출력·공유 대상: ${activeQuote.quoteNo}`
             : '견적을 저장하거나 목록에서 담으면 출력·공유할 수 있습니다'}
@@ -226,7 +228,12 @@ export function CartPanel(props: CartPanelProps) {
         <div className="flex gap-2">
           {activeQuote ? (
             <a
-              className="inline-flex flex-1 items-center justify-center rounded-lg border border-white/20 bg-transparent px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-white/10"
+              // 옆 Button 들과 같은 높이·글자(밀도 상속 — 패널 밖이라 md 44·16)와 포커스 고리
+              className={cn(
+                'inline-flex flex-1 items-center justify-center rounded-control border border-solid border-neutral-0/20 bg-transparent px-4 font-semibold text-text-inverse no-underline hover:bg-neutral-0/10 hover:no-underline',
+                controlSizeClasses(undefined),
+                FOCUS_RING_CLASSES,
+              )}
               href={quotePdfHref(activeQuote)}
               target="_blank"
               rel="noreferrer"
@@ -236,7 +243,7 @@ export function CartPanel(props: CartPanelProps) {
             </a>
           ) : (
             <Button
-              className="flex-1 border border-white/20 bg-transparent text-white/50"
+              className="flex-1 border border-neutral-0/20 bg-transparent text-text-inverse/50"
               disabled
               title="견적을 먼저 저장하세요"
             >
@@ -244,7 +251,7 @@ export function CartPanel(props: CartPanelProps) {
             </Button>
           )}
           <Button
-            className="flex-1 border border-white/20 bg-transparent text-white disabled:text-white/50"
+            className="flex-1 border border-neutral-0/20 bg-transparent text-text-inverse disabled:text-text-inverse/50"
             disabled={!activeQuote}
             title={activeQuote ? undefined : '견적을 먼저 저장하세요'}
             aria-label={activeQuote ? `${activeQuote.quoteNo} 견적 공유` : '견적 공유'}
@@ -380,7 +387,7 @@ function SavedQuotesModal({
         cell: (quote) => (
           <>
             <a
-              className="mr-1.5 text-[12px] font-semibold text-purple-600"
+              className="mr-1.5 text-[12px] font-semibold text-link hover:text-link-hover"
               href={quotePdfHref(quote)}
               target="_blank"
               rel="noreferrer"
@@ -391,7 +398,7 @@ function SavedQuotesModal({
             <button
               type="button"
               aria-label={`${quote.quoteNo} 공유`}
-              className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-600"
+              className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-link hover:text-link-hover"
               onClick={() => handlersRef.current.onShare(quote)}
             >
               공유
@@ -399,7 +406,7 @@ function SavedQuotesModal({
             <button
               type="button"
               aria-label={`${quote.quoteNo} 장바구니 담기`}
-              className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-purple-600"
+              className="mr-1.5 border-0 bg-transparent text-[12px] font-semibold text-link hover:text-link-hover"
               onClick={() => {
                 handlersRef.current.onReload(quote);
                 handlersRef.current.onClose();
@@ -410,7 +417,7 @@ function SavedQuotesModal({
             <button
               type="button"
               aria-label={`${quote.quoteNo} 삭제`}
-              className="border-0 bg-transparent text-[12px] font-semibold text-red-600"
+              className="border-0 bg-transparent text-[12px] font-semibold text-text-danger"
               onClick={() => handlersRef.current.onDelete(quote)}
             >
               삭제
@@ -474,7 +481,7 @@ function SavedQuotesModal({
           rows={saved}
           getRowKey={(quote) => quote.id}
           aria-label="견적 목록 표"
-          headClassName="bg-gray-75"
+          headClassName="bg-surface-muted"
           sort={sort}
           onSortChange={setSort}
           filters={filters}
@@ -482,7 +489,7 @@ function SavedQuotesModal({
           empty={saved.length > 0 ? <DataTableFilterEmpty onReset={resetFilters} /> : undefined}
         />
         {saved.length === 0 ? (
-          <p className="m-0 p-8 text-center text-[13px] text-text-tertiary">
+          <p className="m-0 p-8 text-center text-[14px] text-text-tertiary">
             저장된 견적이 없습니다.
           </p>
         ) : null}

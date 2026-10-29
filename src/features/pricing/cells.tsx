@@ -7,13 +7,13 @@ import type { CostLinkCellView, CostRatioReason, CostRatioView } from './types';
 
 /**
  * 표 셀 표시 (디자인 가격정책 표): 품목상태 색상 필(R-09, AC-14/22), 운영상태 아이콘+텍스트.
- * 상태는 색상만이 아니라 텍스트로도 구분한다 (§4.8 접근성). 글자색은 배경 위 4.5:1 이상(BL-1 — 폐기 red-600 5.1:1, 임시 amber-700 5.2:1,
- * 운영중 blue-600·미사용 gray-600 은 흰색~gray-200·강조 행 배경에서 4.58:1 이상).
+ * 상태는 색상만이 아니라 텍스트로도 구분한다 (§4.8 접근성). 글자색은 배경 위 4.5:1 이상(BL-1 — 폐기 error-700 on error-50 5.9:1,
+ * 임시 warning-800 6.3:1(배경 hex 는 PR-5), 운영중 primary-600·미사용 neutral-600 은 흰색~neutral-100·강조 행 배경에서 5.4:1 이상).
  */
 const ITEM_STATUS_CLASSES: Record<string, string> = {
-  폐기: 'bg-red-500/12 text-red-600',
-  임시: 'bg-[#fdf1de] text-amber-700',
-  사용: 'bg-gray-100 text-text-secondary',
+  폐기: 'bg-error-50 text-error-700',
+  임시: 'bg-[#fdf1de] text-warning-800',
+  사용: 'bg-neutral-100 text-text-secondary',
   미확인: 'bg-transparent text-text-tertiary shadow-(--hairline-default)',
 };
 
@@ -38,7 +38,7 @@ export function OperationStatus({ status }: { status: '운영중' | '미사용' 
     <span
       className={cn(
         'inline-flex items-center gap-[5px] text-[12px] font-semibold whitespace-nowrap',
-        active ? 'text-blue-600' : 'text-gray-600',
+        active ? 'text-primary-600' : 'text-neutral-600',
       )}
     >
       <svg aria-hidden="true" viewBox="0 0 14 14" className="size-3.5 shrink-0">
@@ -55,12 +55,12 @@ export function OperationStatus({ status }: { status: '운영중' | '미사용' 
 
 /**
  * 가격 변동 (cost-ratio-price-change §2.4): 화살표는 aria-hidden, 상승·하락은 텍스트로 구분한다.
- * 색: 상승 = text-danger(--red-600, 흰 배경 6:1), 하락 = purple-600(#6c55e0, 4.6:1 이상) — 국내 관례(상승 빨강·하락 파랑 계열),
+ * 색: 상승 = text-danger(Error 700, 흰 배경 6.5:1), 하락 = primary-600(Penta Blue 600, 6.3:1) — 국내 관례(상승 빨강·하락 파랑 계열),
  * 변동 없음·'—' = text-tertiary. 모두 기존 AA 토큰이다(현재 앱에 다크 테마 없음).
  */
 const PRICE_CHANGE_CLASSES = {
   up: 'text-text-danger',
-  down: 'text-purple-600',
+  down: 'text-primary-600',
   same: 'text-text-tertiary',
   none: 'text-text-tertiary',
 } as const;
@@ -135,8 +135,8 @@ export function PriceChangeButton({
       }}
       className={cn(
         'inline-flex cursor-pointer rounded-sm border-0 bg-transparent p-0 text-left [font:inherit]',
-        'underline decoration-dotted underline-offset-[3px] hover:bg-gray-100',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500',
+        'underline decoration-dotted underline-offset-[3px] hover:bg-neutral-100',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
       )}
     >
       <PriceChange
@@ -203,8 +203,8 @@ export function costLinkEditable(value: CostLinkCellView | undefined): value is 
   return value !== undefined && costLinkState(value) !== 'out-of-scope';
 }
 
-/** 경고 글자 (BL-2): #a86a00 은 흰색 4.44:1·gray-200 3.94:1 로 AA 미달 → amber-700 — 흰색~gray-200·강조 행(lime 25%) 배경에서 5.13:1 이상 */
-const WARNING_TEXT = 'text-amber-700';
+/** 경고 글자 (BL-2): 행 hover(neutral-100)·강조 행 배경까지 AA 를 지키려고 warning-700(neutral-100 위 4.3:1) 대신 warning-800 — 흰색~neutral-100 에서 5.7:1 이상 */
+const WARNING_TEXT = 'text-warning-800';
 
 /**
  * 원가 매핑 칸 (policy-cost-link-column §2.1-4): 매핑됨 = W코드 + 자재명(작은 글자·말줄임·title 전체명) / 원가표에 없음(경고색) /
@@ -256,7 +256,9 @@ export function CostLink({ value, id }: { value: CostLinkCellView | undefined; i
       const name = value.link!.materialName ?? '';
       return (
         <span {...common} className="inline-flex max-w-[220px] min-w-0 items-baseline gap-1.5">
-          <span className="shrink-0 font-semibold text-ink-900">{value.link!.materialCode}</span>
+          <span className="shrink-0 font-semibold text-text-primary">
+            {value.link!.materialCode}
+          </span>
           <span title={name} className="min-w-0 truncate text-[11px] text-text-tertiary">
             {name}
           </span>
@@ -297,8 +299,8 @@ export function CostLinkButton({
       }}
       className={cn(
         'inline-flex max-w-full cursor-pointer rounded-sm border-0 bg-transparent p-0 text-left [font:inherit]',
-        'underline decoration-dotted underline-offset-[3px] hover:bg-gray-100',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500',
+        'underline decoration-dotted underline-offset-[3px] hover:bg-neutral-100',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
       )}
     >
       <CostLink id={textId} value={value} />

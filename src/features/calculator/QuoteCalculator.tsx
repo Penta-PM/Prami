@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 
 import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
-import { Pill } from '@/components/ui';
+import { Button, Pill } from '@/components/ui';
 import {
   DraftRestoreBanner,
   type DraftBannerState,
@@ -414,7 +414,7 @@ export function QuoteCalculator({
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-2.5">
         <Pill tone="neutral">가견적 산출용 · 계약가 아님</Pill>
-        <p className="m-0 text-[13px] text-text-tertiary">
+        <p className="m-0 text-[14px] text-text-tertiary">
           제품과 옵션을 선택해 장바구니에 담으면, 여러 품목을 함께 견적으로 계산할 수 있습니다.
         </p>
       </div>
@@ -425,8 +425,8 @@ export function QuoteCalculator({
             <p
               className={
                 flash.tone === 'error'
-                  ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-600'
-                  : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
+                  ? 'm-0 rounded-lg bg-surface-danger px-3.5 py-2.5 text-[14px] text-text-danger'
+                  : 'm-0 rounded-lg bg-success-50 px-3.5 py-2.5 text-[14px] text-success-700'
               }
             >
               {flash.text}
@@ -440,7 +440,7 @@ export function QuoteCalculator({
             aria-label="제품"
             className="rounded-xl bg-surface-card p-6 shadow-(--hairline-default)"
           >
-            <h2 className="m-0 mb-3.5 text-[13px] font-semibold text-text-tertiary">제품</h2>
+            <h2 className="m-0 mb-3.5 text-[14px] font-semibold text-text-tertiary">제품</h2>
             <div
               className="grid grid-cols-2 gap-2.5 sm:grid-cols-4"
               role="group"
@@ -527,14 +527,12 @@ export function QuoteCalculator({
             onRate={onRate}
             onTarget={onTarget}
           />
-          <button
-            type="button"
-            disabled={!selected}
-            onClick={addItem}
-            className="rounded-lg border-0 bg-action-bg px-4 py-3.5 text-[13px] font-semibold text-action-fg disabled:opacity-50"
-          >
-            + 장바구니에 담기 ({selected ? `${selected.itemName} × ${qty}` : '품목을 선택하세요'})
-          </button>
+          {/* 독립 주요 버튼 — 공용 Button primary·md(44·16, Q-D1). 긴 품목명은 한 줄 말줄임 */}
+          <Button variant="primary" disabled={!selected} onClick={addItem}>
+            <span className="min-w-0 truncate">
+              + 장바구니에 담기 ({selected ? `${selected.itemName} × ${qty}` : '품목을 선택하세요'})
+            </span>
+          </Button>
         </div>
         <CartPanel
           userId={userId}

@@ -51,7 +51,7 @@ export default async function AdminPartsPage({ searchParams }: AdminPartsPagePro
       {families.length > 0 ? (
         <FamilyTabs families={families} active={family} basePath={PARTS_PATH} />
       ) : (
-        <p className="m-0 text-[13px] text-text-tertiary">
+        <p className="m-0 text-[14px] text-text-tertiary">
           판매단가가 적용되면 모델·파츠 목록이 나타납니다.
         </p>
       )}

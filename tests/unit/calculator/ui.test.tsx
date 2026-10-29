@@ -229,9 +229,9 @@ describe('QuoteCalculator', () => {
     const note = screen.getByRole('note', { name: '통화별 소계' });
     expect(note).toHaveTextContent('20,000,000원');
     expect(note).toHaveTextContent('10 USD');
-    // BL-2: 이 경고는 어두운 패널(ink-900) 위 — amber-500 이 7.57:1, amber-700 이면 2.79:1 이라 바꾸지 않는다
-    expect(within(note).getByText(/통화가 섞여 있어/)).toHaveClass('text-amber-500');
-    expect(note.closest('section')).toHaveClass('bg-ink-900');
+    // BL-2: 이 경고는 어두운 패널(surface-inverse = N900) 위 — warning-500 이 AA 이상, warning-700 은 어두운 바탕에서 미달
+    expect(within(note).getByText(/통화가 섞여 있어/)).toHaveClass('text-warning-500');
+    expect(note.closest('section')).toHaveClass('bg-surface-inverse');
 
     await userEvent.click(screen.getByRole('button', { name: '견적 저장' }));
     expect(mocks.save).toHaveBeenCalledWith(

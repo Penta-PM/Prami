@@ -78,7 +78,7 @@ export function PartsMappingTable({ mappings, onEdit, onDelete, userId }: PartsM
             <button
               type="button"
               aria-label={`${mapping.modelName} 매핑 수정`}
-              className={`${ACTION} text-purple-600`}
+              className={`${ACTION} text-link hover:text-link-hover`}
               onClick={() => onEdit(mapping)}
             >
               수정
@@ -86,7 +86,7 @@ export function PartsMappingTable({ mappings, onEdit, onDelete, userId }: PartsM
             <button
               type="button"
               aria-label={`${mapping.modelName} 매핑 삭제`}
-              className={`${ACTION} text-red-600`}
+              className={`${ACTION} text-text-danger`}
               onClick={() => onDelete(mapping)}
             >
               삭제
@@ -116,7 +116,7 @@ export function PartsMappingTable({ mappings, onEdit, onDelete, userId }: PartsM
   return (
     <section aria-labelledby="parts-mappings" className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 id="parts-mappings" className="m-0 text-[13px] font-semibold text-text-tertiary">
+        <h2 id="parts-mappings" className="m-0 text-[14px] font-semibold text-text-tertiary">
           등록된 매핑
         </h2>
         <DataTableResetButton tableId={PARTS_MAPPING_TABLE_ID} userId={userId} columns={columns} />
@@ -137,7 +137,7 @@ export function PartsMappingTable({ mappings, onEdit, onDelete, userId }: PartsM
           rows={mappings}
           getRowKey={(mapping) => mapping.modelItemCode}
           aria-label="등록된 매핑 표"
-          headClassName="bg-gray-75"
+          headClassName="bg-surface-muted"
           sort={sort}
           onSortChange={setSort}
           filters={filters}
@@ -145,7 +145,7 @@ export function PartsMappingTable({ mappings, onEdit, onDelete, userId }: PartsM
           empty={mappings.length > 0 ? <DataTableFilterEmpty onReset={resetFilters} /> : undefined}
         />
         {mappings.length === 0 ? (
-          <p className="m-0 p-8 text-center text-[13px] text-text-tertiary">
+          <p className="m-0 p-8 text-center text-[14px] text-text-tertiary">
             등록된 매핑이 없습니다.
           </p>
         ) : null}

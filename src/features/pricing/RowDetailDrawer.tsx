@@ -95,12 +95,12 @@ export function RowDetailDrawer({ rowId, onClose, manage = false }: RowDetailDra
     <>
       <Drawer open={rowId !== null} onClose={onClose} title="행 상세" width={520}>
         {error ? (
-          <p role="alert" className="m-0 text-[13px] text-red-600">
+          <p role="alert" className="m-0 text-[14px] text-text-danger">
             {error}
           </p>
         ) : null}
         {!current && !error ? (
-          <p className="m-0 text-[13px] text-text-tertiary">불러오는 중…</p>
+          <p className="m-0 text-[14px] text-text-tertiary">불러오는 중…</p>
         ) : null}
         {current ? (
           <DetailBody
@@ -132,7 +132,7 @@ function DetailBody({
 }) {
   const { row, history } = detail;
   return (
-    <div className="flex flex-col gap-5 text-[13px]">
+    <div className="flex flex-col gap-5 text-[14px]">
       <div className="flex flex-wrap items-center gap-2">
         <ItemStatusPill status={row.itemStatus} />
         <OperationStatus status={row.operationStatus} />
@@ -147,13 +147,13 @@ function DetailBody({
           {row.erpMajor ? (
             <>
               <dt className="text-text-tertiary">ERP 대분류</dt>
-              <dd className="m-0 text-ink-900">{row.erpMajor}</dd>
+              <dd className="m-0 text-text-primary">{row.erpMajor}</dd>
             </>
           ) : null}
           {row.erpRemark ? (
             <>
               <dt className="text-text-tertiary">ERP 비고</dt>
-              <dd className="m-0 break-all text-ink-900">{row.erpRemark}</dd>
+              <dd className="m-0 break-all text-text-primary">{row.erpRemark}</dd>
             </>
           ) : null}
         </dl>
@@ -164,7 +164,7 @@ function DetailBody({
           {SOURCE_FIELDS.map(([key, label]) => (
             <div key={key} className="contents">
               <dt className="text-text-tertiary">{label}</dt>
-              <dd className="m-0 break-all text-ink-900">{show(key, row[key])}</dd>
+              <dd className="m-0 break-all text-text-primary">{show(key, row[key])}</dd>
             </div>
           ))}
         </dl>
@@ -198,7 +198,7 @@ function SeriesHistory({
           <li
             key={entry.id}
             aria-current={entry.id === row.id ? 'true' : undefined}
-            className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 aria-[current]:bg-lime-500/25"
+            className="flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 aria-[current]:bg-primary-50"
           >
             <span className="text-text-secondary">
               {periodLabel(entry.effectiveFrom, entry.effectiveTo)}
@@ -210,7 +210,6 @@ function SeriesHistory({
       </ol>
       {onShowHistory ? (
         <Button
-          size="sm"
           className="mt-2"
           aria-haspopup="dialog"
           onClick={(event) => {

@@ -305,7 +305,7 @@ describe('PriceHistoryModal 내용·상태 (§2.3)', () => {
       '',
     ]);
     expect(body[1]).toHaveAttribute('aria-current', 'true');
-    expect(body[1]!.className).toContain('aria-[current]:bg-lime-500/25');
+    expect(body[1]!.className).toContain('aria-[current]:bg-primary-50');
     expect(body[0]).not.toHaveAttribute('aria-current');
     // 원가 비중·변경자 없음, 1행 안내 없음
     expect(historyDialog()).not.toHaveTextContent(/원가|변경자/);

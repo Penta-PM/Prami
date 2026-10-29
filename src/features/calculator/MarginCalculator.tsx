@@ -111,7 +111,7 @@ export function MarginCalculator({
   return (
     <div className="flex flex-col gap-5">
       <DraftRestoreBanner banner={banner} label="순매출 입력 복원 안내" onReset={startOver} />
-      <p className="m-0 text-[13px] text-text-tertiary">
+      <p className="m-0 text-[14px] text-text-tertiary">
         판매가격, 할인, 원가를 입력하면 실제 순매출과 이익률을 계산합니다.
       </p>
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-2">
@@ -119,7 +119,7 @@ export function MarginCalculator({
           aria-label="입력값"
           className="flex flex-col gap-4 rounded-xl bg-surface-card p-6 shadow-(--hairline-default)"
         >
-          <h2 className="m-0 text-[13px] font-semibold text-text-tertiary">입력값</h2>
+          <h2 className="m-0 text-[14px] font-semibold text-text-tertiary">입력값</h2>
           <Field label="정상 판매가 (단가)">
             <Input
               name="sellingPrice"
@@ -156,7 +156,7 @@ export function MarginCalculator({
               <div
                 role="status"
                 aria-label="원가 잠금"
-                className="rounded-xl bg-gray-75 px-3.5 py-2.5 text-[13px] text-text-tertiary"
+                className="rounded-xl bg-surface-muted px-3.5 py-2.5 text-[14px] text-text-tertiary"
               >
                 관리자만 조회 가능
               </div>
@@ -173,7 +173,7 @@ export function MarginCalculator({
           <Presence>
             {error ? (
               <Collapse key="error" role="alert">
-                <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-600">
+                <p className="m-0 rounded-lg bg-surface-danger px-3 py-2.5 text-[14px] text-text-danger">
                   {error}
                 </p>
               </Collapse>
@@ -189,9 +189,9 @@ export function MarginCalculator({
         </section>
         <section
           aria-label="순매출 결과"
-          className="flex flex-col gap-3.5 rounded-2xl bg-ink-900 p-7 text-white"
+          className="flex flex-col gap-3.5 rounded-2xl bg-surface-inverse p-7 text-text-inverse"
         >
-          <span className="text-[13px] font-semibold text-lime-500">순매출</span>
+          <span className="text-[14px] font-semibold text-primary-100">순매출</span>
           <strong className="text-[32px] font-bold" data-testid="margin-net">
             {result
               ? won(
@@ -201,7 +201,7 @@ export function MarginCalculator({
                 )
               : '—'}
           </strong>
-          <dl className="m-0 flex flex-col gap-2.5 border-t border-white/12 pt-4 text-[13px]">
+          <dl className="m-0 flex flex-col gap-2.5 border-t border-neutral-0/12 pt-4 text-[14px]">
             <Row label="정상 판매금액" value={result ? won(result.grossAmount) : '—'} />
             <Row label="할인 금액" value={result ? `− ${won(result.discountAmount)}` : '—'} />
             <Row label="실제 판매금액" value={result ? won(result.netAmount) : '—'} />
@@ -233,7 +233,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between">
-      <dt className="text-white/60">{label}</dt>
+      <dt className="text-text-inverse/60">{label}</dt>
       <dd className="m-0">{value}</dd>
     </div>
   );
