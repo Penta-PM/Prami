@@ -62,10 +62,8 @@ export function UserFormModal({ mode, error, onClose, onDone }: UserFormModalPro
       title={editing ? '사용자 수정' : '사용자 추가'}
       footer={
         <>
-          <Button size="sm" onClick={onClose}>
-            취소
-          </Button>
-          <Button size="sm" variant="primary" type="submit" form={formId} disabled={isPending}>
+          <Button onClick={onClose}>취소</Button>
+          <Button variant="primary" type="submit" form={formId} disabled={isPending}>
             저장
           </Button>
         </>
@@ -75,7 +73,7 @@ export function UserFormModal({ mode, error, onClose, onDone }: UserFormModalPro
         <Presence>
           {error ? (
             <Collapse key="error" role="alert">
-              <p className="m-0 rounded-lg bg-red-500/10 px-3 py-2.5 text-[13px] text-red-600">
+              <p className="m-0 rounded-lg bg-surface-danger px-3 py-2.5 text-[14px] text-text-danger">
                 {error}
               </p>
             </Collapse>
@@ -135,7 +133,9 @@ function Field({
     <label className="flex flex-col gap-1.5">
       <span className="text-[12px] font-medium text-text-secondary">{label}</span>
       {children}
-      {error?.length ? <span className="text-[12px] text-red-600">{error.join(' ')}</span> : null}
+      {error?.length ? (
+        <span className="text-[12px] text-text-danger">{error.join(' ')}</span>
+      ) : null}
     </label>
   );
 }

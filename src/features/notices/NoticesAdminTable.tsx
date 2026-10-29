@@ -69,7 +69,7 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
         headerClassName: 'pl-5',
         cellClassName: 'pl-5 font-semibold',
         cell: (notice) => (
-          <Link href={`/notices/${notice.id}`} className="text-ink-900">
+          <Link href={`/notices/${notice.id}`} className="text-text-primary">
             {notice.title}
           </Link>
         ),
@@ -117,7 +117,7 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
             <button
               type="button"
               aria-label={`${notice.title} 수정`}
-              className={`${ACTION} text-purple-600`}
+              className={`${ACTION} text-link hover:text-link-hover`}
               onClick={() => setForm({ kind: 'edit', notice })}
             >
               수정
@@ -125,7 +125,7 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
             <button
               type="button"
               aria-label={`${notice.title} 삭제`}
-              className={`${ACTION} text-red-600`}
+              className={`${ACTION} text-text-danger`}
               onClick={() => setDeleting(notice)}
             >
               삭제
@@ -172,7 +172,7 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
       <Presence>
         {flash ? (
           <Collapse key="flash" role="status">
-            <p className="m-0 mb-4 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700">
+            <p className="m-0 mb-4 rounded-lg bg-success-50 px-3.5 py-2.5 text-[14px] text-success-700">
               {flash}
             </p>
           </Collapse>
@@ -195,7 +195,7 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
           rows={notices}
           getRowKey={(notice) => notice.id}
           aria-label="공지 관리 표"
-          headClassName="bg-gray-75"
+          headClassName="bg-surface-muted"
           sort={sort}
           onSortChange={setSort}
           filters={filters}
@@ -203,7 +203,7 @@ export function NoticesAdminTable({ notices, defaultAuthor, userId }: NoticesAdm
           empty={notices.length > 0 ? <DataTableFilterEmpty onReset={resetFilters} /> : undefined}
         />
         {notices.length === 0 ? (
-          <p className="m-0 p-12 text-center text-[13px] text-text-tertiary">
+          <p className="m-0 p-12 text-center text-[14px] text-text-tertiary">
             등록된 공지가 없습니다.
           </p>
         ) : null}

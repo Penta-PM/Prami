@@ -35,7 +35,7 @@ export function ItemMergeChoice({
     <div
       role="group"
       aria-label="품목 제품군 병합 방식"
-      className="flex flex-col gap-2 rounded-lg bg-amber-500/10 px-3.5 py-2.5 text-[12px]"
+      className="flex flex-col gap-2 rounded-lg bg-warning-50 px-3.5 py-2.5 text-[12px] shadow-(--hairline-default)"
     >
       <p className="m-0">
         이번 품목 배치에 직전 적용 품목의 제품군 <strong>{info.missingFamilies.join(', ')}</strong>{' '}
@@ -91,16 +91,14 @@ export function ReplaceConfirmModal({
       title="품목 전량 교체"
       footer={
         <>
-          <Button size="sm" onClick={onCancel}>
-            취소
-          </Button>
-          <Button size="sm" variant="primary" onClick={onConfirm}>
+          <Button onClick={onCancel}>취소</Button>
+          <Button variant="primary" onClick={onConfirm}>
             전량 교체 적용
           </Button>
         </>
       }
     >
-      <p className="m-0 text-[13px]">
+      <p className="m-0 text-[14px]">
         이번 배치에 없는 제품군의 품번 {count(vanishingItems)}개가 사라집니다.
         {operating ? <OperatingDelta operating={operating} /> : null} 계속할까요?
       </p>

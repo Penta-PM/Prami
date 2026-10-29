@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
 
+import { FOCUS_RING_CLASSES } from '@/components/ui';
+import { controlSizeClasses } from '@/components/ui/density';
 import { getDb } from '@/db';
 import { AuditPagination } from '@/features/audit/AuditPagination';
 import { AuditTable } from '@/features/audit/AuditTable';
 import { filterToQuery } from '@/features/audit/query';
 import { ViewStateTracker } from '@/features/page-state/ViewStateTracker';
+import { cn } from '@/lib/cn';
 import { getAuditLogs, listAuditActions, parseAuditFilter } from '@/server/audit/queries';
 import { requirePagePermission } from '@/server/auth/rbac';
 import { restoreViewState } from '@/server/page-state/restore-page';
@@ -36,7 +39,12 @@ export default async function AdminAuditPage({ searchParams }: AuditPageProps) {
         </h1>
         <a
           href={`/api/audit/export.csv${filterToQuery({ ...filter, page: 1 })}`}
-          className="inline-flex h-8 items-center rounded-lg bg-gray-75 px-3 text-[12px] font-semibold text-text-secondary no-underline shadow-(--hairline-subtle) hover:bg-gray-100 hover:text-ink-900 hover:no-underline"
+          // 목록 툴바의 보조 동작 — Ghost 버튼 모양(N50·N700·N200), 표 옆이라 sm(36·14). 크기는 밀도 규칙 클래스로만
+          className={cn(
+            'inline-flex items-center rounded-control border border-solid border-neutral-200 bg-neutral-50 px-4 font-semibold text-neutral-700 no-underline hover:bg-neutral-100 hover:text-neutral-900 hover:no-underline',
+            controlSizeClasses('sm'),
+            FOCUS_RING_CLASSES,
+          )}
         >
           CSV 내보내기
         </a>

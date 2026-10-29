@@ -1,3 +1,5 @@
+import { FOCUS_RING_CLASSES } from '@/components/ui';
+import { controlSizeClasses } from '@/components/ui/density';
 import { ViewStateLink } from '@/features/page-state/ViewStateLink';
 import { cn } from '@/lib/cn';
 import type { AuditFilter } from '@/server/audit/queries';
@@ -25,13 +27,16 @@ export function AuditPagination({ filter, page, pageCount, total }: AuditPaginat
   );
 }
 
-const PAGE_LINK_BASE =
-  'inline-flex h-8 items-center rounded-lg bg-gray-75 px-3 font-semibold no-underline shadow-(--hairline-subtle)';
+/** 표 페이지 이동 — Ghost 버튼 모양, 표 아래 밀집 영역이라 sm(36·14) */
+const PAGE_LINK_BASE = cn(
+  'inline-flex items-center rounded-control border border-solid border-neutral-200 bg-neutral-50 px-4 font-semibold no-underline',
+  controlSizeClasses('sm'),
+);
 
 function PageLink({ href, disabled, label }: { href: string; disabled: boolean; label: string }) {
   if (disabled) {
     return (
-      <span aria-disabled="true" className={cn(PAGE_LINK_BASE, 'text-text-tertiary opacity-50')}>
+      <span aria-disabled="true" className={cn(PAGE_LINK_BASE, 'text-neutral-700 opacity-50')}>
         {label}
       </span>
     );
@@ -41,7 +46,8 @@ function PageLink({ href, disabled, label }: { href: string; disabled: boolean; 
       href={href}
       className={cn(
         PAGE_LINK_BASE,
-        'text-text-secondary hover:bg-gray-100 hover:text-ink-900 hover:no-underline',
+        'text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900 hover:no-underline',
+        FOCUS_RING_CLASSES,
       )}
     >
       {label}

@@ -160,7 +160,6 @@ export function ImportFileRow(props: ImportFileRowProps) {
               }}
             />
             <Button
-              size="sm"
               disabled={busy}
               aria-describedby={describedBy}
               onClick={() => inputRef.current?.click()}
@@ -174,7 +173,7 @@ export function ImportFileRow(props: ImportFileRowProps) {
             aria-describedby={describedBy}
             value={selection.reuseId}
             onChange={(event) => onChange({ ...selection, reuseId: event.target.value })}
-            className="w-auto min-w-[320px] py-2 text-[12px]"
+            className="w-auto min-w-[320px]"
           >
             <option value="">
               {optional ? '없음 (품목조회 파일 미적용)' : '파일을 선택하세요'}
@@ -191,12 +190,12 @@ export function ImportFileRow(props: ImportFileRowProps) {
       <Presence>
         {message ? (
           <Collapse key="message" role="alert">
-            <p className="m-0 text-[12px] text-red-600">
+            <p className="m-0 text-[12px] text-text-danger">
               {message}
               {existingId ? (
                 <button
                   type="button"
-                  className="ml-2 border-0 bg-transparent p-0 text-[12px] font-semibold text-purple-600 underline"
+                  className="ml-2 border-0 bg-transparent p-0 text-[12px] font-semibold text-link underline hover:text-link-hover"
                   onClick={() => onChange({ ...selection, mode: 'reuse', reuseId: existingId })}
                 >
                   기존 파일 선택

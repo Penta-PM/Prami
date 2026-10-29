@@ -218,13 +218,13 @@ export function AuditTable({
           filters={conditions}
           filteredTotal={total}
           aria-label="감사 로그"
-          headClassName="bg-gray-75"
+          headClassName="bg-surface-muted"
           rowClassName={() => 'text-[12px]'}
           empty={
             filtered ? (
               <DataTableFilterEmpty onReset={resetFilters} />
             ) : (
-              <div className="py-7 text-center text-[13px] text-text-tertiary">
+              <div className="py-7 text-center text-[14px] text-text-tertiary">
                 기록된 감사 로그가 없습니다.
               </div>
             )
