@@ -35,23 +35,21 @@ export function NoticeDeleteModal({ notice, onClose, onDone }: NoticeDeleteModal
       title="공지 삭제"
       footer={
         <>
-          <Button size="sm" onClick={onClose}>
-            취소
-          </Button>
-          <Button size="sm" variant="danger" disabled={isPending} onClick={remove}>
+          <Button onClick={onClose}>취소</Button>
+          <Button variant="danger" disabled={isPending} onClick={remove}>
             삭제
           </Button>
         </>
       }
     >
       <p className="m-0">
-        <strong className="text-ink-900">{notice.title}</strong> ({notice.publishedAt} ·{' '}
+        <strong className="text-text-primary">{notice.title}</strong> ({notice.publishedAt} ·{' '}
         {notice.authorName}) 공지를 삭제합니다. 목록과 홈에서 바로 사라지며 감사 로그에 남습니다.
       </p>
       <Presence>
         {error ? (
           <Collapse key="error" role="alert">
-            <p className="m-0 mt-3 text-[12px] text-red-600">{error}</p>
+            <p className="m-0 mt-3 text-[12px] text-text-danger">{error}</p>
           </Collapse>
         ) : null}
       </Presence>

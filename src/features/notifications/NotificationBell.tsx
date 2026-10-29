@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 
 import { Presence } from '@/components/motion/Presence';
+import { Button, FOCUS_RING_CLASSES } from '@/components/ui/button';
 import { ImportantBadge } from '@/features/notices/NoticeRows';
 import { Icon } from '@/components/icons/Icon';
 import { LegacyIcon, type LegacyIconName } from '@/features/shell/icons';
@@ -124,14 +125,17 @@ export function NotificationBell() {
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         onClick={toggle}
-        className="relative flex size-9 items-center justify-center rounded-pill border-0 bg-gray-75 text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900 aria-expanded:text-ink-900"
+        className={cn(
+          'relative flex size-9 items-center justify-center rounded-pill border-0 bg-surface-muted text-text-secondary shadow-(--hairline-subtle) hover:text-text-primary aria-expanded:text-text-primary',
+          FOCUS_RING_CLASSES,
+        )}
       >
         <Icon name="bell" />
         {unreadCount > 0 ? (
           <span
             aria-hidden="true"
             data-testid="notification-badge"
-            className="absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-pill bg-red-600 px-1 text-[10px] leading-none font-semibold text-white"
+            className="absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-pill bg-danger-bg px-1 text-[10px] leading-none font-semibold text-text-inverse"
           >
             {badge}
           </span>
@@ -162,7 +166,10 @@ export function NotificationBell() {
                 type="button"
                 disabled={unreadCount === 0}
                 onClick={() => void markAllRead()}
-                className="rounded-lg border-0 bg-transparent px-2 py-1 text-[12px] font-semibold text-text-secondary hover:bg-gray-100 hover:text-ink-900 disabled:cursor-not-allowed disabled:text-text-tertiary disabled:hover:bg-transparent"
+                className={cn(
+                  'rounded-lg border-0 bg-transparent px-2 py-1 text-[12px] font-semibold text-text-secondary hover:bg-neutral-100 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-text-secondary',
+                  FOCUS_RING_CLASSES,
+                )}
               >
                 모두 읽음
               </button>
@@ -192,25 +199,21 @@ function NotificationBody({
   onItemClick: (event: MouseEvent<HTMLAnchorElement>, item: NotificationItemView) => void;
 }) {
   if (status === 'loading') {
-    return <p className="m-0 px-4 py-6 text-center text-[13px] text-text-tertiary">불러오는 중…</p>;
+    return <p className="m-0 px-4 py-6 text-center text-[14px] text-text-tertiary">불러오는 중…</p>;
   }
   if (status === 'error') {
     return (
       <div role="alert" className="flex flex-col items-center gap-2 px-4 py-6 text-center">
-        <p className="m-0 text-[13px] text-text-secondary">알림을 불러오지 못했습니다.</p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="rounded-lg border-0 bg-gray-75 px-3 py-1.5 text-[12px] font-semibold text-ink-900 shadow-(--hairline-subtle) hover:bg-gray-100"
-        >
+        <p className="m-0 text-[14px] text-text-secondary">알림을 불러오지 못했습니다.</p>
+        <Button variant="ghost" size="sm" onClick={onRetry}>
           다시 시도
-        </button>
+        </Button>
       </div>
     );
   }
   if (items.length === 0) {
     return (
-      <p className="m-0 px-4 py-6 text-center text-[13px] text-text-tertiary">
+      <p className="m-0 px-4 py-6 text-center text-[14px] text-text-tertiary">
         새 알림이 없습니다.
       </p>
     );
@@ -224,13 +227,14 @@ function NotificationBody({
             data-unread={item.read ? undefined : 'true'}
             onClick={(event) => onItemClick(event, item)}
             className={cn(
-              'flex min-w-0 items-start gap-3 px-4 py-3 text-ink-900 no-underline hover:bg-gray-75',
-              !item.read && 'bg-purple-500/6',
+              'flex min-w-0 items-start gap-3 px-4 py-3 text-text-primary no-underline hover:bg-surface-muted hover:text-text-primary hover:no-underline',
+              'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus-ring',
+              !item.read && 'bg-primary-50',
             )}
           >
             <span
               aria-hidden="true"
-              className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-circle bg-gray-75 text-text-secondary"
+              className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-circle bg-surface-muted text-text-secondary"
             >
               <LegacyIcon name={TYPE_ICON[item.type] ?? 'bell'} className="size-3.5" />
             </span>
@@ -239,7 +243,7 @@ function NotificationBody({
                 {item.important ? <ImportantBadge /> : null}
                 <span
                   className={cn(
-                    'min-w-0 flex-1 truncate text-[13px]',
+                    'min-w-0 flex-1 truncate text-[14px]',
                     item.read ? 'font-medium' : 'font-semibold',
                   )}
                 >
@@ -248,7 +252,7 @@ function NotificationBody({
                 {item.read ? null : (
                   <span
                     aria-hidden="true"
-                    className="size-2 shrink-0 rounded-circle bg-purple-600"
+                    className="size-2 shrink-0 rounded-circle bg-primary-600"
                   />
                 )}
               </span>

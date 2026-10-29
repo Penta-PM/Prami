@@ -1,4 +1,4 @@
-import { PRESS_CLASSES } from '@/components/ui/button';
+import { FOCUS_RING_CLASSES, PRESS_CLASSES } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
 
 /** Google 로그인 버튼 (Google 브랜드 가이드의 흰 배경 + 컬러 G 로고) */
@@ -9,7 +9,9 @@ export function GoogleButton({ disabled }: { disabled?: boolean }) {
       disabled={disabled}
       className={cn(
         PRESS_CLASSES,
-        'flex h-11 w-full items-center justify-center gap-3 rounded-lg border-0 bg-white text-[14px] font-semibold text-ink-900 shadow-(--hairline-default) hover:bg-gray-75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-500 disabled:cursor-not-allowed disabled:opacity-50',
+        FOCUS_RING_CLASSES,
+        // 버튼 바탕·글자만 토큰 — G 로고 4색은 Google 브랜드 가이드 예외(스펙 §6)
+        'flex h-11 w-full items-center justify-center gap-3 rounded-control border-0 bg-neutral-0 text-[14px] font-semibold text-text-primary shadow-(--hairline-default) hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50',
       )}
     >
       <svg aria-hidden="true" viewBox="0 0 48 48" className="size-[18px]">

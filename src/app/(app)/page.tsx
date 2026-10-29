@@ -27,7 +27,7 @@ export default async function HomePage() {
           <h2 id="home-notices" className="m-0 [font:var(--text-h2)]">
             공지사항
           </h2>
-          <Link href="/notices" className="text-[13px] font-semibold">
+          <Link href="/notices" className="text-[14px] font-semibold">
             전체보기 →
           </Link>
         </div>

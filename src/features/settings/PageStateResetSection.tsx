@@ -38,18 +38,18 @@ export function PageStateResetSection() {
       aria-labelledby="page-state-reset-title"
       className="flex flex-col gap-3 rounded-xl bg-surface-card p-6 shadow-(--hairline-default)"
     >
-      <h2 id="page-state-reset-title" className="m-0 text-[15px] font-semibold">
+      <h2 id="page-state-reset-title" className="m-0 [font:var(--text-h2)]">
         저장된 화면·입력 초기화
       </h2>
-      <p className="m-0 text-[13px] text-text-secondary">{PAGE_STATE_RESET_NOTICE}</p>
+      <p className="m-0 text-[14px] text-text-secondary">{PAGE_STATE_RESET_NOTICE}</p>
       <Presence>
         {flash ? (
           <Collapse key="flash" role={flash.tone === 'error' ? 'alert' : 'status'}>
             <p
               className={
                 flash.tone === 'error'
-                  ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-600'
-                  : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
+                  ? 'm-0 rounded-lg bg-surface-danger px-3.5 py-2.5 text-[14px] text-text-danger'
+                  : 'm-0 rounded-lg bg-success-50 px-3.5 py-2.5 text-[14px] text-success-700'
               }
             >
               {flash.text}
@@ -62,7 +62,7 @@ export function PageStateResetSection() {
       </div>
       <Modal open={confirming} onClose={() => setConfirming(false)} title="저장된 화면·입력 초기화">
         <div className="flex flex-col gap-4">
-          <p className="m-0 text-[13px]">{PAGE_STATE_RESET_NOTICE}</p>
+          <p className="m-0 text-[14px]">{PAGE_STATE_RESET_NOTICE}</p>
           <div className="flex justify-end gap-2">
             <Button onClick={() => setConfirming(false)}>취소</Button>
             <Button variant="danger" disabled={isPending} onClick={reset}>

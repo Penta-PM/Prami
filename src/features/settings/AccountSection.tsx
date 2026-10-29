@@ -27,14 +27,14 @@ export function AccountSection({
       className="flex flex-col gap-4 rounded-xl bg-surface-card p-6 shadow-(--hairline-default)"
     >
       <div className="flex items-center justify-between gap-3">
-        <h2 id="account-title" className="m-0 text-[15px] font-semibold">
+        <h2 id="account-title" className="m-0 [font:var(--text-h2)]">
           계정 연결
         </h2>
         <Pill tone={account.googleConnected ? 'positive' : 'neutral'}>
           {account.googleConnected ? 'Google 연결됨' : 'Google 미연결'}
         </Pill>
       </div>
-      <dl className="m-0 grid grid-cols-1 gap-3 text-[13px] sm:grid-cols-2">
+      <dl className="m-0 grid grid-cols-1 gap-3 text-[14px] sm:grid-cols-2">
         <Field label="로그인 방식" value={PROVIDER_LABELS[account.provider]} />
         <Field label="이메일" value={account.email} />
         <Field label="이름" value={account.name} />

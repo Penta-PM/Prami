@@ -208,10 +208,10 @@ function Bubble({ message }: { message: ChatMessage }) {
         className={cn(
           'max-w-[78%] rounded-[14px] px-[15px] py-[11px] text-[14px] leading-[1.55] whitespace-pre-line max-md:max-w-[90%]',
           isUser
-            ? 'bg-primary-600 text-white'
+            ? 'bg-primary-600 text-text-inverse'
             : message.tone === 'error'
               ? 'bg-error-50 text-text-danger'
-              : 'bg-gray-75 text-text-primary',
+              : 'bg-surface-muted text-text-primary',
         )}
       >
         {message.notice ? (

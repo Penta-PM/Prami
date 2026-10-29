@@ -32,20 +32,23 @@ export function ChatDefaultsForm(props: PickerProps) {
       className="flex flex-col gap-4 rounded-xl bg-surface-card p-6 shadow-(--hairline-default)"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="defaults-title" className="m-0 text-[15px] font-semibold">
+        <h2 id="defaults-title" className="m-0 [font:var(--text-h2)]">
           챗봇 기본값
         </h2>
         <span className="text-[12px] text-text-tertiary">{CHAT_DEFAULTS_CAPTION}</span>
       </div>
       {props.defaults.modelReplaced ? (
-        <p role="status" className="m-0 rounded-lg bg-amber-500/15 px-3.5 py-2.5 text-[13px]">
+        <p
+          role="status"
+          className="m-0 rounded-lg bg-warning-50 px-3.5 py-2.5 text-[14px] shadow-(--hairline-default)"
+        >
           {MODEL_REPLACED_NOTICE}
         </p>
       ) : null}
       {hasSelectable ? (
         <DefaultsPicker {...props} />
       ) : (
-        <p className="m-0 text-[13px] text-text-tertiary">
+        <p className="m-0 text-[14px] text-text-tertiary">
           정상 검증된 LLM 키가 있어야 기본 벤더를 고를 수 있습니다.
         </p>
       )}

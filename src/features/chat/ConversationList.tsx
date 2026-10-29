@@ -205,8 +205,8 @@ function ListSkeleton() {
       </p>
       {[0, 1, 2, 3].map((index) => (
         <div key={index} aria-hidden="true" className="flex flex-col gap-1.5 rounded-lg px-2 py-2">
-          <div className="h-3.5 w-4/5 rounded-lg bg-gray-100" />
-          <div className="h-3 w-1/3 rounded-lg bg-gray-75" />
+          <div className="h-3.5 w-4/5 rounded-lg bg-neutral-100" />
+          <div className="h-3 w-1/3 rounded-lg bg-surface-muted" />
         </div>
       ))}
     </div>
@@ -240,7 +240,7 @@ function ConversationRow({
     <div
       className={cn(
         'group relative flex items-center rounded-lg',
-        selected ? 'bg-primary-50' : 'hover:bg-gray-100',
+        selected ? 'bg-primary-50' : 'hover:bg-neutral-100',
       )}
     >
       <a
@@ -343,7 +343,7 @@ function RowMenu({
           }
         }}
         className={cn(
-          'mr-1 flex size-8 items-center justify-center rounded-lg border-0 bg-transparent text-[16px] leading-none text-text-tertiary hover:bg-gray-150 hover:text-ink-900 aria-expanded:bg-gray-150 aria-expanded:text-ink-900',
+          'mr-1 flex size-8 items-center justify-center rounded-lg border-0 bg-transparent text-[16px] leading-none text-text-tertiary hover:bg-neutral-200 hover:text-text-primary aria-expanded:bg-neutral-200 aria-expanded:text-text-primary',
           FOCUS_RING_CLASSES,
         )}
       >
@@ -364,7 +364,7 @@ function RowMenu({
             tabIndex={-1}
             onClick={() => choose(onRename)}
             className={cn(
-              'rounded-lg border-0 bg-transparent px-3 py-2 text-left text-[14px] text-text-primary hover:bg-gray-100',
+              'rounded-lg border-0 bg-transparent px-3 py-2 text-left text-[14px] text-text-primary hover:bg-neutral-100',
               FOCUS_RING_CLASSES,
             )}
           >

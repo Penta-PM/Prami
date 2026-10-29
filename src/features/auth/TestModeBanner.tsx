@@ -11,7 +11,7 @@ export function TestModeBanner({ variant = 'block' }: { variant?: 'block' | 'inl
       <span
         data-testid="test-mode-badge"
         title="AUTH_TEST_MODE=true — 공용 테스트 비밀번호로 로그인되는 로컬 전용 모드"
-        className="rounded-pill bg-amber-500 px-2.5 py-1 text-[11px] font-bold tracking-[0.06em] text-ink-900"
+        className="rounded-pill bg-warning-500 px-2.5 py-1 text-[11px] font-bold tracking-[0.06em] text-text-primary"
       >
         {TEST_MODE_BANNER_TEXT}
       </span>
@@ -21,9 +21,9 @@ export function TestModeBanner({ variant = 'block' }: { variant?: 'block' | 'inl
     <div
       role="status"
       aria-label="테스트 모드"
-      className="rounded-lg border-2 border-amber-500 bg-amber-500/15 px-3.5 py-2.5 text-center text-[12px] text-ink-900"
+      className="rounded-lg border-2 border-warning-500 bg-warning-50 px-3.5 py-2.5 text-center text-[12px] text-text-primary"
     >
-      <strong className="block text-[13px] tracking-[0.08em]">{TEST_MODE_BANNER_TEXT}</strong>
+      <strong className="block text-[14px] tracking-[0.08em]">{TEST_MODE_BANNER_TEXT}</strong>
       공용 테스트 비밀번호로 로그인되는 로컬 전용 모드입니다. 네트워크(LAN·공개 URL)에 노출하지
       마세요.
     </div>

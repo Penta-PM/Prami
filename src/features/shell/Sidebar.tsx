@@ -92,7 +92,7 @@ export function Sidebar({
         aria-expanded={isMobileOpen}
         aria-controls="app-sidebar"
         aria-label={isMobileOpen ? '메뉴 닫기' : '메뉴 열기'}
-        className="fixed top-[18px] left-3 z-50 flex size-9 items-center justify-center rounded-lg border-0 bg-gray-75 text-[18px] text-ink-900 shadow-(--hairline-subtle) md:hidden"
+        className="fixed top-[18px] left-3 z-50 flex size-9 items-center justify-center rounded-lg border-0 bg-surface-muted text-[18px] text-text-primary shadow-(--hairline-subtle) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring md:hidden"
       >
         {/* ☰ 는 Penta 에 없어 기존 글리프 유지(보류), 닫기는 Penta close */}
         {isMobileOpen ? <Icon name="close" /> : <span aria-hidden="true">☰</span>}
@@ -103,7 +103,7 @@ export function Sidebar({
           tabIndex={-1}
           aria-label="메뉴 닫기"
           onClick={dismissMobile}
-          className="fixed inset-0 z-30 border-0 bg-ink-900/30 transition-opacity duration-200 motion-reduce:transition-none md:hidden starting:opacity-0"
+          className="fixed inset-0 z-30 border-0 bg-surface-inverse/30 transition-opacity duration-200 motion-reduce:transition-none md:hidden starting:opacity-0"
         />
       ) : null}
       <aside
@@ -197,7 +197,10 @@ export function Sidebar({
             aria-expanded={isExpanded}
             aria-label="사이드바 접기/펼치기"
             title="사이드바 접기/펼치기"
-            className="w-full rounded-lg border-0 bg-gray-75 py-[9px] text-[12px] font-semibold text-text-secondary shadow-(--hairline-subtle) hover:text-ink-900"
+            className={cn(
+              'w-full rounded-lg border-0 bg-surface-muted py-[9px] text-[12px] font-semibold text-text-secondary shadow-(--hairline-subtle) hover:text-text-primary',
+              FOCUS_RING_CLASSES,
+            )}
           >
             {isExpanded ? '« 접기' : '»'}
           </button>
@@ -253,7 +256,9 @@ function SidebarLogo({ isExpanded }: { isExpanded: boolean }) {
         className="h-[31px] w-[34px] shrink-0 object-contain"
       />
       {isExpanded ? (
-        <span className="whitespace-nowrap text-ink-900 [font:var(--text-wordmark)]">Prami</span>
+        <span className="whitespace-nowrap text-text-primary [font:var(--text-wordmark)]">
+          Prami
+        </span>
       ) : null}
     </div>
   );
@@ -274,7 +279,7 @@ function SidebarLink({ item, isActive, isExpanded, fadeIn }: SidebarLinkProps) {
         // 활성 (Penta 디자인 PR-2, Plan 결정 — 문서에 내비 정의 없음): P50 바탕 + P700 글자(8.3:1) + 왼쪽 3px P500 막대
         isActive
           ? 'bg-primary-50 font-semibold text-primary-700 before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-primary-500 hover:text-primary-700'
-          : 'font-medium text-text-secondary hover:bg-gray-100 hover:text-ink-900',
+          : 'font-medium text-text-secondary hover:bg-neutral-100 hover:text-text-primary',
       )}
     >
       <NavIcon name={item.icon} className={isActive ? 'text-primary-700' : 'text-text-tertiary'} />

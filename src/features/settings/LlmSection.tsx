@@ -125,17 +125,20 @@ export function LlmSection({
         aria-labelledby="llm-title"
         className="flex scroll-mt-24 flex-col gap-4 rounded-xl bg-surface-card p-6 shadow-(--hairline-default)"
       >
-        <h2 id="llm-title" className="m-0 text-[15px] font-semibold">
+        <h2 id="llm-title" className="m-0 [font:var(--text-h2)]">
           LLM 연결
         </h2>
         <CompanyKeyWarning />
         {!keyringReady ? (
-          <p role="alert" className="m-0 rounded-lg bg-amber-500/15 px-3.5 py-2.5 text-[13px]">
+          <p
+            role="alert"
+            className="m-0 rounded-lg bg-warning-50 px-3.5 py-2.5 text-[14px] shadow-(--hairline-default)"
+          >
             {KEYRING_MISSING_NOTICE}
           </p>
         ) : null}
         {credentials.length === 0 ? (
-          <p className="m-0 text-[13px] text-text-secondary">{NO_CREDENTIAL_NOTICE}</p>
+          <p className="m-0 text-[14px] text-text-secondary">{NO_CREDENTIAL_NOTICE}</p>
         ) : null}
         <Presence>
           {flash ? (
@@ -143,8 +146,8 @@ export function LlmSection({
               <p
                 className={
                   flash.tone === 'error'
-                    ? 'm-0 rounded-lg bg-red-500/10 px-3.5 py-2.5 text-[13px] text-red-600'
-                    : 'm-0 rounded-lg bg-green-600/12 px-3.5 py-2.5 text-[13px] text-green-700'
+                    ? 'm-0 rounded-lg bg-surface-danger px-3.5 py-2.5 text-[14px] text-text-danger'
+                    : 'm-0 rounded-lg bg-success-50 px-3.5 py-2.5 text-[14px] text-success-700'
                 }
               >
                 {flash.text}
@@ -193,8 +196,8 @@ export function LlmSection({
         busy={busy}
         onSave={saveDefaults}
       />
-      <section aria-label="요금·데이터 안내" className="rounded-xl bg-gray-75 p-5">
-        <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-[13px] text-text-secondary">
+      <section aria-label="요금·데이터 안내" className="rounded-xl bg-surface-muted p-5">
+        <ul className="m-0 flex list-disc flex-col gap-1.5 pl-5 text-[14px] text-text-secondary">
           {NOTICES.map((notice) => (
             <li key={notice}>{notice}</li>
           ))}
@@ -213,7 +216,7 @@ function CompanyKeyWarning() {
     <aside
       role="note"
       aria-labelledby="llm-company-key-title"
-      className="flex gap-2.5 rounded-lg border-l-[3px] border-border-danger bg-surface-danger px-3.5 py-2.5 text-[13px] text-text-danger"
+      className="flex gap-2.5 rounded-lg border-l-[3px] border-border-danger bg-surface-danger px-3.5 py-2.5 text-[14px] text-text-danger"
     >
       <Icon name="warning" />
       <div className="flex min-w-0 flex-col gap-1">

@@ -24,13 +24,13 @@ export function DraftRestoreBanner({
     <Presence>
       {banner ? (
         <Collapse key="draft-restore" role="status" aria-label={label}>
-          <div className="flex flex-col gap-1 rounded-lg bg-purple-600/10 px-3.5 py-2.5 text-[13px] text-text-primary">
+          <div className="flex flex-col gap-1 rounded-lg bg-primary-50 px-3.5 py-2.5 text-[14px] text-text-primary">
             <p className="m-0">
               이전 작업을 복원했습니다 ({banner.restoredAt}) ·{' '}
               <button
                 type="button"
                 onClick={onReset}
-                className="border-0 bg-transparent p-0 font-semibold text-purple-600 underline-offset-2 hover:underline"
+                className="rounded-sm border-0 bg-transparent p-0 font-semibold text-link underline-offset-2 hover:text-link-hover hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
               >
                 새로 시작
               </button>
