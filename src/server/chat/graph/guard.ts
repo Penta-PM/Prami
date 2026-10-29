@@ -282,12 +282,85 @@ export function productTermsOf(messages: readonly ToolMessage[]): string[] {
 
 function maskTerms(text: string, terms: readonly string[]): string {
   return terms
-    .map(normalizeForGuard)
+    .map((term) => stripMarkdown(normalizeForGuard(term)))
     .filter(Boolean)
     .sort((a, b) => b.length - a.length)
     .reduce((masked, term) => masked.split(term).join(TERM_PLACEHOLDER), text);
 }
-export const REPLY_MAX_LENGTH = 1500;
+
+/** 화면이 글자로 풀어 보여 주는 문자 참조(react-markdown 이 디코드) — 숫자 참조 + 금액·문장에 쓰일 만한 이름 참조 */
+const NAMED_REFERENCES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  comma: ',',
+  period: '.',
+  colon: ':',
+  dollar: '$',
+  yen: '¥',
+  pound: '£',
+  euro: '€',
+  percnt: '%',
+  num: '#',
+};
+function decodeReferences(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, ref: string) => {
+    if (ref[0] !== '#') return NAMED_REFERENCES[ref.toLowerCase()] ?? whole;
+    const code =
+      ref[1] === 'x' || ref[1] === 'X' ? parseInt(ref.slice(2), 16) : Number(ref.slice(1));
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+  });
+}
+
+/**
+ * 판정용 사본에서 마크다운 서식 제거 (챗봇 마크다운 렌더 §2.3) — 화면에 보이는 글자만 남긴다.
+ * `**1,000**원`·`` `1,000`원 ``·`원**가**`·`[원가](/x)`·`<b>원</b>가`(원문 HTML 은 렌더하지 않아 글자만 붙는다)가 그대로 판정된다.
+ * 셀 구분 `|` 는 공백, 제목·인용·목록 접두는 지운다. 화면 원문은 바꾸지 않는다.
+ */
+export function stripMarkdown(text: string): string {
+  return (
+    decodeReferences(text)
+      // 태그 모양만(`<b>`·`</b>`·`<a href=…>`·주석) — `<1,000원>` 처럼 태그가 아닌 꺾쇠 글은 화면에 그대로 보이므로 남긴다
+      .replace(/<!--[\s\S]*?-->|<\/?[a-z][a-z0-9-]*(?:\s[^<>\n]*)?\/?>/gi, '')
+      .replace(/!?\[([^\]\n]*)\]\([^)\n]*\)/g, '$1')
+      .replace(/^(?:\s*(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+))+/gm, '')
+      .replace(/\\([\\`*_{}[\]()#+\-.!|~<>])/g, '$1')
+      .replace(/\*\*|__|~~|[*_`]/g, '')
+      .replace(/\|/g, ' ')
+  );
+}
+
+/** GFM 표 구분 행 (`|---|:--:|`, 앞뒤 파이프 생략 가능) */
+const TABLE_DELIMITER = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
+
+/**
+ * 판정 단위: 줄 → 문장(끝 부호 뒤 공백). **표 블록은 머리행 + 각 데이터 행을 합쳐 한 문장**으로 본다 — 원가 단어가 머리행,
+ * 금액이 데이터 행에 있어도 잡힌다(§2.3). 스트리밍 토큰 가드도 누적 텍스트 전체를 이 함수로 다시 판정한다.
+ */
+function guardSentences(text: string): string[] {
+  const lines = text.split('\n');
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    if (line.includes('|') && i + 1 < lines.length && TABLE_DELIMITER.test(lines[i + 1]!)) {
+      out.push(line);
+      let row = i + 2;
+      for (; row < lines.length && lines[row]!.includes('|'); row += 1)
+        out.push(`${line} ${lines[row]}`);
+      i = row - 1;
+      continue;
+    }
+    // 문장 끝 부호 뒤 공백에서만 나눈다 ("1.2억원" 같은 소수점에서 나누지 않음)
+    out.push(...line.split(/(?<=[.!?。])\s+/));
+  }
+  return out;
+}
+
+/** 마크다운 기호(`*`·`_`·`|`)가 들어 있어 서식이 될 수 있는 길이 상한 몫까지 — 1500 → 2000 (§2.4) */
+export const REPLY_MAX_LENGTH = 2000;
 export const REPLY_TRUNCATED_SUFFIX = '… (답변이 길어 일부만 표시합니다)';
 
 type GuardInput = {
@@ -301,14 +374,12 @@ type GuardInput = {
 
 /** 문장 단위로 원가 단어 + (금액 또는 비율)이 함께 있는지, 또는 원가 키 JSON 이 텍스트로 있는지 (정규화 후 판정) */
 export function mentionsCostAmount(raw: string, terms: readonly string[] = []): boolean {
-  const text = maskTerms(normalizeForGuard(raw), terms);
-  if (COST_KEY_TEXT.test(text)) return true;
-  return (
-    text
-      // 문장 끝 부호 뒤 공백 또는 줄바꿈에서만 나눈다 ("1.2억원" 같은 소수점에서 나누지 않음)
-      .split(/(?<=[.!?。])\s+|\n/)
-      .some((sentence) => hasCostWord(sentence) && (isAmount(sentence) || PERCENT.test(sentence)))
-  );
+  const normalized = normalizeForGuard(raw);
+  // 원가 키 JSON 은 서식 제거 전 원문으로 (`unit_cost` 의 _ 를 지우기 전)
+  if (COST_KEY_TEXT.test(maskTerms(normalized, terms))) return true;
+  return guardSentences(normalized)
+    .map((sentence) => maskTerms(stripMarkdown(sentence), terms))
+    .some((sentence) => hasCostWord(sentence) && (isAmount(sentence) || PERCENT.test(sentence)));
 }
 
 export function guardReplyText({ text, terms = [], role, vendor, model }: GuardInput): string {
