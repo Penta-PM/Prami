@@ -61,3 +61,4 @@ DB: 변경 없음 | 마이그레이션 <번호> 적용(백업 <경로>)
 ## 8. 진행 기록
 - 2026-10-30 Main 설계 1~5 수용 + Main CLAUDE.md 문구 채택(msg_f5b37e2a7ce4). main 의 CLAUDE.md 반영은 PR-PV 에 포함: '## 파이프라인' 끝(핵심 규칙 문단 다음)에 '### :3000 미리보기 선반영 (2026-10-30)' 5줄, '## 진행 상황 추적' 상태 흐름에 `Dev 구현중` → `미리보기 확인중` → `머지 완료`.
 - 2026-10-30 PR-PV 미리보기(:3000 = feat/preview-banner @ 1629005, Main 알림). Dev CLAUDE.md 76b58de 반영. Dev 해석 2건 수용: ① E2E 서버도 next dev 라 띠가 role=status 단언과 겹침 → playwright E2E_ENV 에 PREVIEW_BANNER=off ② :3000 은 평소에도 detached(origin/main) → detached 라도 SHA 가 main/origin/main 과 같으면 띠 없음, 다르면 같은 SHA 의 origin 브랜치 이름 표시(없으면 'detached').
+- 2026-10-30 PR-PV #110 머지(main c75fc69, head 1629005, CI 녹색): 미리보기 띠, verification.md §2.5, Main CLAUDE.md 미리보기 문구·'미리보기 확인중' 상태. 게이트 unit 3972·integration 31·E2E 207 등 통과. :3000 미리보기에서 띠 표시 → main 복귀 후 사라짐 실측. [미리보기 종료] :3000 = main @ c75fc69, /login 200. 새 절차 가동.
