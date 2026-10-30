@@ -7,12 +7,12 @@
 
 | 역할 | 브랜치 | 경로 | Orca 워크트리 ID |
 |------|--------|------|------------------|
-| Main | `main` | `/home/plan1/Desktop/Prami` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/Desktop/Prami` |
-| Plan | `Plan` | `/home/plan1/orca/workspaces/Prami/Plan` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Plan` |
-| **Dev** (현재) | `Dev` | `/home/plan1/orca/workspaces/Prami/Dev` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Dev` |
-| QA | `QA` | `/home/plan1/orca/workspaces/Prami/QA` | `b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/QA` |
+| Main | `main` | `/home/plan1/Desktop/Prami` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/Desktop/Prami` |
+| Plan | `Plan` | `/home/plan1/orca/workspaces/Prami/Plan` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/Plan` |
+| **Dev** (현재) | `Dev` | `/home/plan1/orca/workspaces/Prami/Dev` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/Dev` |
+| QA | `QA` | `/home/plan1/orca/workspaces/Prami/QA` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/QA` |
 
-`$REPO` = `b6875288-76f6-460f-a109-cec5f84eb966` · Main Run: **`run_8fb8ec4090f0`** (Main 전용 — 역할 세션은 바인딩하지 않음)
+`$REPO` = `3bdf9622-33af-4941-a0d8-e1d168e5a480` · Main Run: **`run_8fb8ec4090f0`** (Main 전용 — 역할 세션은 바인딩하지 않음)
 
 ## 파이프라인
 
@@ -91,10 +91,10 @@ Agent({ subagent_type: "general-purpose", description: "Backend 구현",  prompt
 ## Orca 통신
 
 ```bash
-REPO=b6875288-76f6-460f-a109-cec5f84eb966
-MAIN="@worktree:b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/Desktop/Prami"
-PLAN="@worktree:b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/Plan"
-QA="@worktree:b6875288-76f6-460f-a109-cec5f84eb966::/home/plan1/orca/workspaces/Prami/QA"
+REPO=3bdf9622-33af-4941-a0d8-e1d168e5a480
+MAIN="@worktree:3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/Desktop/Prami"
+PLAN="@worktree:3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/Plan"
+QA="@worktree:3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/QA"
 ```
 
 ```bash
@@ -132,6 +132,14 @@ CI 통과는 이 규칙으로만 강제됩니다.
 3. head SHA = QA 승인서의 `검증 SHA` (rebase 로만 달라졌으면 `git range-diff` 로 diff 동일 확인 + 기록)
 - 연속 머지(PR-2→3→4 등)는 앞 PR 머지마다 뒤 PR 의 1번을 다시 확인
 - CI 실패: 실제 버그 → 수정·QA 재검증 / flake → rerun **1회까지** + PR 기록 + QA 백로그 / 원인 불명 환경 차이 → Plan 에 되묻기
+
+## :3000 미리보기 선반영 (2026-10-30, Plan 스펙 docs/specs/preview-on-3000.md)
+- 구현이 화면에 보일 수준이 되면 CI·머지를 기다리지 않고 :3000(이 워크트리)을 작업 브랜치의 **커밋·푸시된 SHA** 로 전환하고 Main 에 `[미리보기 준비됨]`(볼 곳·DB 영향·슬롯 이전 상태)을, Plan 에 한 줄 사본을 보냅니다.
+- 미리보기 게이트: typecheck + 바뀐 영역 단위 → 전환 → /login·볼 곳 200, 컴파일 오류 없음. lockfile 변화 시 `pnpm install --frozen-lockfile --offline`. 실패 시 즉시 되돌리고 보고.
+- 이 워크트리에서 직접 개발하지 않습니다(작업은 wt-*). 미커밋 변경을 :3000 에 띄우지 않습니다.
+- 슬롯은 한 브랜치. 다른 작업이 준비되면 `[미리보기 대기]` 로 Main 에 묻고 바꿉니다. 통합 브랜치 미리보기 금지.
+- 마이그레이션: 추가형·백업 선행 + 스키마 동결 후에만 LAN 적용.
+- CI 는 머지 게이트로 그대로. 머지 후 :3000 을 main 으로 복귀하고 `[미리보기 종료]` 보고.
 
 ## 작업 흐름
 
@@ -199,7 +207,7 @@ orca orchestration check --ack <deliveryId> --json
 메시지만 보내면 상대는 모릅니다 (상대는 폴링하지 않습니다). **반드시 2단계**로 보내세요:
 
 ```bash
-REPO=b6875288-76f6-460f-a109-cec5f84eb966
+REPO=3bdf9622-33af-4941-a0d8-e1d168e5a480
 TARGET="/home/plan1/orca/workspaces/Prami/<역할>"   # Plan | Dev | QA
 # Main 워크트리 경로는:
 # "/home/plan1/Desktop/Prami"
