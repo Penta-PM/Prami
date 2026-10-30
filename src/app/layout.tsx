@@ -4,6 +4,7 @@ import { connection } from 'next/server';
 import type { ReactNode } from 'react';
 
 import { MotionProvider } from '@/components/motion/MotionProvider';
+import { PreviewBanner } from '@/components/PreviewBanner';
 
 import './globals.css';
 
@@ -36,6 +37,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="ko" className={pretendard.variable}>
       <body className="antialiased">
+        {/* :3000 이 main 이 아닐 때만(개발 서버) 맨 위 띠 — docs/specs/preview-on-3000.md §6 */}
+        <PreviewBanner />
         {/* 모션 Provider 는 루트에 둬 (app) 밖의 /login·/share 에도 적용한다 (Motion 도입 스펙 §3.2) */}
         <MotionProvider>{children}</MotionProvider>
       </body>

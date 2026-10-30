@@ -40,6 +40,8 @@ export const E2E_ENV = {
   // Motion 도입 스펙 §3.6: 서버 빌드에서 Motion 애니메이션을 끈다 (skipAnimations + reducedMotion="always").
   // 아래 use.reducedMotion 과 두 겹으로, toBeHidden/toHaveCount(0) 동기 단언이 flaky 해지지 않게 한다
   NEXT_PUBLIC_MOTION_DISABLED: '1',
+  // :3000 미리보기 띠(preview-on-3000 §6)는 next dev + main 아님에서 뜬다 — E2E·CI(PR 머지 ref = detached)에서는 끈다
+  PREVIEW_BANNER: 'off',
 } as const;
 
 /**
