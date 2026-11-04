@@ -124,7 +124,8 @@ export function Sidebar({
       >
         <SidebarLogo isExpanded={isExpanded} />
 
-        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto">
+        {/* overflow-y-auto 는 x 도 auto 로 만든다 — 링크의 -mx-1 이 들어갈 자리(-mx-1 px-1)를 주고 x 는 잘라 가로 스크롤을 없앤다 */}
+        <nav className="-mx-1 flex flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto px-1">
           {NAV_MAIN.map((item) => (
             <SidebarLink
               key={item.key}
@@ -284,7 +285,7 @@ function SidebarLink({ item, isActive, isExpanded, fadeIn }: SidebarLinkProps) {
     >
       <NavIcon name={item.icon} className={isActive ? 'text-primary-700' : 'text-text-tertiary'} />
       {isExpanded ? (
-        <m.span {...labelFade(fadeIn)} className="whitespace-nowrap">
+        <m.span {...labelFade(fadeIn)} className="min-w-0 truncate">
           {item.label}
         </m.span>
       ) : null}
