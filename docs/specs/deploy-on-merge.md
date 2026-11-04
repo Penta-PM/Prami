@@ -86,3 +86,6 @@ Plan 배정 → Dev 구현(작업 워크트리) → Dev 게이트 → PR(ci:run 
 
 ## 7. 진행 기록
 - 2026-11-04 스펙 확정, Dev 배정(PR-RM).
+- 2026-11-04 #112 PR-RM 머지(main 57ff8b5) — 새 흐름(B′) 첫 적용. Dev 게이트 SHA 7fac604 녹색 → ci:run 부착 → CI 대기 없이 머지 → :3000 = main @ 57ff8b5, /login 200, 띠 0건. DB·lockfile 변경 없음. Dev CLAUDE.md origin/Dev 56bd0ca.
+  - Dev 해석 수용: verification.md §5 표준 문구·§3 3번(SHA 대조 = Dev 게이트 SHA)도 B′ 에 맞춤. QA 승인 형식(§2)은 QA 생략 모드라 유지.
+  - 머지 후 CI run 41777372740 — 결과는 Dev 가 한 줄로 알림.
