@@ -124,22 +124,25 @@ CI 통과는 이 규칙으로만 강제됩니다.
 - [ ] **영향받는 E2E 스펙만** (E2E 전체는 QA 몫 — Dev 가 돌리지 않음. QA 와 동시에 E2E 금지)
 - [ ] 로컬 vitest 는 `--maxWorkers=2` 이하
 - [ ] PR 본문 `## 로컬 검증`: 커밋 SHA · DB(새로/기존, 이름) · 명령별 passed/failed · 실패 시 main 대조
-- [ ] PR 은 **라벨 없이** 올린다 (CI 는 secret scan·판정만, 약 1분)
+- [ ] PR 은 Dev 게이트 기록 후 `ci:run` 라벨을 붙여 올린다(B′ — 결과는 기다리지 않고 머지, 아래 3조건)
 
 **머지 전 3조건 (모두 참이어야 `gh pr merge --squash`)**
 1. `git fetch origin && git merge-base --is-ancestor origin/main origin/<branch>` 참 — 거짓이면 rebase 후 2·3 다시
-2. QA 통과 후 `ci:run` 라벨을 붙여 1회 → **머지할 head SHA 의 run 이 녹색** (문서 전용 PR 은 head SHA 의 문서 전용 판정 run 녹색)
-3. head SHA = QA 승인서의 `검증 SHA` (rebase 로만 달라졌으면 `git range-diff` 로 diff 동일 확인 + 기록)
+2. `ci:run` 라벨 부착 — **CI 결과를 기다리지 않고 머지**(B′, 2026-11-04 Plan docs/specs/deploy-on-merge.md §2). PR merge ref 의 run 은 머지 뒤에도 끝까지 돈다. 문서 전용 PR 은 secret scan 만
+3. head SHA = Dev 게이트를 돌린 SHA (QA 를 거친 경우 QA 승인서의 `검증 SHA`; rebase 로만 달라졌으면 `git range-diff` 로 diff 동일 확인 + 기록)
 - 연속 머지(PR-2→3→4 등)는 앞 PR 머지마다 뒤 PR 의 1번을 다시 확인
-- CI 실패: 실제 버그 → 수정·QA 재검증 / flake → rerun **1회까지** + PR 기록 + QA 백로그 / 원인 불명 환경 차이 → Plan 에 되묻기
+- 머지 후 CI 빨강: **즉시 수정 PR + Main 에 한 줄 알림**, 수정이 오래 걸리면 revert PR. 분류 — 실제 버그 → 수정 / flake → rerun **1회까지** + PR 기록 + QA 백로그 / 원인 불명 환경 차이 → Plan 에 되묻기
 
-## :3000 미리보기 선반영 (2026-10-30, Plan 스펙 docs/specs/preview-on-3000.md)
-- 구현이 화면에 보일 수준이 되면 CI·머지를 기다리지 않고 :3000(이 워크트리)을 작업 브랜치의 **커밋·푸시된 SHA** 로 전환하고 Main 에 `[미리보기 준비됨]`(볼 곳·DB 영향·슬롯 이전 상태)을, Plan 에 한 줄 사본을 보냅니다.
-- 미리보기 게이트: typecheck + 바뀐 영역 단위 → 전환 → /login·볼 곳 200, 컴파일 오류 없음. lockfile 변화 시 `pnpm install --frozen-lockfile --offline`. 실패 시 즉시 되돌리고 보고.
-- 이 워크트리에서 직접 개발하지 않습니다(작업은 wt-*). 미커밋 변경을 :3000 에 띄우지 않습니다.
-- 슬롯은 한 브랜치. 다른 작업이 준비되면 `[미리보기 대기]` 로 Main 에 묻고 바꿉니다. 통합 브랜치 미리보기 금지.
-- 마이그레이션: 추가형·백업 선행 + 스키마 동결 후에만 LAN 적용.
-- CI 는 머지 게이트로 그대로. 머지 후 :3000 을 main 으로 복귀하고 `[미리보기 종료]` 보고.
+## 머지 즉시 :3000 반영 (2026-11-04, Plan 스펙 docs/specs/deploy-on-merge.md — 미리보기 절차·띠 폐지)
+- **:3000 워크트리(이 워크트리)는 origin/main SHA(detached) 외 체크아웃 금지.** 작업 브랜치를 띄우지 않고, 여기서 직접 개발하지 않습니다(작업은 wt-*). 화면 표시(띠)가 없으므로 규칙으로 지킵니다. "확인 후 머지" 예외 없음.
+- 머지 직후 반영 절차:
+  1. `git -C /home/plan1/orca/workspaces/Prami/Dev fetch origin`
+  2. 마이그레이션이 있으면: LAN DB `pg_dump -Fc` 백업(600, 경로 보고) → **origin/main 코드로** `pnpm db:migrate`(추가형만) → 저널 항목 수·핵심 행 수 대조. **체크아웃 전환 전에** 적용(새 코드가 없는 테이블을 읽지 않게)
+  3. `git -C /home/plan1/orca/workspaces/Prami/Dev checkout --detach origin/main`
+  4. lockfile 이 바뀌었으면 `pnpm install --frozen-lockfile --offline`
+  5. `/login` 200·dev 서버 로그 컴파일 오류 없음. 실패하면 직전 main SHA 로 되돌리고 Main·Plan 보고. :3000 재시작은 사전 승인 범위에서 PID/포트로 그 프로세스만
+  6. Main 보고: `:3000 = main @ <SHA7>, /login 200`, 반영 후 볼 곳 1–2줄, CI run URL(진행 중), DB 영향(없음 | 마이그레이션·백업 경로)
+- Main 이 직접 머지한 건은 머지한 쪽이 반영합니다(Main 이 못 하면 Plan 경유로 요청이 옵니다).
 
 ## 작업 흐름
 
@@ -148,11 +151,11 @@ CI 통과는 이 규칙으로만 강제됩니다.
 2. 스펙에 구멍 있으면 → Plan에 ask (구현 시작 전에)
 3. API 계약 확정 → FE/BE 서브에이전트 병렬 호출
 4. 결과 통합 + 직접 검토 + 로컬에서 실제 실행 확인 + Dev 게이트(위 "검증 규칙")
-5. 커밋 → feat/* 브랜치 푸시 → gh pr create (라벨 없이, 본문에 ## 로컬 검증)
-6. QA에 검증 요청 (PR 링크 + 수용 기준 + 로컬 검증 SHA 첨부)
-7. 반려면 → 4로 / 통과면 → 8
-8. ci:run 라벨 → head SHA run 녹색 → 머지 전 3조건 확인 → gh pr merge --squash (셀프머지)
-9. Main에 완료 보고 (머지 SHA + ci:run run URL)
+5. 커밋 → feat/* 브랜치 푸시 → gh pr create (본문에 ## 로컬 검증) → ci:run 라벨
+6. (QA 생략 모드가 아니면) QA에 검증 요청 — 반려면 4로
+7. 머지 전 3조건 확인 → gh pr merge --squash (셀프머지, CI 결과 대기 없음)
+8. :3000 반영 절차(위) → Main에 머지·반영 보고 (머지 SHA · :3000 = main @ SHA7, /login 200 · CI run URL · DB 영향)
+9. CI 결과 확인 — 빨강이면 즉시 수정 PR + Main 한 줄 알림
 ```
 
 ## Git / PR
@@ -161,8 +164,8 @@ CI 통과는 이 규칙으로만 강제됩니다.
 git fetch origin && git switch -c feat/<작업> origin/main   # 작업 브랜치는 main 에서 (Plan 승인 — Dev 브랜치 → main PR 은 CLAUDE.md 충돌)
 git add -A && git commit -m "feat: ..."
 git push -u origin feat/<작업>
-gh pr create --base main --head feat/<작업> --title "..." --body "..."   # 라벨 없이
-gh pr edit <N> --add-label ci:run                                        # QA 통과 후, 머지 직전 1회
+gh pr create --base main --head feat/<작업> --title "..." --body "..."
+gh pr edit <N> --add-label ci:run                                        # Dev 게이트 후 1회 (결과 대기 없음)
 gh pr merge <N> --squash                                                 # 머지 전 3조건 확인 후에만
 ```
 
