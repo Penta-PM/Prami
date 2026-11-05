@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { MAX_CORES } from '@/lib/pricing/quote';
+
 /** 장바구니 라인의 옵션 스냅샷 (§4.3.8 quote_lines.options) */
 const pricedOption = z.object({
   itemCode: z.string().trim().min(1).max(50),
@@ -30,6 +32,8 @@ export const quoteLineSchema = z.object({
   bundles: z.array(pricedOption).max(100).default([]),
   groupItems: z.array(groupItem).max(200).default([]),
   discountRate: z.coerce.number().min(0).max(100).default(0),
+  /** 코어 단가 품목의 서버 1대당 코어 수 (D.AMO 코어 단가 §4). 없으면 기준 코어 — 코어 미적용 품목은 서버가 버린다 */
+  coreCount: z.coerce.number().int().min(1).max(MAX_CORES).optional(),
 });
 
 export const saveQuoteSchema = z.object({

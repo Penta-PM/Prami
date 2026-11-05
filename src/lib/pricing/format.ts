@@ -1,3 +1,5 @@
+import type { CoreSnapshot } from './quote';
+
 /**
  * 판매가 표시 (§4.5.3): KRW `12,000,000원`, 그 외 통화 `126 USD` / `168,000 JPY`.
  * DB numeric 은 문자열로 온다 — 소수점이 00 이면 정수로 보인다.
@@ -57,4 +59,17 @@ export function priceChangeDisplay(
   return up
     ? { kind: 'up', arrow: '▲', text: `이전 대비 ${value}% 상승` }
     : { kind: 'down', arrow: '▼', text: `이전 대비 ${value}% 하락` };
+}
+
+/**
+ * 견적서·PDF 라인 아래 코어 하위 줄 (D.AMO 코어 단가 §4): 추가 코어가 있으면
+ * `+ 추가 코어 2 × 100,000원 (기준 4코어 포함, 총 6코어)`, 기준 그대로면 `기준 4코어`.
+ */
+export function coreLineLabel(
+  core: Pick<CoreSnapshot, 'cores' | 'baseCoreCount' | 'unitPricePerCore'>,
+  currency: string,
+): string {
+  const extra = Math.max(0, core.cores - core.baseCoreCount);
+  if (extra === 0) return `기준 ${core.baseCoreCount}코어`;
+  return `+ 추가 코어 ${extra} × ${priceLabel(core.unitPricePerCore, currency)} (기준 ${core.baseCoreCount}코어 포함, 총 ${core.cores}코어)`;
 }

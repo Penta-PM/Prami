@@ -59,6 +59,9 @@ const ITEM: QuoteItemView = {
   currency: 'KRW',
   priceType: '정상판매',
   kind: '본품',
+  hasCorePrice: false,
+  baseCoreCount: 0,
+  unitPricePerCore: '0.00',
 };
 const PRELOAD: FamilyPreload[] = [
   {
@@ -93,6 +96,7 @@ const QUOTE_RESTORE: QuoteDraftRestore = {
     minor: null,
     selected: { ...ITEM, priceType: 'ASP' },
     qty: 3,
+    cores: '',
     parts: [],
     bundles: [],
     rate: 10,

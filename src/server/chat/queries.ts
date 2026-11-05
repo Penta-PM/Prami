@@ -23,6 +23,10 @@ export type ChatPrice = {
   unitPrice: string;
   currency: string;
   effectiveFrom: string;
+  /** 코어단가유무·기준코어수·단가(1코어) — 판매 쪽 값 (D.AMO 코어 단가 스펙 §4 챗봇). 코어 적용 판정은 coreApplies */
+  hasCorePrice: boolean;
+  baseCoreCount: number;
+  unitPricePerCore: string;
 };
 
 export const NORMAL_PRICE_TYPE = '정상판매';
@@ -105,6 +109,9 @@ function priceSelection() {
     unitPrice: salesPrices.unitPrice,
     currency: salesPrices.currency,
     effectiveFrom: salesPrices.effectiveFrom,
+    hasCorePrice: salesPrices.hasCorePrice,
+    baseCoreCount: salesPrices.baseCoreCount,
+    unitPricePerCore: salesPrices.unitPricePerCore,
   };
 }
 

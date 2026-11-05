@@ -60,6 +60,10 @@ export type PriceRowBase = {
   operationStatus: '운영중' | '미사용';
   remark: string | null;
   source: 'erp' | 'manual';
+  /** 코어단가유무·기준코어수·단가(1코어) — 판매가 칸 코어 보조 줄 (D.AMO 코어 단가 스펙 §4, 판매 쪽 값이라 USER 도 본다) */
+  hasCorePrice: boolean;
+  baseCoreCount: number;
+  unitPricePerCore: string;
 };
 
 /** 가격 변동 (cost-ratio-price-change §2.4) — `withPriceChange`(관리 화면 + pricing.write)일 때만 선택한다 */
@@ -117,6 +121,9 @@ const BASE_FIELDS = {
   operationStatus: salesPrices.operationStatus,
   remark: salesPrices.remark,
   source: salesPrices.source,
+  hasCorePrice: salesPrices.hasCorePrice,
+  baseCoreCount: salesPrices.baseCoreCount,
+  unitPricePerCore: salesPrices.unitPricePerCore,
 };
 
 const CHANGE_FIELDS = {

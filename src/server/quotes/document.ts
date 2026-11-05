@@ -2,7 +2,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 
 import type { Db } from '@/db';
 import { quoteLines, quotes, users } from '@/db/schema';
-import { cartTotals } from '@/lib/pricing/quote';
+import { cartTotals, type CoreSnapshot } from '@/lib/pricing/quote';
 
 /**
  * 견적서 문서 모델 (§4.5.8): PDF 와 공유 페이지가 함께 쓰는 읽기 전용 스냅샷.
@@ -29,6 +29,8 @@ export type QuoteDocumentLine = {
   preDiscount: string;
   lineTotal: string;
   options: QuoteDocumentOption[];
+  /** 코어 단가 품목의 코어 스냅샷 (D.AMO 코어 단가 §4). 옛 견적·코어 미적용 = null */
+  core?: CoreSnapshot | null;
 };
 
 export type QuoteDocument = {
@@ -52,6 +54,7 @@ type Options = {
   parts?: { itemCode: string; itemName: string; unitPrice: number }[];
   bundles?: { itemCode: string; itemName: string; unitPrice: number }[];
   groupItems?: { itemCode: string; itemName: string; unitPrice: number; qty: number }[];
+  core?: CoreSnapshot;
 };
 
 function optionsOf(raw: unknown): QuoteDocumentOption[] {
@@ -102,6 +105,7 @@ export async function loadQuoteDocument(db: Db, quoteId: string): Promise<QuoteD
       preDiscount: row.preDiscount,
       lineTotal: row.lineTotal,
       options: optionsOf(row.options),
+      core: options.core ?? null,
     };
   });
   const totals = cartTotals(

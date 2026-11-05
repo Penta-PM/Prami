@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { Db } from '@/db';
 import { quoteLines, quotes } from '@/db/schema';
 import { hasPermission, type Role } from '@/lib/constants/permissions';
+import type { CoreSnapshot } from '@/lib/pricing/quote';
 
 /** 내 견적 목록 (§4.5.7): 소유자 본인 것만, ADMIN 은 전체. 라인 스냅샷은 담기(복원)에 쓴다 */
 export type SavedQuoteLine = {
@@ -21,6 +22,8 @@ export type SavedQuoteLine = {
   discountRate: string;
   preDiscount: string;
   lineTotal: string;
+  /** 코어 스냅샷 (D.AMO 코어 단가 §4) — 담기 때 코어 수 복원. 옛 견적·코어 미적용 = null */
+  core?: CoreSnapshot | null;
 };
 
 export type SavedQuote = {
@@ -42,6 +45,7 @@ type Options = {
   parts?: SavedQuoteLine['parts'];
   bundles?: SavedQuoteLine['bundles'];
   groupItems?: SavedQuoteLine['groupItems'];
+  core?: CoreSnapshot;
 };
 
 export async function listMyQuotes(
@@ -88,6 +92,7 @@ export async function listMyQuotes(
       discountRate: line.discountRate,
       preDiscount: line.preDiscount,
       lineTotal: line.lineTotal,
+      core: options.core ?? null,
     });
     byQuote.set(line.quoteId, list);
   }

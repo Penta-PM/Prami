@@ -1,5 +1,6 @@
 import type { Db } from '@/db';
 import { priceLabel } from '@/lib/pricing/format';
+import { coreApplies } from '@/lib/pricing/quote';
 
 import { classifyIntent, PRODUCT_FAMILIES, type ChatIntent } from './intent';
 import {
@@ -59,9 +60,15 @@ export function calculatorHref(family: string | null, itemCode?: string): string
   return query ? `/calculator?${query}` : '/calculator';
 }
 
-function priceSentence(price: ChatPrice): string {
+/** 코어 적용 행(Y + 기준 1 이상)만 판매가 뒤 " (기준 N코어, 추가 1코어당 금액)" — 그 밖은 빈 문자열 (D.AMO 코어 단가 스펙 §4) */
+function coreSuffix(price: ChatPrice): string {
+  if (!coreApplies(price)) return '';
+  return ` (기준 ${price.baseCoreCount}코어, 추가 1코어당 ${priceLabel(price.unitPricePerCore, price.currency)})`;
+}
+
+export function priceSentence(price: ChatPrice): string {
   const type = price.priceType && price.priceType !== '정상판매' ? ` (${price.priceType})` : '';
-  return `${yearOf(price.effectiveFrom)}년 기준 ${price.productFamily} ${price.itemName.trim()}의 가격은 ${priceLabel(price.unitPrice, price.currency)}입니다${type}.`;
+  return `${yearOf(price.effectiveFrom)}년 기준 ${price.productFamily} ${price.itemName.trim()}의 가격은 ${priceLabel(price.unitPrice, price.currency)}입니다${type}${coreSuffix(price)}.`;
 }
 
 /** 후보 2~3개면 한 문장에 병기, 4개 이상이면 목록 (§4.5.9 r6 ②③) */

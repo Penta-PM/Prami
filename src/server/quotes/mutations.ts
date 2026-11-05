@@ -188,6 +188,8 @@ async function insertQuote(
           bundles: line.bundles,
           groupItems: line.groupItems,
           optionUnit: amounts.optionUnit,
+          // 코어 단가 품목만 (D.AMO 코어 단가 §4) — 옛 견적에는 없다
+          ...(line.core ? { core: line.core } : {}),
         },
         discountRate: line.discountRate.toFixed(1),
         preDiscount: amounts.preDiscount.toFixed(2),

@@ -27,6 +27,10 @@ export type QuoteItem = {
   currency: string;
   priceType: string;
   kind: ItemKind;
+  /** 코어 단가 (D.AMO 코어 단가 §4) — 단가와 같은 DISTINCT ON 행 */
+  hasCorePrice: boolean;
+  baseCoreCount: number;
+  unitPricePerCore: string;
 };
 
 export type QuoteItemFilter = {
@@ -113,6 +117,9 @@ async function latestRows(db: Db, filter: QuoteItemFilter): Promise<QuoteItem[]>
       currency: salesPrices.currency,
       priceType: sql<string>`${salesPrices.priceType}`,
       kind: ITEM_KIND_SQL,
+      hasCorePrice: salesPrices.hasCorePrice,
+      baseCoreCount: salesPrices.baseCoreCount,
+      unitPricePerCore: salesPrices.unitPricePerCore,
     })
     .from(salesPrices)
     .leftJoin(items, eq(items.itemCode, salesPrices.itemCode))

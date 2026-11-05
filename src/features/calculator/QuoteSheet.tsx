@@ -1,6 +1,6 @@
 import { Pill } from '@/components/ui';
 import { formatDate } from '@/lib/date-format';
-import { priceLabel } from '@/lib/pricing/format';
+import { coreLineLabel, priceLabel } from '@/lib/pricing/format';
 
 import type { QuoteDocumentView } from './types';
 
@@ -47,6 +47,11 @@ export function QuoteSheet({ document }: { document: QuoteDocumentView }) {
                   <div className="font-semibold">{line.name}</div>
                   {line.itemCode ? (
                     <div className="text-[11px] text-text-tertiary">{line.itemCode}</div>
+                  ) : null}
+                  {line.core ? (
+                    <div className="text-[11px] text-text-tertiary" data-testid="core-line">
+                      {coreLineLabel(line.core, line.currency)}
+                    </div>
                   ) : null}
                   {line.options.map((option, index) => (
                     <div

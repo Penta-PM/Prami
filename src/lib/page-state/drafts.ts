@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type { PermissionKey } from '@/lib/constants/permissions';
 import { formatDateTime } from '@/lib/date-format';
+import { MAX_CORES } from '@/lib/pricing/quote';
 
 import { byteLength } from './keys';
 
@@ -47,10 +48,12 @@ const qty = z.number().int().min(1).max(9999);
 const rate = z.number().finite().min(0).max(100);
 /** 화면 입력 문자열(숫자 입력칸 원문) — React 텍스트로만 렌더한다 */
 const inputText = z.string().max(30);
+/** 코어 수 (D.AMO 코어 단가 §4) — 선택 필드라 옛 초안도 그대로 읽힌다(버전 유지) */
+const coreCount = z.number().int().min(1).max(MAX_CORES);
 
 /**
  * 견적 계산기 선택값 (§2.4-1 quote — PR 본문에 같은 목록을 적는다).
- * 제품군 · 단가유형 · 중분류 · 소분류 · 품목(품번 + 선택 시점 판매 단가 — 복원 시 가격 변동 감지용) · 수량 · 파츠 · 결합형 · 할인율 · 목표 금액.
+ * 제품군 · 단가유형 · 중분류 · 소분류 · 품목(품번 + 선택 시점 판매 단가 — 복원 시 가격 변동 감지용) · 수량 · 코어 수 · 파츠 · 결합형 · 할인율 · 목표 금액.
  */
 export const quoteDraftSchema = z.object({
   family: z.string().trim().min(1).max(50),
@@ -60,6 +63,7 @@ export const quoteDraftSchema = z.object({
   itemCode: code.nullable(),
   unitPrice: money.nullable(),
   qty,
+  coreCount: coreCount.optional(),
   parts: z.array(code).max(100),
   bundles: z.array(code).max(100),
   rate,
@@ -86,6 +90,7 @@ export const cartLineDraftSchema = z.object({
   bundles: z.array(pricedOption).max(100),
   groupItems: z.array(pricedOption.extend({ qty })).max(200),
   discountRate: rate,
+  coreCount: coreCount.optional(),
 });
 
 export const cartDraftSchema = z.object({ lines: z.array(cartLineDraftSchema).min(1).max(200) });

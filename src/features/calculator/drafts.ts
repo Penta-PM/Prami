@@ -1,5 +1,6 @@
 import type { GroupSolutionDraft, MarginDraft, QuoteDraft } from '@/lib/page-state/drafts';
 
+import { hasCoreInput, parseCores } from './cores';
 import type { GroupSelection, MarginDraftValues, QuoteFormState } from './types';
 
 /**
@@ -8,7 +9,8 @@ import type { GroupSelection, MarginDraftValues, QuoteFormState } from './types'
  */
 
 /**
- * 견적 계산기 저장 필드 (PR 본문 목록과 같음): 제품군·단가유형·중분류·소분류·품목(품번 + 판매 단가 스냅샷)·수량·파츠·결합형·할인율·목표 금액.
+ * 견적 계산기 저장 필드 (PR 본문 목록과 같음): 제품군·단가유형·중분류·소분류·품목(품번 + 판매 단가 스냅샷)·수량·코어 수·파츠·결합형·할인율·목표 금액.
+ * 코어 수는 코어 단가 품목이고 입력이 올바를 때만 넣는다(잘못된 입력은 복원 때 기준으로 돌아간다).
  * 빈 상태 = 기본 제품군·첫 단가유형·분류/품목 없음·할인 0.
  */
 export function quoteDraftOf(
@@ -24,6 +26,9 @@ export function quoteDraftOf(
     form.rate === 0 &&
     form.target === '';
   if (untouched || form.family === '') return null;
+  const cores = hasCoreInput(form.selected)
+    ? parseCores(form.cores, form.selected.baseCoreCount).cores
+    : null;
   return {
     family: form.family,
     priceType: form.priceType,
@@ -32,6 +37,7 @@ export function quoteDraftOf(
     itemCode: form.selected?.itemCode ?? null,
     unitPrice: form.selected ? Number(form.selected.unitPrice) : null,
     qty: form.qty,
+    ...(cores !== null ? { coreCount: cores } : {}),
     parts: [...form.parts].sort(),
     bundles: [...form.bundles].sort(),
     rate: form.rate,

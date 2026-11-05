@@ -1,15 +1,17 @@
 'use client';
 
 import { m, useIsPresent } from 'motion/react';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 
+import { Collapse } from '@/components/motion/Collapse';
 import { Presence } from '@/components/motion/Presence';
 import { Checkbox, Input } from '@/components/ui';
 import { VARIANT_KEYS, scaleIn, transition } from '@/lib/motion/tokens';
 import { formatAmount, priceLabel } from '@/lib/pricing/format';
-import { rateFromTarget } from '@/lib/pricing/quote';
+import { MAX_CORES, rateFromTarget, type CoreSnapshot } from '@/lib/pricing/quote';
 
 import { Chip, QtyControl, StepCard } from './chips';
+import { extraCores, hasCoreInput } from './cores';
 import type { CategoryChipsView, PriceTypeView, QuoteItemView } from './types';
 
 /** STEP 1 · 단가 유형 = DB DISTINCT price_type (배수 없음, AC-61) */
@@ -159,6 +161,9 @@ export function StepItems({
   qty,
   onSelect,
   onQty,
+  cores,
+  coreError,
+  onCores,
 }: {
   items: readonly QuoteItemView[];
   loading: boolean;
@@ -166,6 +171,10 @@ export function StepItems({
   qty: number;
   onSelect: (item: QuoteItemView) => void;
   onQty: (qty: number) => void;
+  /** 코어 수 입력 원문 (코어 단가 품목만, D.AMO 코어 단가 §4) */
+  cores: string;
+  coreError: string | null;
+  onCores: (cores: string) => void;
 }) {
   return (
     <StepCard title="STEP 3 · 품목명">
@@ -194,7 +203,14 @@ export function StepItems({
                     {item.itemCode}
                   </span>
                 </span>
-                <span className="font-semibold">{priceLabel(item.unitPrice, item.currency)}</span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {hasCoreInput(item) ? (
+                    <span className="rounded-pill bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-text-secondary">
+                      기준 {item.baseCoreCount}코어
+                    </span>
+                  ) : null}
+                  <span className="font-semibold">{priceLabel(item.unitPrice, item.currency)}</span>
+                </span>
               </button>
             </li>
           );
@@ -208,12 +224,103 @@ export function StepItems({
           <li className="p-3.5 text-center text-[12px] text-text-tertiary">불러오는 중…</li>
         ) : null}
       </ul>
-      <div className="flex items-center gap-3">
-        <span className="text-[12px] font-medium text-text-secondary">수량</span>
-        <QtyControl value={qty} onChange={onQty} />
+      {/* 모바일은 수량·코어 수를 세로로 쌓는다 */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-8">
+        <div className="flex items-center gap-3">
+          <span className="text-[12px] font-medium text-text-secondary">수량</span>
+          <QtyControl value={qty} onChange={onQty} />
+        </div>
+        <Presence>
+          {hasCoreInput(selected) ? (
+            <Collapse key={`cores-${selected.itemCode}`}>
+              <CoreCountField item={selected} value={cores} error={coreError} onChange={onCores} />
+            </Collapse>
+          ) : null}
+        </Presence>
       </div>
     </StepCard>
   );
+}
+
+/**
+ * 코어 수 (D.AMO 코어 단가 §4): 숫자 입력 + −/+. 기준 미만·정수 아님·1,024 초과는 인라인 오류(담기는 호출자가 막는다, D1·D2).
+ * −/+ 는 기준~1,024 안에서만 움직인다. 오류는 aria-invalid·aria-describedby 로 입력에 연결한다.
+ */
+function CoreCountField({
+  item,
+  value,
+  error,
+  onChange,
+}: {
+  item: QuoteItemView;
+  value: string;
+  error: string | null;
+  onChange: (cores: string) => void;
+}) {
+  const id = useId();
+  const base = item.baseCoreCount;
+  const current = /^\d+$/.test(value.trim()) ? Number(value) : base;
+  const btn =
+    'size-8 rounded-circle border-0 bg-surface-muted text-[14px] font-semibold shadow-(--hairline-default) hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-40';
+  return (
+    <div className="flex flex-col gap-1.5" data-testid="core-count">
+      <div className="flex items-center gap-2">
+        <label htmlFor={id} className="mr-1 text-[12px] font-medium text-text-secondary">
+          코어 수
+        </label>
+        <button
+          type="button"
+          aria-label="코어 수 감소"
+          className={btn}
+          disabled={current <= base}
+          onClick={() => onChange(String(Math.max(base, Math.min(MAX_CORES, current - 1))))}
+        >
+          −
+        </button>
+        <Input
+          id={id}
+          type="number"
+          inputMode="numeric"
+          min={base}
+          max={MAX_CORES}
+          step={1}
+          size="sm"
+          wrapperClassName="w-20"
+          className="text-center"
+          value={value}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-hint ${id}-error` : `${id}-hint`}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <button
+          type="button"
+          aria-label="코어 수 증가"
+          className={btn}
+          disabled={current >= MAX_CORES}
+          onClick={() => onChange(String(Math.min(MAX_CORES, Math.max(base, current + 1))))}
+        >
+          +
+        </button>
+      </div>
+      <span id={`${id}-hint`} className="text-[11px] text-text-tertiary">
+        기준 {base}코어 포함 · 초과 1코어당 {priceLabel(item.unitPricePerCore, item.currency)}
+      </span>
+      {error ? (
+        <span id={`${id}-error`} className="text-[11px] text-text-danger">
+          {error}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/** STEP 6 위 코어 내역 한 줄: "기본 단가(4코어) A + 추가 2코어 × B = C" */
+export function coreBreakdownText(core: CoreSnapshot, currency: string): string {
+  const head = `기본 단가(${core.baseCoreCount}코어) ${priceLabel(core.baseUnitPrice, currency)}`;
+  const extra = extraCores(core);
+  if (extra === 0) return `${head} · 추가 코어 없음`;
+  const total = core.baseUnitPrice + extra * core.unitPricePerCore;
+  return `${head} + 추가 ${extra}코어 × ${priceLabel(core.unitPricePerCore, currency)} = ${priceLabel(total, currency)}`;
 }
 
 /** STEP 4 · 파츠 / STEP 5 · 결합형 체크 목록 */
@@ -271,6 +378,7 @@ export function StepDiscount({
   target,
   onRate,
   onTarget,
+  core,
 }: {
   preDiscount: number;
   lineTotal: number;
@@ -279,9 +387,20 @@ export function StepDiscount({
   target: string;
   onRate: (rate: number) => void;
   onTarget: (target: string) => void;
+  /** 코어 단가 품목이면 코어 내역 (1대 단가, 수량 곱하기 전) */
+  core?: CoreSnapshot;
 }) {
   return (
     <>
+      {core ? (
+        <p
+          aria-live="polite"
+          data-testid="core-breakdown"
+          className="m-0 rounded-xl bg-surface-muted px-6 py-3 text-[13px] text-text-secondary"
+        >
+          {coreBreakdownText(core, currency)}
+        </p>
+      ) : null}
       <div className="flex items-center justify-between rounded-xl bg-surface-muted px-6 py-[18px]">
         <span className="text-[14px] font-semibold text-text-secondary">
           할인 적용 전 금액 (수량 반영)

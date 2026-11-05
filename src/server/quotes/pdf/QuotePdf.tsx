@@ -1,7 +1,7 @@
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 
 import { PENTA_COLORS } from '@/lib/design/penta-colors';
-import { priceLabel } from '@/lib/pricing/format';
+import { coreLineLabel, priceLabel } from '@/lib/pricing/format';
 
 import type { QuoteDocument, QuoteDocumentLine } from '../document';
 import { QUOTE_FONT_FAMILY } from './fonts';
@@ -129,6 +129,9 @@ function LineRow({ line }: { line: QuoteDocumentLine }) {
       <View style={styles.colName}>
         <Text>{line.name}</Text>
         {line.itemCode ? <Text style={styles.sub}>{line.itemCode}</Text> : null}
+        {line.core ? (
+          <Text style={styles.sub}>{coreLineLabel(line.core, line.currency)}</Text>
+        ) : null}
         {line.options.map((option, index) => (
           <Text key={`${option.itemCode}-${index}`} style={styles.sub}>
             {`+ ${option.label} ${option.name} (${option.itemCode})`}
