@@ -1,3 +1,5 @@
+import type { CoreSnapshot } from '@/lib/pricing/quote';
+
 /** 클라이언트 컴포넌트가 주고받는 계산기 데이터 (서버 모듈을 import 하지 않도록 분리) */
 export type PricedOptionView = { itemCode: string; itemName: string; unitPrice: number };
 
@@ -18,6 +20,10 @@ export type CartLine = {
   bundles: PricedOptionView[];
   groupItems: GroupItemLine[];
   discountRate: number;
+  /** 코어 단가 품목의 서버 1대당 코어 수 (D.AMO 코어 단가 §4). unitPrice 는 이미 코어 반영 단가다 */
+  coreCount?: number;
+  /** 코어 내역 표시용 (기준 코어·1코어 단가·기준 단가) — 저장 입력에는 보내지 않는다 */
+  core?: CoreSnapshot;
   /** 화면 표시용(서버가 저장 시 다시 계산한다) */
   preDiscount: number;
   lineTotal: number;
@@ -30,6 +36,10 @@ export type QuoteItemView = {
   currency: string;
   priceType: string;
   kind: string;
+  /** 코어 단가 (D.AMO 코어 단가 §4) — 판매가 쪽 값 */
+  hasCorePrice: boolean;
+  baseCoreCount: number;
+  unitPricePerCore: string;
 };
 
 export type PriceTypeView = { priceType: string; count: number };
@@ -80,6 +90,7 @@ export type SavedQuoteView = {
     discountRate: string;
     preDiscount: string;
     lineTotal: string;
+    core?: CoreSnapshot | null;
   }[];
 };
 
@@ -135,6 +146,7 @@ export type QuoteDocumentView = {
       unitPrice: number;
       qty: number;
     }[];
+    core?: CoreSnapshot | null;
   }[];
 };
 
@@ -159,6 +171,8 @@ export type QuoteFormState = {
   minor: string | null;
   selected: QuoteItemView | null;
   qty: number;
+  /** 코어 수 입력 원문 (코어 단가 품목만 쓴다, 기본 = 기준) */
+  cores: string;
   parts: string[];
   bundles: string[];
   rate: number;

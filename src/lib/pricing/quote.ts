@@ -30,6 +30,40 @@ export function settleAmount(amount: number, currency: string = FLOOR_CURRENCY):
   return Math.max(0, Math.round(amount * 100) / 100);
 }
 
+/** 코어 단가 행 (sales_prices 코어단가유무·기준코어수·단가(1코어), D.AMO 코어 단가 스펙 §2) */
+export type CorePriceRow = {
+  unitPrice: number;
+  hasCorePrice: boolean;
+  baseCoreCount: number;
+  unitPricePerCore: number;
+};
+
+/** 견적 라인 코어 스냅샷 (quote_lines.options.core, §4). 단가(unit_price)는 이미 코어 반영 값이다 */
+export type CoreSnapshot = {
+  cores: number;
+  baseCoreCount: number;
+  unitPricePerCore: number;
+  /** 기준 코어 단가(코어 반영 전) */
+  baseUnitPrice: number;
+};
+
+/** 코어 수 입력 상한 (스펙 §3 D2) */
+export const MAX_CORES = 1024;
+
+/** 코어 적용 조건: 코어단가 Y 이고 기준코어수 1 이상. Y + 기준 0(조달)은 N 처럼 다룬다 (D4) */
+export function coreApplies(row: Pick<CorePriceRow, 'hasCorePrice' | 'baseCoreCount'>): boolean {
+  return row.hasCorePrice && row.baseCoreCount >= 1;
+}
+
+/**
+ * 코어 반영 본품 단가 = 단가 + max(0, 코어 수 − 기준) × 1코어 단가 (서버 1대당). 코어 미적용 행·코어 수 없음 = 단가 그대로.
+ * 기준 미만은 감액하지 않는다 (D1). 클라이언트(계산기·장바구니)와 서버(reprice)가 같은 함수를 쓴다.
+ */
+export function coreUnitPrice(row: CorePriceRow, cores?: number): number {
+  if (!coreApplies(row) || cores === undefined) return row.unitPrice;
+  return row.unitPrice + Math.max(0, Math.floor(cores) - row.baseCoreCount) * row.unitPricePerCore;
+}
+
 export type QuoteLineAmounts = {
   preDiscount: number;
   discountAmount: number;

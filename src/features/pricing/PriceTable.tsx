@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/data-table';
 import { cn } from '@/lib/cn';
 import type { FilterCondition } from '@/lib/table/filter';
-import { priceLabel, priceTypeLabel } from '@/lib/pricing/format';
+import { priceTypeLabel } from '@/lib/pricing/format';
 import { operationYearsLabel, periodLabel } from '@/lib/pricing/period';
 
 import {
@@ -24,6 +24,7 @@ import {
   OperationStatus,
   PriceChange,
   PriceChangeButton,
+  SellingPrice,
 } from './cells';
 import { columnsFor, PRICE_TABLE_IDS, type PriceColumnKey, type TableMode } from './columns';
 import type { CostLinkCellView, CostRatioView, PriceRowView } from './types';
@@ -125,7 +126,7 @@ function cellContent(
         </span>
       );
     case 'price':
-      return priceLabel(row.unitPrice, row.currency);
+      return <SellingPrice row={row} />;
     case 'costLink': {
       const value = costLinks?.[row.itemCode];
       if (onCostLink && costLinkEditable(value)) {

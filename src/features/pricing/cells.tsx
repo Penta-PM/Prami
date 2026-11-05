@@ -1,7 +1,8 @@
 import { useId } from 'react';
 
 import { cn } from '@/lib/cn';
-import { priceChangeDisplay, priceTypeLabel } from '@/lib/pricing/format';
+import { priceChangeDisplay, priceLabel, priceTypeLabel } from '@/lib/pricing/format';
+import { coreApplies } from '@/lib/pricing/quote';
 
 import type { CostLinkCellView, CostRatioReason, CostRatioView } from './types';
 
@@ -28,6 +29,40 @@ export function ItemStatusPill({ status }: { status: string }) {
     >
       {status}
     </span>
+  );
+}
+
+/**
+ * 판매가 칸 (D.AMO 코어 단가 스펙 §4 가격 정책 표): 판매가 + 코어 적용 행(Y + 기준 1 이상, D4 기준 0 제외)만
+ * 보조 한 줄 `기준 4코어 · +1코어 ₩x`(11px, 보조색). N 행·기준 0 행은 판매가만(기존과 같음). 열·저장 레이아웃은 그대로다.
+ */
+export function SellingPrice({
+  row,
+}: {
+  row: {
+    unitPrice: string;
+    currency: string;
+    hasCorePrice?: boolean;
+    baseCoreCount?: number;
+    unitPricePerCore?: string;
+  };
+}) {
+  const label = priceLabel(row.unitPrice, row.currency);
+  const core = {
+    hasCorePrice: row.hasCorePrice === true,
+    baseCoreCount: row.baseCoreCount ?? 0,
+  };
+  if (!coreApplies(core) || row.unitPricePerCore === undefined) return label;
+  return (
+    <>
+      {label}
+      <span
+        data-core-price=""
+        className="block text-[11px] leading-4 font-normal text-text-tertiary"
+      >
+        기준 {core.baseCoreCount}코어 · +1코어 {priceLabel(row.unitPricePerCore, row.currency)}
+      </span>
+    </>
   );
 }
 

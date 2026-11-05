@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { Db } from '@/db';
+import { defaultCores } from '@/features/calculator/cores';
 import type {
   CalculatorDrafts,
   CartDraftRestore,
@@ -83,6 +84,7 @@ export function defaultQuoteForm(family: string, firstPriceType: string | null):
     minor: null,
     selected: null,
     qty: 1,
+    cores: '',
     parts: [],
     bundles: [],
     rate: 0,
@@ -159,6 +161,8 @@ export async function resolveQuoteDraft(
   Object.assign(form, {
     selected,
     qty: draft.qty,
+    // 코어 수: 코어 단가 품목만, 기준 미만·없음 = 기준 (D.AMO 코어 단가 D1·D5)
+    cores: defaultCores(selected, draft.coreCount),
     parts: keptParts,
     bundles: keptBundles,
     rate: draft.rate,
@@ -190,6 +194,8 @@ export async function resolveCartDraft(
     bundles: line.bundles,
     groupItems: line.groupItems,
     discountRate: line.discountRate,
+    coreCount: line.coreCount,
+    core: line.core,
   }));
   return {
     lines,

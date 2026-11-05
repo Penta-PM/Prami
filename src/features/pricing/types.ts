@@ -16,6 +16,13 @@ export type PriceRowView = {
   remark: string | null;
   source: 'erp' | 'manual';
   /**
+   * 코어단가유무·기준코어수·단가(1코어) (D.AMO 코어 단가 스펙 §4) — 코어 적용 행(Y + 기준 1 이상)만 판매가 칸 아래 보조 줄.
+   * 서버 행에는 항상 있다(키가 없으면 코어 미적용으로 본다)
+   */
+  hasCorePrice?: boolean;
+  baseCoreCount?: number;
+  unitPricePerCore?: string;
+  /**
    * 같은 계열 직전 적용시작일 행의 판매가 (첫 시기 = null).
    * 관리 화면 + pricing.write 일 때만 키가 있다 — 조회 화면(/pricing) 행에는 키 자체가 없다(pricing-view-hide-price-change §2)
    */

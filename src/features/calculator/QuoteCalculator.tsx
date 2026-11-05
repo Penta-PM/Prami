@@ -22,6 +22,7 @@ import {
 import { cartDraftOf, linesFromSavedQuote, toLineInput } from './cart';
 import { CartPanel } from './CartPanel';
 import { Chip } from './chips';
+import { corePricing, defaultCores, hasCoreInput, parseCores } from './cores';
 import { groupDraftOf, quoteDraftOf } from './drafts';
 import { GroupSolution } from './GroupSolution';
 import { StepCategory, StepDiscount, StepItems, StepOptions, StepPriceType } from './QuoteSteps';
@@ -128,6 +129,7 @@ export function QuoteCalculator({
       minor: null,
       selected: null,
       qty: 1,
+      cores: '',
       parts: [],
       bundles: [],
       rate: 0,
@@ -144,6 +146,7 @@ export function QuoteCalculator({
   const [minor, setMinor] = useState<string | null>(start.minor);
   const [selected, setSelected] = useState<QuoteItemView | null>(start.selected);
   const [qty, setQty] = useState(start.qty);
+  const [cores, setCores] = useState(start.cores);
   const [loadedItems, setLoadedItems] = useState<Loaded<QuoteItemView[]> | null>(null);
   const [loadedOptions, setLoadedOptions] = useState<Loaded<Options> | null>(null);
   const [parts, setParts] = useState<ReadonlySet<string>>(() => new Set(start.parts));
@@ -192,6 +195,7 @@ export function QuoteCalculator({
         const found = result.data.find((item) => item.itemCode === pendingItem);
         if (found) {
           setSelected(found);
+          setCores(defaultCores(found));
           setFlash({ tone: 'ok', text: `챗봇에서 넘어온 품목을 선택했습니다: ${found.itemName}` });
         } else {
           setFlash({
@@ -223,6 +227,7 @@ export function QuoteCalculator({
 
   const resetSelection = () => {
     setSelected(null);
+    setCores('');
     setParts(new Set());
     setBundles(new Set());
   };
@@ -238,9 +243,10 @@ export function QuoteCalculator({
     setPriceType(next);
     resetSelection();
   };
-  // 품목을 바꾸면 이전 품목 기준의 수량·할인율·목표금액을 버린다 (PR-7 QA LOW)
+  // 품목을 바꾸면 이전 품목 기준의 수량·코어 수·할인율·목표금액을 버린다 (PR-7 QA LOW, 코어 수 = 새 행의 기준 D5)
   const selectItem = (item: QuoteItemView) => {
     setSelected(item);
+    setCores(defaultCores(item));
     setParts(new Set());
     setBundles(new Set());
     setQty(1);
@@ -257,12 +263,13 @@ export function QuoteCalculator({
       minor,
       selected,
       qty,
+      cores,
       parts: [...parts],
       bundles: [...bundles],
       rate,
       target,
     }),
-    [family, priceType, mid, minor, selected, qty, parts, bundles, rate, target],
+    [family, priceType, mid, minor, selected, qty, cores, parts, bundles, rate, target],
   );
   const quoteDefaults = { family: defaultFamily, priceType: defaultPriceTypeOf(defaultFamily) };
   const toQuoteDraft = (next: QuoteFormState) => quoteDraftOf(next, quoteDefaults);
@@ -273,6 +280,7 @@ export function QuoteCalculator({
     setMinor(next.minor);
     setSelected(next.selected);
     setQty(next.qty);
+    setCores(next.cores);
     setParts(new Set(next.parts));
     setBundles(new Set(next.bundles));
     setRate(next.rate);
@@ -331,8 +339,14 @@ export function QuoteCalculator({
   const pricedBundles = options.bundles
     .filter((bundle) => bundles.has(bundle.itemCode))
     .map(asOption);
+  // 코어 단가 품목: 입력이 올바르면 코어 반영 단가, 오류면 기준 단가로 보이고 담기를 막는다 (D1)
+  const coreInput = hasCoreInput(selected) ? parseCores(cores, selected.baseCoreCount) : null;
+  const coreError = coreInput?.error ?? null;
+  const pricing = selected
+    ? corePricing(selected, coreInput ? (coreInput.cores ?? selected.baseCoreCount) : undefined)
+    : null;
   const amounts = computeLine({
-    basePrice: selected ? Number(selected.unitPrice) : 0,
+    basePrice: pricing?.unitPrice ?? 0,
     parts: pricedParts,
     bundles: pricedBundles,
     qty,
@@ -350,7 +364,7 @@ export function QuoteCalculator({
   };
 
   const addItem = () => {
-    if (!selected || !priceType) return;
+    if (!selected || !priceType || !pricing || coreError) return;
     dispatch({
       type: 'add',
       line: {
@@ -359,12 +373,13 @@ export function QuoteCalculator({
         name: selected.itemName,
         priceType,
         qty,
-        unitPrice: Number(selected.unitPrice),
+        unitPrice: pricing.unitPrice,
         currency,
         parts: pricedParts,
         bundles: pricedBundles,
         groupItems: [],
         discountRate: rate,
+        ...(pricing.core ? { coreCount: pricing.core.cores, core: pricing.core } : {}),
       },
     });
     setFlash({ tone: 'ok', text: `장바구니에 담았습니다: ${selected.itemName} × ${qty}` });
@@ -496,6 +511,9 @@ export function QuoteCalculator({
             qty={qty}
             onSelect={selectItem}
             onQty={setQty}
+            cores={cores}
+            coreError={coreError}
+            onCores={setCores}
           />
           <StepOptions
             title="STEP 4 · 파츠"
@@ -526,9 +544,10 @@ export function QuoteCalculator({
             target={target}
             onRate={onRate}
             onTarget={onTarget}
+            core={coreError ? undefined : pricing?.core}
           />
           {/* 독립 주요 버튼 — 공용 Button primary·md(44·16, Q-D1). 긴 품목명은 한 줄 말줄임 */}
-          <Button variant="primary" disabled={!selected} onClick={addItem}>
+          <Button variant="primary" disabled={!selected || coreError !== null} onClick={addItem}>
             <span className="min-w-0 truncate">
               + 장바구니에 담기 ({selected ? `${selected.itemName} × ${qty}` : '품목을 선택하세요'})
             </span>

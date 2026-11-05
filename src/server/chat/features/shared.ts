@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { Db } from '@/db';
+import { coreApplies } from '@/lib/pricing/quote';
 
 import { classifyIntent, PRODUCT_FAMILIES } from '../intent';
 import { findChatItemsByTerms, type ChatItemHit, type ChatPrice } from '../queries';
@@ -14,6 +15,9 @@ export const PriceSchema = z
     currency: z.string(),
     priceType: z.string().nullable(),
     effectiveFrom: z.string(),
+    /** 코어 적용 행(Y + 기준 1 이상)만 — 기준코어수·단가(1코어). N·기준 0 행은 키 자체가 없다 (D.AMO 코어 단가 스펙 §4) */
+    baseCoreCount: z.number().int().optional(),
+    unitPricePerCore: z.string().optional(),
   })
   .strict();
 
@@ -24,12 +28,15 @@ export const ItemSchema = z
 export type PriceView = z.infer<typeof PriceSchema>;
 
 export function priceView(price: ChatPrice): PriceView {
-  return {
+  const view: PriceView = {
     unitPrice: price.unitPrice,
     currency: price.currency,
     priceType: price.priceType,
     effectiveFrom: price.effectiveFrom,
   };
+  // N 품목 출력은 키까지 그대로(코어 키 없음) — 코어 적용 행에만 덧붙인다
+  if (!coreApplies(price)) return view;
+  return { ...view, baseCoreCount: price.baseCoreCount, unitPricePerCore: price.unitPricePerCore };
 }
 
 export function itemView(hit: ChatItemHit) {

@@ -40,6 +40,9 @@ const ITEM: QuoteItemView = {
   currency: 'KRW',
   priceType: '정상판매',
   kind: '본품',
+  hasCorePrice: false,
+  baseCoreCount: 0,
+  unitPricePerCore: '0.00',
 };
 const PART: QuoteItemView = {
   ...ITEM,

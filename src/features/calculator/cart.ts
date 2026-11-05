@@ -84,6 +84,8 @@ export function linesFromSavedQuote(quote: SavedQuoteView): CartLineInput[] {
       bundles: line.bundles,
       groupItems: line.groupItems,
       discountRate: Number(line.discountRate),
+      // 코어 스냅샷이 있으면 코어 수 복원 (D.AMO 코어 단가 §4) — 단가는 이미 코어 반영 값
+      ...(line.core ? { coreCount: line.core.cores, core: line.core } : {}),
     };
     return base;
   });
@@ -118,6 +120,7 @@ export function toLineInput(line: CartLine): CartLineInput {
     bundles: line.bundles,
     groupItems: line.groupItems,
     discountRate: line.discountRate,
+    ...(line.coreCount !== undefined ? { coreCount: line.coreCount } : {}),
   };
 }
 
@@ -136,9 +139,10 @@ export function clearLegacyCart(storage: Pick<Storage, 'removeItem'> | undefined
   }
 }
 
-/** 라인 설명 (장바구니·저장 요약): "정상판매 · 파츠 2 · 결합형 1 · × 2" */
+/** 라인 설명 (장바구니·저장 요약): "정상판매 · 6코어 · 파츠 2 · 결합형 1 · × 2" */
 export function describeLine(line: CartLine): string {
   const parts = [line.priceType ?? (line.kind === 'group' ? '그룹' : '')];
+  if (line.coreCount !== undefined) parts.push(`${line.coreCount}코어`);
   if (line.parts.length > 0) parts.push(`파츠 ${line.parts.length}`);
   if (line.bundles.length > 0) parts.push(`결합형 ${line.bundles.length}`);
   if (line.groupItems.length > 0) parts.push(`상세 ${line.groupItems.length}`);

@@ -3,6 +3,7 @@ import type { z } from 'zod';
 
 import type { Db } from '@/db';
 import { salesPrices } from '@/db/schema';
+import { coreApplies, coreUnitPrice, type CoreSnapshot } from '@/lib/pricing/quote';
 import { AppError } from '@/lib/result';
 
 import type { quoteLineSchema } from './schemas';
@@ -15,8 +16,13 @@ import type { quoteLineSchema } from './schemas';
  * - 그룹 라인: 하드웨어·상세 제품은 정상판매 최신 행(PR-6 그룹 칩과 동일). 없는 품번은 파츠·결합형과 같이 거부 (PR-8 QA LOW-2).
  * - 품명(본품·파츠·결합형·상세)도 DB 행의 품명으로 대체한다 — 클라이언트 문구가 견적서·공유 페이지에 실리지 않도록 (PR-8 QA LOW-1).
  * 클라이언트 값과 다르면 서버 값으로 대체하고 `adjustments` 로 알려 준다 (거부 대신 보정 — 담기로 복원한 옛 스냅샷도 저장 가능).
+ * - 코어 단가 품목(D.AMO 코어 단가 §2): 품목 라인 본품가 = coreUnitPrice(최신 행, 코어 수) — 계산기와 같은 함수. 코어 수는 기준 미만이면
+ *   기준으로 올리고(D1), 코어 미적용 품목·그룹 하드웨어(D7)는 코어 수를 버린다. 확정한 값은 `core` 스냅샷으로 돌려준다.
  */
-export type ParsedQuoteLine = z.output<typeof quoteLineSchema>;
+export type ParsedQuoteLine = z.output<typeof quoteLineSchema> & {
+  /** 서버가 확정한 코어 스냅샷 (코어 적용 품목 라인만) */
+  core?: CoreSnapshot;
+};
 
 export type PriceAdjustment = {
   lineNo: number;
@@ -41,6 +47,9 @@ type LatestPrice = {
   currency: string;
   productFamily: string | null;
   itemName: string;
+  hasCorePrice: boolean;
+  baseCoreCount: number;
+  unitPricePerCore: number;
 };
 type PriceMap = Map<string, LatestPrice>;
 
@@ -70,6 +79,9 @@ async function loadLatestPrices(db: Db, codes: string[], types: string[]): Promi
       currency: salesPrices.currency,
       productFamily: salesPrices.productFamily,
       itemName: salesPrices.itemName,
+      hasCorePrice: salesPrices.hasCorePrice,
+      baseCoreCount: salesPrices.baseCoreCount,
+      unitPricePerCore: salesPrices.unitPricePerCore,
     })
     .from(salesPrices)
     .where(
@@ -97,6 +109,9 @@ async function loadLatestPrices(db: Db, codes: string[], types: string[]): Promi
                 itemName: row.itemName.trim(),
                 currency: row.currency,
                 productFamily: row.productFamily,
+                hasCorePrice: row.hasCorePrice,
+                baseCoreCount: row.baseCoreCount,
+                unitPricePerCore: Number(row.unitPricePerCore),
               },
             ] as const,
           ]
@@ -132,11 +147,17 @@ class Repricer {
   private base(
     line: ParsedQuoteLine,
     lineNo: number,
-  ): Pick<ParsedQuoteLine, 'unitPrice' | 'currency' | 'name'> {
+  ): Pick<ParsedQuoteLine, 'unitPrice' | 'currency' | 'name' | 'coreCount' | 'core'> {
     if (!line.itemCode) {
       // 하드웨어 없는 그룹 라인: 본품 단가는 0 이어야 한다
       this.note(line, lineNo, '', 'unitPrice', String(line.unitPrice), '0');
-      return { unitPrice: 0, currency: line.currency, name: line.name };
+      return {
+        unitPrice: 0,
+        currency: line.currency,
+        name: line.name,
+        coreCount: undefined,
+        core: undefined,
+      };
     }
     const priceType = line.kind === 'group' ? NORMAL_PRICE_TYPE : (line.priceType ?? '');
     const found = this.prices.get(key(line.itemCode, priceType));
@@ -150,21 +171,34 @@ class Repricer {
     if (found.productFamily && !this.families.includes(found.productFamily)) {
       this.families.push(found.productFamily);
     }
-    if (!sameAmount(found.unitPrice, line.unitPrice)) {
+    const core = this.core(line, found);
+    const unitPrice = core ? coreUnitPrice(found, core.cores) : found.unitPrice;
+    if (!sameAmount(unitPrice, line.unitPrice)) {
       this.note(
         line,
         lineNo,
         line.itemCode,
         'unitPrice',
         String(line.unitPrice),
-        String(found.unitPrice),
+        String(unitPrice),
       );
     }
     this.note(line, lineNo, line.itemCode, 'currency', line.currency, found.currency);
     // 그룹 라인 이름은 '그룹명 · 하드웨어' 조합이라 유지, 품목 라인은 DB 품명으로 대체 (LOW-1)
     const name = line.kind === 'item' ? found.itemName : line.name;
     this.note(line, lineNo, line.itemCode, 'name', line.name, name);
-    return { unitPrice: found.unitPrice, currency: found.currency, name };
+    return { unitPrice, currency: found.currency, name, coreCount: core?.cores, core };
+  }
+
+  /** 코어 스냅샷: 품목 라인 + 코어 적용 행만. 코어 수 없음·기준 미만 = 기준 (D1) */
+  private core(line: ParsedQuoteLine, found: LatestPrice): CoreSnapshot | undefined {
+    if (line.kind !== 'item' || !coreApplies(found)) return undefined;
+    return {
+      cores: Math.max(found.baseCoreCount, line.coreCount ?? found.baseCoreCount),
+      baseCoreCount: found.baseCoreCount,
+      unitPricePerCore: found.unitPricePerCore,
+      baseUnitPrice: found.unitPrice,
+    };
   }
 
   /** 파츠·결합형: 선택 단가유형 → 정상판매 fallback. 없으면 거부 */
