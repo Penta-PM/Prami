@@ -314,10 +314,13 @@ describe('AC-43 공개 쿼리 응답에 unit_cost·material_code 없음', () => 
     }
     expect(Object.keys(page.rows[0]!).sort()).toEqual(
       [
+        // 코어 단가 3필드는 판매가 쪽 값 (D.AMO 코어 단가 §4 — 가격 정책 표 보조 줄)
+        'baseCoreCount',
         'currency',
         'effectiveFrom',
         'effectiveTo',
         'id',
+        'hasCorePrice',
         'itemCode',
         'itemName',
         'itemStatus',
@@ -331,6 +334,7 @@ describe('AC-43 공개 쿼리 응답에 unit_cost·material_code 없음', () => 
         'remark',
         'source',
         'unitPrice',
+        'unitPricePerCore',
       ].sort(),
     );
   });
