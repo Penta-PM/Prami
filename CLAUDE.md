@@ -1,190 +1,66 @@
-# Prami — Main (코디네이터)
+# Prami — 역할 파이프라인 (단일 워크트리)
 
-> **이 워크트리의 역할은 Main 입니다.** 다른 역할의 지시를 이 파일에서 찾지 마세요.
-> 각 역할은 자기 워크트리의 CLAUDE.md만 따릅니다.
+> **모든 역할(Main·Plan·Dev·QA)이 이 폴더 `/home/plan1/Desktop/Prami` 하나에서 각자 Claude 세션으로 일합니다.**
+> 역할마다 워크트리를 만들지 않습니다(2026-11-06 사용자 지시: "세션만 열어서 작업").
+>
+> **내 역할 찾기:** 세션 첫 프롬프트에 `역할: Plan` 처럼 지정됩니다. 지정이 없으면 **Main** 입니다.
+> 역할을 알았으면 `docs/pipeline/roles/<역할>.md` 를 **반드시 먼저 읽고** 그 파일만 따릅니다.
+>
+> | 역할 | 규칙 파일 |
+> |------|-----------|
+> | Main (코디네이터, 사용자 창구) | `docs/pipeline/roles/main.md` |
+> | Plan (기획·설계·배정) | `docs/pipeline/roles/plan.md` |
+> | Dev (구현·PR·머지·:3000 반영) | `docs/pipeline/roles/dev.md` |
+> | QA (검증 — 현재 QA 생략 모드) | `docs/pipeline/roles/qa.md` |
 
-## 관련 워크트리 (Orca 관리)
-
-| 역할 | 브랜치 | 경로 | Orca 워크트리 ID |
-|------|--------|------|------------------|
-| **Main** (현재) | `main` | `/home/plan1/Desktop/Prami` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/Desktop/Prami` |
-| Plan | `Plan` | `/home/plan1/orca/workspaces/Prami/Plan` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/Plan` |
-| Dev | `Dev` | `/home/plan1/orca/workspaces/Prami/Dev` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/Dev` |
-| QA | `QA` | `/home/plan1/orca/workspaces/Prami/QA` | `3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/QA` |
-
-`$REPO` = `3bdf9622-33af-4941-a0d8-e1d168e5a480`
-
-원격 저장소: `https://github.com/Penta-PM/Prami` (private, 기본 브랜치 `main`) — 4개 브랜치 모두 푸시됨
-
-- 목록 확인: `orca worktree list`
-- 이 4개는 **각각 별도의 Orca 터미널 세션**에서 열리며, **`orca orchestration`** 으로 통신합니다.
-- 공용 Run: **`run_b0f2def7eecf`** (objective: "Prami — Main/Plan/Dev/QA 역할 파이프라인 (Linux)")
+원격 저장소: `https://github.com/Penta-PM/Prami` (private, 기본 브랜치 `main`)
 
 ## 파이프라인
 
 ```
-    사용자
-      │  요구사항
-      ▼
- ┌─────────┐   요구사항 위임    ┌─────────┐   태스크 배정   ┌─────────┐   PR 검증요청  ┌─────────┐
- │  Main   │ ───────────────▶ │  Plan   │ ─────────────▶ │   Dev   │ ────────────▶ │   QA    │
- │ 코디네이터 │ ◀─────────────── │  기획    │ ◀───────────── │  개발    │ ◀──────────── │  검증    │
- └─────────┘   ask-back /      └─────────┘   ask-back     └─────────┘   CRITICAL 반려 └─────────┘
-      │         스펙 확정 보고                                   │       / 통과 시 셀프머지 승인
-      │                                                         │
-      │◀──────────────────── 머지 완료 보고 ──────────────────────┘
-      ▼
-   사용자에게 최종 보고
+ 사용자 ─▶ Main ─▶ Plan ─▶ Dev ─(QA 모드일 때)▶ QA
+            ▲  ask-back  │  ask-back │ 머지·:3000 반영 보고
+            └────────────┴───────────┘
 ```
 
-**핵심 규칙:** 화살표에 없는 경로로는 일을 넘기지 않습니다. Main은 Dev/QA에 직접 작업을 지시하지 않습니다.
+화살표에 없는 경로로는 일을 넘기지 않습니다. Main 은 Dev/QA 에 직접 작업을 지시하지 않습니다.
 
-### 머지 즉시 :3000 반영 (2026-11-04, Plan `docs/specs/deploy-on-merge.md`)
-- 작업 브랜치를 :3000 에 띄우지 않습니다. Dev 는 Dev 게이트 → PR(`ci:run` 라벨) → **CI 결과를 기다리지 않고 셀프머지** → :3000 = origin/main 반영 → Main 에 보고합니다. 사용자 확인을 기다리는 단계·"확인 후 머지" 예외는 없습니다.
-- :3000 워크트리(Dev)는 **origin/main SHA(detached)만** 체크아웃합니다. 화면 표시가 없으므로 규칙으로 지킵니다.
-- Dev 반영 보고: `:3000 = main @ <SHA7>, /login 200`, 반영 후 볼 곳 1–2줄, 진행 중 CI run URL, DB 영향(없음 또는 마이그레이션·백업 경로).
-- CI 는 머지 뒤에도 끝까지 돕니다. 빨강이면 Dev 가 즉시 수정 PR 을 올리고 Main 에 한 줄로 알립니다(오래 걸리면 revert PR).
-- 마이그레이션이 있으면 머지 후 `pg_dump` 백업 → origin/main 코드로 `pnpm db:migrate`(추가형만)를 **체크아웃 전환 전에** 합니다.
-- Main 이 직접 머지한 건은 머지한 쪽이 :3000 에 반영합니다(못 하면 Plan 경유로 Dev 에 요청).
+## 공용 규칙 — 한 폴더를 같이 쓰므로 꼭 지킵니다
 
-## Main의 책임
+1. **git 체크아웃·커밋·브랜치 전환은 Dev 만 합니다.** Main·Plan·QA 는 git 상태를 바꾸지 않습니다(`fetch`, `log`, `show`, `diff` 같은 읽기만).
+   - 예외: 사용자가 Main 에게 직접 작성을 명시한 건. 그때도 Dev 가 작업 중이 아닐 때만, 끝나면 `main` 으로 되돌립니다.
+2. **Dev 는 작업 브랜치를 이 폴더에서 엽니다** (`git switch -c feat/<작업> origin/main`). 머지 뒤 바로 `git switch main && git pull --ff-only` 로 돌아오고 로컬 작업 브랜치를 지웁니다.
+   - 브랜치를 바꾸기 전에 작업 트리를 깨끗하게(커밋 또는 `git stash`) 만듭니다. 남의 미커밋 파일(Plan 스펙 초안 등)을 지우거나 되돌리지 않습니다.
+3. **:3000 은 이 폴더의 현재 체크아웃을 핫리로드로 보여 줍니다**(`pnpm dev:lan`, Orca 터미널 "LAN :3000"). 그래서 Dev 가 작업 중이면 :3000 에 작업 중 상태가 보일 수 있고, 머지 후 `main` 으로 돌아오면 main 이 보입니다.
+   - :3000 프로세스·그 터미널은 꺼지면 다시 띄우는 것 외에는 건드리지 않습니다. `pkill -f next` 같은 넓은 패턴 종료 금지 — 자기가 띄운 프로세스만 PID/포트로 끕니다.
+4. **Plan 의 스펙은 `docs/specs/` 에 파일로 씁니다(커밋은 하지 않음).** Dev 가 그 작업의 PR 에 해당 스펙 파일을 함께 커밋합니다.
+5. 공용 DB 컨테이너 `prami-postgres-1` 중지 금지. `.env.local` 수정 금지.
+6. 포트: :3000 = LAN(사용자), Dev 검증용 3001, E2E 는 스크립트 기본 포트.
 
-1. **접수** — 사용자 요구사항을 받습니다. Main은 사용자와 대화하는 유일한 창구입니다.
-2. **Run 바인딩** — 코디네이터로서 Run에 바인딩합니다 (아래 참조).
-3. **위임** — 요구사항을 정리해 **Plan에게만** 전달합니다.
-4. **추적** — Plan → Dev → QA 진행 상황을 추적하고 현재 어느 단계인지 항상 파악합니다.
-5. **되묻기 응답** — Plan이 ask-back 하면 판단합니다. Main이 답할 수 없는 건 **사용자에게 확인**합니다.
-6. **보고** — QA 최종 통과 + Dev 머지 완료 후, 결과를 사용자에게 정리해 보고합니다.
+## 역할 간 통신 (Orca)
 
-## Main이 하지 않는 것
-
-- ❌ **코드 작성 / 버그 수정 직접 하지 않습니다.** 한 줄짜리 오타 수정이라도 마찬가지입니다.
-- ❌ **급한 이슈라도 Dev로 직행하지 않습니다.** "이건 급하니까 바로 고쳐"는 없습니다. 긴급 건도 반드시 Plan을 거칩니다. 긴급도는 Plan에게 보내는 메시지에 명시하되, 경로는 바꾸지 않습니다.
-- ❌ **설계 결정을 내리지 않습니다.** 아키텍처/설계는 Plan의 권한입니다.
-- ❌ **QA 판정을 뒤집지 않습니다.** QA가 CRITICAL로 반려한 걸 Main이 통과시키지 않습니다.
-
-## 누구에게 되묻고 누구에게 보고하는가
-
-| 방향 | 대상 | 언제 |
-|------|------|------|
-| **되묻기 ↑** | **사용자** | 요구사항이 모호하고 Main이 판단할 수 없을 때 (Plan의 ask-back 포함) |
-| **위임 ↓** | **Plan** | 요구사항이 확정됐을 때 (유일한 하류 대상) |
-| **보고 ↑** | **사용자** | QA 통과 + 머지 완료 시 / 파이프라인이 막혔을 때 |
-| **수신 ↓** | Plan | 스펙 확정 알림, ask-back 질문 |
-| **수신 ↓** | Dev | 머지 완료 보고 |
-
-## Orca 통신
-
-세션 시작 시 한 번 Run에 바인딩합니다:
+같은 폴더라 `@worktree:` 주소로는 역할을 구분할 수 없습니다. **세션마다 수신함 Run 을 등록하고, 그 Run 으로 보냅니다.**
 
 ```bash
-orca orchestration run-use --id run_b0f2def7eecf --json
-orca orchestration run-current --json          # 확인
-```
+# 세션 시작 시 한 번 — 내 수신함 등록(.orca-roles/<역할>.json 에 run·handle 기록, gitignore)
+scripts/pipeline/register.sh <main|plan|dev|qa>
 
-### Plan에게 위임 보내기
+# 보내기 = 메일 기록 + 상대 깨우기 (본문은 파일로)
+scripts/pipeline/send.sh <받는 역할> <dispatch|status|escalation|merge_ready> "<제목>" <본문 파일>
 
-```bash
-REPO=3bdf9622-33af-4941-a0d8-e1d168e5a480
-orca orchestration send \
-  --to "@worktree:3bdf9622-33af-4941-a0d8-e1d168e5a480::/home/plan1/orca/workspaces/Prami/Plan" \
-  --type dispatch --subject "[요구사항] <한 줄 제목>" \
-  --body "<아래 형식>" --json
-```
-
-### 수신 — 폴링하지 않습니다
-
-상류가 메시지를 보낼 때 **네 터미널로 직접 프롬프트를 넣어 깨웁니다.** 깨어났을 때만 읽으세요:
-
-```bash
-orca orchestration check --format --json          # --wait 없이 한 번만
-# 처리를 끝낸 뒤에만 ack (deliveryId 는 위 응답의 result.deliveryId, camelCase)
+# 받기 — 깨워졌을 때만 한 번 읽고, 처리 후 ack (폴링·--wait 반복 금지)
+orca orchestration check --format --json
 orca orchestration check --ack <deliveryId> --json
+
+# 되묻기에 답하기 (보낸 쪽 세션을 깨울 필요 없음)
+orca orchestration reply --id <msg_id> --body "<답>" --json
 ```
 
-> **`--wait` 를 백그라운드로 걸어두고 반복 재진입하지 마세요.**
-> 타임아웃마다 세션이 깨어나 아무 일도 없이 토큰만 태웁니다.
-> 블로킹 대기가 정당한 경우는 **내가 `ask` 로 상류에 질문을 던져놓고 답을 기다릴 때뿐**입니다.
+- `send.sh` 가 "등록 안 된 역할"이라고 하면 그 세션이 아직 안 열렸거나 `register.sh` 를 안 돌린 것입니다 → Main 에 알립니다.
+- Main 만 공용 Run `run_b0f2def7eecf` 에 바인딩합니다. 다른 역할은 `run-use` 를 하지 않습니다(코디네이터를 빼앗음).
 
-### 발신 — 보낸 뒤 상대를 깨웁니다
+## 공용 문서
 
-메시지만 보내면 상대는 모릅니다 (상대는 폴링하지 않습니다). **반드시 2단계**로 보내세요:
-
-```bash
-REPO=3bdf9622-33af-4941-a0d8-e1d168e5a480
-TARGET="/home/plan1/orca/workspaces/Prami/<역할>"   # Plan | Dev | QA
-# Main 워크트리 경로는:
-# "/home/plan1/Desktop/Prami"
-
-# 1) 메일박스에 기록 (durable)
-orca orchestration send --to "@worktree:$REPO::$TARGET" \
-  --type <dispatch|status|escalation|merge_ready> \
-  --subject "<제목>" --body "<본문>" --json
-
-# 2) 상대 세션 깨우기
-H=$(orca terminal list --worktree "path:$TARGET" --json \
-    | python3 -c "import json,sys; ts=json.load(sys.stdin)['result']['terminals']; print(next((t['handle'] for t in ts if t.get('agentIdentity')=='claude'), ''))")
-orca terminal send --terminal "$H" --enter --json \
-  --text "[메일 도착] orca orchestration check --format --json 로 확인하고 역할에 맞게 처리하세요."
-```
-
-2단계를 빠뜨리면 메시지는 메일박스에 남지만 **상대는 영영 깨어나지 않습니다.**
-
-> **Linux 전환 후 주의 (2026-10-02)**
-> - `@worktree:<id>` 메일은 그 워크트리에서 **Run 코디네이터인 터미널**에만 도착합니다. Main은 `run_b0f2def7eecf` 의 코디네이터이고,
->   Plan/Dev/QA 는 세션마다 자기 수신함 Run(`Prami <역할> inbox`)을 `run-create` 로 만듭니다. 역할 세션에 `run-use` 를 시키지 마세요 — 코디네이터를 빼앗깁니다.
-> - Main 세션을 새로 열면 `run-use --id run_b0f2def7eecf` 를 다시 실행해 코디네이터를 되찾습니다.
-> - Orca 가 초기화되면(2026-10-19 사례) Run 이 전부 사라져 `run-use` 가 `run_not_found` 를 냅니다. 이때는 `run-create` 로 새 Run 을 만들고 이 파일의 Run ID 를 갱신합니다.
-> - Main 워크트리에 claude 터미널이 여러 개면 위 깨우기 스크립트는 첫 번째 것을 고릅니다. 상대에게 Main 핸들을 직접 알려 주세요.
-
-### Plan의 되묻기(ask) 처리
-
-Plan이 `ask` 로 질문하면 그 세션은 **답이 올 때까지 블로킹됩니다.** 우선 처리하세요.
-
-```bash
-orca orchestration reply --id <msg_id> --body "<답변>" --json
-```
-
-- 답을 모르면 **사용자에게 먼저 물어본 뒤** 회신합니다. 추측으로 답하지 않습니다.
-- 회신 후에는 Plan을 깨울 필요가 없습니다 — `ask` 가 이미 대기 중이라 즉시 이어집니다.
-
-### Plan에게 보내는 메시지 형식
-
-```
-[요구사항] <한 줄 제목>
-
-배경: 사용자가 무엇을 왜 원하는지
-요구사항:
-  - ...
-제약: 기한, 기술적 제약, 건드리면 안 되는 영역
-긴급도: 일반 | 긴급
-확정된 사항: (사용자에게 이미 확인받은 내용 — Plan이 다시 묻지 않도록)
-```
-
-### 사용자에게 하는 최종 보고 형식
-
-```
-## 완료: <제목>
-- 무엇이 바뀌었나: ...
-- 검증 결과: QA가 실제로 무엇을 실행/확인했는지
-- 머지: PR #N (Dev → main)
-- 남은 백로그: QA가 비블로킹으로 넘긴 이슈들
-```
-
-## 진행 상황 추적
-
-파이프라인이 여러 건 동시에 돌 수 있습니다. 진행 중인 건은 `TodoWrite`로 관리하고,
-Orca 태스크 상태와 대조합니다:
-
-```bash
-orca orchestration task-list --brief --json
-orca worktree ps                 # 워크트리 전반 오케스트레이션 요약
-```
-
-각 건의 상태: `접수` → `Plan 검토중` → `Plan ask-back 대기` → `Dev 구현중` → `QA 검증중` → `QA 반려(Dev 재작업)` → `머지 완료` → `사용자 보고 완료`
-
-## Git
-
-- Main 워크트리는 `main` 브랜치입니다. **Main에서 직접 커밋하지 않습니다.**
-- `main`으로의 변경은 Dev가 PR을 셀프머지하면서만 들어옵니다.
-- 확인: `git log --oneline -10`, `git worktree list`
+- 검증·머지·:3000 반영 규칙 원문: `docs/pipeline/verification.md`
+- 스펙: `docs/specs/`
+- 보안: 매칭 파일(`assets/품목_원자재품번 매칭 파일.xlsx`)·jodari 원본·원가 금액·비밀값은 저장소·PR·보고에 넣지 않습니다.
