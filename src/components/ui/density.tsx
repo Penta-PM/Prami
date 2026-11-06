@@ -37,6 +37,24 @@ export function controlSizeClasses(size: ControlSize | undefined): string {
   return size ? CONTROL_SIZE_CLASSES[size] : INHERIT_CONTROL_CLASSES;
 }
 
+/**
+ * 입력칸(Input·Select) — 버튼과 달리 `--density-field-*` 를 쓴다. 데스크톱은 밀도 값과 같고, md 미만은 밀도 sm 안에서도
+ * 높이 44·글자 16, 터치 포인터는 글자 16 (globals.css, 모바일 UI 스펙 §4 — iOS 포커스 확대 방지)
+ */
+export const INHERIT_FIELD_CLASSES =
+  'h-(--density-field-height) text-(length:--density-field-font-size) leading-(--density-line-height)';
+
+/** size 를 명시한 입력칸 — sm 도 md 미만에서는 44·16 (위와 같은 이유) */
+export const FIELD_SIZE_CLASSES: Record<ControlSize, string> = {
+  sm: 'h-(--height-control-sm) text-[14px] leading-5 max-md:h-(--height-control-md) max-md:text-[16px] pointer-coarse:text-[16px]',
+  md: CONTROL_SIZE_CLASSES.md,
+  lg: CONTROL_SIZE_CLASSES.lg,
+};
+
+export function fieldSizeClasses(size: ControlSize | undefined): string {
+  return size ? FIELD_SIZE_CLASSES[size] : INHERIT_FIELD_CLASSES;
+}
+
 /** 밀집 컨테이너 표시 — `<div {...densityAttrs('sm')}>` */
 export function densityAttrs(density: Density): { 'data-density': Density } {
   return { 'data-density': density };

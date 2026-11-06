@@ -8,11 +8,13 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Icon } from '@/components/icons/Icon';
 import { FOCUS_RING_CLASSES } from '@/components/ui/button';
+import { SHEET_MEDIA_QUERY, useScrollLock } from '@/components/ui/sheet-layout';
 import { cn } from '@/lib/cn';
 import { transition } from '@/lib/motion/tokens';
 
 import { NavIcon } from './icons';
 import {
+  APP_CONTENT_ID,
   NAV_MAIN,
   adminNavItems,
   pricingNavItems,
@@ -76,6 +78,25 @@ export function Sidebar({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [isMobileOpen]);
 
+  // 모바일 오버레이가 열린 동안(모바일 UI 스펙 §3): 배경 스크롤 잠금 + 뒤 콘텐츠(헤더·본문) inert.
+  // ☰ 는 md 미만에서만 보이므로 열림은 모바일에서만 생긴다 — 열린 채 768px 이상으로 넓어지면 닫아 데스크톱이 inert 로 남지 않게 한다
+  useScrollLock(isMobileOpen);
+  useEffect(() => {
+    if (!isMobileOpen) return;
+    const content = document.getElementById(APP_CONTENT_ID);
+    content?.setAttribute('inert', '');
+    const query =
+      typeof window.matchMedia === 'function' ? window.matchMedia(SHEET_MEDIA_QUERY) : null;
+    const onChange = (event: MediaQueryListEvent) => {
+      if (!event.matches) setIsMobileOpen(false);
+    };
+    query?.addEventListener('change', onChange);
+    return () => {
+      content?.removeAttribute('inert');
+      query?.removeEventListener('change', onChange);
+    };
+  }, [isMobileOpen]);
+
   // 열리면 첫 메뉴로 포커스 (invisible 이 풀린 다음 프레임)
   useEffect(() => {
     if (!isMobileOpen) return;
@@ -92,7 +113,8 @@ export function Sidebar({
         aria-expanded={isMobileOpen}
         aria-controls="app-sidebar"
         aria-label={isMobileOpen ? '메뉴 닫기' : '메뉴 열기'}
-        className="fixed top-[18px] left-3 z-50 flex size-9 items-center justify-center rounded-lg border-0 bg-surface-muted text-[18px] text-text-primary shadow-(--hairline-subtle) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring md:hidden"
+        // 모바일 헤더(56px + 위쪽 safe-area) 안 세로 가운데, 터치 영역 44px (Q-D1-M)
+        className="fixed top-[calc(6px+var(--safe-top))] left-3 z-50 flex size-11 items-center justify-center rounded-lg border-0 bg-surface-muted text-[18px] text-text-primary shadow-(--hairline-subtle) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring md:hidden"
       >
         {/* ☰ 는 Penta 에 없어 기존 글리프 유지(보류), 닫기는 Penta close */}
         {isMobileOpen ? <Icon name="close" /> : <span aria-hidden="true">☰</span>}
@@ -116,9 +138,9 @@ export function Sidebar({
           if ((event.target as HTMLElement).closest('a')) closeMobile();
         }}
         className={cn(
-          'sticky top-0 flex h-screen shrink-0 flex-col gap-7 border-r border-border-subtle bg-surface-sidebar py-6 transition-[width,transform] duration-200',
+          'sticky top-0 flex h-dvh shrink-0 flex-col gap-7 border-r border-border-subtle bg-surface-sidebar py-6 transition-[width,transform] duration-200',
           isExpanded ? 'w-(--sidebar-width) px-4' : 'w-[72px] px-3',
-          'max-md:fixed max-md:left-0 max-md:z-40 max-md:w-(--sidebar-width) max-md:px-4 max-md:pt-16 max-md:shadow-xl',
+          'max-md:fixed max-md:left-0 max-md:z-40 max-md:w-(--sidebar-width) max-md:px-4 max-md:pt-[calc(4rem+var(--safe-top))] max-md:shadow-xl',
           isMobileOpen ? '' : 'max-md:invisible max-md:-translate-x-full',
         )}
       >

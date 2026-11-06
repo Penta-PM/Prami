@@ -2,6 +2,9 @@ import { hasPermission, type PermissionKey, type Role } from '@/lib/constants/pe
 
 import type { NavIconName } from './icons';
 
+/** 앱 셸의 헤더+본문 영역 id — 모바일 사이드바 오버레이가 열린 동안 inert (모바일 UI 스펙 §3 헤더) */
+export const APP_CONTENT_ID = 'app-content';
+
 export type NavItem = {
   key: string;
   label: string;

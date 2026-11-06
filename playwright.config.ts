@@ -81,7 +81,22 @@ export default defineConfig({
     // 브라우저 prefers-reduced-motion → globals.css 전역 규칙으로 CSS transition 도 즉시 종료 (Motion 도입 스펙 §3.6)
     reducedMotion: 'reduce',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  /**
+   * 모바일 UI 스펙 §6: `*.mobile.spec.ts` 는 mobile-chromium(Pixel 7 — 터치·pointer:coarse)에서만, 나머지 데스크톱 spec 은
+   * chromium 에서만 돈다 — 같은 테스트를 두 번 돌리지 않는다. WebKit 은 넣지 않는다(iOS 는 실기기 수동 확인).
+   */
+  projects: [
+    {
+      name: 'chromium',
+      testIgnore: /.*\.mobile\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'mobile-chromium',
+      testMatch: /.*\.mobile\.spec\.ts/,
+      use: { ...devices['Pixel 7'] },
+    },
+  ],
   webServer: [
     {
       // 래퍼가 서버 출력을 E2E_SERVER_LOG 에도 남긴다 — settings-llm.spec 이 dev 로그에 키 평문 0건을 검사 (QA H-1)

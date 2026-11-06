@@ -49,5 +49,6 @@ export {
   type RangeSliderValue,
 } from './range-slider';
 export { Select, type SelectProps } from './select';
+export { BottomSheet, type BottomSheetProps } from './sheet';
 export { Segmented, type SegmentedOption, type SegmentedProps } from './segmented';
 export { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from './table';

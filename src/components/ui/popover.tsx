@@ -15,7 +15,10 @@ import {
 
 import { Presence } from '@/components/motion/Presence';
 import { cn } from '@/lib/cn';
-import { scaleIn, VARIANT_KEYS } from '@/lib/motion/tokens';
+import { fade, scaleIn, VARIANT_KEYS } from '@/lib/motion/tokens';
+
+import { CloseButton } from './modal';
+import { sheetUp, useScrollLock, useSheetLayout } from './sheet-layout';
 
 export type PopoverAlign = 'start' | 'end';
 
@@ -75,6 +78,8 @@ type Position = { top: number; left: number; placement: 'bottom' | 'top' };
  *   비활성(disabled) 컨트롤은 click 이 오지 않으므로 pointerdown(캡처)에서 닫는다(A-1 QA 백로그 — 열린 채 포커스가 body 로 가던 문제).
  * - 포커스가 팝오버 밖(body 등)으로 빠진 채 열려 있어도 Esc 는 문서 단위로 받아 닫는다.
  * - 모션: scaleIn (MotionProvider 의 reducedMotion="user" 로 감속 모드 준수). 퇴장 중에는 이벤트를 처리하지 않는다.
+ * - `max-md`(모바일 UI 스펙 §3): 트리거 옆이 아니라 하단 시트로 띄운다 — 폭 전체·최대 90dvh·배경 막(누르면 바깥 클릭으로 닫힘)·
+ *   배경 스크롤 잠금·닫기 버튼 44px. 위치 계산은 그대로 돌고 CSS(!important)가 인라인 위치를 덮는다. 데스크톱은 그대로.
  */
 export function Popover(props: PopoverProps) {
   return <Presence>{props.open ? <PopoverPanel key="popover" {...props} /> : null}</Presence>;
@@ -96,6 +101,8 @@ function PopoverPanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const isPresent = useIsPresent();
   const [position, setPosition] = useState<Position | null>(null);
+  const isSheet = useSheetLayout(true);
+  useScrollLock(isPresent);
 
   // 최신 콜백을 effect 재구독 없이 참조한다
   const onOpenChangeRef = useRef(onOpenChange);
@@ -153,10 +160,14 @@ function PopoverPanel({
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
+    // 모바일 시트 닫기 버튼은 후보에서 뺀다 — 데스크톱에서는 display:none 이라 포커스가 실패한다
+    const firstFocusable = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).find(
+      (element) => !element.closest('[data-sheet-close]'),
+    );
     const target =
       initialFocusRef?.current ??
       panel.querySelector<HTMLElement>(INPUT_SELECTOR) ??
-      panel.querySelector<HTMLElement>(FOCUSABLE_SELECTOR) ??
+      firstFocusable ??
       panel;
     target.focus();
     // 마운트 시 1회만
@@ -260,38 +271,53 @@ function PopoverPanel({
       { top: 0, left: 0 };
 
   return (
-    <m.div
-      ref={panelRef}
-      id={id}
-      role="dialog"
-      aria-label={label}
-      aria-describedby={describedBy}
-      onPointerEnter={onPointerEnter}
-      onPointerLeave={onPointerLeave}
-      tabIndex={-1}
-      data-placement={position?.placement}
-      variants={scaleIn}
-      initial={VARIANT_KEYS.initial}
-      animate={VARIANT_KEYS.animate}
-      exit={VARIANT_KEYS.exit}
-      style={style}
-      onBlur={(event) => {
-        // Tab 으로 팝오버를 벗어나면 닫는다. 트리거로 간 경우(Shift+Tab·트리거 누름)는 호출자 토글에 맡긴다.
-        // relatedTarget 이 없으면(빈 곳 클릭·창 전환) 바깥 클릭 처리에 맡긴다
-        if (!isPresent) return;
-        const next = event.relatedTarget as Node | null;
-        if (!next || event.currentTarget.contains(next)) return;
-        if (anchorRef.current?.contains(next)) return;
-        close();
-      }}
-      className={cn(
-        'fixed z-40 max-h-[calc(100vh-32px)] w-[min(320px,calc(100vw-32px))] overflow-x-hidden overflow-y-auto rounded-card border border-solid border-border-subtle bg-surface-card p-4 text-text-primary shadow-dropdown outline-none',
-        !isPresent && 'pointer-events-none',
-        className,
-      )}
-    >
-      {children}
-    </m.div>
+    <>
+      <m.div
+        aria-hidden="true"
+        data-testid="popover-sheet-backdrop"
+        variants={fade}
+        initial={VARIANT_KEYS.initial}
+        animate={VARIANT_KEYS.animate}
+        exit={VARIANT_KEYS.exit}
+        className="fixed inset-0 z-40 bg-neutral-900/40 md:hidden"
+      />
+      <m.div
+        ref={panelRef}
+        id={id}
+        role="dialog"
+        aria-label={label}
+        aria-describedby={describedBy}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+        tabIndex={-1}
+        data-placement={position?.placement}
+        variants={isSheet ? sheetUp : scaleIn}
+        initial={VARIANT_KEYS.initial}
+        animate={VARIANT_KEYS.animate}
+        exit={VARIANT_KEYS.exit}
+        style={style}
+        onBlur={(event) => {
+          // Tab 으로 팝오버를 벗어나면 닫는다. 트리거로 간 경우(Shift+Tab·트리거 누름)는 호출자 토글에 맡긴다.
+          // relatedTarget 이 없으면(빈 곳 클릭·창 전환) 바깥 클릭 처리에 맡긴다
+          if (!isPresent) return;
+          const next = event.relatedTarget as Node | null;
+          if (!next || event.currentTarget.contains(next)) return;
+          if (anchorRef.current?.contains(next)) return;
+          close();
+        }}
+        className={cn(
+          'fixed z-40 max-h-[calc(100dvh-32px)] w-[min(320px,calc(100vw-32px))] overflow-x-hidden overflow-y-auto overscroll-contain rounded-card border border-solid border-border-subtle bg-surface-card p-4 text-text-primary shadow-dropdown outline-none',
+          'max-md:top-auto! max-md:right-0 max-md:bottom-0 max-md:left-0! max-md:max-h-[90dvh] max-md:w-full max-md:rounded-b-none max-md:pb-[calc(1rem+var(--safe-bottom))]',
+          !isPresent && 'pointer-events-none',
+          className,
+        )}
+      >
+        <div data-sheet-close="" className="-mt-1 mb-2 flex justify-end md:hidden">
+          <CloseButton onClick={closeAndRestoreFocus} />
+        </div>
+        {children}
+      </m.div>
+    </>
   );
 }
 
