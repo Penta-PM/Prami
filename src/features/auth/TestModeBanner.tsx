@@ -7,11 +7,11 @@ export const TEST_MODE_BANNER_TEXT = 'TEST MODE';
 export function TestModeBanner({ variant = 'block' }: { variant?: 'block' | 'inline' }) {
   if (variant === 'inline') {
     return (
-      // 페이지의 상태 메시지(role=status)와 겹치지 않도록 역할 없이 배지로만 둔다
+      // 페이지의 상태 메시지(role=status)와 겹치지 않도록 역할 없이 배지로만 둔다. 모바일 헤더(320px)에 들어가게 좌우 여백·자간만 줄인다
       <span
         data-testid="test-mode-badge"
         title="AUTH_TEST_MODE=true — 공용 테스트 비밀번호로 로그인되는 로컬 전용 모드"
-        className="rounded-pill bg-warning-500 px-2.5 py-1 text-[11px] font-bold tracking-[0.06em] text-text-primary"
+        className="shrink-0 rounded-pill bg-warning-500 px-2.5 py-1 text-[11px] font-bold tracking-[0.06em] whitespace-nowrap text-text-primary max-md:px-2 max-md:tracking-normal"
       >
         {TEST_MODE_BANNER_TEXT}
       </span>

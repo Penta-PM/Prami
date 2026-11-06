@@ -217,5 +217,6 @@
 - [ ] Dev 게이트 기록(§3.1). PR에 `ci:run`을 붙여 머지하고, 머지 후 CI가 녹색인지 확인합니다(B′).
 
 ## 8. 진행 기록
+- 2026-11-06 세션 중단 후 단일 워크트리로 재개(#114). M0 미검증 진행분은 `origin/feat/mobile-m0`(270391f, wip: globals.css·ui/density·drawer·input·modal·popover·select·sheet·sheet-layout). Dev가 그 브랜치를 이어받아 완성합니다. 이 스펙의 옛 워크트리 전제(wt-*, Dev detached)는 루트 CLAUDE.md 규칙으로 읽습니다.
 - 2026-11-06 사용자 Q1~Q7 확정(전부 권고안). M1~M7 순차 배정(M0 머지 후 순서대로, 단계마다 B′ 보고). PWA는 M6에 포함.
 - 2026-11-06 병렬 검토를 마치고 스펙 초안을 썼습니다. Q1~Q7은 Main에 되묻습니다. M0(기반)은 Q1~Q7과 상관없어서(어느 답이 와도 필요함) 먼저 배정합니다.

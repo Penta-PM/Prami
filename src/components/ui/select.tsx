@@ -2,7 +2,7 @@ import type { SelectHTMLAttributes } from 'react';
 
 import { cn } from '@/lib/cn';
 
-import { controlSizeClasses, type ControlSize } from './density';
+import { fieldSizeClasses, type ControlSize } from './density';
 import { FIELD_CLASSES } from './input';
 
 export type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> & {
@@ -14,7 +14,7 @@ export type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> 
 export function Select({ className, size, ...props }: SelectProps) {
   return (
     <select
-      className={cn(FIELD_CLASSES, controlSizeClasses(size), 'pr-8 pl-3', className)}
+      className={cn(FIELD_CLASSES, fieldSizeClasses(size), 'pr-8 pl-3', className)}
       {...props}
     />
   );

@@ -17,6 +17,7 @@ import { scaleIn, VARIANT_KEYS } from '@/lib/motion/tokens';
 
 import { FOCUS_RING_CLASSES, PRESS_CLASSES } from './button';
 import { densityAttrs } from './density';
+import { sheetUp, useScrollLock, useSheetLayout } from './sheet-layout';
 
 export type ModalProps = {
   open: boolean;
@@ -27,13 +28,53 @@ export type ModalProps = {
   className?: string;
   /** 패널 폭: 'md'(기본) = min(520px, 100vw−32px), 'lg' = min(760px, 100vw−32px) — 표를 담는 모달용 */
   size?: ModalSize;
+  /**
+   * 배치 (모바일 UI 스펙 §3 BottomSheet): 'auto'(기본) = 768px 이상은 가운데 다이얼로그 그대로, `max-md` 에서는 하단 시트.
+   * 'sheet' = 폭과 상관없이 하단 시트 — 공용 BottomSheet 가 쓴다
+   */
+  layout?: ModalLayout;
+  /** `max-md` 에서 화면 전체 높이 시트 — 입력이 많은 폼(정책 등록·원가·사용자)용. 데스크톱은 그대로 */
+  fullScreen?: boolean;
 };
 
 export type ModalSize = 'md' | 'lg';
+export type ModalLayout = 'auto' | 'sheet';
 
 const SIZE_CLASSES: Record<ModalSize, string> = {
   md: 'w-[min(520px,calc(100vw-32px))]',
   lg: 'w-[min(760px,calc(100vw-32px))]',
+};
+
+/**
+ * 시트 모양 (Q-D1-M): 화면 아래에 붙고 최대 90dvh, 헤더·푸터는 고정하고 본문만 스크롤(overscroll-contain), 푸터(없으면 본문)에
+ * 아래쪽 safe-area. 'auto' 는 같은 값을 `max-md:` 에만 건다 — 768px 이상 클래스는 바꾸지 않는다(데스크톱 회귀 0)
+ */
+const SHEET_CLASSES: Record<
+  ModalLayout,
+  { dialog: string; panel: string; header: string; body: string; footer: string; bodyEnd: string }
+> = {
+  auto: {
+    dialog: 'max-md:mt-auto max-md:mb-0 max-md:w-full max-md:max-w-full max-md:max-h-full',
+    panel: 'max-md:flex max-md:max-h-[90dvh] max-md:flex-col max-md:rounded-b-none',
+    header: 'max-md:shrink-0 max-md:px-4 max-md:pt-4',
+    body: 'max-md:min-h-0 max-md:flex-1 max-md:overflow-y-auto max-md:overscroll-contain max-md:px-4',
+    footer: 'max-md:shrink-0 max-md:px-4 max-md:pb-[calc(1rem+var(--safe-bottom))]',
+    bodyEnd: 'max-md:pb-[calc(1.25rem+var(--safe-bottom))]',
+  },
+  sheet: {
+    dialog: 'mt-auto mb-0 w-full max-w-full max-h-full',
+    panel: 'flex max-h-[90dvh] flex-col rounded-b-none',
+    header: 'shrink-0 px-4 pt-4',
+    body: 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-4',
+    footer: 'shrink-0 px-4 pb-[calc(1rem+var(--safe-bottom))]',
+    bodyEnd: 'pb-[calc(1.25rem+var(--safe-bottom))]',
+  },
+};
+
+/** 전체 화면 시트 — `max-md` 에서만 */
+const FULL_SCREEN_CLASSES = {
+  dialog: 'max-md:h-dvh',
+  panel: 'max-md:h-dvh max-md:max-h-dvh max-md:rounded-none',
 };
 
 /**
@@ -61,10 +102,16 @@ export function Modal({
   footer,
   className,
   size = 'md',
+  layout = 'auto',
+  fullScreen = false,
 }: ModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const openRef = useRef(open);
   const titleId = useId();
+  const sheet = SHEET_CLASSES[layout];
+  // 모션만 분기한다(시트 = 아래에서 위로) — 모양은 위 CSS 가 정한다. 서버·닫힘 상태는 데스크톱 값
+  const isSheet = useSheetLayout(open) || layout === 'sheet';
+  useScrollLock(open);
 
   // 퇴장 상태 머신: closing 이 true 인 동안 m.div 가 'exit' 로 애니메이션하고, 완료 시 finishClose 가 마무리한다
   const [closing, setClosing] = useState(false);
@@ -217,7 +264,9 @@ export function Modal({
       }}
       className={cn(
         'm-auto border-0 bg-transparent p-0 text-text-primary',
-        SIZE_CLASSES[size],
+        layout === 'auto' && SIZE_CLASSES[size],
+        sheet.dialog,
+        fullScreen && FULL_SCREEN_CLASSES.dialog,
         // 백드롭 fade — duration·ease 는 tokens.ts 의 enter(240ms)/exit(160ms) 와 동일 값
         'backdrop:bg-neutral-900/40 backdrop:transition-opacity backdrop:duration-240 backdrop:ease-[cubic-bezier(0.05,0.7,0.1,1)]',
         'starting:backdrop:opacity-0',
@@ -226,7 +275,7 @@ export function Modal({
       )}
     >
       <m.div
-        variants={scaleIn}
+        variants={isSheet ? sheetUp : scaleIn}
         initial={VARIANT_KEYS.initial}
         animate={panelState}
         onAnimationStart={(definition) => {
@@ -238,18 +287,33 @@ export function Modal({
         className={cn(
           // Penta 모달: 반경 16 · 그림자 lg
           'rounded-modal bg-surface-card shadow-modal',
+          sheet.panel,
+          fullScreen && FULL_SCREEN_CLASSES.panel,
           closing && 'pointer-events-none',
         )}
       >
-        <div className="flex items-center justify-between gap-4 px-6 pt-6">
+        <div className={cn('flex items-center justify-between gap-4 px-6 pt-6', sheet.header)}>
           <h2 id={titleId} className="m-0 [font:var(--text-h2)]">
             {title}
           </h2>
           <CloseButton onClick={() => beginClose('user')} />
         </div>
-        <div className="px-6 py-5 text-[14px] text-text-secondary">{children}</div>
+        <div
+          className={cn(
+            'px-6 py-5 text-[14px] text-text-secondary',
+            sheet.body,
+            !footer && sheet.bodyEnd,
+          )}
+        >
+          {children}
+        </div>
         {footer ? (
-          <div className="flex justify-end gap-2 border-t border-border-subtle px-6 py-4">
+          <div
+            className={cn(
+              'flex justify-end gap-2 border-t border-border-subtle px-6 py-4',
+              sheet.footer,
+            )}
+          >
             {footer}
           </div>
         ) : null}
@@ -258,6 +322,7 @@ export function Modal({
   );
 }
 
+/** 공용 닫기 버튼 — 보이는 크기 32px, 누를 수 있는 영역 44px */
 export function CloseButton({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -265,7 +330,9 @@ export function CloseButton({ onClick }: { onClick: () => void }) {
       aria-label="닫기"
       onClick={onClick}
       className={cn(
-        'flex size-8 shrink-0 items-center justify-center rounded-pill border border-solid border-neutral-200 bg-neutral-50 leading-none text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900',
+        'relative flex size-8 shrink-0 items-center justify-center rounded-pill border border-solid border-neutral-200 bg-neutral-50 leading-none text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900',
+        // 히트 영역 44px (Q-D1-M) — 보이는 크기 32 는 그대로, 사방 6px 를 투명하게 넓힌다
+        'before:absolute before:-inset-1.5 before:content-[""]',
         PRESS_CLASSES,
         FOCUS_RING_CLASSES,
       )}

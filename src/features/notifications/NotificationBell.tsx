@@ -126,7 +126,7 @@ export function NotificationBell() {
         aria-expanded={isOpen}
         onClick={toggle}
         className={cn(
-          'relative flex size-9 items-center justify-center rounded-pill border-0 bg-surface-muted text-text-secondary shadow-(--hairline-subtle) hover:text-text-primary aria-expanded:text-text-primary',
+          'relative flex size-9 items-center justify-center rounded-pill border-0 bg-surface-muted text-text-secondary shadow-(--hairline-subtle) hover:text-text-primary aria-expanded:text-text-primary max-md:size-11',
           FOCUS_RING_CLASSES,
         )}
       >
@@ -156,7 +156,7 @@ export function NotificationBell() {
             exit={VARIANT_KEYS.exit}
             className={cn(
               'z-40 flex max-h-[min(480px,70vh)] flex-col overflow-hidden rounded-xl bg-surface-card shadow-(--shadow-elevated) outline-none',
-              'max-md:fixed max-md:top-[72px] max-md:right-4 max-md:left-4',
+              'max-md:fixed max-md:top-(--app-header-height-mobile) max-md:right-4 max-md:left-4',
               'md:absolute md:top-full md:right-0 md:mt-2 md:w-[360px]',
             )}
           >

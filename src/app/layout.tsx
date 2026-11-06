@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import { connection } from 'next/server';
 import type { ReactNode } from 'react';
@@ -24,6 +24,19 @@ export const metadata: Metadata = {
   title: { default: 'Prami — 가격정책 통합 관리', template: '%s | Prami' },
   description: '펜타시큐리티 제품군의 판매단가·원가·파츠·견적 정보를 통합 관리합니다.',
   icons: { icon: '/logo-prami-mark.png' },
+};
+
+/**
+ * 모바일 기반 (모바일 UI 스펙 §5 M0): 노치 기기에서 화면 끝까지 그리고(safe-area 는 globals.css 의 --safe-* 변수),
+ * 키보드가 뜨면 레이아웃 뷰포트를 줄여(Android Chrome) 하단 입력·버튼이 키보드에 가리지 않게 한다. 확대(핀치)는 막지 않는다.
+ * themeColor 는 헤더 배경(--surface-page = neutral-0)과 같은 값.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
+  themeColor: '#ffffff',
 };
 
 /**

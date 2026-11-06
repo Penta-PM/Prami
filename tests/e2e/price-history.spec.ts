@@ -248,8 +248,10 @@ for (const [role, email, path, tableName] of [
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       );
       expect(overflow).toBeLessThanOrEqual(0);
+      // max-md 에서는 하단 시트(모바일 UI 스펙 §3·M0): 폭 전체, 화면 아래에 붙음
       const box = await modal(page).boundingBox();
-      expect(box!.width).toBeLessThanOrEqual(375 - 32 + 1);
+      expect(Math.round(box!.width)).toBe(375);
+      expect(Math.round(box!.y + box!.height)).toBe(800);
     });
   });
 }

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -265,6 +265,9 @@ describe('Sidebar', () => {
   });
 });
 
+/** 헤더 표시 텍스트 — 닫힌 모바일 계정 시트(<dialog>, 모바일 UI M0)의 같은 이름·역할은 뺀다 */
+const HEADER_TEXT = { ignore: 'script, style, dialog *' };
+
 describe('Header', () => {
   it('검색·알림 컨트롤과 게스트 상태를 렌더한다 — 챗봇 버튼은 없다 (UX PR-C2, 컨텍스트 없이 렌더)', async () => {
     render(<Header />);
@@ -284,9 +287,10 @@ describe('Header', () => {
 
   it('사용자 정보가 있으면 이름·역할·이니셜을 표시한다', () => {
     render(<Header user={{ name: '김도현', roleLabel: '관리자 · 가격정책팀' }} />);
-    expect(screen.getByText('김도현')).toBeInTheDocument();
-    expect(screen.getByText('관리자 · 가격정책팀')).toBeInTheDocument();
-    expect(screen.getByText('김')).toBeInTheDocument();
+    expect(screen.getByText('김도현', HEADER_TEXT)).toBeInTheDocument();
+    expect(screen.getByText('관리자 · 가격정책팀', HEADER_TEXT)).toBeInTheDocument();
+    // 데스크톱 이니셜(div) — 모바일 아바타 버튼의 이니셜(span)은 아래 모바일 테스트
+    expect(screen.getByText('김', { ...HEADER_TEXT, selector: 'div' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '로그아웃' })).toBeInTheDocument();
     // PRAMI-002: 본인 설정 진입점
     expect(screen.getByRole('link', { name: '사용자 설정' })).toHaveAttribute('href', '/settings');
@@ -303,7 +307,7 @@ describe('AppLayout', () => {
     getSessionUserMock.mockResolvedValue({ ...ADMIN, role: 'USER', department: null });
     render(await AppLayout({ children: <p>본문</p> }));
     expect(screen.queryByText('관리자', { selector: 'div' })).not.toBeInTheDocument();
-    expect(screen.getByText('사용자')).toBeInTheDocument();
+    expect(screen.getByText('사용자', HEADER_TEXT)).toBeInTheDocument();
   });
 
   it('USER 는 조달 섹션(3개)을 보고 조달 관리는 보지 않는다 (procurement.read·write)', async () => {
@@ -343,7 +347,7 @@ describe('AppLayout', () => {
   it('사이드바·헤더·본문을 조합하고 세션 사용자를 표시한다', async () => {
     getSessionUserMock.mockResolvedValue(ADMIN);
     render(await AppLayout({ children: <p>본문</p> }));
-    expect(screen.getByText('관리자 · 가격정책팀')).toBeInTheDocument();
+    expect(screen.getByText('관리자 · 가격정책팀', HEADER_TEXT)).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: '주 메뉴' })).toBeInTheDocument();
     expect(screen.getByRole('banner')).toBeInTheDocument();
     expect(within(screen.getByRole('main')).getByText('본문')).toBeInTheDocument();
@@ -359,5 +363,98 @@ describe('AppLayout', () => {
     expect(screen.getAllByRole('complementary').map((el) => el.getAttribute('aria-label'))).toEqual(
       ['주 메뉴'],
     );
+  });
+});
+
+describe('모바일 헤더·사이드바 (모바일 UI M0)', () => {
+  it('검색 아이콘 → 펼침(포커스) → Esc 로 접히고 아이콘으로 포커스', async () => {
+    render(<Header user={{ name: '김도현', roleLabel: '관리자' }} />);
+    const open = screen.getByRole('button', { name: '검색 열기' });
+    const form = screen.getByRole('search');
+    expect(form.className).toContain('max-md:hidden');
+    await userEvent.click(open);
+    expect(form).toHaveAttribute('data-expanded', 'true');
+    expect(form.className).not.toContain('max-md:hidden');
+    await waitFor(() => expect(screen.getByRole('searchbox', { name: '통합 검색' })).toHaveFocus());
+    await userEvent.keyboard('{Escape}');
+    expect(form).toHaveAttribute('data-expanded', 'false');
+    expect(screen.getByRole('button', { name: '검색 열기' })).toHaveFocus();
+
+    // 닫기 버튼으로도 접힌다
+    await userEvent.click(screen.getByRole('button', { name: '검색 열기' }));
+    await userEvent.click(screen.getByRole('button', { name: '검색 닫기' }));
+    expect(form).toHaveAttribute('data-expanded', 'false');
+  });
+
+  it('아바타 → 계정 시트(이름/역할·사용자 설정·로그아웃), 설정을 누르면 닫힌다 — 게스트는 아바타 버튼 없음', async () => {
+    const { unmount } = render(<Header />);
+    expect(screen.queryByRole('button', { name: '계정 메뉴' })).not.toBeInTheDocument();
+    unmount();
+
+    render(<Header user={{ name: '김도현', roleLabel: '관리자 · 가격정책팀' }} />);
+    const avatar = screen.getByRole('button', { name: '계정 메뉴' });
+    expect(avatar.className).toContain('size-11');
+    expect(avatar.className).toContain('md:hidden');
+    await userEvent.click(avatar);
+    const sheet = screen.getByRole('dialog', { name: '계정' });
+    expect(avatar).toHaveAttribute('aria-expanded', 'true');
+    expect(within(sheet).getByText('김도현')).toBeInTheDocument();
+    expect(within(sheet).getByText('관리자 · 가격정책팀')).toBeInTheDocument();
+    expect(within(sheet).getByRole('button', { name: '로그아웃' })).toHaveAttribute(
+      'type',
+      'submit',
+    );
+    const settings = within(sheet).getByRole('link', { name: '사용자 설정' });
+    expect(settings).toHaveAttribute('href', '/settings');
+    await userEvent.click(settings);
+    await waitFor(() => expect(avatar).toHaveAttribute('aria-expanded', 'false'));
+  });
+
+  it('사이드바 오버레이가 열리면 #app-content inert + 배경 잠금, 닫으면 해제 · 데스크톱 폭이 되면 닫힌다', async () => {
+    const listeners = new Set<(event: MediaQueryListEvent) => void>();
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn(
+        () =>
+          ({
+            matches: true,
+            addEventListener: (_: string, l: (event: MediaQueryListEvent) => void) =>
+              listeners.add(l),
+            removeEventListener: (_: string, l: (event: MediaQueryListEvent) => void) =>
+              listeners.delete(l),
+          }) as unknown as MediaQueryList,
+      ),
+    );
+    try {
+      render(
+        <>
+          <Sidebar />
+          <div id="app-content">본문</div>
+        </>,
+      );
+      const content = document.getElementById('app-content')!;
+      const menu = screen.getByRole('button', { name: '메뉴 열기' });
+      expect(menu.className).toContain('size-11');
+      await userEvent.click(menu);
+      expect(content).toHaveAttribute('inert');
+      expect(document.documentElement).toHaveAttribute('data-scroll-lock');
+      await userEvent.keyboard('{Escape}');
+      expect(content).not.toHaveAttribute('inert');
+      expect(document.documentElement).not.toHaveAttribute('data-scroll-lock');
+
+      await userEvent.click(screen.getByRole('button', { name: '메뉴 열기' }));
+      expect(content).toHaveAttribute('inert');
+      // 768px 이상으로 넓어지면 닫는다
+      act(() => {
+        for (const listener of [...listeners]) listener({ matches: false } as MediaQueryListEvent);
+      });
+      expect(content).not.toHaveAttribute('inert');
+      expect(screen.getByRole('complementary', { name: '주 메뉴' })).toHaveAttribute(
+        'data-mobile-open',
+        'false',
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

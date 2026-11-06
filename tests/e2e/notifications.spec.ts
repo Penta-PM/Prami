@@ -214,7 +214,8 @@ for (const width of [375, 320]) {
     const box = (await panel.boundingBox())!;
     expect(Math.round(box.x)).toBe(16);
     expect(Math.round(box.x + box.width)).toBe(width - 16);
-    expect(box.y).toBeGreaterThanOrEqual(72 - 1);
+    // 모바일 헤더 56px (모바일 UI 스펙 §3·M0)
+    expect(box.y).toBeGreaterThanOrEqual(56 - 1);
     const overflow = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
       client: document.documentElement.clientWidth,

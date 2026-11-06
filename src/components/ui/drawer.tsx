@@ -17,6 +17,7 @@ import { fade, transition, VARIANT_KEYS } from '@/lib/motion/tokens';
 
 import { densityAttrs } from './density';
 import { CloseButton } from './modal';
+import { sheetUp, useScrollLock, useSheetLayout } from './sheet-layout';
 
 export type DrawerProps = {
   open: boolean;
@@ -117,6 +118,9 @@ function DrawerPanel({
   // <Presence> 가 언마운트를 알리면(퇴장 시작) 포커스를 돌려주고 패널을 inert 로 만든다
   const isPresent = useIsPresent();
   useRestoreFocus(isPresent, panelRef);
+  // `max-md` 에서는 하단 시트(모바일 UI 스펙 §3) — 모양은 CSS, 모션만 분기한다. 데스크톱은 오른쪽 패널 그대로
+  const isSheet = useSheetLayout(true);
+  useScrollLock(isPresent);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key === 'Escape') {
@@ -128,7 +132,12 @@ function DrawerPanel({
   };
 
   return (
-    <div className={cn('fixed inset-0 z-50 flex justify-end', !isPresent && 'pointer-events-none')}>
+    <div
+      className={cn(
+        'fixed inset-0 z-50 flex justify-end max-md:items-end',
+        !isPresent && 'pointer-events-none',
+      )}
+    >
       <m.div
         data-testid="drawer-overlay"
         aria-hidden="true"
@@ -149,7 +158,7 @@ function DrawerPanel({
         tabIndex={-1}
         inert={!isPresent || undefined}
         onKeyDown={handleKeyDown}
-        variants={drawerPanel}
+        variants={isSheet ? sheetUp : drawerPanel}
         initial={VARIANT_KEYS.initial}
         animate={VARIANT_KEYS.animate}
         exit={VARIANT_KEYS.exit}
@@ -157,16 +166,18 @@ function DrawerPanel({
         className={cn(
           // Penta 사이드패널 그림자 xl
           'relative flex h-full max-w-full flex-col bg-surface-card shadow-panel outline-none',
+          // 시트: 폭 전체(인라인 width 를 이긴다) · 최대 90dvh · 위 모서리만 둥글게
+          'max-md:h-auto max-md:max-h-[90dvh] max-md:w-full! max-md:rounded-t-modal',
           className,
         )}
       >
-        <header className="flex items-center justify-between gap-4 border-b border-border-subtle px-6 py-5">
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border-subtle px-6 py-5 max-md:px-4 max-md:py-4">
           <h2 id={titleId} className="m-0 [font:var(--text-h2)]">
             {title}
           </h2>
           <CloseButton onClick={onClose} />
         </header>
-        <div className="flex-1 overflow-y-auto px-6 py-5 text-[14px] text-text-secondary">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5 text-[14px] text-text-secondary max-md:px-4 max-md:pb-[calc(1.25rem+var(--safe-bottom))]">
           {children}
         </div>
       </m.aside>

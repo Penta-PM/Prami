@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { ROLE_LABELS } from '@/lib/constants/permissions';
 import { APP_MAIN_ID } from '@/lib/page-state/keys';
 import { Header } from '@/features/shell/Header';
-import { navVisibility } from '@/features/shell/nav';
+import { APP_CONTENT_ID, navVisibility } from '@/features/shell/nav';
 import { Sidebar } from '@/features/shell/Sidebar';
 import { env } from '@/env';
 import { getSessionUser } from '@/server/auth/rbac';
@@ -22,9 +22,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const roleLabel = [ROLE_LABELS[user.role], user.department].filter(Boolean).join(' · ');
 
   return (
-    <div className="flex h-screen overflow-hidden bg-surface-page">
+    // h-dvh: iOS 주소창·키보드에 따라 바뀌는 실제 보이는 높이 (모바일 UI 스펙 §1 — 100vh 는 화면 아래가 잘린다)
+    <div className="flex h-dvh overflow-hidden bg-surface-page">
       <Sidebar {...navVisibility(user.role)} />
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* 모바일 사이드바 오버레이가 열리면 Sidebar 가 이 영역을 inert 로 만든다 */}
+      <div id={APP_CONTENT_ID} className="flex min-w-0 flex-1 flex-col">
         <Header user={{ name: user.name, roleLabel }} testMode={isTestModeEnabled(env)} />
         <main id={APP_MAIN_ID} className="flex-1 overflow-y-auto p-8 max-md:p-4">
           {children}

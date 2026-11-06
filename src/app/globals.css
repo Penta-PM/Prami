@@ -356,16 +356,75 @@
     --density-control-height: var(--height-control-md);
     --density-font-size: 16px;
     --density-line-height: 24px;
+    --density-field-height: var(--height-control-md);
+    --density-field-font-size: 16px;
   }
   [data-density='sm'] {
     --density-control-height: var(--height-control-sm);
     --density-font-size: 14px;
     --density-line-height: 20px;
+    --density-field-height: var(--height-control-sm);
+    --density-field-font-size: 14px;
+  }
+  /*
+   * 모바일 입력칸 (모바일 UI 스펙 §4 Q-D1-M): 입력·select·textarea 는 밀도 sm 안에서도 16px — iOS 는 16px 미만 입력에 포커스하면
+   * 화면을 확대한다. 높이 44 는 md 미만에서만(태블릿 레이아웃 불변), 글자 16 은 터치 포인터 전체.
+   */
+  @media (width < 48rem) {
+    :root,
+    [data-density] {
+      --density-field-height: var(--height-control-md);
+      --density-field-font-size: 16px;
+    }
+  }
+  @media (pointer: coarse) {
+    :root,
+    [data-density] {
+      --density-field-font-size: 16px;
+    }
   }
 }
 
 /* 디자인 소스의 전역 스타일 */
 @layer base {
+  /*
+   * 모바일 기반 (모바일 UI 스펙 §5 M0): 가로 회전 시 글자 자동 확대 끔, 탭 강조색 끔(눌림은 각 컨트롤의 active: 스타일 — PRESS_CLASSES),
+   * 노치 기기 가로 화면의 좌우 safe-area(viewport-fit=cover). 데스크톱은 inset 이 0 이라 변화 없음
+   */
+  /*
+   * safe-area 변수 (viewport-fit=cover): 노치·홈 인디케이터 영역. 데스크톱·일반 브라우저 세로 화면은 0 이라 변화 없음.
+   * 모바일 헤더 높이 56px(Q-D1-M 고정 바) + 위쪽 safe-area — 헤더·☰·알림 드롭다운이 같이 쓴다
+   */
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --app-header-height-mobile: calc(56px + var(--safe-top));
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    padding-right: var(--safe-right);
+    padding-left: var(--safe-left);
+  }
+  /* 두 번 탭 확대 대기(300ms) 없이 바로 누름 — 확대(핀치)는 막지 않는다 */
+  :where(
+    a[href],
+    button,
+    input,
+    select,
+    textarea,
+    label,
+    summary,
+    [role='button'],
+    [data-clickable]
+  ) {
+    touch-action: manipulation;
+  }
   body {
     margin: 0;
     background: var(--surface-page);
@@ -508,6 +567,45 @@
   }
   .range-slider-input:disabled::-moz-range-thumb {
     cursor: not-allowed;
+  }
+}
+
+/*
+ * 모바일 입력 16px 안전망 (모바일 UI 스펙 §4): 공용 Input·Select 는 위 --density-field-* 토큰을 따르지만, 화면이 직접 그린 입력
+ * (12px 필터 등)이 남아도 포커스 확대가 일어나지 않게 md 미만·터치 포인터에서 글자 크기를 16px 로 고정한다. 레이어 밖 !important 라
+ * 유틸리티 클래스보다 우선한다. 체크박스·라디오·범위 등 글자가 없는 입력은 제외.
+ */
+@media (width < 48rem), (pointer: coarse) {
+  :is(
+    input:not(
+      [type='checkbox'],
+      [type='radio'],
+      [type='range'],
+      [type='file'],
+      [type='color'],
+      [type='button'],
+      [type='submit'],
+      [type='reset'],
+      [type='image'],
+      [type='hidden']
+    ),
+    select,
+    textarea
+  ) {
+    font-size: 16px !important;
+  }
+}
+
+/*
+ * 배경 스크롤 잠금 (모바일 UI 스펙 §3): 시트·사이드바 오버레이가 열리면 <html data-scroll-lock> (components/ui/sheet-layout.ts).
+ * md 미만에서만 — 본문(#app-main)이 자체 스크롤이라 그것까지 잠근다
+ */
+@media (width < 48rem) {
+  html[data-scroll-lock],
+  html[data-scroll-lock] body,
+  html[data-scroll-lock] #app-main {
+    overflow: hidden;
+    overscroll-behavior: contain;
   }
 }
 

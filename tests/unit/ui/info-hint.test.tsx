@@ -101,6 +101,8 @@ describe('InfoHint / ErpPathHint', () => {
     await userEvent.click(trigger());
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveFocus());
     await userEvent.tab();
+    // 모바일 시트 닫기 버튼(md:hidden — 브라우저에서는 display:none 이라 탭 순서에 없다)을 jsdom 은 CSS 없이 거친다
+    if (document.activeElement?.closest('[data-sheet-close]')) await userEvent.tab();
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(trigger()).toHaveAttribute('aria-expanded', 'false');
   });

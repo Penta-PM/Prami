@@ -2,7 +2,7 @@ import type { InputHTMLAttributes, ReactNode, Ref } from 'react';
 
 import { cn } from '@/lib/cn';
 
-import { controlSizeClasses, type ControlSize } from './density';
+import { fieldSizeClasses, type ControlSize } from './density';
 
 export type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & {
   /** 입력창 왼쪽에 겹쳐 표시할 아이콘 */
@@ -39,7 +39,7 @@ export function Input({ leading, className, wrapperClassName, size, ...props }: 
       <input
         className={cn(
           FIELD_CLASSES,
-          controlSizeClasses(size),
+          fieldSizeClasses(size),
           'placeholder:text-text-placeholder',
           leading ? 'pr-3 pl-10' : 'px-3',
           className,

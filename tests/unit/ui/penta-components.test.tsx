@@ -88,6 +88,9 @@ function controlMetrics(el: Element): { height: number; fontSize: number } {
   let height = NaN;
   if (classes.contains('h-(--density-control-height)'))
     height = px(densityValue(density, '--density-control-height'));
+  // 입력칸(Input·Select)은 --density-field-* — 데스크톱 값은 밀도 값과 같다(모바일 UI M0, max-md 는 아래 별도 단언)
+  if (classes.contains('h-(--density-field-height)'))
+    height = px(densityValue(density, '--density-field-height'));
   for (const size of ['sm', 'md', 'lg'])
     if (classes.contains(`h-(--height-control-${size})`))
       height = px(resolve(`var(--height-control-${size})`, new Map()));
@@ -95,6 +98,8 @@ function controlMetrics(el: Element): { height: number; fontSize: number } {
   let fontSize = NaN;
   if (classes.contains('text-(length:--density-font-size)'))
     fontSize = px(densityValue(density, '--density-font-size'));
+  if (classes.contains('text-(length:--density-field-font-size)'))
+    fontSize = px(densityValue(density, '--density-field-font-size'));
   const fixed = [...classes].map((name) => /^text-\[(\d+)px\]$/.exec(name)?.[1]).find(Boolean);
   if (fixed) fontSize = Number(fixed);
 
@@ -103,6 +108,34 @@ function controlMetrics(el: Element): { height: number; fontSize: number } {
 
 const SM = { height: 36, fontSize: 14 };
 const MD = { height: 44, fontSize: 16 };
+
+describe('모바일 입력칸 (모바일 UI 스펙 §4 Q-D1-M — iOS 포커스 확대 방지)', () => {
+  it('md 미만은 밀도 sm 안에서도 입력 44px·16px, 터치 포인터는 16px', () => {
+    const mobile = declarationsIn(blockAfter('@media (width < 48rem) {'));
+    expect(resolve(mobile.get('--density-field-height')!, mobile)).toBe('44px');
+    expect(mobile.get('--density-field-font-size')).toBe('16px');
+    const coarse = declarationsIn(blockAfter('@media (pointer: coarse) {'));
+    expect(coarse.get('--density-field-font-size')).toBe('16px');
+  });
+
+  it('size="sm" 입력도 max-md·터치에서 16px, 데스크톱 값(36·14)은 그대로', () => {
+    render(
+      <>
+        <Input aria-label="작은 입력" size="sm" />
+        <Select aria-label="작은 선택" size="sm" />
+      </>,
+    );
+    for (const field of [
+      screen.getByRole('textbox', { name: '작은 입력' }),
+      screen.getByRole('combobox', { name: '작은 선택' }),
+    ]) {
+      expect(controlMetrics(field)).toEqual(SM);
+      expect(field.className).toContain('max-md:text-[16px]');
+      expect(field.className).toContain('pointer-coarse:text-[16px]');
+      expect(field.className).toContain('max-md:h-(--height-control-md)');
+    }
+  });
+});
 
 describe('밀도 토큰 (globals.css [data-density])', () => {
   it('sm = 36px·14px, md(:root 기본) = 44px·16px — DENSITY_METRICS 와 같다', () => {
