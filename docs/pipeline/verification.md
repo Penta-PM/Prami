@@ -67,15 +67,15 @@
 - 머지 완료 보고(Main)에 **머지 SHA** 와 **ci:run run URL**(진행 중이어도 됨) 을 넣는다.
 - **연속 머지**(예: Motion PR-2 → 3 → 4)에서는 앞 PR 이 머지될 때마다 뒤 PR 에 대해 1번을 다시 확인한다.
 - **마이그레이션 포함 PR**(`drizzle/*.sql` 변경)은 머지 **직후** LAN 개발 DB 에 적용한다(Plan `docs/specs/migration-apply-lan.md`, 2026-10-20 0008·0009 미적용으로 가격정책 화면·알림이 죽은 사례).
-  1. LAN 서버가 쓰는 DB 접속 정보는 Main 워크트리 env 파일에서 **읽기만**(파일 수정·LAN 서버/:3000 재시작·컨테이너 중지 금지).
+  1. LAN 서버가 쓰는 DB 접속 정보는 이 폴더의 `.env.local` 에서 **읽기만**(파일 수정·컨테이너 중지 금지).
   2. 적용 전 백업: `docker exec prami-postgres-1 pg_dump -U prami -Fc <db> > <스크래치>/…dump`.
-  3. **머지된 origin/main 과 같은 코드**(작업 브랜치가 아닌 main 기준 임시 워크트리)에서 그 DB 대상으로 `pnpm db:migrate`.
+  3. **머지된 origin/main 과 같은 코드**에서 그 DB 대상으로 `pnpm db:migrate` — 머지 후 작업 브랜치의 마이그레이션 파일은 main 과 같으므로 main 으로 전환하기 직전에 적용한다(단일 폴더, 2026-11-06).
   4. 확인: `drizzle.__drizzle_migrations` 행 수 = main `drizzle/meta/_journal.json` 항목 수, 새 테이블 존재, 기존 테이블 행 수 무변화.
   5. 머지 완료 보고에 **적용한 마이그레이션 목록·백업 경로**를 함께 적는다.
   - 개발 서버(`next dev`)는 기동 시 미적용 마이그레이션이 있으면 콘솔에 파일 목록 + `pnpm db:migrate` 안내를 띄운다(자동 적용은 하지 않음).
-- **LAN :3000 반영** (Plan `docs/specs/deploy-on-merge.md` §3 — `pnpm dev:lan` 이 Dev 워크트리의 현재 체크아웃을 핫리로드로 서빙, `.env.local` 은 Main 원본으로의 심볼릭 링크):
-  1. **체크아웃**: Dev 워크트리는 **origin/main SHA(detached) 외 체크아웃 금지**. 작업 브랜치를 띄우지 않고, Dev 워크트리에서 직접 개발하지 않는다(작업은 `wt-*` 워크트리).
-  2. **머지 직후 순서**: `git -C <Dev 워크트리> fetch origin` → (마이그레이션이 있으면 위 1~5 — 백업 선행·추가형만, **체크아웃 전환 전에** 적용: 새 코드가 아직 없는 테이블을 읽지 않게) → `git -C <Dev 워크트리> checkout --detach origin/main` → lockfile 이 바뀌었으면 `pnpm install --frozen-lockfile --offline` → `/login` 200·dev 서버 로그에 컴파일 오류 없음.
+- **LAN :3000 반영** (2026-11-06 단일 폴더 — `pnpm dev:lan` 이 `/home/plan1/Desktop/Prami` 의 현재 체크아웃을 핫리로드로 서빙. 역할별 워크트리 없음, 규칙 `docs/pipeline/roles/dev.md`):
+  1. **체크아웃**: git 체크아웃은 Dev 만 바꾼다. Dev 는 이 폴더에서 `feat/*` 를 열어 작업하고(작업 중엔 :3000 에 그 상태가 보임), 머지 직후 `main` 으로 돌아온다. 새 git 워크트리는 만들지 않는다.
+  2. **머지 직후 순서**: (마이그레이션이 있으면 위 1~5 — 백업 선행·추가형만, main 전환 직전에 적용) → `git switch main && git pull --ff-only` → 로컬 작업 브랜치 삭제 → lockfile 이 바뀌었으면 `pnpm install --frozen-lockfile --offline` → `/login` 200·dev 서버 로그에 컴파일 오류 없음.
   3. **실패하면** 직전 main SHA 로 되돌리고 Main·Plan 에 보고. :3000 서버·그 터미널은 종료·재시작하지 않는다(사전 승인된 경우에만 그 프로세스를 PID/포트로). `.env.local` 수정 금지(Main 원본이 바뀐다), `prami-postgres-1` 중지 금지.
   4. **보고**(Dev → Main): `:3000 = main @ <SHA7>, /login 200`, 반영 후 볼 곳 1–2줄, CI run URL, DB 영향(없음 | 마이그레이션 목록·백업 경로).
   5. **마이그레이션 원칙**: 추가형만(테이블·컬럼·인덱스 추가, nullable 또는 기본값 있는 컬럼). 삭제·이름 변경·타입 변경 등 파괴적 변경은 Plan 에 먼저 되묻는다. 한 번 LAN DB 에 적용한 마이그레이션 파일은 수정하지 않는다(drizzle 기록 해시 불일치) — 바꿀 게 있으면 새 마이그레이션을 추가.
@@ -98,6 +98,6 @@
 ## 6. 운영 제약 (모든 태스크 공통, Plan `docs/specs/operating-constraints.md`)
 
 - 자기가 띄운 dev 서버만 **PID 또는 포트로 정확히** 종료한다. `pkill -f next`, `pkill -f "next dev"` 같은 넓은 패턴 금지.
-- `:3000` 과 `/home/plan1/Desktop/Prami` 경로의 프로세스는 건드리지 않는다(사용자 실사용 경로).
+- `:3000` 프로세스("LAN :3000" 터미널의 `pnpm dev:lan`)는 꺼졌을 때 다시 띄우는 것 외에는 건드리지 않는다(사용자 실사용 경로).
 - `docker compose down` 등 공용 DB 컨테이너(`prami-postgres-1`) 중지 금지 — Main 서버도 같은 DB 를 쓴다.
 - 포트: Main 3000 / Dev 3001 / QA 3200대. 이미 다른 프로세스가 쓰는 포트는 피한다(점유자를 종료하지 않는다).

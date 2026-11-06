@@ -83,3 +83,6 @@ venv/
 
 # Penta 디자인 시스템 원본 자료(문서·아이콘 JSON) — 저장소에 넣지 않음. 요약: docs/design/penta-tokens.md
 /design/
+
+# 역할 세션 수신함 등록 (scripts/pipeline/register.sh, 세션마다 다름)
+/.orca-roles/
