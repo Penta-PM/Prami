@@ -107,6 +107,8 @@ describe('UsersTable 열 필터 (파일럿)', () => {
     expect(
       within(picker)
         .getAllByRole('button')
+        // 모바일 시트 닫기 버튼(md:hidden)은 jsdom 에서 보인다 — 필드 목록에서 뺀다 (모바일 UI M0)
+        .filter((b) => !b.closest('[data-sheet-close]'))
         .map((b) => b.textContent),
     ).toEqual(['이메일', '마지막 로그인']);
   });
@@ -377,6 +379,8 @@ describe('내 견적 목록 모달 열 필터', () => {
     expect(
       within(picker)
         .getAllByRole('button')
+        // 모바일 시트 닫기 버튼(md:hidden)은 jsdom 에서 보인다 — 필드 목록에서 뺀다 (모바일 UI M0)
+        .filter((b) => !b.closest('[data-sheet-close]'))
         .map((b) => b.textContent),
     ).toEqual(['견적 번호', '금액', '통화']);
   });

@@ -35,8 +35,10 @@ export async function moreFields(user: UserEvent): Promise<string[]> {
   if (!more) return [];
   await user.click(more);
   const dialog = await screen.findByRole('dialog', { name: '필터 더 보기' });
+  // 모바일 시트 닫기 버튼(md:hidden — jsdom 은 CSS 없이 보인다)은 필드 목록이 아니다 (모바일 UI M0)
   const names = within(dialog)
     .getAllByRole('button')
+    .filter((button) => !button.closest('[data-sheet-close]'))
     .map((button) => button.textContent ?? '');
   await user.keyboard('{Escape}');
   await waitFor(() =>
