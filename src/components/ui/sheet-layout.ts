@@ -37,11 +37,16 @@ export function useSheetLayout(active: boolean): boolean {
   );
 }
 
-/** 시트 패널 — 아래에서 위로(y 100%→0). duration·ease 는 다른 패널과 같은 enter/exit 토큰, 모션 감소는 MotionProvider 가 따른다 */
+/**
+ * 시트 패널 — 아래에서 위로(y 100%→0). duration·ease 는 다른 패널과 같은 enter/exit 토큰, 모션 감소는 MotionProvider 가 따른다.
+ * 모달 패널은 닫힌 채 데스크톱 variants(scaleIn·drawerPanel)로 먼저 마운트되고 열릴 때 이것으로 바뀐다 — 그 variants 가 남긴
+ * scale·opacity·x 를 모든 상태에서 되돌려야 시트가 0.96 배로 줄어든 채 남지 않는다
+ */
+const SHEET_RESET = { x: 0, scale: 1, opacity: 1 } as const;
 export const sheetUp: Variants = {
-  initial: { y: '100%' },
-  animate: { y: 0, transition: transition.enter },
-  exit: { y: '100%', transition: transition.exit },
+  initial: { ...SHEET_RESET, y: '100%' },
+  animate: { ...SHEET_RESET, y: 0, transition: transition.enter },
+  exit: { ...SHEET_RESET, y: '100%', transition: transition.exit },
 };
 
 let scrollLocks = 0;

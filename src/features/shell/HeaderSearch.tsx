@@ -23,13 +23,19 @@ export function HeaderSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const openButtonRef = useRef<HTMLButtonElement>(null);
 
+  // 접을 때 아이콘으로 포커스 — 펼친 동안 아이콘은 display:none 이라, 다시 보이는 렌더 뒤(effect)에 옮긴다
+  const returnFocusRef = useRef(false);
   useEffect(() => {
     if (expanded) inputRef.current?.focus();
+    else if (returnFocusRef.current) {
+      returnFocusRef.current = false;
+      openButtonRef.current?.focus();
+    }
   }, [expanded]);
 
   const collapse = () => {
+    returnFocusRef.current = true;
     setExpanded(false);
-    openButtonRef.current?.focus();
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {

@@ -79,9 +79,10 @@ describe('useSheetLayout (모션 분기 전용)', () => {
   });
 
   it('시트 모션은 아래에서 위로', () => {
-    expect(sheetUp.initial).toEqual({ y: '100%' });
-    expect(sheetUp.animate).toMatchObject({ y: 0 });
-    expect(sheetUp.exit).toMatchObject({ y: '100%' });
+    expect(sheetUp.initial).toEqual({ x: 0, scale: 1, opacity: 1, y: '100%' });
+    // 데스크톱 variants(scaleIn 0.96·drawerPanel x)가 남긴 값을 되돌린다
+    expect(sheetUp.animate).toMatchObject({ y: 0, x: 0, scale: 1, opacity: 1 });
+    expect(sheetUp.exit).toMatchObject({ y: '100%', scale: 1 });
   });
 });
 

@@ -70,15 +70,19 @@ test('ADMIN: ERP 안내 버튼·칸별 ⓘ — 키보드 열기, Esc 포커스 �
   await expect(itemsDialog).toBeHidden();
   await expect(itemsHint).toBeFocused();
 
-  // 375px: 팝오버가 좌우 16px 안, 가로 스크롤 없음
+  // 375px: max-md 에서 팝오버는 하단 시트(모바일 UI 스펙 §3·M0) — 폭 전체·화면 아래, 가로 스크롤 없음
   await page.setViewportSize({ width: 375, height: 740 });
   await guide.scrollIntoViewIfNeeded();
   await guide.click();
-  // 등장 모션(scaleIn)이 끝난 뒤의 상자로 본다 — 애니메이션 중에는 축소된 상자가 잡힌다
+  // 등장 모션이 끝난 뒤의 상자로 본다 — 애니메이션 중에는 축소된 상자가 잡힌다
   await expect
     .poll(async () => {
       const box = (await dialog.boundingBox())!;
-      return box.x >= 16 && box.x + box.width <= 375 - 16;
+      return (
+        Math.round(box.x) === 0 &&
+        Math.round(box.width) === 375 &&
+        Math.round(box.y + box.height) === 740
+      );
     })
     .toBe(true);
   const overflow = await page.evaluate(() => ({

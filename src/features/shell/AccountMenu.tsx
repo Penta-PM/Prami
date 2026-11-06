@@ -45,32 +45,37 @@ export function AccountMenu({ user, initial }: { user: HeaderUser; initial: stri
           {initial}
         </span>
       </button>
-      <BottomSheet open={open} onClose={() => setOpen(false)} title="계정">
-        <div className="mb-4 flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className="flex size-11 shrink-0 items-center justify-center rounded-circle bg-surface-inverse text-[16px] font-semibold text-text-inverse"
-          >
-            {initial}
-          </span>
-          <div className="min-w-0 leading-[1.4]">
-            <div className="truncate text-[16px] font-semibold text-text-primary">{user.name}</div>
-            {user.roleLabel ? (
-              <div className="truncate text-[14px] text-text-tertiary">{user.roleLabel}</div>
-            ) : null}
+      {/* 열렸을 때만 마운트 — 닫힌 시트의 이름·역할이 헤더 DOM 에 중복으로 남지 않게. 닫기·Esc·배경은 Modal 이 퇴장 모션 후 onClose */}
+      {open ? (
+        <BottomSheet open onClose={() => setOpen(false)} title="계정">
+          <div className="mb-4 flex items-center gap-3">
+            <span
+              aria-hidden="true"
+              className="flex size-11 shrink-0 items-center justify-center rounded-circle bg-surface-inverse text-[16px] font-semibold text-text-inverse"
+            >
+              {initial}
+            </span>
+            <div className="min-w-0 leading-[1.4]">
+              <div className="truncate text-[16px] font-semibold text-text-primary">
+                {user.name}
+              </div>
+              {user.roleLabel ? (
+                <div className="truncate text-[14px] text-text-tertiary">{user.roleLabel}</div>
+              ) : null}
+            </div>
           </div>
-        </div>
-        <nav aria-label="계정" className="flex flex-col gap-2">
-          <Link href="/settings" onClick={() => setOpen(false)} className={SHEET_ROW_CLASSES}>
-            사용자 설정
-          </Link>
-          <form action={signOutAction}>
-            <button type="submit" className={SHEET_ROW_CLASSES}>
-              로그아웃
-            </button>
-          </form>
-        </nav>
-      </BottomSheet>
+          <nav aria-label="계정" className="flex flex-col gap-2">
+            <Link href="/settings" onClick={() => setOpen(false)} className={SHEET_ROW_CLASSES}>
+              사용자 설정
+            </Link>
+            <form action={signOutAction}>
+              <button type="submit" className={SHEET_ROW_CLASSES}>
+                로그아웃
+              </button>
+            </form>
+          </nav>
+        </BottomSheet>
+      ) : null}
     </>
   );
 }
