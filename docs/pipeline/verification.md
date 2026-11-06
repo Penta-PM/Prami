@@ -67,6 +67,7 @@ PR 본문에 추적표(ID·단계·테스트·결과)·로컬 검증·보안 체
    - 머지 후 그 run 이 빨강이면 Dev 가 즉시 수정 PR 을 올리고 Main 에 한 줄로 알린다. 수정이 오래 걸리면 revert PR. flake 는 §4.
    - ⑥b·⑦b 사후 확인 = 이 CI run 의 integration·e2e job 녹색. Main 은 ⑧ 보고에 결과를 덧붙인다.
 3. **SHA 대조**: 머지할 head SHA = Dev 게이트를 돌린 SHA(QA 를 거친 경우 QA 승인서의 `검증 SHA`). rebase 로만 달라졌다면 `git range-diff` 로 diff 가 같은지 확인하고 그 사실을 기록한다.
+   게이트 SHA 뒤의 커밋이 테스트·문서만(`tests/**`·`**/*.test.*`·`**/*.spec.*`·`docs/**`) 바꿨다면 head 에서 lint·typecheck·format + 바뀐 테스트 + ⑦a 영향 E2E 만 다시 돌리고 `게이트 SHA X(⑤⑥a) → head Y(테스트만: diff 요약), Y 재실행: …` 로 기록한다(`src/**`·설정·의존성이 바뀌면 전부 다시, [v-model.md](v-model.md) §2·PIPE-SR-5.2).
 
 - 머지는 `gh pr merge <N> --squash`. `--delete-branch` 는 역할 브랜치에 쓰지 않는다.
 - 머지 완료 보고(Main)에 **머지 SHA** 와 **ci:run run URL**(진행 중이어도 됨) 을 넣는다.
