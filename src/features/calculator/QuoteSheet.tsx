@@ -26,7 +26,8 @@ export function QuoteSheet({ document }: { document: QuoteDocumentView }) {
         <Meta label="제품군" value={document.productFamily ?? '—'} />
         <Meta label="작성자" value={document.ownerName} />
       </dl>
-      <div className="overflow-x-auto rounded-xl bg-surface-card shadow-(--hairline-default)">
+      {/* 768px 이상은 7열 표, max-md 는 같은 lines 로 그린 카드 (모바일 UI 스펙 §9 MOB-DS-101 — CSS 로만 전환) */}
+      <div className="overflow-x-auto rounded-xl bg-surface-card shadow-(--hairline-default) max-md:hidden">
         <table aria-label="견적 품목 표" className="w-full border-collapse text-[14px]">
           <thead className="bg-surface-muted text-left text-[12px] text-text-tertiary">
             <tr>
@@ -80,14 +81,58 @@ export function QuoteSheet({ document }: { document: QuoteDocumentView }) {
           </tbody>
         </table>
       </div>
+      <ul aria-label="견적 품목" className="m-0 flex list-none flex-col gap-2 p-0 md:hidden">
+        {document.lines.map((line) => (
+          <li
+            key={line.lineNo}
+            data-testid="quote-line-card"
+            className="flex flex-col gap-1 rounded-xl bg-surface-card p-4 shadow-(--hairline-default)"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[16px] font-semibold break-words">{line.name}</div>
+                <div className="text-[12px] text-text-tertiary">
+                  {line.lineNo} · {line.priceType ?? (line.kind === 'group' ? '그룹' : '—')}
+                  {line.itemCode ? ` · ${line.itemCode}` : ''}
+                </div>
+              </div>
+              <strong className="shrink-0 text-[16px] font-semibold whitespace-nowrap tabular-nums">
+                {priceLabel(line.lineTotal, line.currency)}
+              </strong>
+            </div>
+            <div className="text-[14px] text-text-secondary tabular-nums">
+              {line.qty} × {priceLabel(line.unitPrice, line.currency)} · 할인{' '}
+              {Number(line.discountRate)}%
+            </div>
+            {line.core ? (
+              <div className="text-[12px] text-text-tertiary" data-testid="core-line">
+                {coreLineLabel(line.core, line.currency)}
+              </div>
+            ) : null}
+            {line.options.map((option, index) => (
+              <div key={`${option.itemCode}-${index}`} className="text-[12px] text-text-tertiary">
+                + {option.label} {option.name} ({option.itemCode})
+                {option.qty > 1 ? ` × ${option.qty}` : ''} ·{' '}
+                {priceLabel(option.unitPrice, line.currency)}
+              </div>
+            ))}
+          </li>
+        ))}
+      </ul>
       <section
         aria-label="견적 합계"
-        className="flex flex-col items-end gap-1 rounded-2xl bg-surface-inverse p-6 text-text-inverse"
+        className={
+          // max-md: 스크롤해도 화면 아래에 붙는 합계 (MOB-DS-102 — 같은 요소 하나를 sticky 로, 하단 safe-area). 데스크톱 그대로
+          'flex flex-col items-end gap-1 rounded-2xl bg-surface-inverse p-6 text-text-inverse max-md:sticky max-md:bottom-0 max-md:z-10 max-md:px-4 max-md:pt-3 max-md:pb-[calc(0.75rem+var(--safe-bottom))] max-md:shadow-modal'
+        }
       >
         {document.totalAmount !== null && document.currency ? (
           <>
             <span className="text-[12px] text-text-inverse/60">합계 (할인 반영)</span>
-            <strong className="text-[28px] font-bold" data-testid="share-total">
+            <strong
+              className="text-[28px] font-bold tabular-nums max-md:text-[22px]"
+              data-testid="share-total"
+            >
               {priceLabel(document.totalAmount, document.currency)}
             </strong>
           </>
@@ -98,7 +143,7 @@ export function QuoteSheet({ document }: { document: QuoteDocumentView }) {
               통화가 섞여 있어 통화별 소계로 표시합니다
             </span>
             {document.subtotals.map((subtotal) => (
-              <strong key={subtotal.currency} className="text-[20px] font-bold">
+              <strong key={subtotal.currency} className="text-[20px] font-bold tabular-nums">
                 {priceLabel(subtotal.amount, subtotal.currency)}
               </strong>
             ))}
@@ -112,7 +157,7 @@ export function QuoteSheet({ document }: { document: QuoteDocumentView }) {
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-[11px] text-text-tertiary">{label}</dt>
+      <dt className="text-[11px] text-text-tertiary max-md:text-[12px]">{label}</dt>
       <dd className="m-0 font-semibold">{value}</dd>
     </div>
   );

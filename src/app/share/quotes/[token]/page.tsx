@@ -25,7 +25,7 @@ export default async function SharedQuotePage({ params }: SharePageProps) {
   const shared = await findSharedQuote(await getDb(), token);
   if (!shared) notFound();
   return (
-    <main className="min-h-screen bg-surface-page px-4 py-10">
+    <main className="min-h-screen bg-surface-page px-4 py-10 max-md:pt-6 max-md:pb-4">
       <div className="mx-auto flex w-full max-w-[880px] flex-col gap-6">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">

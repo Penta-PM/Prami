@@ -101,4 +101,51 @@ describe('ShareModal', () => {
     expect(mocks.create).toHaveBeenCalledWith({ quoteId: QUOTE.id, expiresInDays: '7' });
     expect(await screen.findByRole('alert')).toHaveTextContent('다른 사용자의 견적입니다');
   });
+
+  it('MOB-SR-103.4: navigator.share 가 없으면 [공유] 없음, 링크 행 버튼은 max-md 44px', async () => {
+    mocks.list.mockResolvedValue({ ok: true, data: [share()] });
+    render(<ShareModal quote={QUOTE} onClose={vi.fn()} />);
+    const list = await screen.findByRole('list', { name: '공유 링크 목록' });
+    await within(list).findByRole('button', { name: '링크 복사' });
+    expect(within(list).queryByRole('button', { name: '공유' })).not.toBeInTheDocument();
+    for (const control of [
+      within(list).getByRole('button', { name: '링크 복사' }),
+      within(list).getByRole('link', { name: '열기' }),
+      within(list).getByRole('button', { name: /폐기$/ }),
+    ])
+      expect(control.className).toContain('max-md:h-11');
+  });
+
+  it('MOB-SR-103.1~103.3: [공유] → navigator.share(제목·URL), 닫으면 메시지 없음, 다른 오류는 복사 대체', async () => {
+    const shareFn = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { share: shareFn });
+    try {
+      mocks.list.mockResolvedValue({ ok: true, data: [share()] });
+      render(<ShareModal quote={QUOTE} onClose={vi.fn()} />);
+      const list = await screen.findByRole('list', { name: '공유 링크 목록' });
+      const button = await within(list).findByRole('button', { name: '공유' });
+      await userEvent.click(button);
+      expect(shareFn).toHaveBeenCalledWith({
+        title: 'Prami 견적서 Q-2026-0003',
+        url: `${window.location.origin}${share().path}`,
+      });
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+      shareFn.mockRejectedValueOnce(Object.assign(new Error('x'), { name: 'AbortError' }));
+      await userEvent.click(button);
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+
+      shareFn.mockRejectedValueOnce(new TypeError('blocked'));
+      await userEvent.click(button);
+      expect(await screen.findByRole('status')).toHaveTextContent('링크를 복사했습니다');
+
+      vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error('denied'));
+      shareFn.mockRejectedValueOnce(new TypeError('blocked'));
+      await userEvent.click(button);
+      expect(await screen.findByRole('alert')).toHaveTextContent('복사할 수 없습니다. 링크:');
+    } finally {
+      Reflect.deleteProperty(navigator, 'share');
+    }
+  });
 });
