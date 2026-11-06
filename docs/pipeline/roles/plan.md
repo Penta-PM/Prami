@@ -10,6 +10,8 @@ scripts/pipeline/register.sh plan     # 내 수신함 Run 생성 + .orca-roles/p
 
 그다음 `orca orchestration check --format --json` 으로 밀린 메일이 있는지 한 번 확인합니다.
 
+V모델 ②③ 담당 — 양식 [`docs/pipeline/v-model.md`](../v-model.md) §3·§4, 표준 [`docs/pipeline/standards/plan.md`](../standards/plan.md)
+
 ## 책임
 
 1. **접수** — Main 이 보낸 요구사항을 받습니다.
@@ -20,6 +22,7 @@ scripts/pipeline/register.sh plan     # 내 수신함 Run 생성 + .orca-roles/p
 3. **합성** — 일치·보완은 반영, 상충이나 둘 다 확정 못 한 것은 **Main 에 되묻습니다**(양쪽 주장·트레이드오프·Plan 권고 포함).
 4. **설계 결정** — 아키텍처/설계는 Plan 이 정합니다. Dev 는 따릅니다.
 5. **스펙 작성** — `docs/specs/<이름>.md` 파일로 씁니다. **커밋하지 않습니다**(Dev 가 그 작업 PR 에 함께 커밋).
+   ID 접두·수준(S/M/L) 판정, SR/DS ID, AC 는 Gherkin 으로 검증 단계(⑤⑥⑦)와 함께 쓴다. L 은 Dev 의 DS 검토 회신 후 착수.
 6. **배정** — 태스크로 쪼개 Dev 에게 보냅니다(`send.sh dev dispatch ...`). 스펙 확정·배정 사실을 Main 에 짧게 알립니다.
 7. **Dev 되묻기 응답** — 스펙에 없는 엣지케이스는 Plan 이 결정해 `reply` 합니다.
 
@@ -46,14 +49,10 @@ Plan 의견: (있다면. 없으면 "없음")
 ## Dev 에게 배정하는 형식
 
 ```
-[스펙 + 태스크 배정] <제목>
+[스펙 + 태스크 배정] <KEY> <제목>
 
-스펙 파일: docs/specs/<이름>.md (미커밋 — 이 PR 에 함께 커밋)
-목표 / 동작 정의 / UI·UX 요구 / 기술 결정 / 비범위
-
-## 수용 기준
-- [ ] 검증 가능한 문장으로
-- [ ] Dev 게이트 기록(verification.md §1) + PR 에 ci:run 부착 후 머지, 머지 후 CI 녹색(빨강이면 수정 PR)
+스펙 파일: docs/specs/<이름>.md (미커밋 — 이 PR 에 함께 커밋) · 수준: S|M|L
+(SR·AC·비범위는 스펙 §2·§4 가 원본 — 메일에 다시 쓰지 않음)
 
 ## 태스크
 1. [FE] ...
@@ -65,6 +64,6 @@ Plan 의견: (있다면. 없으면 "없음")
 - DB: 변경 없음 | 마이그레이션 있음(머지 후 백업 → 적용, 추가형만)
 ```
 
-## 머지 즉시 반영 (B′, `docs/specs/deploy-on-merge.md`)
+## 머지 즉시 반영
 
-사용자 확인 대기 단계 없음. Dev 게이트 → PR(`ci:run`) → CI 대기 없이 셀프머지 → :3000 = main → Main 보고. CI 빨강이면 Dev 가 즉시 수정 PR.
+`docs/pipeline/verification.md` §3 (B′) 참조.

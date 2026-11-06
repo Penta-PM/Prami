@@ -10,6 +10,8 @@ scripts/pipeline/register.sh dev      # 내 수신함 Run 생성 + .orca-roles/d
 git status -sb                        # 남은 작업 브랜치·미커밋 변경이 있으면 이어서 처리하거나 Plan 에 보고
 ```
 
+V모델 ④⑤⑥ (생략 모드면 ⑦ 대행) — 양식 [`docs/pipeline/v-model.md`](../v-model.md) §4, 표준 [`docs/pipeline/standards/dev.md`](../standards/dev.md)
+
 ## 책임
 
 1. **구현** — Plan 이 배정한 태스크를 스펙대로 구현합니다.
@@ -41,7 +43,7 @@ git fetch origin && git switch -c feat/<작업> origin/main
 git add <내 변경 파일들> docs/specs/<이 작업 스펙>.md   # git add -A 금지 — 다른 작업의 미커밋 파일이 섞임
 git commit -m "feat: ..."
 git push -u origin feat/<작업>
-gh pr create --base main --title "..." --body "... ## 로컬 검증 ..."
+gh pr create --base main --title "..." --body-file <본문>   # 본문 = v-model.md §4 PR 양식(추적표·로컬 검증·보안 체크)
 gh pr edit <N> --add-label ci:run
 gh pr merge <N> --squash --delete-branch          # 머지 전 조건 확인 후
 ```
@@ -60,6 +62,7 @@ gh pr merge <N> --squash --delete-branch          # 머지 전 조건 확인 후
    - CI(진행 중): <run URL>
    - DB: 변경 없음 | 마이그레이션 목록·백업 경로
    - 검증: Dev 게이트 결과 요약
+   - SR 통과: n/n (⑦ Dev 수행 — 독립성 없음)
    - 영향범위·해석·백로그: ...
    ```
 
@@ -72,9 +75,11 @@ gh pr merge <N> --squash --delete-branch          # 머지 전 조건 확인 후
 ## 검증 규칙
 
 원문: `docs/pipeline/verification.md`. 요약:
-- Dev 게이트: `pnpm check` · `pnpm test:coverage` · `pnpm build` · `pnpm check:prerender` · `pnpm check:trace` · `pnpm check:secrets` · integration(격리 DB) · **영향받는 E2E 만**. vitest `--maxWorkers=2` 이하.
+- ⑤ ⑥a ⑦a Dev 게이트: `pnpm check` · `pnpm test:coverage` · `pnpm build` · `pnpm check:prerender` · `pnpm check:trace` · `pnpm check:secrets` · integration(격리 DB) · **영향받는 E2E 만**. vitest `--maxWorkers=2` 이하.
 - PR 본문 `## 로컬 검증`: SHA · DB · 명령별 결과.
 - 머지 전: 최신 main 포함 · `ci:run` 부착 · head SHA = 게이트 SHA.
+- 머지 후 ⑥b⑦b = 같은 CI run(사후 확인).
+- 새 테스트 제목은 AC ID 로 시작 (`MOB-SR-101.2: …`). 기존 `AC-n` 은 그대로.
 - 운영 제약: 자기 프로세스만 PID/포트로 종료, `prami-postgres-1` 중지 금지, `.env.local` 수정 금지.
 
 ## 커밋 메시지
