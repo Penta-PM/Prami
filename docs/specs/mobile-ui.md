@@ -3,6 +3,7 @@
 - 요구: Main msg_fbb0f4a8859a (2026-11-06). 사용자 원문: "프라미의 모바일 버전 UI/UX도 만들어야함".
   - 기준: Vercel Web Interface Guidelines(command.md, 2026-11-06 최신본을 받아 대조).
 - 기준 코드: main 83413aa.
+- ID 접두: MOB · V모델 시범: M1 부터(`docs/pipeline/v-model.md`). M1 수준: M. M0 이하 내용은 기존 형식 그대로 둡니다.
 - 병렬 검토: UI/UX 검토와 기능/기술 검토의 결론이 같습니다. 두 쪽 모두 아래 권고에 동의했고 상충하는 부분은 없습니다.
   - 반응형 단일 경로
   - CSS 우선
@@ -214,9 +215,63 @@
 - [ ] 터치 영역이 44px 이상입니다.
 - [ ] 원가 정보가 카드나 시트에 새로 노출되지 않습니다(권한이 없으면 payload 키 0).
 - [ ] 보안 규칙을 지킵니다(매칭 파일, jodari 원본, 원가 금액, 비밀값).
-- [ ] Dev 게이트 기록(§3.1). PR에 `ci:run`을 붙여 머지하고, 머지 후 CI가 녹색인지 확인합니다(B′).
+- [ ] Dev 게이트 기록(verification.md §1 — ⑤⑥a⑦a). PR에 `ci:run`을 붙여 머지하고, 머지 후 CI ⑥b⑦b가 녹색인지 확인합니다(B′).
+
+## 9. V모델 — M1 공유 견적서 (ID 접두 MOB, 수준 M)
+수준 근거: 변경 예상 파일 3~4개(QuoteSheet·공유 페이지·ShareModal + 공유 유틸)와 테스트. 새 경로·API·DB·권한·`src/components/ui/**` 변경 없음 → S 조건(새 컴포넌트 없음·파일 3개 이하)을 넘으므로 M. ③ 검토는 비차단(이의 있으면 착수 전 question 1회).
+
+### 9.1 추적표
+| UR | SR | DS | 검증 단계 |
+|---|---|---|---|
+| MOB-UR-1 | MOB-SR-001(공통) | — | ⑦ |
+| MOB-UR-1 | MOB-SR-101 품목 카드 | MOB-DS-101 | ⑦ |
+| MOB-UR-1 | MOB-SR-102 합계 고정 | MOB-DS-102 | ⑦ |
+| MOB-UR-1 | MOB-SR-103 공유 버튼 | MOB-DS-103 | ⑤ ⑦ |
+| MOB-UR-1 | MOB-SR-104 PDF 열고 돌아오기 | MOB-DS-104 | ⑦ ⑧ |
+
+- **MOB-UR-1** (Plan 초안, 원 요구 msg_fbb0f4a8859a "모바일 버전 UI/UX" — Main 이 새 접수 양식으로 보내면 교체)
+  - 인수 기준 1: 폰으로 공유 견적서 링크를 열면 확대·가로 스크롤 없이 품목과 합계를 볼 수 있다.
+  - 인수 기준 2: 폰에서 견적 공유 링크를 메신저 등 앱으로 바로 보낼 수 있다.
+  - 인수 기준 3: 폰에서 견적서 PDF 를 열었다가 앱으로 돌아오면 보던 화면이 그대로다(실기기 — 사용자 확인 필요).
+
+### 9.2 시스템 요구 · AC (Gherkin — 키워드 영어, 실행하지 않음. 괄호: 검증 단계·기법)
+- **MOB-SR-001 공통** (25010: 상호작용 능력·보안성) — M1~M7 모든 단계에 적용. 각 단계 PR 은 해당 화면으로 이 AC 를 다시 확인합니다.
+  - MOB-SR-001.1 (⑦) Given 1280px When 기존 E2E 와 `mobile-desktop-invariant` 를 돌리면 Then 전부 통과한다.
+  - MOB-SR-001.2 (⑦, 경계값 360/320) Given 360×740 과 320×640 When 해당 단계 화면을 열면 Then 문서 가로 넘침이 0 이다.
+  - MOB-SR-001.3 (⑦, WCAG 2.5.8) Given max-md When 해당 단계의 주요 컨트롤을 재면 Then 터치 영역이 44×44px 이상이다.
+  - MOB-SR-001.4 (⑦) Given max-md When 입력에 포커스하면 Then 글자가 16px 이상이다(해당 화면에 입력이 없으면 N/A).
+  - MOB-SR-001.5 (⑦) Given 해당 단계 화면 When 카드·시트를 렌더하면 Then 원가 관련 키가 payload 에 새로 생기지 않는다(기존 권한 원칙 그대로).
+- **MOB-SR-101 공유 견적서 품목 카드** (`/share/quotes/[token]`, 비로그인)
+  - MOB-SR-101.1 (⑦) Given 360px 에서 공유 링크를 열면 When 품목 영역을 보면 Then `role=table` 은 숨겨지고 `role=list` 카드가 보이며, 카드마다 품목명·수량×단가·할인·금액이 있다.
+  - MOB-SR-101.2 (⑦, 동등 분할: 단품/옵션 있음/코어 있음/그룹) Given 옵션·코어 줄이 있는 품목 When 카드를 보면 Then 옵션·코어 줄이 그 카드 안에 있고 글자가 12px 이상이다(§4: 11px 이하 금지).
+  - MOB-SR-101.3 (⑦) Given 360px When 머리 정보(견적 번호·일자·제품군·작성자)를 보면 Then 2열로 넘침 없이 보이고 라벨은 12px 이상이다.
+  - MOB-SR-101.4 (⑦) Given 768px 이상 When 같은 링크를 열면 Then 기존 7열 표가 보이고 카드는 숨겨진다.
+- **MOB-SR-102 합계 고정**
+  - MOB-SR-102.1 (⑦, 결정표: 단일 통화/혼합 통화 × 품목 짧음/김) Given 360px 에서 품목이 화면보다 길 때 When 위에서부터 스크롤하면 Then 합계(단일 통화면 합계, 혼합이면 통화별 소계)가 화면 아래에 계속 보인다.
+  - MOB-SR-102.2 (⑦) Given 합계가 아래에 고정돼 있을 때 When 맨 아래까지 스크롤하면 Then 마지막 품목 카드와 하단 안내 문구가 합계에 가려지지 않는다.
+  - MOB-SR-102.3 (⑦) Given 768px 이상 Then 합계 패널은 지금 위치·크기 그대로다.
+- **MOB-SR-103 공유 버튼** (계산기 → 견적 공유 모달, max-md 에서는 M0 시트)
+  - MOB-SR-103.1 (⑤⑦, 상태 전이) Given 브라우저가 `navigator.share` 를 지원할 때 When 링크 행의 [공유]를 누르면 Then `navigator.share({ title: 'Prami 견적서 <견적번호>', url: <절대 URL> })` 가 호출된다. 금액은 공유 텍스트에 넣지 않는다.
+  - MOB-SR-103.2 (⑤) Given [공유] 를 눌렀을 때 When 사용자가 공유 창을 닫으면(AbortError) Then 아무 메시지도 띄우지 않는다.
+  - MOB-SR-103.3 (⑤) Given [공유] 를 눌렀을 때 When AbortError 가 아닌 오류가 나면 Then 클립보드 복사로 대체하고 "링크를 복사했습니다" 를 띄운다(복사도 실패하면 지금 문구 그대로 링크를 보여 준다).
+  - MOB-SR-103.4 (⑦) Given `navigator.share` 가 없을 때 When 모달을 열면 Then [공유] 버튼은 없고 [링크 복사]·[열기]·[폐기] 는 지금 그대로다.
+  - MOB-SR-103.5 (⑦, WCAG 2.5.8) Given max-md When 링크 행 버튼을 재면 Then 터치 영역이 44px 이상이다(보이는 크기는 36px 허용, §4).
+- **MOB-SR-104 PDF 열고 돌아오기** — 코드 변경 없이 확인
+  - MOB-SR-104.1 (⑦) Given 모바일 에뮬레이션의 계산기에서 저장된 견적이 있을 때 When [견적서 출력]을 누르면 Then 새 탭(`target=_blank`)으로 `/api/quotes/<id>/pdf` 가 열리고 원래 탭의 URL·장바구니 상태는 그대로다.
+  - MOB-SR-104.2 (⑧ 실기기) iOS Safari·Android Chrome 에서 PDF 를 열고 돌아오는 확인은 Dev 게이트에 "에뮬레이션만 | 실기기 <기기>" 로 기록하고, 실기기를 못 했으면 Main ⑧ 보고에 "사용자 확인 필요".
+
+### 9.3 설계 (ADR)
+- **MOB-DS-101 카드는 QuoteSheet 안에서 직접 렌더** — 맥락: QuoteSheet 는 DataTable 이 아닌 `<table>`(서버 컴포넌트, 상태 없음). 결정: 같은 `document.lines` 로 `<ul role="list">` 카드를 함께 렌더하고 표는 `max-md:hidden`, 카드는 `md:hidden`(§3 CSS 우선). M2 의 DataTable 공용 카드 모드는 기다리지 않음. 서버 컴포넌트 유지, 클라이언트 JS 추가 없음. 결과: DOM 2벌(품목 수 적어 허용). 원가는 문서 모델에 없으므로 카드에도 없음.
+- **MOB-DS-102 합계는 한 요소를 sticky 로** — 결정: 기존 합계 `<section aria-label="견적 합계">` 를 max-md 에서 `sticky bottom-0` + 하단 safe-area 여백 + 금액 20~24px(§4)로. 같은 정보를 두 번 렌더하지 않음(스크린 리더 중복 방지). 공유 페이지 `<main>` 의 세로 여백은 max-md 에서 줄여 넘침을 막음. 대안(별도 고정 바 + 원래 패널)은 중복이라 기각.
+- **MOB-DS-103 공유는 기능 감지로** — 결정: 화면 폭이 아니라 `typeof navigator.share === 'function'` 으로 [공유] 표시(데스크톱 Chrome·Safari 도 지원하면 보임 — 데스크톱 동작 추가지만 기존 버튼은 그대로라 회귀 아님). 감지는 모달이 열린 뒤(클라이언트에서만 렌더되는 모달)라 하이드레이션 불일치 없음. 공유→오류→복사 대체 로직은 순수 함수로 분리해 ⑤ 단위 테스트(103.1~103.3). §3 의 "JS 는 두 곳만" 규칙은 레이아웃 분기 대상이며 기능 감지는 해당하지 않음.
+- **MOB-DS-104 PDF 는 변경 없음** — 현재 `content-disposition: inline` + `target=_blank` 가 "열고 돌아오기"에 맞음. 확인만 하고, 계산기 쪽 터치 영역 등은 M3 에서.
+
+### 9.4 비범위
+- 계산기 화면 자체(CartPanel·견적 목록의 PDF 링크 크기 등) → M3. 공유 페이지 PDF 다운로드 버튼 신설 없음. `src/components/ui/**`·API·DB 변경 없음.
+- 테스트: 새 파일 `tests/e2e/quote-share.mobile.spec.ts`(제목은 `MOB-SR-1xx.y: …` 로 시작, `mobile-helpers.ts` 사용) + 1280px 불변은 기존 `mobile-desktop-invariant.spec.ts` 에 공유 페이지 한 줄 추가. 기존 `quote-share.spec.ts`(AC-71)는 이름 그대로.
 
 ## 8. 진행 기록
+- 2026-11-06 M0 머지(#115, main 5875e13). M1 을 V모델 시범으로 §9 에 SR/DS 작성(MOB-UR-1 은 Plan 초안). PIPE 문서 PR 머지 후 배정.
 - 2026-11-06 세션 중단 후 단일 워크트리로 재개(#114). M0 미검증 진행분은 `origin/feat/mobile-m0`(270391f, wip: globals.css·ui/density·drawer·input·modal·popover·select·sheet·sheet-layout). Dev가 그 브랜치를 이어받아 완성합니다. 이 스펙의 옛 워크트리 전제(wt-*, Dev detached)는 루트 CLAUDE.md 규칙으로 읽습니다.
 - 2026-11-06 사용자 Q1~Q7 확정(전부 권고안). M1~M7 순차 배정(M0 머지 후 순서대로, 단계마다 B′ 보고). PWA는 M6에 포함.
 - 2026-11-06 병렬 검토를 마치고 스펙 초안을 썼습니다. Q1~Q7은 Main에 되묻습니다. M0(기반)은 Q1~Q7과 상관없어서(어느 답이 와도 필요함) 먼저 배정합니다.

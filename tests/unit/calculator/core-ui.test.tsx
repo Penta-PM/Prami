@@ -176,10 +176,45 @@ describe('견적서 코어 하위 줄 (§4)', () => {
 
   it('추가 코어 줄 / 기준 그대로면 "기준 N코어" / 옛 라인은 없음', () => {
     render(<QuoteSheet document={document} />);
-    const rows = screen.getAllByTestId('core-line');
-    expect(rows.map((row) => row.textContent)).toEqual([
-      '+ 추가 코어 2 × 1,500,000원 (기준 4코어 포함, 총 6코어)',
-      '기준 4코어',
-    ]);
+    // 표(데스크톱)와 카드(max-md, 모바일 UI M1) 모두 같은 코어 줄
+    for (const scope of [
+      screen.getByRole('table', { name: '견적 품목 표' }),
+      screen.getByRole('list', { name: '견적 품목' }),
+    ]) {
+      const rows = within(scope).getAllByTestId('core-line');
+      expect(rows.map((row) => row.textContent)).toEqual([
+        '+ 추가 코어 2 × 1,500,000원 (기준 4코어 포함, 총 6코어)',
+        '기준 4코어',
+      ]);
+    }
+  });
+
+  it('MOB-SR-101.1·101.2·101.4·102.1: 표는 max-md:hidden, 카드(md:hidden)는 품목명·수량×단가·할인·금액, 옵션·코어 줄 12px, 합계는 max-md sticky', () => {
+    const withOption = {
+      ...line,
+      lineNo: 4,
+      core: null,
+      discountRate: '10',
+      options: [{ label: '파츠', name: 'HA 키트', itemCode: 'OPT-1', qty: 2, unitPrice: 500_000 }],
+    } satisfies QuoteDocumentView['lines'][number];
+    render(<QuoteSheet document={{ ...document, lines: [line, withOption] }} />);
+    const table = screen.getByRole('table', { name: '견적 품목 표' });
+    expect(table.parentElement!.className).toContain('max-md:hidden');
+    const list = screen.getByRole('list', { name: '견적 품목' });
+    expect(list.className).toContain('md:hidden');
+    const cards = within(list).getAllByRole('listitem');
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toHaveTextContent('D.AMO KE');
+    expect(cards[0]).toHaveTextContent('2 × 13,000,000원 · 할인 0%');
+    expect(cards[0]).toHaveTextContent('26,000,000원');
+    const option = within(cards[1]!).getByText(/HA 키트/);
+    expect(option).toHaveTextContent('+ 파츠 HA 키트 (OPT-1) × 2 · 500,000원');
+    expect(option.className).toContain('text-[12px]');
+    expect(within(cards[1]!).getByText(/할인 10%/)).toBeInTheDocument();
+    // 원가 키 없음 (MOB-SR-001.5) — 문서 모델에 원가가 없다
+    expect(list.textContent).not.toMatch(/원가/);
+    const total = screen.getByRole('region', { name: '견적 합계' });
+    expect(total.className).toContain('max-md:sticky');
+    expect(total.className).toContain('max-md:bottom-0');
   });
 });

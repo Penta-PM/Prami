@@ -49,12 +49,12 @@ test('USER: STEP1 단가유형 → STEP3 품목·수량 → STEP4 파츠 → 목
 
   await page.getByRole('button', { name: '견적 저장' }).click();
   // 새로고침 뒤에는 복원 배너(role=status)도 있어 저장 안내 문구로 찾는다
-  await expect(page.getByRole('status').filter({ hasText: '견적을 저장했습니다' })).toContainText(
-    `견적을 저장했습니다: Q-${YEAR}-`,
-  );
+  const savedStatus = page.getByRole('status').filter({ hasText: '견적을 저장했습니다' });
+  await expect(savedStatus).toContainText(`견적을 저장했습니다: Q-${YEAR}-`);
+  const savedNo = new RegExp(`Q-${YEAR}-\\d{4}`).exec(await savedStatus.innerText())![0];
   const saved = page.getByLabel('내 견적 목록');
-  await expect(saved).toContainText(`Q-${YEAR}-`);
-  await saved.getByRole('button', { name: /담기/ }).first().click();
+  // 같은 계정의 이전 견적(다른 스펙이 남김)이 목록에 먼저 있을 수 있다 — 방금 저장한 번호의 담기를 누른다
+  await saved.getByRole('button', { name: `${savedNo} 담기` }).click();
   await expect(page.getByRole('region', { name: '장바구니' })).toContainText('Wapples SA-500');
 
   await page.getByRole('button', { name: '전체보기' }).click();

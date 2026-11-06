@@ -10,6 +10,7 @@ import { formatAuditTime } from '@/lib/audit-format';
 import { cn } from '@/lib/cn';
 
 import { createQuoteShareAction, listQuoteSharesAction, revokeQuoteShareAction } from './actions';
+import { canNativeShare, copyLink, shareOrCopy, shareTitle } from './share-link';
 import type { QuoteShareView, SavedQuoteView } from './types';
 
 type ShareModalProps = { quote: SavedQuoteView; onClose: () => void };
@@ -17,6 +18,9 @@ type ShareModalProps = { quote: SavedQuoteView; onClose: () => void };
 type Flash = { tone: 'ok' | 'error'; text: string };
 
 export const SHARE_DAYS_DEFAULT = 30;
+
+/** 링크 행 버튼 — max-md 에서 높이 44px·간격 8px (모바일 UI 스펙 §4·§9 MOB-SR-103.5), 데스크톱은 sm(36) 그대로 */
+const ROW_ACTION_CLASSES = 'max-md:h-11';
 
 /**
  * 견적 공유 모달 (§4.5.8): 링크 목록(만료·상태) · 새 링크 만들기(만료일 기본 30일) · 복사 · 폐기.
@@ -28,6 +32,10 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
   const [showInactive, setShowInactive] = useState(false);
   const [flash, setFlash] = useState<Flash | null>(null);
   const [isPending, startTransition] = useTransition();
+  // 브라우저 공유 기능 감지 (MOB-DS-103) — 이 모달은 클라이언트에서 열릴 때만 렌더되므로 하이드레이션 불일치가 없다
+  const [nativeShare] = useState(
+    () => typeof navigator !== 'undefined' && canNativeShare(navigator),
+  );
 
   useEffect(() => {
     let active = true;
@@ -64,12 +72,17 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
 
   const copy = async (share: QuoteShareView) => {
     const url = absoluteUrl(share.path);
-    try {
-      await navigator.clipboard.writeText(url);
-      setFlash({ tone: 'ok', text: '링크를 복사했습니다' });
-    } catch {
+    if (await copyLink(navigator, url)) setFlash({ tone: 'ok', text: '링크를 복사했습니다' });
+    else setFlash({ tone: 'error', text: `복사할 수 없습니다. 링크: ${url}` });
+  };
+
+  // 공유 → 닫으면 조용히, 다른 오류는 복사로 대체 (MOB-SR-103.1~103.3). 공유 텍스트에 금액 없음
+  const shareTo = async (target: QuoteShareView) => {
+    const url = absoluteUrl(target.path);
+    const outcome = await shareOrCopy(navigator, { title: shareTitle(quote.quoteNo), url });
+    if (outcome === 'copied') setFlash({ tone: 'ok', text: '링크를 복사했습니다' });
+    else if (outcome === 'failed')
       setFlash({ tone: 'error', text: `복사할 수 없습니다. 링크: ${url}` });
-    }
   };
 
   return (
@@ -158,8 +171,22 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
                   </div>
                 </div>
                 {share.isActive ? (
-                  <div className="flex shrink-0 gap-1.5">
-                    <Button size="sm" onClick={() => void copy(share)}>
+                  <div className="flex shrink-0 gap-1.5 max-md:w-full max-md:flex-wrap max-md:gap-2">
+                    {nativeShare ? (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        className={ROW_ACTION_CLASSES}
+                        onClick={() => void shareTo(share)}
+                      >
+                        공유
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      className={ROW_ACTION_CLASSES}
+                      onClick={() => void copy(share)}
+                    >
                       링크 복사
                     </Button>
                     {/* 옆 Button(secondary·sm)과 같은 모양 — 링크 목록 행의 밀집 동작이라 sm(36·14) */}
@@ -167,6 +194,7 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
                       className={cn(
                         'inline-flex items-center rounded-control border border-solid border-primary-600 bg-neutral-0 px-4 font-semibold text-primary-600 no-underline hover:border-primary-700 hover:bg-primary-50 hover:text-primary-700 hover:no-underline',
                         controlSizeClasses('sm'),
+                        ROW_ACTION_CLASSES,
                         FOCUS_RING_CLASSES,
                       )}
                       href={share.path}
@@ -178,6 +206,7 @@ export function ShareModal({ quote, onClose }: ShareModalProps) {
                     <Button
                       size="sm"
                       variant="danger"
+                      className={ROW_ACTION_CLASSES}
                       disabled={isPending}
                       aria-label={`${share.token.slice(0, 8)} 폐기`}
                       onClick={() => revoke(share)}
