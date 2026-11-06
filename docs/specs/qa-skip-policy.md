@@ -2,7 +2,9 @@
 
 - 근거: Main msg_65787e57f98d(/pricing 비노출 PR), msg_689694299ac2(확대: "다른거도 다 QA 없이 진행해줘").
 - 적용: 진행·대기 중인 **모든 작업**(/pricing 가격 변동 비노출, 원가 매핑 열·모달, 페이지 상태 기억 B-1·B-2 등). 사용자가 QA 재개를 지시할 때까지 유지.
-- 절차: Dev 게이트(`docs/pipeline/verification.md` §3.1 — 단위·통합·E2E) + 머지 head SHA 의 `ci:run` 녹색 확인 후 셀프머지(merge-base·SHA 일치 규칙 유지). QA 요청 없음. 머지 보고에 "QA 생략(사용자 결정 msg_65787e57f98d·msg_689694299ac2)" 명시.
-- 각 스펙의 표준 수용 기준 중 "QA E2E 전체 1회(§3.2)" 는 이 기간 동안 Dev E2E 전체 실행으로 갈음.
+- 절차: `docs/pipeline/verification.md` §1 Dev 게이트(⑤⑥a⑦a) 후 `ci:run` 부착·B′ 셀프머지(§3, merge-base·SHA 일치 규칙 유지), 머지 후 CI ⑥b⑦b 사후 확인. QA 요청 없음. 머지 보고에 "QA 생략(사용자 결정 msg_65787e57f98d·msg_689694299ac2)" 명시.
+- 각 스펙의 표준 수용 기준 중 QA ⑦ 은 이 기간 동안 Dev ⑦a(영향·SR 매핑 E2E) + CI ⑦b(전체 E2E)로 갈음, 보고에 "독립성 없음".
 - 유지: 원가 금액 비노출 등 보안 원칙, 마이그레이션 PR 머지 직후 LAN DB 적용(§3), 적용 전 백업 원칙, 수용 기준 자체(검증 주체만 Dev).
 - QA 통지: Plan 은 QA 와 직접 통신하지 않으므로(역할 규칙) Dev 가 QA 에 대기·진행 중 검증 철회를 전달.
+
+(2026-11-06 V모델 도입으로 문구 정리 — `docs/specs/pipeline-v-model.md`)

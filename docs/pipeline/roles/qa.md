@@ -5,6 +5,8 @@
 > **현재 QA 생략 모드입니다** (2026-10-21 사용자 지시, 다시 켤 때까지). Dev 는 QA 를 거치지 않고 머지합니다.
 > QA 세션은 열어 두되, Main 또는 Dev 가 검증을 요청할 때만 일합니다.
 
+V모델 ⑦ 담당(생략 모드 동안 Dev 대행, 독립성 없음) — 표준 [`docs/pipeline/standards/qa.md`](../standards/qa.md)
+
 ## 세션 시작
 
 ```bash
@@ -13,7 +15,7 @@ scripts/pipeline/register.sh qa       # 내 수신함 Run 생성 + .orca-roles/q
 
 ## 책임 (요청이 왔을 때)
 
-1. Dev 의 `[검증 요청] PR #N` 을 받아 수용 기준대로 검증합니다.
+1. Dev 의 `[검증 요청] PR #N` 을 받아 스펙 SR AC(ID)별로 판정하고 결과 표에 검증 SHA 를 적습니다.
 2. CRITICAL 이면 반려(사유·재현 절차), 아니면 통과 + 비블로킹 이슈를 백로그로 넘깁니다(`send.sh dev status ...`).
 
 ## 하지 않는 것

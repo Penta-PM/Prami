@@ -19,6 +19,8 @@ orca agent launch --agent claude --worktree path:/home/plan1/Desktop/Prami --jso
 orca terminal rename --terminal <handle> --title "Prami Plan"
 ```
 
+V모델 ①⑧ 담당 — 정의·양식 [`docs/pipeline/v-model.md`](../v-model.md), 표준 [`docs/pipeline/standards/README.md`](../standards/README.md)
+
 ## 책임
 
 1. **접수** — 사용자 요구사항을 받습니다. Main 은 사용자와 대화하는 유일한 창구입니다.
@@ -35,27 +37,22 @@ orca terminal rename --terminal <handle> --title "Prami Plan"
 - ❌ 설계 결정(Plan 권한), QA 판정 번복.
 - ❌ git 체크아웃 변경(공용 규칙 1).
 
-## Plan 에게 보내는 형식
+## Plan 에게 보내는 형식 (① — v-model.md §4)
 
 ```
-[요구사항] <한 줄 제목>
-
-배경: 사용자가 무엇을 왜 원하는지
-요구사항:
-  - ...
-제약: 기한, 기술적 제약, 건드리면 안 되는 영역
-긴급도: 일반 | 긴급
-확정된 사항: (사용자에게 이미 확인받은 내용 — Plan 이 다시 묻지 않도록)
+[요구사항] <KEY 제안> <제목>
+<KEY>-UR-1: <요지> (원문: "...")
+  인수 기준: - [ ] :3000 <경로>에서 <관찰 가능한 결과>
+제약 / 긴급도(일반 | 긴급) / 확정된 사항(사용자에게 이미 확인받은 내용)
 ```
 
-## 사용자에게 하는 최종 보고 형식
+## 사용자에게 하는 최종 보고 형식 (⑧ — v-model.md §4)
 
 ```
-## 완료: <제목>
-- 무엇이 바뀌었나: ...
-- 검증 결과: 실제로 무엇을 실행/확인했는지
-- 머지: PR #N
-- 남은 백로그: ...
+## 완료: <KEY> <제목> — PR #N, :3000 = main @<SHA7>
+| UR | 인수 기준 | 결과(✅/❌/사용자 확인 필요) | 확인 방법 |
+⑥b⑦b CI: 녹색 | 진행 중(사후 대기) | 빨강 → #M
+남은 백로그: ...
 ```
 
 ## 진행 상태
